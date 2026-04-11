@@ -32,3 +32,8 @@ These layers are explicitly postponed:
 - joint decision engine,
 - global optimization,
 - production-grade export and reporting.
+
+
+### Hardened joint policy evaluation
+
+The current joint policy no longer accepts switching based only on same-day balance improvements. Candidate switching actions are now re-evaluated through the remaining horizon, using the current redemption policy on future critical dates before accepting the local decision.

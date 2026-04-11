@@ -41,6 +41,10 @@ SWITCH_EVENTS_COLUMNS = [
     "valor_switching_centavos",
     "tipo_switching",
     "ganho_vs_base_centavos",
+    "riqueza_terminal_base_centavos",
+    "riqueza_terminal_switch_centavos",
+    "delta_eventos_resgate_futuros",
+    "delta_custo_oportunidade_futuro_centavos",
     "motivo",
 ]
 
@@ -252,13 +256,15 @@ def avaliar_melhor_estrategia_no_dia(
     deficit_centavos: int,
     lotes_dia: pd.DataFrame,
     caixa_sem_acao_centavos: int,
-    top_k_switch: int = 5,
+    top_k_switch: int = 1,
 ) -> dict[str, Any]:
     """Escolhe entre política base de resgates e switching prévio + resgates no mesmo dia.
 
-    Nesta fase, a comparação é local ao dia crítico: o switching é aceito quando melhora
-    o saldo investido líquido remanescente após a cobertura do déficit do próprio dia,
-    preservando a viabilidade da cobertura.
+    Nesta versão endurecida, a comparação deixa de ser apenas local ao dia crítico.
+    Depois de cobrir o déficit do dia, cada estratégia é reavaliada no restante do
+    horizonte usando a política atual de resgates. O switching só é aceito quando
+    melhora a riqueza terminal do horizonte remanescente ou, em empate econômico,
+    simplifica a trajetória futura.
     """
     base = selecionar_resgates_para_deficit(
         estado=estado,
@@ -275,11 +281,20 @@ def avaliar_melhor_estrategia_no_dia(
             "resgates": base.selecoes.copy(),
             "switch_event": None,
             "observacao": "Nem a política base conseguiu cobrir o déficit no dia.",
+            "riqueza_terminal_centavos": None,
+            "riqueza_terminal_base_centavos": None,
         }
 
     caixa_base_depois = int(caixa_sem_acao_centavos + (base.selecoes["valor_resgatado_centavos"].sum() if not base.selecoes.empty else 0))
     saldo_base_pos_dia = _saldo_investido_liquido(base.lotes_atualizados)
-    custo_base = int(base.selecoes["custo_oportunidade_centavos"].sum()) if not base.selecoes.empty else 0
+    futuro_base = _simular_futuro_com_resgates(
+        estado=estado,
+        lotes_inicio=base.lotes_atualizados,
+        caixa_inicial_centavos=caixa_base_depois,
+        data_inicio_exclusiva=data_critica,
+    )
+    riqueza_base_terminal = int(futuro_base["caixa_final_centavos"] + futuro_base["saldo_investido_liquido_final_centavos"])
+
     melhor = {
         "estrategia": "RESGATE_BASE",
         "ganho_vs_base_centavos": 0,
@@ -288,7 +303,9 @@ def avaliar_melhor_estrategia_no_dia(
         "resgates": base.selecoes.copy(),
         "switch_event": None,
         "saldo_pos_dia_centavos": saldo_base_pos_dia,
-        "observacao": "A política base de resgates permaneceu dominante no dia crítico.",
+        "observacao": "A política base de resgates permaneceu dominante na avaliação intertemporal do horizonte remanescente.",
+        "riqueza_terminal_centavos": riqueza_base_terminal,
+        "riqueza_terminal_base_centavos": riqueza_base_terminal,
     }
 
     ids_origem_prioritarios = set(base.selecoes["id_lote"].astype(str)) if not base.selecoes.empty else set()
@@ -317,6 +334,7 @@ def avaliar_melhor_estrategia_no_dia(
         ascending=[False, False, True],
     ).head(top_k_switch)
 
+    melhor_ganho = 0
     for _, cand in candidatos.iterrows():
         try:
             lotes_pos_switch, switch_event = aplicar_switching_candidato(estado, lotes_dia, cand)
@@ -334,24 +352,49 @@ def avaliar_melhor_estrategia_no_dia(
 
         caixa_dia = int(caixa_sem_acao_centavos + (resg_pos_switch.selecoes["valor_resgatado_centavos"].sum() if not resg_pos_switch.selecoes.empty else 0))
         saldo_switch_pos_dia = _saldo_investido_liquido(resg_pos_switch.lotes_atualizados)
-        custo_switch_dia = int(resg_pos_switch.selecoes["custo_oportunidade_centavos"].sum()) if not resg_pos_switch.selecoes.empty else 0
-        proxy_gain = int(saldo_switch_pos_dia - saldo_base_pos_dia)
-        proxy_gain += int(custo_base - custo_switch_dia)
+        futuro_switch = _simular_futuro_com_resgates(
+            estado=estado,
+            lotes_inicio=resg_pos_switch.lotes_atualizados,
+            caixa_inicial_centavos=caixa_dia,
+            data_inicio_exclusiva=data_critica,
+        )
+        if not futuro_switch["viavel"]:
+            continue
 
-        if proxy_gain > melhor["ganho_vs_base_centavos"]:
+        riqueza_switch_terminal = int(futuro_switch["caixa_final_centavos"] + futuro_switch["saldo_investido_liquido_final_centavos"])
+        ganho_intertemporal = int(riqueza_switch_terminal - riqueza_base_terminal)
+        delta_eventos_futuros = int(futuro_base["eventos_resgate"] - futuro_switch["eventos_resgate"])
+        delta_custo_futuro = int(futuro_base["total_custo_oportunidade_centavos"] - futuro_switch["total_custo_oportunidade_centavos"])
+
+        aceitar = False
+        if ganho_intertemporal > melhor_ganho:
+            aceitar = True
+        elif ganho_intertemporal == melhor_ganho and ganho_intertemporal > 0:
+            evento_switch_total = int(len(resg_pos_switch.selecoes)) + int(futuro_switch["eventos_resgate"])
+            evento_base_total = int(len(base.selecoes)) + int(futuro_base["eventos_resgate"])
+            aceitar = evento_switch_total < evento_base_total
+
+        if aceitar:
+            melhor_ganho = ganho_intertemporal
             melhor = {
                 "estrategia": "SWITCH_E_RESGATE",
-                "ganho_vs_base_centavos": int(proxy_gain),
+                "ganho_vs_base_centavos": int(ganho_intertemporal),
                 "lotes_resultantes": resg_pos_switch.lotes_atualizados.copy(),
                 "caixa_depois_centavos": caixa_dia,
                 "resgates": resg_pos_switch.selecoes.copy(),
                 "switch_event": {
                     **switch_event,
-                    "ganho_vs_base_centavos": int(proxy_gain),
-                    "motivo": "Switching aplicado antes dos resgates do dia melhorou o saldo investido líquido remanescente e/ou reduziu o custo local da cobertura.",
+                    "ganho_vs_base_centavos": int(ganho_intertemporal),
+                    "motivo": "Switching aplicado antes dos resgates do dia melhorou a riqueza terminal do horizonte remanescente após reavaliar as datas futuras críticas.",
+                    "riqueza_terminal_base_centavos": int(riqueza_base_terminal),
+                    "riqueza_terminal_switch_centavos": int(riqueza_switch_terminal),
+                    "delta_eventos_resgate_futuros": int(delta_eventos_futuros),
+                    "delta_custo_oportunidade_futuro_centavos": int(delta_custo_futuro),
                 },
                 "saldo_pos_dia_centavos": saldo_switch_pos_dia,
-                "observacao": "Switching integrado à política do dia crítico por melhorar a posição remanescente após a cobertura do déficit.",
+                "observacao": "Switching integrado à política do dia crítico por melhorar a riqueza terminal do restante do horizonte, e não apenas o saldo remanescente do próprio dia.",
+                "riqueza_terminal_centavos": riqueza_switch_terminal,
+                "riqueza_terminal_base_centavos": riqueza_base_terminal,
             }
 
     return melhor
@@ -360,7 +403,7 @@ def avaliar_melhor_estrategia_no_dia(
 
 def diagnosticar_politica_conjunta_switching(
     estado: EstadoSistema,
-    top_k_switch_por_data: int = 5,
+    top_k_switch_por_data: int = 1,
 ) -> ResultadoPoliticaConjuntaSwitching:
     base_diag = diagnosticar_pagamentos_futuros(estado)
     gastos_por_data, recebidos_por_data = _maps_fluxo(estado)
@@ -449,7 +492,8 @@ def diagnosticar_politica_conjunta_switching(
     riqueza_final_base = int(base_diag.resumo["saldo_final_com_resgates_centavos"] + base_diag.resumo["lotes_investidos_liquidos_remanescentes_centavos"])
 
     resumo = {
-        "politica": "intertemporal_com_switching_previo_e_resgates_subsequentes",
+        "politica": "intertemporal_com_switching_previo_e_reavaliacao_do_horizonte",
+        "top_k_switch_por_data": int(top_k_switch_por_data),
         "data_corte_modelo": str(estado.data_corte_modelo.date()),
         "data_referencia": str(estado.data_referencia.date()),
         "horizonte_final": str(estado.horizonte_final.date()),

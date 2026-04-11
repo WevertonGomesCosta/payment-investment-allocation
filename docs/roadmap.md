@@ -47,3 +47,6 @@
 
 - integrate switching into the intertemporal policy using a conservative same-day rule
 - apply switching before redemptions only when it improves the remaining invested position after covering the deficit
+
+
+- completed: hardened intertemporal evaluation for the joint redemption + switching policy using horizon replay after each critical date

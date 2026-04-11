@@ -23,3 +23,8 @@
 - Compare switching candidates against current intertemporal redemption selections on critical dates
 
 - switching-aware intertemporal policy with same-day switching-before-redemption evaluation
+
+
+## 0.1.1 - Hardened intertemporal joint policy
+- Switching decisions now re-evaluate the remaining horizon instead of only the local critical day
+- Joint policy defaults to the strongest switching candidate per critical date to keep the replay tractable
