@@ -37,3 +37,8 @@ These layers are explicitly postponed:
 ### Hardened joint policy evaluation
 
 The current joint policy no longer accepts switching based only on same-day balance improvements. Candidate switching actions are now re-evaluated through the remaining horizon, using the current redemption policy on future critical dates before accepting the local decision.
+
+
+## Hardened joint switching policy
+
+The current joint switching policy evaluates the remaining horizon before accepting a switch, applies a materiality filter to avoid marginal operations, tests a small set of switching sizes, and preserves future balance on the dominant lot through a reserve heuristic.

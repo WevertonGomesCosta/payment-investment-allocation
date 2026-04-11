@@ -56,3 +56,8 @@
 
 - evaluate small `top_k_switch_por_data` sensitivity values (e.g., 1 vs 2 vs 3)
 - keep the smallest value that preserves terminal wealth while controlling computational cost
+
+
+## Current note
+
+The current switching layer now includes materiality filtering and dominant-lot preservation. Immediate next steps should prioritize stronger global policy logic before opening switching bundles.

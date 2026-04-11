@@ -11,7 +11,7 @@ This repository implements an incremental methodological framework for:
 - pricing invested positions under simplified market assumptions,
 - diagnosing future payment coverage,
 - selecting redemption candidates,
-- applying an intertemporal redemption policy with future-preservation logic.
+- applying an intertemporal redemption policy with future-preservation logic, and a joint switching policy with horizon-wide evaluation, materiality filtering, and dominant-lot balance preservation.
 
 The project is built around the principle that each financial lot should be tracked individually, both economically and operationally, to support auditable decisions involving:
 

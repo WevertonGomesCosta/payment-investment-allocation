@@ -30,3 +30,10 @@
 - Joint policy defaults to the strongest switching candidate per critical date to keep the replay tractable
 
 - top_k_switch_por_data sensitivity support for intertemporal switching policy
+
+
+## 0.1.1 - Hardened global switching policy
+- Added materiality filtering for switching decisions
+- Added size variants for candidate switching evaluation
+- Added dominant-lot future reserve preservation
+- Hardened horizon-wide switching policy evaluation
