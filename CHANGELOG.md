@@ -28,3 +28,5 @@
 ## 0.1.1 - Hardened intertemporal joint policy
 - Switching decisions now re-evaluate the remaining horizon instead of only the local critical day
 - Joint policy defaults to the strongest switching candidate per critical date to keep the replay tractable
+
+- top_k_switch_por_data sensitivity support for intertemporal switching policy
