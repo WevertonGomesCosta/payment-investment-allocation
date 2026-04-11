@@ -1,12 +1,19 @@
-# Lot-Based Liquidity Allocation
+# Payment-Investment Allocation
 
-A Python project for lot-based cashflow allocation across future payments, invested positions, and liquidity-constrained redemption decisions.
+A Python project for **lot-based liquidity allocation** across future payments, invested positions, and liquidity-constrained redemption decisions.
 
 ## Overview
 
-This repository implements a methodological framework for reconstructing historical lot usage, diagnosing future payment coverage, and supporting intertemporal redemption decisions under financial and liquidity constraints.
+This repository implements an incremental methodological framework for:
 
-The project is built around the idea that each financial lot must be tracked individually, both economically and operationally, in order to support auditable decisions involving:
+- reconstructing historical lot usage,
+- initializing a prospective financial state,
+- pricing invested positions under simplified market assumptions,
+- diagnosing future payment coverage,
+- selecting redemption candidates,
+- applying an intertemporal redemption policy with future-preservation logic.
+
+The project is built around the principle that each financial lot should be tracked individually, both economically and operationally, to support auditable decisions involving:
 
 - paid and future expenses,
 - received and invested lots,
@@ -14,11 +21,11 @@ The project is built around the idea that each financial lot must be tracked ind
 - future redemption pressure,
 - preservation of terminal value.
 
-## Current Project Stage
+## Current Stage
 
 The repository is currently in an **incremental methodological phase**.
 
-At this stage, the project already includes:
+At this stage, the implemented scope includes:
 
 - workbook loading and minimal configuration,
 - schema normalization,
@@ -27,7 +34,7 @@ At this stage, the project already includes:
 - pricing of invested lots under simplified market assumptions,
 - diagnosis of future payment coverage,
 - candidate redemption selection,
-- an intertemporal redemption policy with future-preservation logic.
+- an intertemporal redemption policy.
 
 The following components are intentionally postponed to later phases:
 
@@ -51,17 +58,51 @@ The system must decide, over time:
 
 ## Current Implemented Components
 
-- `config_loader.py`
-- `carregamento.py`
-- `normalizacao.py`
-- `reconstrucao_historica.py`
-- `motor_precificacao.py`
-- `diagnostico_futuro.py`
-- `motor_resgates.py`
+Source modules currently included:
+
+- `src/tipos.py`
+- `src/config_loader.py`
+- `src/estado.py`
+- `src/carregamento.py`
+- `src/normalizacao.py`
+- `src/reconstrucao_historica.py`
+- `src/motor_precificacao.py`
+- `src/pipeline_fase1.py`
+- `src/diagnostico_futuro.py`
+- `src/motor_resgates.py`
+
+Scripts currently included:
+
+- `scripts/inspecionar_estado_inicial.py`
+- `scripts/diagnosticar_pagamentos_futuros.py`
+- `scripts/selecionar_resgates_candidatos.py`
+- `scripts/avaliar_politica_resgates_intertemporal.py`
 
 ## Repository Structure
 
-See the `src/`, `scripts/`, `docs/`, and `config/` folders for implementation and documentation details.
+```text
+payment-investment-allocation/
+├── README.md
+├── LICENSE
+├── .gitignore
+├── .editorconfig
+├── .gitattributes
+├── pyproject.toml
+├── requirements.txt
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── config/
+│   └── config_minimo_v1.json
+├── data/
+│   ├── raw/
+│   ├── interim/
+│   └── processed/
+├── docs/
+├── scripts/
+├── src/
+├── tests/
+└── outputs/
+```
 
 ## Input Data
 
@@ -73,6 +114,42 @@ The current implementation expects an Excel workbook with three main sheets:
 
 These sheets are normalized internally into model-ready structures.
 
+## How to Run
+
+### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Place the workbook locally
+
+The real workbook should **not** be committed to the repository. Place it in a local path and pass it explicitly to the scripts.
+
+### 3. Run the initial inspection
+
+```bash
+python scripts/inspecionar_estado_inicial.py /path/to/dados_financeiros.xlsx
+```
+
+### 4. Diagnose future payments
+
+```bash
+python scripts/diagnosticar_pagamentos_futuros.py /path/to/dados_financeiros.xlsx
+```
+
+### 5. Inspect candidate redemptions
+
+```bash
+python scripts/selecionar_resgates_candidatos.py /path/to/dados_financeiros.xlsx
+```
+
+### 6. Evaluate the intertemporal redemption policy
+
+```bash
+python scripts/avaliar_politica_resgates_intertemporal.py /path/to/dados_financeiros.xlsx
+```
+
 ## Methodological Notes
 
 This repository currently prioritizes:
@@ -82,12 +159,6 @@ This repository currently prioritizes:
 - separation between historical and prospective states,
 - auditable decision logic,
 - incremental implementation.
-
-## How to Run
-
-1. Place the workbook in the expected local path.
-2. Adjust `config/config_minimo_v1.json` if needed.
-3. Run the inspection and diagnostic scripts from `scripts/`.
 
 ## Current Limitations
 
@@ -100,6 +171,16 @@ At the current stage, the project still uses simplified assumptions for:
 - combo product handling,
 - switching decisions,
 - fully integrated long-horizon optimization.
+
+## Documentation
+
+Additional notes are available in:
+
+- `docs/architecture.md`
+- `docs/methodology.md`
+- `docs/data_dictionary.md`
+- `docs/roadmap.md`
+- `docs/github_repository_setup.md`
 
 ## Roadmap
 

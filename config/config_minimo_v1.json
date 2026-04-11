@@ -1,0 +1,97 @@
+{
+  "arquivos": {
+    "planilha": "dados_financeiros.xlsx"
+  },
+  "abas": {
+    "gastos": "Todos os Gastos",
+    "lotes": "Inventário de Lotes",
+    "carteiras": "Carteira"
+  },
+  "colunas": {
+    "gastos": {
+      "data": "Data",
+      "descricao": "Descrição",
+      "valor": "Valor",
+      "pago": "Pago",
+      "lote_usado_1": "Lote usado",
+      "lote_usado_2": "Lote usado 2"
+    },
+    "lotes": {
+      "id_lote": "Lote (ID)",
+      "data_entrada": "Data Aplicação",
+      "valor_original": "Valor Original",
+      "investimento": "Investimento"
+    },
+    "carteiras": {
+      "nome": "Nome",
+      "tipo": "Tipo",
+      "indexador": "Indexador",
+      "taxa_base": "Taxa_Base_CDI",
+      "taxa_bonus": "Taxa_Bonus_CDI",
+      "dias_bonus": "Dias_Bonus",
+      "prazo_dias": "Prazo_Dias",
+      "carencia_dias": "Carência_Dias",
+      "isento_ir": "Isento_IR",
+      "aplicacao_minima": "Aplicação_Mínima",
+      "aplicacao_maxima": "Aplicação_Máxima",
+      "ativo": "Ativo",
+      "somente_combo": "Somente_Combo",
+      "produto_base": "Produto_Base",
+      "produto_bonus": "Produto_Bonus",
+      "ratio_base": "Ratio_Base",
+      "ratio_bonus": "Ratio_Bonus",
+      "banco_emissor": "Banco_Emissor",
+      "score_banco": "Score_Banco",
+      "risco_real": "Risco_Real",
+      "max_usos": "Max_Usos"
+    }
+  },
+  "execucao": {
+    "timezone": "America/Sao_Paulo",
+    "data_referencia_simulacao": null,
+    "convencao_dias_ano": {
+      "cdi": 252,
+      "selic": 252,
+      "ipca": 365,
+      "prefixado": 252
+    }
+  },
+  "premissas_mercado": {
+    "cdi_anual_modelo": 0.149,
+    "selic_anual_modelo": 0.149,
+    "ipca_anual_modelo": 0.045
+  },
+  "tributacao": {
+    "usar_ir": true,
+    "usar_iof": true,
+    "criterio_limite_ir": "inclusivo",
+    "faixas_ir": [
+      { "dias_max": 180, "aliquota": 0.225 },
+      { "dias_max": 360, "aliquota": 0.2 },
+      { "dias_max": 720, "aliquota": 0.175 },
+      { "dias_max": null, "aliquota": 0.15 }
+    ],
+    "tabela_iof": [
+      0.96, 0.93, 0.9, 0.86, 0.83, 0.8, 0.76, 0.73, 0.7,
+      0.66, 0.63, 0.6, 0.56, 0.53, 0.5, 0.46, 0.43, 0.4,
+      0.36, 0.33, 0.3, 0.26, 0.23, 0.2, 0.16, 0.13, 0.1,
+      0.06, 0.03
+    ]
+  },
+  "politicas_modelo": {
+    "tratar_pago_nulo_como_nao": true,
+    "aceitar_multiplos_lotes_por_gasto": true,
+    "permitir_split_resgate": true,
+    "produto_inativo_em_novo_aporte": "erro",
+    "produto_somente_combo_sem_decomposicao": "erro",
+    "falha_reconciliacao_financeira": "erro"
+  },
+  "escopo_v1": {
+    "reconstruir_historico": true,
+    "precificar_posicoes": true,
+    "diagnosticar_pagamentos_futuros": true,
+    "avaliar_aportes": false,
+    "avaliar_switching": false,
+    "buscar_cenario_otimo": false
+  }
+}

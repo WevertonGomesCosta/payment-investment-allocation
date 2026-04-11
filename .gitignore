@@ -31,3 +31,5 @@ outputs/*
 *.feather
 *.json.bak
 .DS_Store
+.ruff_cache/
+.pytest_cache/
