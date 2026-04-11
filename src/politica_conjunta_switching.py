@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Any
 
 import pandas as pd
@@ -400,6 +401,86 @@ def avaliar_melhor_estrategia_no_dia(
     return melhor
 
 
+
+
+@dataclass
+class ResultadoSensibilidadeTopKSwitching:
+    resumo: dict[str, Any]
+    sensibilidade: pd.DataFrame
+    melhor_timeline: pd.DataFrame
+    melhor_switchings: pd.DataFrame
+    melhor_resgates: pd.DataFrame
+
+
+def diagnosticar_sensibilidade_top_k_switching(
+    estado: EstadoSistema,
+    top_ks: tuple[int, ...] = (1, 2, 3),
+) -> ResultadoSensibilidadeTopKSwitching:
+    ks_validos = tuple(sorted({int(k) for k in top_ks if int(k) >= 1}))
+    if not ks_validos:
+        ks_validos = (1,)
+
+    linhas: list[dict[str, Any]] = []
+    resultados: dict[int, ResultadoPoliticaConjuntaSwitching] = {}
+    base_tempo = None
+    base_ganho = None
+    base_riqueza = None
+
+    for k in ks_validos:
+        t0 = perf_counter()
+        resultado = diagnosticar_politica_conjunta_switching(estado, top_k_switch_por_data=k)
+        tempo = perf_counter() - t0
+        resultados[int(k)] = resultado
+
+        riqueza = int(resultado.resumo["riqueza_final_politica_conjunta_centavos"])
+        ganho = int(resultado.resumo["ganho_total_vs_politica_base_centavos"])
+        if base_tempo is None:
+            base_tempo = tempo
+            base_ganho = ganho
+            base_riqueza = riqueza
+        ganho_marginal = int(ganho - base_ganho)
+        riqueza_marginal = int(riqueza - base_riqueza)
+        tempo_extra = float(tempo - base_tempo)
+        eficiencia = None if tempo_extra <= 0 or ganho_marginal == 0 else float(ganho_marginal / tempo_extra)
+
+        linhas.append({
+            "top_k_switch_por_data": int(k),
+            "tempo_execucao_segundos": float(round(tempo, 6)),
+            "riqueza_final_centavos": int(riqueza),
+            "ganho_vs_politica_base_centavos": int(ganho),
+            "qtd_switchings": int(resultado.resumo["qtd_eventos_switching"]),
+            "qtd_datas_com_switching": int(resultado.resumo["qtd_datas_com_switching_escolhido"]),
+            "qtd_resgates": int(resultado.resumo["qtd_eventos_resgate"]),
+            "cobertura_total_viavel": bool(resultado.resumo["cobertura_total_viavel"]),
+            "ganho_marginal_vs_k1_centavos": int(ganho_marginal),
+            "riqueza_marginal_vs_k1_centavos": int(riqueza_marginal),
+            "tempo_extra_vs_k1_segundos": float(round(tempo_extra, 6)),
+            "eficiencia_marginal_centavos_por_segundo": None if eficiencia is None else float(round(eficiencia, 6)),
+        })
+
+    sens = pd.DataFrame(linhas).sort_values("top_k_switch_por_data").reset_index(drop=True)
+    melhor_riqueza = int(sens["riqueza_final_centavos"].max())
+    candidatos = sens.loc[sens["riqueza_final_centavos"] == melhor_riqueza].copy()
+    recomendado = int(candidatos.sort_values(["tempo_execucao_segundos", "top_k_switch_por_data"], ascending=[True, True]).iloc[0]["top_k_switch_por_data"])
+    resultado_recomendado = resultados[recomendado]
+    resumo = {
+        "politica_sensibilidade": "top_k_switch_por_data",
+        "ks_testados": [int(k) for k in ks_validos],
+        "top_k_recomendado": int(recomendado),
+        "criterio_recomendacao": "maior riqueza final; em empate, menor tempo de execução",
+        "melhor_riqueza_final_centavos": int(melhor_riqueza),
+        "ganho_recomendado_vs_politica_base_centavos": int(sens.loc[sens["top_k_switch_por_data"] == recomendado, "ganho_vs_politica_base_centavos"].iloc[0]),
+        "tempo_execucao_recomendado_segundos": float(sens.loc[sens["top_k_switch_por_data"] == recomendado, "tempo_execucao_segundos"].iloc[0]),
+        "ganho_marginal_recomendado_vs_k1_centavos": int(sens.loc[sens["top_k_switch_por_data"] == recomendado, "ganho_marginal_vs_k1_centavos"].iloc[0]),
+        "tempo_extra_recomendado_vs_k1_segundos": float(sens.loc[sens["top_k_switch_por_data"] == recomendado, "tempo_extra_vs_k1_segundos"].iloc[0]),
+    }
+    return ResultadoSensibilidadeTopKSwitching(
+        resumo=resumo,
+        sensibilidade=sens,
+        melhor_timeline=resultado_recomendado.timeline,
+        melhor_switchings=resultado_recomendado.switchings,
+        melhor_resgates=resultado_recomendado.resgates,
+    )
 
 def diagnosticar_politica_conjunta_switching(
     estado: EstadoSistema,

@@ -50,3 +50,9 @@
 
 
 - completed: hardened intertemporal evaluation for the joint redemption + switching policy using horizon replay after each critical date
+
+
+## Near-term refinement
+
+- evaluate small `top_k_switch_por_data` sensitivity values (e.g., 1 vs 2 vs 3)
+- keep the smallest value that preserves terminal wealth while controlling computational cost

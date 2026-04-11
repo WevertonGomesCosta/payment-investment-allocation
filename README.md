@@ -202,3 +202,8 @@ MIT
 ## Hardened Intertemporal Evaluation
 
 The joint redemption + switching policy now validates candidate switching actions by replaying the remaining horizon after the current critical date. In this phase, the policy evaluates the strongest switching candidate per critical date to keep the intertemporal replay computationally tractable while preserving lot-level auditability.
+
+
+## Current sensitivity note
+
+The intertemporal switching policy now supports small `top_k_switch_por_data` sensitivity analysis to compare marginal terminal-value gains against additional computational cost.
