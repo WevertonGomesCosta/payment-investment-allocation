@@ -35,10 +35,11 @@ At this stage, the implemented scope includes:
 - diagnosis of future payment coverage,
 - candidate redemption selection,
 - an intertemporal redemption policy.
+- canonical switching contracts and invariants for the next methodological layer.
 
 The following components are intentionally postponed to later phases:
 
-- switching policy,
+- switching policy execution,
 - joint allocation between redemptions and reallocation,
 - portfolio optimization,
 - global intertemporal search,
@@ -70,6 +71,7 @@ Source modules currently included:
 - `src/pipeline_fase1.py`
 - `src/diagnostico_futuro.py`
 - `src/motor_resgates.py`
+- `src/motor_switching.py`
 
 Scripts currently included:
 
@@ -169,7 +171,7 @@ At the current stage, the project still uses simplified assumptions for:
 - taxation in some historical replay situations,
 - cost modeling for certain financial products,
 - combo product handling,
-- switching decisions,
+- switching execution policy,
 - fully integrated long-horizon optimization.
 
 ## Documentation
@@ -180,14 +182,15 @@ Additional notes are available in:
 - `docs/methodology.md`
 - `docs/data_dictionary.md`
 - `docs/roadmap.md`
+- `docs/switching_contracts.md`
 - `docs/github_repository_setup.md`
 
 ## Roadmap
 
 - harden historical financial reconciliation,
 - refine intertemporal redemption policy,
-- add switching candidate generation,
-- compare redemption vs switching,
+- deepen switching candidate generation,
+- compare redemption vs switching under real critical dates,
 - implement joint decision policy,
 - expand auditing and reporting.
 

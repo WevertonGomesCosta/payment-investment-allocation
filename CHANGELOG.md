@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 - Switching contracts and invariants
+
+- Canonical switching enums and dataclasses
+- Individual switching contract skeleton
+- Switching invariant checks for origin, destination, and lineage
+- Minimum economic comparison between keep, redeem, and switch
+- Switching documentation and architecture update
+
 ## 0.1.0 - Initial methodological phase
 
 - Minimal configuration loader

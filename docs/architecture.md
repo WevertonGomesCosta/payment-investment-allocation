@@ -13,19 +13,21 @@ Current modules:
 - `motor_precificacao.py`: prices invested lots under simplified market assumptions
 - `diagnostico_futuro.py`: evaluates future payment coverage and liquidity pressure
 - `motor_resgates.py`: selects candidate redemptions and applies the current policy
+- `motor_switching.py`: defines switching contracts, invariant checks, and minimum economic comparison between keep, redeem, and switch
 
 ## Current separation of concerns
 
 - input reading is isolated from normalization,
 - normalization is isolated from historical replay,
 - pricing is isolated from payment diagnostics,
-- redemption policy is isolated from workbook parsing.
+- redemption policy is isolated from workbook parsing,
+- switching contracts are isolated from the later joint policy layer.
 
 ## Deferred layers
 
 These layers are explicitly postponed:
 
-- switching policy,
+- switching bundle/conjunto policy,
 - joint decision engine,
 - global optimization,
 - production-grade export and reporting.

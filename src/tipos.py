@@ -54,6 +54,25 @@ class TipoIndexador(str, Enum):
     OUTRO = "Outro"
 
 
+class TipoSwitching(str, Enum):
+    INDIVIDUAL_TOTAL = "INDIVIDUAL_TOTAL"
+    INDIVIDUAL_PARCIAL = "INDIVIDUAL_PARCIAL"
+
+
+class StatusContratoSwitching(str, Enum):
+    RASCUNHO = "RASCUNHO"
+    ELEGIVEL = "ELEGIVEL"
+    INVALIDO = "INVALIDO"
+    AVALIADO = "AVALIADO"
+
+
+class ResultadoComparacaoSwitching(str, Enum):
+    MANTER = "MANTER"
+    RESGATAR = "RESGATAR"
+    SWITCHAR = "SWITCHAR"
+    INDETERMINADO = "INDETERMINADO"
+
+
 @dataclass(frozen=True)
 class ConfigArquivos:
     planilha: str
@@ -217,3 +236,38 @@ class ResultadoAvaliacaoProduto:
     iof_centavos: int
     custo_operacional_centavos: int
     detalhe_formula: str
+
+
+@dataclass(frozen=True)
+class InvarianteSwitching:
+    code: str
+    description: str
+    severity: Literal["ERROR", "WARNING"] = "ERROR"
+
+
+@dataclass(frozen=True)
+class ContratoSwitching:
+    id_lote_origem: str
+    id_carteira_origem: str
+    id_carteira_destino: str
+    data_switching: pd.Timestamp
+    tipo_switching: TipoSwitching
+    valor_liquido_transferido_centavos: int
+    valor_bruto_origem_centavos: int
+    valor_liquido_origem_centavos: int
+    status: StatusContratoSwitching
+    motivo_economico: str = ""
+    id_lote_destino_previsto: str = ""
+
+
+@dataclass(frozen=True)
+class AvaliacaoSwitching:
+    contrato: ContratoSwitching
+    valor_terminal_manter_centavos: int
+    valor_terminal_resgatar_centavos: int
+    valor_terminal_switchar_centavos: int
+    custo_oportunidade_resgate_centavos: int
+    custo_oportunidade_switching_centavos: int
+    ganho_incremental_switching_vs_manter_centavos: int
+    melhor_acao: ResultadoComparacaoSwitching
+    observacoes: tuple[str, ...] = ()

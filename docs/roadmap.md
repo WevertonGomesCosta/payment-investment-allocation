@@ -9,12 +9,14 @@
 - pricing engine
 - future payment diagnosis
 - redemption candidate policy
+- switching contracts and invariants
 
 ## Phase 2 - Switching layer
 
 - generate switching candidates
 - compare redemption vs switching
 - introduce minimal switching diagnostics
+- validate destinations and combo restrictions more deeply
 
 ## Phase 3 - Joint decision policy
 

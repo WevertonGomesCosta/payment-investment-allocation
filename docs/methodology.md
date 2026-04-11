@@ -31,7 +31,33 @@ A model cutoff date (`data_corte_modelo`) separates:
 8. Diagnose future payment coverage.
 9. Select candidate redemptions.
 10. Apply an intertemporal redemption policy.
+11. Materialize canonical switching contracts and invariants.
+
+## Switching semantics formalized in this phase
+
+This phase defines switching as a distinct operation from redemption.
+
+A valid individual switching contract must:
+
+- start from a lot in `INVESTIDO_ATUAL`,
+- have positive liquid transferable value,
+- respect the lot switching eligibility date,
+- preserve lineage between origin lot and projected destination lot,
+- use an active destination product,
+- reject destination products that are `Somente_Combo`,
+- reject explicit `Combo` destination products until combo-aware logic is added,
+- respect destination minimum and maximum application constraints,
+- preserve financial conservation.
+
+Two contract types are currently formalized:
+
+- `INDIVIDUAL_TOTAL`
+- `INDIVIDUAL_PARCIAL`
+
+At this stage, switching bundles/conjuntos remain out of scope.
 
 ## Current methodological limitations
 
 The current implementation does not yet solve a global optimization problem. It provides an auditable incremental decision framework.
+
+Switching policy is still contract-first: contracts and invariant checks are materialized, but a full joint policy with redemptions is still deferred.
