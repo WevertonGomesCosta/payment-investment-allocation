@@ -34,3 +34,10 @@
 - stable outputs
 - stronger auditing layer
 - public-facing documentation and examples
+
+
+## Current bridge step before joint policy
+
+- compare switching candidates against current redemptions on critical dates
+- identify dates where switching fully substitutes or partially improves a redemption
+- only then integrate switching into the intertemporal policy

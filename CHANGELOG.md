@@ -20,3 +20,4 @@
 - Intertemporal redemption policy
 
 - Switching candidate generation on critical dates
+- Compare switching candidates against current intertemporal redemption selections on critical dates
