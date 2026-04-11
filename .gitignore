@@ -10,6 +10,8 @@ venv/
 .env
 .ipynb_checkpoints/
 
+*.zip
+
 data/raw/*
 !data/raw/.gitkeep
 
