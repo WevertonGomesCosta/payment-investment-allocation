@@ -14,6 +14,7 @@ Current modules:
 - `diagnostico_futuro.py`: evaluates future payment coverage and liquidity pressure
 - `motor_resgates.py`: selects candidate redemptions and applies the current policy
 - `motor_switching.py`: defines switching contracts, invariant checks, and minimum economic comparison between keep, redeem, and switch
+- `politica_conjunta_switching.py`: integrates switching into the intertemporal replay by allowing switching before same-day redemptions on critical dates
 
 ## Current separation of concerns
 

@@ -21,3 +21,5 @@
 
 - Switching candidate generation on critical dates
 - Compare switching candidates against current intertemporal redemption selections on critical dates
+
+- switching-aware intertemporal policy with same-day switching-before-redemption evaluation

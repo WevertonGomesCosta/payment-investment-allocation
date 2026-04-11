@@ -41,3 +41,9 @@
 - compare switching candidates against current redemptions on critical dates
 - identify dates where switching fully substitutes or partially improves a redemption
 - only then integrate switching into the intertemporal policy
+
+
+## New incremental step
+
+- integrate switching into the intertemporal policy using a conservative same-day rule
+- apply switching before redemptions only when it improves the remaining invested position after covering the deficit
