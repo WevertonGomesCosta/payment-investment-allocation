@@ -93,6 +93,21 @@ def construir_timeline_fluxo_livre(estado: EstadoSistema) -> pd.DataFrame:
 
 
 
+def obter_datas_criticas_sem_resgate(
+    estado: EstadoSistema,
+    max_datas: int | None = None,
+) -> pd.DataFrame:
+    """Retorna datas críticas considerando apenas caixa livre e recebidos futuros livres."""
+    timeline = construir_timeline_fluxo_livre(estado)
+    if timeline.empty:
+        return timeline
+    criticas = timeline.loc[timeline["deficit_sem_resgate_centavos"] > 0].copy()
+    criticas = criticas.sort_values(["data", "deficit_sem_resgate_centavos"], ascending=[True, False]).reset_index(drop=True)
+    if max_datas is not None:
+        criticas = criticas.head(max_datas).copy()
+    return criticas
+
+
 def _saldo_investido_liquido(lotes: pd.DataFrame) -> int:
     mask = lotes["status_lote"] == "INVESTIDO_ATUAL"
     return int(lotes.loc[mask, "valor_liquido_resgatavel_centavos"].sum())

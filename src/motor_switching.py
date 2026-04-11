@@ -74,16 +74,27 @@ SWITCHING_INVARIANTES: tuple[InvarianteSwitching, ...] = (
 
 SWITCHING_CANDIDATE_COLUMNS = [
     "data_switching",
+    "deficit_data_critica_centavos",
+    "ranking_candidato",
     "id_lote_origem",
     "id_carteira_origem",
     "carteira_origem",
     "id_carteira_destino",
     "carteira_destino",
     "tipo_switching",
+    "valor_liquido_origem_centavos",
     "valor_liquido_transferido_centavos",
+    "suficiente_para_cobrir_sozinho",
     "status_contrato",
+    "valor_terminal_manter_centavos",
+    "valor_terminal_resgatar_centavos",
+    "valor_terminal_switchar_centavos",
+    "ganho_incremental_switching_vs_manter_centavos",
+    "custo_oportunidade_resgate_centavos",
+    "custo_oportunidade_switching_centavos",
     "score_switching_vs_manter_centavos",
     "score_switching_vs_resgate_centavos",
+    "score_ranking_switching_centavos",
     "melhor_acao",
     "motivo_economico",
 ]
@@ -465,6 +476,155 @@ def avaliar_contrato_switching(
     )
 
 
+
+def listar_lotes_elegiveis_switching(
+    estado: EstadoSistema,
+    data_critica: pd.Timestamp,
+    lotes_base: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Atualiza os lotes investidos até a data crítica e devolve apenas as origens elegíveis."""
+    data_critica = pd.Timestamp(data_critica).normalize()
+    lotes_ref = estado.lotes.copy() if lotes_base is None else lotes_base.copy()
+    lotes_atualizados = atualizar_lotes_investidos_ate_data(lotes_ref, data_critica, estado)
+    mask = (
+        (lotes_atualizados["status_lote"] == "INVESTIDO_ATUAL")
+        & (lotes_atualizados["flag_pode_switchar"].astype(bool))
+        & (lotes_atualizados["flag_carteira_encontrada"].astype(bool))
+        & (lotes_atualizados["valor_liquido_resgatavel_centavos"] > 0)
+        & (pd.to_datetime(lotes_atualizados["data_elegivel_switching"], errors="coerce").dt.normalize() <= data_critica)
+    )
+    return lotes_atualizados.loc[mask].copy().reset_index(drop=True)
+
+
+def listar_destinos_elegiveis_switching(
+    estado: EstadoSistema,
+    lote_origem: pd.Series,
+    valor_transferido_centavos: int,
+) -> pd.DataFrame:
+    """Lista carteiras destino já filtradas pelas regras canônicas de contrato."""
+    rows: list[dict[str, Any]] = []
+    id_origem = str(lote_origem.get("id_carteira_atual", ""))
+    for _, carteira_destino in estado.carteiras.iterrows():
+        report = validar_destino_switching(
+            carteira_destino=carteira_destino,
+            id_carteira_origem=id_origem,
+            valor_transferido_centavos=int(valor_transferido_centavos),
+            config=estado.config,
+        )
+        if report.ok:
+            rows.append(carteira_destino.to_dict())
+    return pd.DataFrame(rows)
+
+
+def gerar_candidatos_switching_por_data(
+    estado: EstadoSistema,
+    data_critica: pd.Timestamp,
+    deficit_centavos: int | None = None,
+    lotes_base: pd.DataFrame | None = None,
+    limitar_destinos_por_lote: int | None = None,
+) -> pd.DataFrame:
+    """Gera candidatos elegíveis de switching individual para uma data crítica."""
+    data_critica = pd.Timestamp(data_critica).normalize()
+    lotes_elegiveis = listar_lotes_elegiveis_switching(estado, data_critica, lotes_base=lotes_base)
+    rows: list[dict[str, Any]] = []
+
+    for _, lote in lotes_elegiveis.iterrows():
+        valor_liquido_origem = int(lote.get("valor_liquido_resgatavel_centavos", 0))
+        if valor_liquido_origem <= 0:
+            continue
+        valor_transferido = valor_liquido_origem if not deficit_centavos or int(deficit_centavos) <= 0 else min(valor_liquido_origem, int(deficit_centavos))
+        destinos = listar_destinos_elegiveis_switching(estado, lote, valor_transferido)
+        if destinos.empty:
+            continue
+        if limitar_destinos_por_lote is not None:
+            destinos = destinos.head(limitar_destinos_por_lote).copy()
+
+        carteira_origem = obter_carteira_origem_do_lote(lote, estado)
+        if carteira_origem is None:
+            continue
+
+        for _, carteira_destino in destinos.iterrows():
+            contrato = construir_contrato_switching_individual(
+                lote=lote,
+                carteira_destino=carteira_destino,
+                data_switching=data_critica,
+                valor_transferido_centavos=valor_transferido,
+                estado=estado,
+            )
+            if contrato.status == StatusContratoSwitching.INVALIDO:
+                continue
+            avaliacao = avaliar_contrato_switching(
+                contrato=contrato,
+                lote_origem=lote,
+                carteira_origem=carteira_origem,
+                carteira_destino=carteira_destino,
+                estado=estado,
+            )
+            row = materializar_linha_candidata_switching(avaliacao, carteira_destino, lote)
+            row["deficit_data_critica_centavos"] = int(deficit_centavos or 0)
+            row["valor_liquido_origem_centavos"] = valor_liquido_origem
+            row["suficiente_para_cobrir_sozinho"] = bool(deficit_centavos is not None and valor_transferido >= int(deficit_centavos))
+            row["valor_terminal_manter_centavos"] = int(avaliacao.valor_terminal_manter_centavos)
+            row["valor_terminal_resgatar_centavos"] = int(avaliacao.valor_terminal_resgatar_centavos)
+            row["valor_terminal_switchar_centavos"] = int(avaliacao.valor_terminal_switchar_centavos)
+            row["ganho_incremental_switching_vs_manter_centavos"] = int(avaliacao.ganho_incremental_switching_vs_manter_centavos)
+            row["custo_oportunidade_resgate_centavos"] = int(avaliacao.custo_oportunidade_resgate_centavos)
+            row["custo_oportunidade_switching_centavos"] = int(avaliacao.custo_oportunidade_switching_centavos)
+            row["score_ranking_switching_centavos"] = int(avaliacao.ganho_incremental_switching_vs_manter_centavos)
+            rows.append(row)
+
+    candidatos = pd.DataFrame(rows)
+    if candidatos.empty:
+        return pd.DataFrame(columns=SWITCHING_CANDIDATE_COLUMNS)
+
+    prioridade = {"SWITCHAR": 0, "MANTER": 1, "RESGATAR": 2, "INDETERMINADO": 3}
+    candidatos["_prioridade_melhor_acao"] = candidatos["melhor_acao"].map(prioridade).fillna(9).astype(int)
+    candidatos = candidatos.sort_values(
+        [
+            "_prioridade_melhor_acao",
+            "score_ranking_switching_centavos",
+            "custo_oportunidade_switching_centavos",
+            "id_lote_origem",
+            "id_carteira_destino",
+        ],
+        ascending=[True, False, True, True, True],
+    ).reset_index(drop=True)
+    candidatos["ranking_candidato"] = range(1, len(candidatos) + 1)
+    candidatos = candidatos.drop(columns=["_prioridade_melhor_acao"])
+    return candidatos[SWITCHING_CANDIDATE_COLUMNS]
+
+
+def gerar_candidatos_switching_datas_criticas(
+    estado: EstadoSistema,
+    max_datas: int | None = None,
+    limitar_destinos_por_lote: int | None = None,
+    lotes_base: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Gera candidatos elegíveis para todas as datas críticas sem resgate do estado atual."""
+    from diagnostico_futuro import obter_datas_criticas_sem_resgate
+
+    criticas = obter_datas_criticas_sem_resgate(estado, max_datas=max_datas)
+    if criticas.empty:
+        return pd.DataFrame(columns=SWITCHING_CANDIDATE_COLUMNS)
+
+    blocos: list[pd.DataFrame] = []
+    base = estado.lotes.copy() if lotes_base is None else lotes_base.copy()
+    for _, row in criticas.iterrows():
+        data = pd.Timestamp(row["data"]).normalize()
+        deficit = int(row["deficit_sem_resgate_centavos"])
+        candidatos = gerar_candidatos_switching_por_data(
+            estado=estado,
+            data_critica=data,
+            deficit_centavos=deficit,
+            lotes_base=base,
+            limitar_destinos_por_lote=limitar_destinos_por_lote,
+        )
+        if not candidatos.empty:
+            blocos.append(candidatos)
+    if not blocos:
+        return pd.DataFrame(columns=SWITCHING_CANDIDATE_COLUMNS)
+    return pd.concat(blocos, ignore_index=True)
+
 def materializar_linha_candidata_switching(avaliacao: AvaliacaoSwitching, carteira_destino: pd.Series, lote_origem: pd.Series) -> dict[str, Any]:
     return {
         "data_switching": avaliacao.contrato.data_switching,
@@ -476,7 +636,7 @@ def materializar_linha_candidata_switching(avaliacao: AvaliacaoSwitching, cartei
         "tipo_switching": avaliacao.contrato.tipo_switching.value,
         "valor_liquido_transferido_centavos": avaliacao.contrato.valor_liquido_transferido_centavos,
         "status_contrato": avaliacao.contrato.status.value,
-        "score_switching_vs_manter_centavos": int(avaliacao.custo_oportunidade_switching_centavos),
+        "score_switching_vs_manter_centavos": int(avaliacao.ganho_incremental_switching_vs_manter_centavos),
         "score_switching_vs_resgate_centavos": int(
             avaliacao.valor_terminal_switchar_centavos - avaliacao.valor_terminal_resgatar_centavos
         ),

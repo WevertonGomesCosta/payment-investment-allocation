@@ -18,3 +18,5 @@
 - Future payment diagnosis
 - Local redemption candidate engine
 - Intertemporal redemption policy
+
+- Switching candidate generation on critical dates
