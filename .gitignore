@@ -31,6 +31,11 @@ ENV/
 .coverage
 .coverage.*
 htmlcov/
+.tox/
+.nox/
+build/
+dist/
+*.egg-info/
 
 # ---------------------------------------------------------
 # Environments / local settings
@@ -47,6 +52,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+.idea/
+.vscode/
 
 # ---------------------------------------------------------
 # Archives and generated bundles
@@ -66,8 +73,10 @@ Thumbs.db
 # ---------------------------------------------------------
 # Generated outputs
 # ---------------------------------------------------------
-outputs/
-reports/
+outputs/*
+reports/*
+!outputs/.gitkeep
+!reports/.gitkeep
 
 # ---------------------------------------------------------
 # Data derivatives and caches
@@ -88,15 +97,14 @@ cache/
 *.csv
 *.xls
 *.xlsx
+!data/dados_financeiros.xlsx
 
 # ---------------------------------------------------------
 # Project-specific future directories
 # ---------------------------------------------------------
-data/raw/
-data/interim/
-data/processed/
-
-# Preserve placeholder files if these folders are created later
+data/raw/*
+data/interim/*
+data/processed/*
 !data/raw/.gitkeep
 !data/interim/.gitkeep
 !data/processed/.gitkeep

@@ -1,63 +1,67 @@
 # payment-investment-allocation
 
-Baseline repository for the incremental unification of two financial scripts:
+Controlled repository for the incremental unification of two financial scripts:
 
-- a **payment/redemption optimizer**;
-- a **switching allocator** for invested and available lots.
+- a payment/redemption optimizer;
+- a switching allocator for invested and available lots.
 
-The project goal is to evolve into a single auditable system for **allocation of received cash to payments and investments**, jointly considering:
-
-- future expenses with scheduled payment dates;
-- lots already invested, lots marked with `-`, and lots still available;
-- portfolio products with rates, bonus rates, maturity, lock-up, and liquidity constraints;
-- individual and combined switching decisions;
-- the best product and the best date for a new allocation or switching event;
-- the joint interaction between payment coverage and investment/switching choices;
-- the final objective of **maximizing terminal net wealth with financially correct calculations**.
+The long-term objective is to evolve this baseline into a single auditable project for
+joint allocation of received cash across payments, investments, and switching decisions,
+maximizing terminal net wealth under financially correct rules.
 
 ## Current Repository Status
 
-This repository is now being used as the **official baseline for controlled versioning**.
+This repository is the official controlled baseline for the modular unification effort.
 
-At the current stage, the repository is intentionally minimal and contains:
+**Current version:** V2
 
-- the project metadata files;
-- the current financial workbook;
-- the current canonical configuration file;
-- the dependency list;
-- the project file used in the local development environment.
+At this stage, the repository now contains:
 
-This means the repository is currently acting as a **baseline container** for the next modularization steps, before the full source tree is organized.
-
-## Current Baseline
-
-- **Baseline name:** V1
-- **Repository role:** official base for the next controlled derivations (`v2`, `v3`, ...)
-- **Development policy:** every update should generate a complete zipped repository version
-- **Current objective:** prepare the repository structure and documentation before extracting shared modules from the two original scripts
+- the canonical workbook and config under `data/`;
+- the first shared Python modules extracted from the two original scripts;
+- a minimal application entry point for baseline inspection;
+- placeholder directories for the next controlled modularization steps.
 
 ## Canonical Inputs
 
-The project currently uses the files stored in `data/` as the working baseline:
+The working baseline currently uses:
 
 - `data/config_atualizado.json`
 - `data/dados_financeiros.xlsx`
 
-These files are the current canonical inputs for the first repository reorganization steps.
+These files remain the canonical starting point for the first structural migration steps.
 
-## Operational Scope of the Project
+## What Was Added in V2
 
-The unified project should ultimately support:
+V2 creates the first modular layer without touching the deep financial core yet.
 
-1. canonical loading of configuration and workbook data;
-2. normalization of sheets and columns;
-3. reconstruction of historical lot usage;
-4. valuation of lots over time;
-5. payment coverage analysis;
-6. economically consistent redemption selection;
-7. switching analysis for invested and available lots;
-8. joint scenario evaluation across payments, redemptions, new allocations, and switching;
-9. comparison of scenarios under a terminal net wealth objective.
+New shared modules:
+
+- `core/ambiente.py`
+  - selective network warning handling;
+  - environment detection;
+  - dependency verification and optional installation;
+  - timezone/bootstrap context.
+
+- `core/config_loader.py`
+  - repository root discovery;
+  - canonical config path resolution;
+  - JSON config loading;
+  - safe nested config access.
+
+- `core/io_planilha.py`
+  - canonical workbook path resolution;
+  - workbook loading;
+  - initial sheet loading;
+  - initial column canonicalization based on config aliases.
+
+Minimal application entry point:
+
+- `app/main.py`
+
+This entry point only inspects the baseline and prints a structured summary of the
+current config and workbook. It does **not** run payment optimization, switching,
+simulation, or financial reconciliation yet.
 
 ## Current Repository Structure
 
@@ -70,55 +74,96 @@ payment-investment-allocation/
 ├── README.md
 ├── payment-investment-allocation.Rproj
 ├── requirements.txt
-└── data/
-    ├── config_atualizado.json
-    └── dados_financeiros.xlsx
-```
-
-## Planned Next Structural Phase
-
-The next implementation phase is expected to introduce a modular source tree similar to:
-
-```text
-payment-investment-allocation/
 ├── app/
+│   └── main.py
 ├── core/
+│   ├── __init__.py
+│   ├── ambiente.py
+│   ├── config_loader.py
+│   └── io_planilha.py
 ├── motores/
+│   └── __init__.py
 ├── estrategias/
+│   └── __init__.py
 ├── adapters/
+│   └── __init__.py
 ├── scripts/
+│   └── inspecionar_baseline.py
 ├── tests/
+├── data/
+│   ├── config_atualizado.json
+│   ├── dados_financeiros.xlsx
+│   ├── raw/
+│   │   └── .gitkeep
+│   ├── interim/
+│   │   └── .gitkeep
+│   └── processed/
+│       └── .gitkeep
 ├── outputs/
-└── data/
+│   └── .gitkeep
+└── reports/
+    └── .gitkeep
 ```
 
-This structure is not yet fully materialized in the repository and should only be added in controlled future versions.
+## Minimal Usage
 
-## Design Principles
+Create or activate your Python environment and install the current requirements:
 
-The repository should evolve under these principles:
+```bash
+pip install -r requirements.txt
+```
 
-- **single canonical config**;
-- **single canonical data interpretation**;
-- **lot-by-lot traceability**;
-- **financial and fiscal auditability**;
-- **incremental modularization**;
-- **controlled versioning by repository snapshot**;
-- **no deep structural corrections before the core unification is stable**.
+Run the baseline inspection entry point from the repository root:
 
-## Versioning Policy
+```bash
+python app/main.py
+```
 
-All future updates should follow this pattern:
+or:
 
-- `v1` = current baseline after repository alignment;
-- `v2`, `v3`, ... = next controlled derivations;
-- each update must be returned as a **full repository `.zip` package**.
+```bash
+python scripts/inspecionar_baseline.py
+```
 
-## Immediate Next Step
+The command prints:
 
-After this V1 baseline alignment, the next task is to inspect the two original scripts section by section and extract the first shared modules, starting from:
+- resolved repository root;
+- resolved config path;
+- resolved workbook path;
+- dependency report;
+- workbook sheet names;
+- initial workbook summary.
 
-- environment/bootstrap;
-- config loading;
-- workbook loading;
-- normalization/canonicalization.
+## Design Principles Maintained
+
+This repository still follows the controlled migration policy:
+
+- single canonical config;
+- single canonical workbook interpretation;
+- incremental modularization;
+- lot-level auditability as a future invariant;
+- no deep structural corrections before core unification is stable;
+- full zipped repository delivery at each version.
+
+## What V2 Does Not Change Yet
+
+V2 deliberately does **not** implement or rewrite:
+
+- financial core calculations;
+- tax logic;
+- IOF/IR reconciliation;
+- payment ranking;
+- switching ranking;
+- joint scenario evaluation;
+- historical lot reconstruction.
+
+Those layers should be migrated in later controlled versions.
+
+## Immediate Next Structural Step
+
+The next controlled version should focus on expanding the shared core around:
+
+- canonical sheet/block loading;
+- initial entity contracts for lots, expenses, and products;
+- basic validation/reporting of critical sheet columns;
+- preparation for the first migration of payment and switching domain logic.

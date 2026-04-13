@@ -1,4 +1,7 @@
-pandas
-openpyxl
 numpy
+openpyxl
+pandas
 python-dateutil
+requests
+pulp
+workalendar
