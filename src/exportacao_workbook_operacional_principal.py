@@ -55,7 +55,7 @@ def _write_df(ws, df: pd.DataFrame, title: str, notes: str) -> None:
     for col_idx, col_name in enumerate(df.columns, start=1):
         max_len = max(len(str(col_name)), 12)
         if len(df) > 0:
-            sample = df[col_name].astype(str).head(100)
+            sample = df[col_name].head(100).map(lambda x: "" if pd.isna(x) else str(x))
             max_len = max(max_len, min(60, int(sample.map(len).max())))
         ws.column_dimensions[get_column_letter(col_idx)].width = max_len + 2
 
