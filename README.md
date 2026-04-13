@@ -277,3 +277,21 @@ python scripts/gerar_workbook_operacional_principal_v2.py \
   --timeline examples/full_end_to_end_confirmation_v2_timeline.csv \
   --output outputs/workbook_operacional_principal_v2.xlsx
 ```
+
+
+### Resumo no console
+Ao final da execução do gerador principal, o script também imprime um resumo curto no console com:
+- quantidade de pagamentos históricos e futuros
+- quantidade de datas críticas
+- quantidade de switchings e resgates oficiais
+- primeira e última data crítica
+- riqueza terminal base
+- riqueza terminal oficial v2
+- ganho total vs base
+
+
+### Resumo detalhado no console
+Além do resumo executivo, o script principal agora imprime:
+- tabela de lotes/recebidos em carteira com saldo bruto, saldo líquido, dias corridos e dias úteis
+- tabela de switchings oficiais com motivo
+- tabela de switchings agrupados para explicar a fragmentação em vários dias
