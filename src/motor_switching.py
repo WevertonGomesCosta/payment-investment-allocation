@@ -8,6 +8,9 @@ import pandas as pd
 from estado import EstadoSistema
 from motor_precificacao import (
     avaliar_aporte_em_carteira,
+    bonus_remanescente_domina_destino,
+    calcular_dias_bonus_restantes,
+    origem_domina_destino_estruturalmente,
     precificar_lote_investido_na_data,
 )
 from motor_resgates import aplicar_resgate_liquido_proporcional, atualizar_lotes_investidos_ate_data
@@ -40,6 +43,14 @@ SWITCHING_INVARIANTES: tuple[InvarianteSwitching, ...] = (
     InvarianteSwitching(
         code="SW_ORIGEM_DATA_ELEGIVEL",
         description="A data crítica deve ser maior ou igual à data de elegibilidade para switching.",
+    ),
+    InvarianteSwitching(
+        code="SW_ORIGEM_DOMINA_DESTINO_ESTRUTURALMENTE",
+        description="Se a origem dominar estruturalmente o destino em rendimento comparável, o switching deve ser bloqueado.",
+    ),
+    InvarianteSwitching(
+        code="SW_ORIGEM_BONUS_REMANESCENTE_DOMINANTE",
+        description="Se a origem ainda estiver em bônus remanescente dominante frente ao destino, o switching deve ser bloqueado.",
     ),
     InvarianteSwitching(
         code="SW_DESTINO_ATIVO",
@@ -157,10 +168,12 @@ def obter_carteira_origem_do_lote(lote: pd.Series, estado: EstadoSistema) -> pd.
     return obter_carteira_por_id(estado.carteiras, id_carteira)
 
 
+
 def validar_origem_switching(
     lote: pd.Series,
     carteira_origem: pd.Series | None,
     data_switching: pd.Timestamp,
+    config: ConfigProjeto,
 ) -> ValidationReport:
     report = _empty_report()
     lote_id = str(lote.get("id_lote", ""))
@@ -306,6 +319,76 @@ def validar_destino_switching(
     return report
 
 
+def validar_bloqueio_bonus_remanescente(
+    lote: pd.Series,
+    carteira_origem: pd.Series | None,
+    carteira_destino: pd.Series | None,
+    data_switching: pd.Timestamp,
+    valor_transferido_centavos: int,
+    config: ConfigProjeto,
+) -> ValidationReport:
+    report = _empty_report()
+    lote_id = str(lote.get("id_lote", ""))
+    if carteira_origem is None or carteira_destino is None:
+        return report
+
+    if bonus_remanescente_domina_destino(
+        lote=lote,
+        carteira_origem=carteira_origem,
+        carteira_destino=carteira_destino,
+        data_switching=data_switching,
+        valor_transferido_centavos=valor_transferido_centavos,
+        config=config,
+    ):
+        dias_restantes = calcular_dias_bonus_restantes(
+            data_entrada_produto=pd.Timestamp(lote["data_entrada_lote"]).normalize(),
+            data_referencia=pd.Timestamp(data_switching).normalize(),
+            carteira=carteira_origem,
+        )
+        _add_issue(
+            report,
+            row_id=lote_id,
+            field_name="dias_bonus",
+            code="SW_ORIGEM_BONUS_REMANESCENTE_DOMINANTE",
+            message=(
+                "Origem ainda possui bônus remanescente dominante frente ao destino; "
+                f"switching bloqueado ({dias_restantes} dias de bônus restantes)."
+            ),
+        )
+    return report
+
+
+def validar_dominancia_estrutural_origem(
+    lote: pd.Series,
+    carteira_origem: pd.Series | None,
+    carteira_destino: pd.Series | None,
+    data_switching: pd.Timestamp,
+    valor_transferido_centavos: int,
+    config: ConfigProjeto,
+) -> ValidationReport:
+    report = _empty_report()
+    lote_id = str(lote.get("id_lote", ""))
+    if carteira_origem is None or carteira_destino is None:
+        return report
+
+    if origem_domina_destino_estruturalmente(
+        lote=lote,
+        carteira_origem=carteira_origem,
+        carteira_destino=carteira_destino,
+        data_switching=data_switching,
+        valor_transferido_centavos=valor_transferido_centavos,
+        config=config,
+    ):
+        _add_issue(
+            report,
+            row_id=lote_id,
+            field_name="dominancia_estrutural_origem",
+            code="SW_ORIGEM_DOMINA_DESTINO_ESTRUTURALMENTE",
+            message="Origem domina estruturalmente o destino em rendimento comparável; manter deve dominar switching.",
+        )
+    return report
+
+
 def validar_contrato_switching(
     lote: pd.Series,
     carteira_origem: pd.Series | None,
@@ -315,11 +398,32 @@ def validar_contrato_switching(
     config: ConfigProjeto,
 ) -> ValidationReport:
     report = _empty_report()
-    report.extend(validar_origem_switching(lote, carteira_origem, data_switching).issues)
+    report.extend(validar_origem_switching(lote, carteira_origem, data_switching, config).issues)
     report.extend(
         validar_destino_switching(
             carteira_destino=carteira_destino,
             id_carteira_origem=str(lote.get("id_carteira_atual", "")),
+            valor_transferido_centavos=valor_transferido_centavos,
+            config=config,
+        ).issues
+    )
+    report.extend(
+        validar_bloqueio_bonus_remanescente(
+            lote=lote,
+            carteira_origem=carteira_origem,
+            carteira_destino=carteira_destino,
+            data_switching=data_switching,
+            valor_transferido_centavos=valor_transferido_centavos,
+            config=config,
+        ).issues
+    )
+
+    report.extend(
+        validar_dominancia_estrutural_origem(
+            lote=lote,
+            carteira_origem=carteira_origem,
+            carteira_destino=carteira_destino,
+            data_switching=data_switching,
             valor_transferido_centavos=valor_transferido_centavos,
             config=config,
         ).issues

@@ -1,18 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from time import perf_counter
 from typing import Any
 
 import pandas as pd
 
 from estado import EstadoSistema
 from diagnostico_futuro import _datas_evento, diagnosticar_pagamentos_futuros
-from motor_resgates import (
-    _timeline_deficits_futuros_a_partir_de_data,
-    atualizar_lotes_investidos_ate_data,
-    selecionar_resgates_para_deficit,
-)
+from motor_resgates import atualizar_lotes_investidos_ate_data, selecionar_resgates_para_deficit
 from motor_switching import gerar_candidatos_switching_por_data, obter_carteira_por_id
 
 
@@ -52,12 +47,6 @@ SWITCH_EVENTS_COLUMNS = [
     "delta_custo_oportunidade_futuro_centavos",
     "motivo",
 ]
-
-MATERIALIDADE_GANHO_MIN_CENTAVOS = 1000
-SWITCH_SIZE_FRACTIONS = (0.25, 0.5, 0.75, 1.0)
-DOMINANT_LOT_RESERVE_RATIO = 0.25
-DOMINANT_LOT_RESERVE_LOOKAHEAD = 3
-
 
 
 @dataclass
@@ -194,74 +183,6 @@ def _criar_lote_destino_switching(
 
 
 
-
-def _identificar_lote_dominante(lotes: pd.DataFrame) -> str:
-    investidos = lotes.loc[lotes["status_lote"] == "INVESTIDO_ATUAL"].copy()
-    if investidos.empty:
-        return ""
-    investidos = investidos.sort_values(
-        ["valor_liquido_resgatavel_centavos", "valor_bruto_remanescente_centavos", "id_lote"],
-        ascending=[False, False, True],
-    )
-    return str(investidos.iloc[0]["id_lote"])
-
-
-def _calcular_reserva_futura_lote_dominante(
-    estado: EstadoSistema,
-    data_critica: pd.Timestamp,
-    liquidez_lote_centavos: int,
-) -> int:
-    deficits = _timeline_deficits_futuros_a_partir_de_data(estado, data_critica, caixa_inicial_centavos=0)
-    if not deficits or liquidez_lote_centavos <= 0:
-        return 0
-    soma_relevante = sum(int(deficit) for _, deficit in deficits[:DOMINANT_LOT_RESERVE_LOOKAHEAD])
-    reserva = int(round(soma_relevante * DOMINANT_LOT_RESERVE_RATIO))
-    return max(0, min(int(liquidez_lote_centavos), int(reserva)))
-
-
-def _gerar_variantes_tamanho_switching(
-    estado: EstadoSistema,
-    candidato: pd.Series,
-    lotes_dia: pd.DataFrame,
-) -> list[int]:
-    id_lote = str(candidato["id_lote_origem"])
-    matches = lotes_dia.loc[lotes_dia["id_lote"].astype(str) == id_lote].copy()
-    if matches.empty:
-        return []
-    lote = matches.iloc[0]
-    liquidez_origem = int(lote.get("valor_liquido_resgatavel_centavos", 0))
-    valor_base = min(int(candidato.get("valor_liquido_transferido_centavos", 0)), liquidez_origem)
-    if valor_base <= 0:
-        return []
-
-    valor_maximo = int(valor_base)
-    lote_dominante = _identificar_lote_dominante(lotes_dia)
-    if id_lote == lote_dominante:
-        reserva = _calcular_reserva_futura_lote_dominante(
-            estado=estado,
-            data_critica=pd.Timestamp(candidato["data_switching"]).normalize(),
-            liquidez_lote_centavos=liquidez_origem,
-        )
-        valor_maximo = min(valor_maximo, max(liquidez_origem - reserva, 0))
-
-    carteira_destino = obter_carteira_por_id(estado.carteiras, str(candidato["id_carteira_destino"]))
-    aplicacao_minima = int(carteira_destino.get("aplicacao_minima_centavos", 0)) if carteira_destino is not None else 0
-
-    tamanhos: set[int] = set()
-    if valor_maximo > 0:
-        tamanhos.add(int(valor_maximo))
-        for frac in SWITCH_SIZE_FRACTIONS:
-            valor = int(round(valor_maximo * float(frac)))
-            if valor > 0:
-                tamanhos.add(valor)
-
-    tamanhos_validos = [
-        int(valor)
-        for valor in sorted(tamanhos, reverse=True)
-        if int(valor) > 0 and int(valor) >= aplicacao_minima
-    ]
-    return tamanhos_validos
-
 def aplicar_switching_candidato(
     estado: EstadoSistema,
     lotes_base: pd.DataFrame,
@@ -339,10 +260,11 @@ def avaliar_melhor_estrategia_no_dia(
 ) -> dict[str, Any]:
     """Escolhe entre política base de resgates e switching prévio + resgates no mesmo dia.
 
-    Esta versão endurecida adiciona três controles explícitos:
-    - filtro de materialidade econômica para evitar micro-switchings marginais;
-    - avaliação de múltiplos tamanhos de switching por candidato prioritário;
-    - preservação de saldo futuro do lote dominante via reserva mínima antes do switching.
+    Nesta versão endurecida, a comparação deixa de ser apenas local ao dia crítico.
+    Depois de cobrir o déficit do dia, cada estratégia é reavaliada no restante do
+    horizonte usando a política atual de resgates. O switching só é aceito quando
+    melhora a riqueza terminal do horizonte remanescente ou, em empate econômico,
+    simplifica a trajetória futura.
     """
     base = selecionar_resgates_para_deficit(
         estado=estado,
@@ -414,171 +336,70 @@ def avaliar_melhor_estrategia_no_dia(
 
     melhor_ganho = 0
     for _, cand in candidatos.iterrows():
-        tamanhos = _gerar_variantes_tamanho_switching(estado=estado, candidato=cand, lotes_dia=lotes_dia)
-        if not tamanhos:
+        try:
+            lotes_pos_switch, switch_event = aplicar_switching_candidato(estado, lotes_dia, cand)
+        except Exception:
             continue
-        for valor_switch in tamanhos:
-            cand_var = cand.copy()
-            cand_var["valor_liquido_transferido_centavos"] = int(valor_switch)
-            lotes_origem_match = lotes_dia.loc[lotes_dia["id_lote"].astype(str) == str(cand_var["id_lote_origem"])].copy()
-            liquidez_origem = int(lotes_origem_match.iloc[0]["valor_liquido_resgatavel_centavos"]) if not lotes_origem_match.empty else int(valor_switch)
-            cand_var["tipo_switching"] = "INDIVIDUAL_TOTAL" if int(valor_switch) >= liquidez_origem else "INDIVIDUAL_PARCIAL"
-            try:
-                lotes_pos_switch, switch_event = aplicar_switching_candidato(estado, lotes_dia, cand_var)
-            except Exception:
-                continue
 
-            resg_pos_switch = selecionar_resgates_para_deficit(
-                estado=estado,
-                data_critica=data_critica,
-                deficit_centavos=deficit_centavos,
-                lotes_base=lotes_pos_switch,
-            )
-            if not resg_pos_switch.cobertura_total:
-                continue
+        resg_pos_switch = selecionar_resgates_para_deficit(
+            estado=estado,
+            data_critica=data_critica,
+            deficit_centavos=deficit_centavos,
+            lotes_base=lotes_pos_switch,
+        )
+        if not resg_pos_switch.cobertura_total:
+            continue
 
-            caixa_dia = int(caixa_sem_acao_centavos + (resg_pos_switch.selecoes["valor_resgatado_centavos"].sum() if not resg_pos_switch.selecoes.empty else 0))
-            saldo_switch_pos_dia = _saldo_investido_liquido(resg_pos_switch.lotes_atualizados)
-            futuro_switch = _simular_futuro_com_resgates(
-                estado=estado,
-                lotes_inicio=resg_pos_switch.lotes_atualizados,
-                caixa_inicial_centavos=caixa_dia,
-                data_inicio_exclusiva=data_critica,
-            )
-            if not futuro_switch["viavel"]:
-                continue
+        caixa_dia = int(caixa_sem_acao_centavos + (resg_pos_switch.selecoes["valor_resgatado_centavos"].sum() if not resg_pos_switch.selecoes.empty else 0))
+        saldo_switch_pos_dia = _saldo_investido_liquido(resg_pos_switch.lotes_atualizados)
+        futuro_switch = _simular_futuro_com_resgates(
+            estado=estado,
+            lotes_inicio=resg_pos_switch.lotes_atualizados,
+            caixa_inicial_centavos=caixa_dia,
+            data_inicio_exclusiva=data_critica,
+        )
+        if not futuro_switch["viavel"]:
+            continue
 
-            riqueza_switch_terminal = int(futuro_switch["caixa_final_centavos"] + futuro_switch["saldo_investido_liquido_final_centavos"])
-            ganho_intertemporal = int(riqueza_switch_terminal - riqueza_base_terminal)
-            if ganho_intertemporal < MATERIALIDADE_GANHO_MIN_CENTAVOS:
-                continue
-            delta_eventos_futuros = int(futuro_base["eventos_resgate"] - futuro_switch["eventos_resgate"])
-            delta_custo_futuro = int(futuro_base["total_custo_oportunidade_centavos"] - futuro_switch["total_custo_oportunidade_centavos"])
+        riqueza_switch_terminal = int(futuro_switch["caixa_final_centavos"] + futuro_switch["saldo_investido_liquido_final_centavos"])
+        ganho_intertemporal = int(riqueza_switch_terminal - riqueza_base_terminal)
+        delta_eventos_futuros = int(futuro_base["eventos_resgate"] - futuro_switch["eventos_resgate"])
+        delta_custo_futuro = int(futuro_base["total_custo_oportunidade_centavos"] - futuro_switch["total_custo_oportunidade_centavos"])
 
-            aceitar = False
-            if ganho_intertemporal > melhor_ganho:
-                aceitar = True
-            elif ganho_intertemporal == melhor_ganho and ganho_intertemporal > 0:
-                evento_switch_total = int(len(resg_pos_switch.selecoes)) + int(futuro_switch["eventos_resgate"])
-                evento_base_total = int(len(base.selecoes)) + int(futuro_base["eventos_resgate"])
-                aceitar = evento_switch_total < evento_base_total
+        aceitar = False
+        if ganho_intertemporal > melhor_ganho:
+            aceitar = True
+        elif ganho_intertemporal == melhor_ganho and ganho_intertemporal > 0:
+            evento_switch_total = int(len(resg_pos_switch.selecoes)) + int(futuro_switch["eventos_resgate"])
+            evento_base_total = int(len(base.selecoes)) + int(futuro_base["eventos_resgate"])
+            aceitar = evento_switch_total < evento_base_total
 
-            if aceitar:
-                melhor_ganho = ganho_intertemporal
-                lote_dominante = _identificar_lote_dominante(lotes_dia)
-                reserva_dominante = 0
-                if str(cand_var["id_lote_origem"]) == lote_dominante:
-                    reserva_dominante = _calcular_reserva_futura_lote_dominante(
-                        estado=estado,
-                        data_critica=data_critica,
-                        liquidez_lote_centavos=liquidez_origem,
-                    )
-                melhor = {
-                    "estrategia": "SWITCH_E_RESGATE",
+        if aceitar:
+            melhor_ganho = ganho_intertemporal
+            melhor = {
+                "estrategia": "SWITCH_E_RESGATE",
+                "ganho_vs_base_centavos": int(ganho_intertemporal),
+                "lotes_resultantes": resg_pos_switch.lotes_atualizados.copy(),
+                "caixa_depois_centavos": caixa_dia,
+                "resgates": resg_pos_switch.selecoes.copy(),
+                "switch_event": {
+                    **switch_event,
                     "ganho_vs_base_centavos": int(ganho_intertemporal),
-                    "lotes_resultantes": resg_pos_switch.lotes_atualizados.copy(),
-                    "caixa_depois_centavos": caixa_dia,
-                    "resgates": resg_pos_switch.selecoes.copy(),
-                    "switch_event": {
-                        **switch_event,
-                        "ganho_vs_base_centavos": int(ganho_intertemporal),
-                        "motivo": "Switching aplicado antes dos resgates do dia melhorou a riqueza terminal do horizonte remanescente com filtro de materialidade, ajuste de tamanho e preservação de saldo futuro do lote dominante.",
-                        "riqueza_terminal_base_centavos": int(riqueza_base_terminal),
-                        "riqueza_terminal_switch_centavos": int(riqueza_switch_terminal),
-                        "delta_eventos_resgate_futuros": int(delta_eventos_futuros),
-                        "delta_custo_oportunidade_futuro_centavos": int(delta_custo_futuro),
-                        "valor_switching_centavos": int(valor_switch),
-                        "reserva_futura_lote_dominante_centavos": int(reserva_dominante),
-                        "ganho_materialidade_min_centavos": int(MATERIALIDADE_GANHO_MIN_CENTAVOS),
-                    },
-                    "saldo_pos_dia_centavos": saldo_switch_pos_dia,
-                    "observacao": "Switching integrado à política global com reavaliação do horizonte, filtro de materialidade e preservação de saldo futuro do lote dominante.",
-                    "riqueza_terminal_centavos": riqueza_switch_terminal,
-                    "riqueza_terminal_base_centavos": riqueza_base_terminal,
-                }
+                    "motivo": "Switching aplicado antes dos resgates do dia melhorou a riqueza terminal do horizonte remanescente após reavaliar as datas futuras críticas.",
+                    "riqueza_terminal_base_centavos": int(riqueza_base_terminal),
+                    "riqueza_terminal_switch_centavos": int(riqueza_switch_terminal),
+                    "delta_eventos_resgate_futuros": int(delta_eventos_futuros),
+                    "delta_custo_oportunidade_futuro_centavos": int(delta_custo_futuro),
+                },
+                "saldo_pos_dia_centavos": saldo_switch_pos_dia,
+                "observacao": "Switching integrado à política do dia crítico por melhorar a riqueza terminal do restante do horizonte, e não apenas o saldo remanescente do próprio dia.",
+                "riqueza_terminal_centavos": riqueza_switch_terminal,
+                "riqueza_terminal_base_centavos": riqueza_base_terminal,
+            }
 
     return melhor
 
 
-
-@dataclass
-class ResultadoSensibilidadeTopKSwitching:
-    resumo: dict[str, Any]
-    sensibilidade: pd.DataFrame
-    melhor_timeline: pd.DataFrame
-    melhor_switchings: pd.DataFrame
-    melhor_resgates: pd.DataFrame
-
-
-def diagnosticar_sensibilidade_top_k_switching(
-    estado: EstadoSistema,
-    top_ks: tuple[int, ...] = (1, 2, 3),
-) -> ResultadoSensibilidadeTopKSwitching:
-    ks_validos = tuple(sorted({int(k) for k in top_ks if int(k) >= 1}))
-    if not ks_validos:
-        ks_validos = (1,)
-
-    linhas: list[dict[str, Any]] = []
-    resultados: dict[int, ResultadoPoliticaConjuntaSwitching] = {}
-    base_tempo = None
-    base_ganho = None
-    base_riqueza = None
-
-    for k in ks_validos:
-        t0 = perf_counter()
-        resultado = diagnosticar_politica_conjunta_switching(estado, top_k_switch_por_data=k)
-        tempo = perf_counter() - t0
-        resultados[int(k)] = resultado
-
-        riqueza = int(resultado.resumo["riqueza_final_politica_conjunta_centavos"])
-        ganho = int(resultado.resumo["ganho_total_vs_politica_base_centavos"])
-        if base_tempo is None:
-            base_tempo = tempo
-            base_ganho = ganho
-            base_riqueza = riqueza
-        ganho_marginal = int(ganho - base_ganho)
-        riqueza_marginal = int(riqueza - base_riqueza)
-        tempo_extra = float(tempo - base_tempo)
-        eficiencia = None if tempo_extra <= 0 or ganho_marginal == 0 else float(ganho_marginal / tempo_extra)
-
-        linhas.append({
-            "top_k_switch_por_data": int(k),
-            "tempo_execucao_segundos": float(round(tempo, 6)),
-            "riqueza_final_centavos": int(riqueza),
-            "ganho_vs_politica_base_centavos": int(ganho),
-            "qtd_switchings": int(resultado.resumo["qtd_eventos_switching"]),
-            "qtd_datas_com_switching": int(resultado.resumo["qtd_datas_com_switching_escolhido"]),
-            "qtd_resgates": int(resultado.resumo["qtd_eventos_resgate"]),
-            "cobertura_total_viavel": bool(resultado.resumo["cobertura_total_viavel"]),
-            "ganho_marginal_vs_k1_centavos": int(ganho_marginal),
-            "riqueza_marginal_vs_k1_centavos": int(riqueza_marginal),
-            "tempo_extra_vs_k1_segundos": float(round(tempo_extra, 6)),
-            "eficiencia_marginal_centavos_por_segundo": None if eficiencia is None else float(round(eficiencia, 6)),
-        })
-
-    sens = pd.DataFrame(linhas).sort_values("top_k_switch_por_data").reset_index(drop=True)
-    melhor_riqueza = int(sens["riqueza_final_centavos"].max())
-    candidatos = sens.loc[sens["riqueza_final_centavos"] == melhor_riqueza].copy()
-    recomendado = int(candidatos.sort_values(["tempo_execucao_segundos", "top_k_switch_por_data"], ascending=[True, True]).iloc[0]["top_k_switch_por_data"])
-    resultado_recomendado = resultados[recomendado]
-    resumo = {
-        "politica_sensibilidade": "top_k_switch_por_data",
-        "ks_testados": [int(k) for k in ks_validos],
-        "top_k_recomendado": int(recomendado),
-        "criterio_recomendacao": "maior riqueza final; em empate, menor tempo de execução",
-        "melhor_riqueza_final_centavos": int(melhor_riqueza),
-        "ganho_recomendado_vs_politica_base_centavos": int(sens.loc[sens["top_k_switch_por_data"] == recomendado, "ganho_vs_politica_base_centavos"].iloc[0]),
-        "tempo_execucao_recomendado_segundos": float(sens.loc[sens["top_k_switch_por_data"] == recomendado, "tempo_execucao_segundos"].iloc[0]),
-        "ganho_marginal_recomendado_vs_k1_centavos": int(sens.loc[sens["top_k_switch_por_data"] == recomendado, "ganho_marginal_vs_k1_centavos"].iloc[0]),
-        "tempo_extra_recomendado_vs_k1_segundos": float(sens.loc[sens["top_k_switch_por_data"] == recomendado, "tempo_extra_vs_k1_segundos"].iloc[0]),
-    }
-    return ResultadoSensibilidadeTopKSwitching(
-        resumo=resumo,
-        sensibilidade=sens,
-        melhor_timeline=resultado_recomendado.timeline,
-        melhor_switchings=resultado_recomendado.switchings,
-        melhor_resgates=resultado_recomendado.resgates,
-    )
 
 def diagnosticar_politica_conjunta_switching(
     estado: EstadoSistema,

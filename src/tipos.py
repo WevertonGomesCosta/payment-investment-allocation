@@ -159,6 +159,9 @@ class ConfigPoliticasModelo:
     produto_inativo_em_novo_aporte: str
     produto_somente_combo_sem_decomposicao: str
     falha_reconciliacao_financeira: str
+    bloquear_switch_se_origem_domina_destino: bool
+    spread_minimo_dominancia_estrutural: float
+    janela_minima_dominancia_dias: int
 
 
 @dataclass(frozen=True)

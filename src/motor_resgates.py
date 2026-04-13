@@ -71,6 +71,18 @@ LOOKAHEAD_MAX_DATAS = 5
 ESSENCIALIDADE_PENALTY_MULTIPLIER = 10
 
 
+_ESTADO_CACHE: dict[int, dict[str, Any]] = {}
+
+
+def _estado_cache(estado: EstadoSistema) -> dict[str, Any]:
+    key = id(estado)
+    cache = _ESTADO_CACHE.get(key)
+    if cache is None:
+        cache = {}
+        _ESTADO_CACHE[key] = cache
+    return cache
+
+
 @dataclass
 class ResultadoSelecaoResgates:
     selecoes: pd.DataFrame
@@ -107,17 +119,18 @@ class AvaliacaoIntertemporalResgate:
 
 
 def _carteira_map(estado: EstadoSistema) -> dict[str, pd.Series]:
-    cache = getattr(estado, "_cache_carteira_map", None)
-    if cache is None:
-        cache = {str(row["id_carteira"]): row for _, row in estado.carteiras.iterrows()}
-        setattr(estado, "_cache_carteira_map", cache)
-    return cache
+    cache = _estado_cache(estado)
+    key = "carteira_map"
+    if key not in cache:
+        cache[key] = {str(row["id_carteira"]): row for _, row in estado.carteiras.iterrows()}
+    return cache[key]
 
 
 
 def _fluxos_futuros_maps(estado: EstadoSistema) -> tuple[dict[pd.Timestamp, int], dict[pd.Timestamp, int]]:
-    cache = getattr(estado, "_cache_fluxos_futuros_maps", None)
-    if cache is None:
+    cache = _estado_cache(estado)
+    key = "fluxos_futuros_maps"
+    if key not in cache:
         gastos_por_data = (
             estado.gastos_futuros.groupby("data_gasto", dropna=True)["valor_gasto_centavos"].sum().to_dict()
         )
@@ -127,16 +140,16 @@ def _fluxos_futuros_maps(estado: EstadoSistema) -> tuple[dict[pd.Timestamp, int]
             .sum()
             .to_dict()
         )
-        cache = (gastos_por_data, recebidos_por_data)
-        setattr(estado, "_cache_fluxos_futuros_maps", cache)
-    return cache
+        cache[key] = (gastos_por_data, recebidos_por_data)
+    return cache[key]
 
 
 
 def _datas_evento_posteriores(estado: EstadoSistema, data_exclusiva: pd.Timestamp) -> list[pd.Timestamp]:
     data_exclusiva = pd.Timestamp(data_exclusiva).normalize()
-    cache = getattr(estado, "_cache_datas_evento_ordenadas", None)
-    if cache is None:
+    cache = _estado_cache(estado)
+    key = "datas_evento_ordenadas"
+    if key not in cache:
         datas_gastos = set(pd.to_datetime(estado.gastos_futuros["data_gasto"], errors="coerce").dropna().dt.normalize())
         datas_lotes = set(
             pd.to_datetime(
@@ -147,9 +160,9 @@ def _datas_evento_posteriores(estado: EstadoSistema, data_exclusiva: pd.Timestam
                 errors="coerce",
             ).dropna().dt.normalize()
         )
-        cache = sorted(datas_gastos.union(datas_lotes))
-        setattr(estado, "_cache_datas_evento_ordenadas", cache)
-    return [d for d in cache if d > data_exclusiva]
+        cache[key] = sorted(datas_gastos.union(datas_lotes))
+    datas = cache[key]
+    return [d for d in datas if d > data_exclusiva]
 
 
 
@@ -172,31 +185,15 @@ def _precificar_liquido_lote_em_data(lote: pd.Series, data_alvo: pd.Timestamp, e
         return 0
     if str(lote["status_lote"]) != "INVESTIDO_ATUAL":
         return 0
-    bruto = int(lote.get("valor_bruto_remanescente_centavos", 0))
-    if bruto <= 0:
+    if int(lote.get("valor_bruto_remanescente_centavos", 0)) <= 0:
         return 0
-    data_alvo = pd.Timestamp(data_alvo).normalize()
-    cache = getattr(estado, "_cache_precificar_liquido", None)
-    if cache is None:
-        cache = {}
-        setattr(estado, "_cache_precificar_liquido", cache)
-    key = (
-        str(lote.get("id_lote", "")),
-        str(lote.get("id_carteira_atual", "")),
-        data_alvo,
-        bruto,
-        int(lote.get("valor_principal_remanescente_centavos", 0)),
-    )
-    if key in cache:
-        return int(cache[key])
     resultado = precificar_lote_investido_na_data(
         lote=lote,
         carteira=carteira,
-        data_referencia=data_alvo,
+        data_referencia=pd.Timestamp(data_alvo).normalize(),
         config=estado.config,
     )
-    cache[key] = int(resultado.valor_liquido_centavos)
-    return int(cache[key])
+    return int(resultado.valor_liquido_centavos)
 
 
 
@@ -288,15 +285,17 @@ def atualizar_lotes_investidos_ate_data(
     return out
 
 
+
 def atualizar_lote_investido_ate_data(
     lote: pd.Series,
     data_alvo: pd.Timestamp,
     estado: EstadoSistema,
 ) -> pd.Series:
     out = lote.copy()
-    if str(out.get("status_lote", "")) != "INVESTIDO_ATUAL":
-        return out
     data_alvo = pd.Timestamp(data_alvo).normalize()
+    if str(out.get("status_lote")) != "INVESTIDO_ATUAL":
+        return out
+
     data_ultima = pd.Timestamp(out["data_ultima_atualizacao"]).normalize()
     if data_alvo <= data_ultima:
         return out
@@ -386,7 +385,6 @@ def avaliar_candidato_resgate(
     data_critica: pd.Timestamp,
     valor_necessario_centavos: int,
     estado: EstadoSistema,
-    lote_ja_atualizado: bool = False,
 ) -> AvaliacaoResgateLote | None:
     if str(lote["status_lote"]) != "INVESTIDO_ATUAL":
         return None
@@ -399,7 +397,11 @@ def avaliar_candidato_resgate(
     if carteira is None:
         return None
 
-    lote_atualizado = lote.copy() if lote_ja_atualizado else atualizar_lote_investido_ate_data(lote, data_critica, estado)
+    lote_atualizado = atualizar_lote_investido_ate_data(
+        lote,
+        data_critica,
+        estado,
+    ).copy()
 
     valor_resgate = min(int(valor_necessario_centavos), int(lote_atualizado["valor_liquido_resgatavel_centavos"]))
     if valor_resgate <= 0:
@@ -458,7 +460,6 @@ def gerar_candidatos_resgate_por_data_local(
             data_critica=data_critica,
             valor_necessario_centavos=valor_necessario_centavos,
             estado=estado,
-            lote_ja_atualizado=True,
         )
         if avaliacao is None:
             continue
@@ -545,7 +546,6 @@ def selecionar_resgates_para_deficit_local(
             data_critica=data_critica,
             valor_necessario_centavos=deficit_restante,
             estado=estado,
-            lote_ja_atualizado=True,
         )
         if avaliacao is None or avaliacao.valor_resgate_centavos <= 0:
             break

@@ -148,6 +148,9 @@ def validate_config_minimo(raw: dict[str, Any]) -> None:
             "produto_inativo_em_novo_aporte",
             "produto_somente_combo_sem_decomposicao",
             "falha_reconciliacao_financeira",
+            "bloquear_switch_se_origem_domina_destino",
+            "spread_minimo_dominancia_estrutural",
+            "janela_minima_dominancia_dias",
         },
         "politicas_modelo",
     )

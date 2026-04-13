@@ -1,0 +1,89 @@
+{
+  "baseline_name": "v2_official",
+  "baseline_policy": "intertemporal_com_switching_previo_e_reavaliacao_do_horizonte",
+  "candidate_policy": "intertemporal_com_switching_previo_e_reavaliacao_do_horizonte",
+  "approved_for_official_line": true,
+  "checks": [
+    {
+      "name": "same_horizon",
+      "passed": true,
+      "message": "same_horizon: expected 2027-03-31, got 2027-03-31.",
+      "baseline_value": "2027-03-31",
+      "candidate_value": "2027-03-31"
+    },
+    {
+      "name": "full_payment_coverage",
+      "passed": true,
+      "message": "full_payment_coverage: expected True, got True.",
+      "baseline_value": true,
+      "candidate_value": true
+    },
+    {
+      "name": "terminal_wealth_not_below_baseline",
+      "passed": true,
+      "message": "terminal_wealth_not_below_baseline: baseline=1051493, candidate=1051493.",
+      "baseline_value": 1051493,
+      "candidate_value": 1051493
+    },
+    {
+      "name": "informational::qtd_datas_com_switching_escolhido",
+      "passed": true,
+      "message": "informational metric qtd_datas_com_switching_escolhido",
+      "baseline_value": 4,
+      "candidate_value": 4
+    },
+    {
+      "name": "informational::qtd_eventos_switching",
+      "passed": true,
+      "message": "informational metric qtd_eventos_switching",
+      "baseline_value": 4,
+      "candidate_value": 4
+    },
+    {
+      "name": "informational::qtd_eventos_resgate",
+      "passed": true,
+      "message": "informational metric qtd_eventos_resgate",
+      "baseline_value": 12,
+      "candidate_value": 12
+    },
+    {
+      "name": "informational::ganho_total_vs_politica_base_centavos",
+      "passed": true,
+      "message": "informational metric ganho_total_vs_politica_base_centavos",
+      "baseline_value": 37824,
+      "candidate_value": 37824
+    }
+  ],
+  "baseline_summary": {
+    "data_corte_modelo": "2026-04-10",
+    "data_referencia": "2026-04-10",
+    "horizonte_final": "2027-03-31",
+    "qtd_datas_com_deficit": 12,
+    "qtd_datas_com_switching_escolhido": 4,
+    "qtd_eventos_switching": 4,
+    "qtd_eventos_resgate": 12,
+    "saldo_final_caixa_centavos": 0,
+    "saldo_final_investido_liquido_centavos": 1051493,
+    "riqueza_final_politica_conjunta_centavos": 1051493,
+    "riqueza_final_politica_base_centavos": 1013669,
+    "ganho_total_vs_politica_base_centavos": 37824,
+    "cobertura_total_viavel": true
+  },
+  "candidate_summary": {
+    "politica": "intertemporal_com_switching_previo_e_reavaliacao_do_horizonte",
+    "top_k_switch_por_data": 1,
+    "data_corte_modelo": "2026-04-10",
+    "data_referencia": "2026-04-10",
+    "horizonte_final": "2027-03-31",
+    "qtd_datas_com_deficit": 12,
+    "qtd_datas_com_switching_escolhido": 4,
+    "qtd_eventos_switching": 4,
+    "qtd_eventos_resgate": 12,
+    "saldo_final_caixa_centavos": 0,
+    "saldo_final_investido_liquido_centavos": 1051493,
+    "riqueza_final_politica_conjunta_centavos": 1051493,
+    "riqueza_final_politica_base_centavos": 1013669,
+    "ganho_total_vs_politica_base_centavos": 37824,
+    "cobertura_total_viavel": true
+  }
+}

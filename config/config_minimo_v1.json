@@ -66,16 +66,53 @@
     "usar_iof": true,
     "criterio_limite_ir": "inclusivo",
     "faixas_ir": [
-      { "dias_max": 180, "aliquota": 0.225 },
-      { "dias_max": 360, "aliquota": 0.2 },
-      { "dias_max": 720, "aliquota": 0.175 },
-      { "dias_max": null, "aliquota": 0.15 }
+      {
+        "dias_max": 180,
+        "aliquota": 0.225
+      },
+      {
+        "dias_max": 360,
+        "aliquota": 0.2
+      },
+      {
+        "dias_max": 720,
+        "aliquota": 0.175
+      },
+      {
+        "dias_max": null,
+        "aliquota": 0.15
+      }
     ],
     "tabela_iof": [
-      0.96, 0.93, 0.9, 0.86, 0.83, 0.8, 0.76, 0.73, 0.7,
-      0.66, 0.63, 0.6, 0.56, 0.53, 0.5, 0.46, 0.43, 0.4,
-      0.36, 0.33, 0.3, 0.26, 0.23, 0.2, 0.16, 0.13, 0.1,
-      0.06, 0.03
+      0.96,
+      0.93,
+      0.9,
+      0.86,
+      0.83,
+      0.8,
+      0.76,
+      0.73,
+      0.7,
+      0.66,
+      0.63,
+      0.6,
+      0.56,
+      0.53,
+      0.5,
+      0.46,
+      0.43,
+      0.4,
+      0.36,
+      0.33,
+      0.3,
+      0.26,
+      0.23,
+      0.2,
+      0.16,
+      0.13,
+      0.1,
+      0.06,
+      0.03
     ]
   },
   "politicas_modelo": {
@@ -84,7 +121,10 @@
     "permitir_split_resgate": true,
     "produto_inativo_em_novo_aporte": "erro",
     "produto_somente_combo_sem_decomposicao": "erro",
-    "falha_reconciliacao_financeira": "erro"
+    "falha_reconciliacao_financeira": "erro",
+    "bloquear_switch_se_origem_domina_destino": true,
+    "spread_minimo_dominancia_estrutural": 0.0,
+    "janela_minima_dominancia_dias": 30
   },
   "escopo_v1": {
     "reconstruir_historico": true,

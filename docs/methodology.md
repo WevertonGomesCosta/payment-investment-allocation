@@ -61,3 +61,24 @@ At this stage, switching bundles/conjuntos remain out of scope.
 The current implementation does not yet solve a global optimization problem. It provides an auditable incremental decision framework.
 
 Switching policy is still contract-first: contracts and invariant checks are materialized, but a full joint policy with redemptions is still deferred.
+
+
+## Baseline decision
+
+The project currently freezes **v2** as the official baseline because it produced the strongest terminal-wealth result among the validated joint-policy variants while keeping full payment coverage feasible. More conservative variants such as **v5** remain useful as methodological references, but they are not the active continuation line.
+
+
+## Remaining-bonus dominance restriction for switching
+
+A switching candidate must be rejected when the origin product still has a remaining bonus window that dominates the destination over a comparable horizon.
+
+Operationally, the engine now:
+- computes remaining bonus days for the origin lot at the switching date;
+- projects the origin over that remaining bonus window;
+- projects the destination over the same window, starting at the switching date;
+- blocks switching whenever the origin still dominates the destination during that comparable bonus period.
+
+This restriction is structural and applies before the economic comparison between keep, redeem, and switch.
+
+
+Programmatic structural-dominance of the origin portfolio now replaces any fixed lot-level switching block.

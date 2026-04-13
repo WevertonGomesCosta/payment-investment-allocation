@@ -74,3 +74,10 @@ This document does not yet define:
 - combo-aware switching destination logic
 - global optimization
 - full joint switching + redemption policy
+
+
+## Additional invariant: remaining-bonus dominance
+
+Code: `SW_ORIGEM_BONUS_REMANESCENTE_DOMINANTE`
+
+If the origin still has remaining bonus days and the origin dominates the destination over that comparable remaining-bonus window, switching must be blocked.

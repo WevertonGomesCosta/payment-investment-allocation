@@ -48,6 +48,267 @@ def calcular_taxa_efetiva_anual_produto(carteira: pd.Series, config: ConfigProje
     return taxa_indexador * (taxa_base + taxa_bonus)
 
 
+def calcular_taxa_efetiva_anual_produto_sem_bonus(carteira: pd.Series, config: ConfigProjeto) -> float:
+    indexador = str(carteira["indexador"]).strip()
+    taxa_base = float(carteira["taxa_base"])
+
+    if indexador.lower() == "prefixado":
+        return taxa_base
+
+    taxa_indexador = obter_taxa_indexador_anual(indexador, config)
+    return taxa_indexador * taxa_base
+
+
+def calcular_taxa_efetiva_anual_vigente_produto(
+    carteira: pd.Series,
+    data_entrada_produto: pd.Timestamp,
+    data_referencia: pd.Timestamp,
+    config: ConfigProjeto,
+) -> float:
+    """Taxa vigente no instante de referência.
+
+    Durante a janela de bônus, considera a taxa promocional (taxa_bonus) quando ela
+    é positiva. Fora dessa janela, usa a taxa base do produto.
+    """
+    indexador = str(carteira["indexador"]).strip()
+    taxa_base = float(carteira.get("taxa_base", 0.0) or 0.0)
+    taxa_bonus = float(carteira.get("taxa_bonus", 0.0) or 0.0)
+    dias_bonus_restantes = calcular_dias_bonus_restantes(data_entrada_produto, data_referencia, carteira)
+    taxa_vigente = taxa_bonus if dias_bonus_restantes > 0 and taxa_bonus > 0 else taxa_base
+
+    if indexador.lower() == "prefixado":
+        return taxa_vigente
+
+    taxa_indexador = obter_taxa_indexador_anual(indexador, config)
+    return taxa_indexador * taxa_vigente
+
+
+def calcular_taxa_efetiva_anual_bonus_puro(carteira: pd.Series, config: ConfigProjeto) -> float:
+    """Taxa promocional pura usada em comparações estruturais.
+
+    Aqui `taxa_bonus` é interpretada como a taxa vigente do período promocional,
+    e não como incremento aditivo sobre a taxa base.
+    """
+    indexador = str(carteira["indexador"]).strip()
+    taxa_bonus = float(carteira.get("taxa_bonus", 0.0) or 0.0)
+    taxa_base = float(carteira.get("taxa_base", 0.0) or 0.0)
+    taxa = taxa_bonus if taxa_bonus > 0 else taxa_base
+    if indexador.lower() == "prefixado":
+        return taxa
+    return obter_taxa_indexador_anual(indexador, config) * taxa
+
+
+def projetar_valor_bruto_com_regime_promocional(
+    valor_inicial_centavos: int,
+    carteira: pd.Series,
+    data_inicio: pd.Timestamp,
+    data_fim: pd.Timestamp,
+    data_entrada_produto: pd.Timestamp,
+    config: ConfigProjeto,
+) -> int:
+    """Projeção segmentada usando bônus como taxa promocional pura.
+
+    Esta rotina é reservada para checagens estruturais de dominância da origem.
+    """
+    data_inicio = pd.Timestamp(data_inicio).normalize()
+    data_fim = pd.Timestamp(data_fim).normalize()
+    data_entrada_produto = pd.Timestamp(data_entrada_produto).normalize()
+    if data_fim <= data_inicio:
+        return int(valor_inicial_centavos)
+
+    indexador = str(carteira["indexador"])
+    base_dias = obter_base_dias(indexador, config)
+    dias_bonus = int(carteira.get("dias_bonus", 0) or 0)
+    if dias_bonus <= 0:
+        taxa = calcular_taxa_efetiva_anual_produto_sem_bonus(carteira, config)
+        return projetar_valor_bruto(valor_inicial_centavos, taxa, data_inicio, data_fim, base_dias)
+
+    fim_bonus = data_entrada_produto + pd.Timedelta(days=dias_bonus)
+    fim_trecho_bonus = min(data_fim, fim_bonus)
+    valor = int(valor_inicial_centavos)
+
+    if fim_trecho_bonus > data_inicio:
+        taxa_bonus_pura = calcular_taxa_efetiva_anual_bonus_puro(carteira, config)
+        valor = projetar_valor_bruto(valor, taxa_bonus_pura, data_inicio, fim_trecho_bonus, base_dias)
+
+    if data_fim > fim_trecho_bonus:
+        taxa_base = calcular_taxa_efetiva_anual_produto_sem_bonus(carteira, config)
+        valor = projetar_valor_bruto(valor, taxa_base, fim_trecho_bonus, data_fim, base_dias)
+
+    return int(valor)
+
+
+def calcular_dias_bonus_restantes(
+    data_entrada_produto: pd.Timestamp,
+    data_referencia: pd.Timestamp,
+    carteira: pd.Series,
+) -> int:
+    dias_bonus = int(carteira.get("dias_bonus", 0) or 0)
+    if dias_bonus <= 0:
+        return 0
+    inicio = pd.Timestamp(data_entrada_produto).normalize()
+    referencia = pd.Timestamp(data_referencia).normalize()
+    dias_decorridos = max((referencia - inicio).days, 0)
+    return max(dias_bonus - dias_decorridos, 0)
+
+
+def projetar_valor_bruto_com_bonus_segmentado(
+    valor_inicial_centavos: int,
+    carteira: pd.Series,
+    data_inicio: pd.Timestamp,
+    data_fim: pd.Timestamp,
+    data_entrada_produto: pd.Timestamp,
+    config: ConfigProjeto,
+) -> int:
+    data_inicio = pd.Timestamp(data_inicio).normalize()
+    data_fim = pd.Timestamp(data_fim).normalize()
+    data_entrada_produto = pd.Timestamp(data_entrada_produto).normalize()
+    if data_fim <= data_inicio:
+        return int(valor_inicial_centavos)
+
+    indexador = str(carteira["indexador"])
+    base_dias = obter_base_dias(indexador, config)
+    dias_bonus = int(carteira.get("dias_bonus", 0) or 0)
+    if dias_bonus <= 0:
+        taxa = calcular_taxa_efetiva_anual_produto_sem_bonus(carteira, config)
+        return projetar_valor_bruto(valor_inicial_centavos, taxa, data_inicio, data_fim, base_dias)
+
+    fim_bonus = data_entrada_produto + pd.Timedelta(days=dias_bonus)
+    fim_trecho_bonus = min(data_fim, fim_bonus)
+    valor = int(valor_inicial_centavos)
+
+    if fim_trecho_bonus > data_inicio:
+        taxa_bonus_total = calcular_taxa_efetiva_anual_produto(carteira, config)
+        valor = projetar_valor_bruto(valor, taxa_bonus_total, data_inicio, fim_trecho_bonus, base_dias)
+
+    if data_fim > fim_trecho_bonus:
+        taxa_base = calcular_taxa_efetiva_anual_produto_sem_bonus(carteira, config)
+        valor = projetar_valor_bruto(valor, taxa_base, fim_trecho_bonus, data_fim, base_dias)
+
+    return int(valor)
+
+
+def bonus_remanescente_domina_destino(
+    lote: pd.Series,
+    carteira_origem: pd.Series,
+    carteira_destino: pd.Series,
+    data_switching: pd.Timestamp,
+    valor_transferido_centavos: int,
+    config: ConfigProjeto,
+) -> bool:
+    data_switching = pd.Timestamp(data_switching).normalize()
+    valor_transferido_centavos = int(valor_transferido_centavos)
+    if valor_transferido_centavos <= 0:
+        return False
+
+    dias_bonus_restantes = calcular_dias_bonus_restantes(
+        data_entrada_produto=pd.Timestamp(lote["data_entrada_lote"]).normalize(),
+        data_referencia=data_switching,
+        carteira=carteira_origem,
+    )
+    if dias_bonus_restantes <= 0:
+        return False
+
+    data_fim_comparacao = data_switching + pd.Timedelta(days=dias_bonus_restantes)
+    valor_origem = projetar_valor_bruto_com_bonus_segmentado(
+        valor_inicial_centavos=valor_transferido_centavos,
+        carteira=carteira_origem,
+        data_inicio=data_switching,
+        data_fim=data_fim_comparacao,
+        data_entrada_produto=pd.Timestamp(lote["data_entrada_lote"]).normalize(),
+        config=config,
+    )
+    valor_destino = projetar_valor_bruto_com_bonus_segmentado(
+        valor_inicial_centavos=valor_transferido_centavos,
+        carteira=carteira_destino,
+        data_inicio=data_switching,
+        data_fim=data_fim_comparacao,
+        data_entrada_produto=data_switching,
+        config=config,
+    )
+    return int(valor_origem) > int(valor_destino)
+
+
+def calcular_janela_dominancia_estrutural_dias(
+    lote: pd.Series,
+    carteira_origem: pd.Series,
+    carteira_destino: pd.Series,
+    data_switching: pd.Timestamp,
+    config: ConfigProjeto,
+) -> int:
+    data_switching = pd.Timestamp(data_switching).normalize()
+    dias_bonus_origem = calcular_dias_bonus_restantes(
+        data_entrada_produto=pd.Timestamp(lote["data_entrada_lote"]).normalize(),
+        data_referencia=data_switching,
+        carteira=carteira_origem,
+    )
+    dias_bonus_destino = int(carteira_destino.get("dias_bonus", 0) or 0)
+    janela_minima = int(config.politicas_modelo.janela_minima_dominancia_dias)
+    return max(janela_minima, dias_bonus_origem, dias_bonus_destino)
+
+
+
+def origem_domina_destino_estruturalmente(
+    lote: pd.Series,
+    carteira_origem: pd.Series,
+    carteira_destino: pd.Series,
+    data_switching: pd.Timestamp,
+    valor_transferido_centavos: int,
+    config: ConfigProjeto,
+) -> bool:
+    if not bool(config.politicas_modelo.bloquear_switch_se_origem_domina_destino):
+        return False
+
+    valor_transferido_centavos = int(valor_transferido_centavos)
+    if valor_transferido_centavos <= 0:
+        return False
+
+    data_switching = pd.Timestamp(data_switching).normalize()
+    data_entrada_origem = pd.Timestamp(lote["data_entrada_lote"]).normalize()
+    janela_dias = calcular_janela_dominancia_estrutural_dias(
+        lote=lote,
+        carteira_origem=carteira_origem,
+        carteira_destino=carteira_destino,
+        data_switching=data_switching,
+        config=config,
+    )
+    data_fim = data_switching + pd.Timedelta(days=janela_dias)
+
+    taxa_origem_vigente = calcular_taxa_efetiva_anual_vigente_produto(
+        carteira=carteira_origem,
+        data_entrada_produto=data_entrada_origem,
+        data_referencia=data_switching,
+        config=config,
+    )
+    taxa_destino_vigente = calcular_taxa_efetiva_anual_vigente_produto(
+        carteira=carteira_destino,
+        data_entrada_produto=data_switching,
+        data_referencia=data_switching,
+        config=config,
+    )
+    spread_min = float(config.politicas_modelo.spread_minimo_dominancia_estrutural)
+    if (taxa_origem_vigente - taxa_destino_vigente) < spread_min:
+        return False
+
+    valor_origem = projetar_valor_bruto_com_regime_promocional(
+        valor_inicial_centavos=valor_transferido_centavos,
+        carteira=carteira_origem,
+        data_inicio=data_switching,
+        data_fim=data_fim,
+        data_entrada_produto=data_entrada_origem,
+        config=config,
+    )
+    valor_destino = projetar_valor_bruto_com_regime_promocional(
+        valor_inicial_centavos=valor_transferido_centavos,
+        carteira=carteira_destino,
+        data_inicio=data_switching,
+        data_fim=data_fim,
+        data_entrada_produto=data_switching,
+        config=config,
+    )
+    return int(valor_origem) >= int(valor_destino)
+
+
 
 def calcular_fator_acumulacao(
     taxa_anual: float,

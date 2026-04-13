@@ -1,0 +1,32 @@
+{
+  "baseline_name": "v2_official",
+  "source_policy": "intertemporal_com_switching_previo_e_reavaliacao_do_horizonte",
+  "reference_summary": {
+    "data_corte_modelo": "2026-04-10",
+    "data_referencia": "2026-04-10",
+    "horizonte_final": "2027-03-31",
+    "qtd_datas_com_deficit": 12,
+    "qtd_datas_com_switching_escolhido": 4,
+    "qtd_eventos_switching": 4,
+    "qtd_eventos_resgate": 12,
+    "saldo_final_caixa_centavos": 0,
+    "saldo_final_investido_liquido_centavos": 1051493,
+    "riqueza_final_politica_conjunta_centavos": 1051493,
+    "riqueza_final_politica_base_centavos": 1013669,
+    "ganho_total_vs_politica_base_centavos": 37824,
+    "cobertura_total_viavel": true
+  },
+  "acceptance_rules": {
+    "require_full_payment_coverage": true,
+    "require_terminal_wealth_not_below_baseline": true,
+    "require_same_horizon": true,
+    "allow_more_switchings": true,
+    "allow_more_redemptions": true
+  },
+  "informational_metrics": [
+    "qtd_datas_com_switching_escolhido",
+    "qtd_eventos_switching",
+    "qtd_eventos_resgate",
+    "ganho_total_vs_politica_base_centavos"
+  ]
+}

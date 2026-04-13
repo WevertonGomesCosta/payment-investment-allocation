@@ -39,6 +39,11 @@ These layers are explicitly postponed:
 The current joint policy no longer accepts switching based only on same-day balance improvements. Candidate switching actions are now re-evaluated through the remaining horizon, using the current redemption policy on future critical dates before accepting the local decision.
 
 
-## Hardened joint switching policy
+## Baseline governance
 
-The current joint switching policy evaluates the remaining horizon before accepting a switch, applies a materiality filter to avoid marginal operations, tests a small set of switching sizes, and preserves future balance on the dominant lot through a reserve heuristic.
+- The official baseline is **v2**.
+- Experimental branches such as **v5** may remain documented, but they do not replace the baseline unless they improve the main objective on the real workbook replay.
+- New policy modules should be evaluated against v2 before being promoted.
+
+
+Programmatic structural-dominance of the origin portfolio now replaces any fixed lot-level switching block.

@@ -11,7 +11,7 @@ This repository implements an incremental methodological framework for:
 - pricing invested positions under simplified market assumptions,
 - diagnosing future payment coverage,
 - selecting redemption candidates,
-- applying an intertemporal redemption policy with future-preservation logic, and a joint switching policy with horizon-wide evaluation, materiality filtering, and dominant-lot balance preservation.
+- applying an intertemporal redemption policy with future-preservation logic.
 
 The project is built around the principle that each financial lot should be tracked individually, both economically and operationally, to support auditable decisions involving:
 
@@ -34,16 +34,28 @@ At this stage, the implemented scope includes:
 - pricing of invested lots under simplified market assumptions,
 - diagnosis of future payment coverage,
 - candidate redemption selection,
-- an intertemporal redemption policy.
-- canonical switching contracts and invariants for the next methodological layer.
+- an intertemporal redemption policy,
+- switching contracts and invariants,
+- switching candidate generation on critical dates,
+- switching-versus-redemption comparison on critical dates,
+- the hardened joint redemption + switching policy (**v2 official baseline**).
 
 The following components are intentionally postponed to later phases:
 
-- switching policy execution,
-- joint allocation between redemptions and reallocation,
-- portfolio optimization,
-- global intertemporal search,
+- switching bundles/conjuntos,
+- stronger global intertemporal optimization,
+- portfolio-level search beyond the current heuristic layer,
 - full production export pipeline.
+
+## Official Baseline
+
+The **official project baseline** is now the **v2 hardened joint policy**:
+
+- policy name: `intertemporal_com_switching_previo_e_reavaliacao_do_horizonte`
+- objective criterion: **maximize terminal wealth under full payment coverage**
+- status: **official baseline for future development**
+
+The later **v5 global refinement** remains documented as an **experimental methodological branch**. It improved policy discipline, timing, and partial-switch sizing, but it did **not** outperform v2 on terminal wealth in the real workbook replay. Therefore, future development should start from **v2**, while selectively reusing useful ideas from v5 when they improve v2 without reducing the main economic objective.
 
 ## Core Problem
 
@@ -72,6 +84,8 @@ Source modules currently included:
 - `src/diagnostico_futuro.py`
 - `src/motor_resgates.py`
 - `src/motor_switching.py`
+- `src/comparacao_switching_resgates.py`
+- `src/politica_conjunta_switching.py`
 
 Scripts currently included:
 
@@ -79,6 +93,9 @@ Scripts currently included:
 - `scripts/diagnosticar_pagamentos_futuros.py`
 - `scripts/selecionar_resgates_candidatos.py`
 - `scripts/avaliar_politica_resgates_intertemporal.py`
+- `scripts/gerar_candidatos_switching.py`
+- `scripts/comparar_switching_vs_resgates.py`
+- `scripts/avaliar_politica_conjunta_switching.py`
 
 ## Repository Structure
 
@@ -184,14 +201,28 @@ Additional notes are available in:
 - `docs/roadmap.md`
 - `docs/switching_contracts.md`
 - `docs/github_repository_setup.md`
+- `docs/baselines.md`
+
+
+## Baseline Validation
+
+All future refinements must be compared against the **official v2 baseline** before entering the official line.
+
+The repository now includes:
+
+- `config/baseline_v2_oficial.json`
+- `src/baseline_guardrails.py`
+- `scripts/validar_refinamento_contra_baseline_v2.py`
+- `docs/baseline_validation.md`
+
+A refinement is only allowed into the official line if it preserves full payment coverage and does not reduce terminal wealth relative to the official v2 baseline.
 
 ## Roadmap
 
-- harden historical financial reconciliation,
-- refine intertemporal redemption policy,
-- deepen switching candidate generation,
-- compare redemption vs switching under real critical dates,
-- implement joint decision policy,
+- preserve **v2** as the official baseline for all next development steps,
+- selectively reincorporate only the useful ideas from v5 when they improve v2,
+- strengthen the global intertemporal policy on top of v2,
+- decide whether switching bundles/conjuntos are still justified after that,
 - expand auditing and reporting.
 
 ## License
@@ -204,6 +235,26 @@ MIT
 The joint redemption + switching policy now validates candidate switching actions by replaying the remaining horizon after the current critical date. In this phase, the policy evaluates the strongest switching candidate per critical date to keep the intertemporal replay computationally tractable while preserving lot-level auditability.
 
 
-## Current sensitivity note
+- Switching now includes a programmatic structural-dominance check on the origin portfolio, replacing any fixed lot-level blocking.
 
-The intertemporal switching policy now supports small `top_k_switch_por_data` sensitivity analysis to compare marginal terminal-value gains against additional computational cost.
+
+## Workbook operacional principal
+
+O repositório inclui um gerador programático do workbook operacional principal da baseline v2.
+
+Arquivos principais:
+- `src/exportacao_workbook_operacional_principal.py`
+- `scripts/gerar_workbook_operacional_principal_v2.py`
+
+Saída esperada:
+- `outputs/workbook_operacional_principal_v2.xlsx`
+
+Esse workbook foi reconstruído para ficar mais enxuto e orientado à validação prática, incluindo:
+- histórico de pagamentos realizados
+- recebidos/lotes e aportes em carteira
+- plano futuro de pagamentos
+- switchings propostos
+- switchings agrupados
+- justificativa resumida de switching
+- carteira final operacional
+- conferência geral
