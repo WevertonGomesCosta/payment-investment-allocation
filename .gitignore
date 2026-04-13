@@ -1,35 +1,102 @@
-.Rproj.user
+# =========================================================
+# Primary repository exclusion policy
+# This file is the canonical source of ignore rules.
+# =========================================================
+
+# ---------------------------------------------------------
+# R / RStudio
+# ---------------------------------------------------------
+.Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
 
+# ---------------------------------------------------------
+# Python
+# ---------------------------------------------------------
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+*.so
+.python-version
 .venv/
 venv/
-.env
+env/
+ENV/
 .ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
 
+# ---------------------------------------------------------
+# Environments / local settings
+# ---------------------------------------------------------
+.env
+.env.*
+*.local
+
+# ---------------------------------------------------------
+# Operating system / editors
+# ---------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------
+# Archives and generated bundles
+# ---------------------------------------------------------
 *.zip
+*.7z
+*.tar
+*.gz
 
-data/raw/*
-!data/raw/.gitkeep
+# ---------------------------------------------------------
+# Logs and temporary files
+# ---------------------------------------------------------
+*.log
+*.tmp
+*.temp
 
-data/interim/*
-!data/interim/.gitkeep
+# ---------------------------------------------------------
+# Generated outputs
+# ---------------------------------------------------------
+outputs/
+reports/
 
-data/processed/*
-!data/processed/.gitkeep
-
-outputs/*
-!outputs/.gitkeep
-
-*.xlsx
-*.xls
-*.csv
+# ---------------------------------------------------------
+# Data derivatives and caches
+# Keep canonical baseline files only when intentionally tracked.
+# ---------------------------------------------------------
+cache/
 *.parquet
 *.feather
+*.pkl
+*.joblib
 *.json.bak
-.DS_Store
-.ruff_cache/
-.pytest_cache/
+
+# ---------------------------------------------------------
+# Spreadsheets and tabular exports
+# Ignore generated files by default.
+# Tracked canonical files already committed remain tracked.
+# ---------------------------------------------------------
+*.csv
+*.xls
+*.xlsx
+
+# ---------------------------------------------------------
+# Project-specific future directories
+# ---------------------------------------------------------
+data/raw/
+data/interim/
+data/processed/
+
+# Preserve placeholder files if these folders are created later
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
