@@ -1,6 +1,6 @@
 # =========================================================
-# Primary repository exclusion policy
-# This file is the canonical source of ignore rules.
+# Política principal de exclusão do repositório
+# Este arquivo é a fonte canônica das regras de ignore.
 # =========================================================
 
 # ---------------------------------------------------------
@@ -38,14 +38,14 @@ dist/
 *.egg-info/
 
 # ---------------------------------------------------------
-# Environments / local settings
+# Ambientes / configurações locais
 # ---------------------------------------------------------
 .env
 .env.*
 *.local
 
 # ---------------------------------------------------------
-# Operating system / editors
+# Sistema operacional / editores
 # ---------------------------------------------------------
 .DS_Store
 Thumbs.db
@@ -56,7 +56,7 @@ Thumbs.db
 .vscode/
 
 # ---------------------------------------------------------
-# Archives and generated bundles
+# Arquivos compactados e pacotes gerados
 # ---------------------------------------------------------
 *.zip
 *.7z
@@ -64,14 +64,14 @@ Thumbs.db
 *.gz
 
 # ---------------------------------------------------------
-# Logs and temporary files
+# Logs e temporários
 # ---------------------------------------------------------
 *.log
 *.tmp
 *.temp
 
 # ---------------------------------------------------------
-# Generated outputs
+# Saídas geradas
 # ---------------------------------------------------------
 outputs/*
 reports/*
@@ -79,8 +79,8 @@ reports/*
 !reports/.gitkeep
 
 # ---------------------------------------------------------
-# Data derivatives and caches
-# Keep canonical baseline files only when intentionally tracked.
+# Derivados de dados e caches
+# Manter apenas arquivos canônicos quando rastreados.
 # ---------------------------------------------------------
 cache/
 *.parquet
@@ -90,9 +90,9 @@ cache/
 *.json.bak
 
 # ---------------------------------------------------------
-# Spreadsheets and tabular exports
-# Ignore generated files by default.
-# Tracked canonical files already committed remain tracked.
+# Planilhas e exportações tabulares
+# Ignorar gerados por padrão.
+# Arquivos canônicos rastreados continuam permitidos.
 # ---------------------------------------------------------
 *.csv
 *.xls
@@ -100,7 +100,7 @@ cache/
 !data/dados_financeiros.xlsx
 
 # ---------------------------------------------------------
-# Project-specific future directories
+# Diretórios futuros específicos do projeto
 # ---------------------------------------------------------
 data/raw/*
 data/interim/*

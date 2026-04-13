@@ -1,72 +1,71 @@
 # payment-investment-allocation
 
-Controlled repository for the incremental unification of two financial scripts:
+Repositório controlado para a unificação incremental de dois scripts financeiros:
 
-- a payment/redemption optimizer;
-- a switching allocator for invested and available lots.
+- um otimizador de pagamentos e resgates;
+- um motor de switching para lotes já investidos e lotes disponíveis.
 
-The long-term objective is to evolve this baseline into a single auditable project for
-joint allocation of received cash across payments, investments, and switching decisions,
-maximizing terminal net wealth under financially correct rules.
+O objetivo de longo prazo é evoluir esta baseline para um projeto único, auditável e modular de
+alocação conjunta de recebidos entre pagamentos, investimentos e decisões de switching,
+maximizando o patrimônio líquido final sob regras financeiramente corretas.
 
-## Current Repository Status
+## Estado Atual do Repositório
 
-This repository is the official controlled baseline for the modular unification effort.
+Este repositório é a baseline oficial controlada do esforço de unificação modular.
 
-**Current version:** V2
+**Versão atual da baseline:** V2 revisada
 
-At this stage, the repository now contains:
+Nesta etapa, o repositório contém:
 
-- the canonical workbook and config under `data/`;
-- the first shared Python modules extracted from the two original scripts;
-- a minimal application entry point for baseline inspection;
-- placeholder directories for the next controlled modularization steps.
+- a planilha canônica e o arquivo de configuração em `data/`;
+- os primeiros módulos Python compartilhados extraídos dos dois scripts originais;
+- um ponto de entrada mínimo para inspeção da baseline;
+- diretórios de apoio para as próximas etapas controladas da modularização.
 
-## Canonical Inputs
+## Entradas Canônicas
 
-The working baseline currently uses:
+A baseline atual utiliza como entradas principais:
 
 - `data/config_atualizado.json`
 - `data/dados_financeiros.xlsx`
 
-These files remain the canonical starting point for the first structural migration steps.
+Esses arquivos permanecem como ponto de partida canônico para as primeiras etapas da migração estrutural.
 
-## What Was Added in V2
+## O que foi adicionado na V2
 
-V2 creates the first modular layer without touching the deep financial core yet.
+A V2 criou a primeira camada modular sem alterar ainda o núcleo financeiro profundo.
 
-New shared modules:
+### Módulos compartilhados iniciais
 
 - `core/ambiente.py`
-  - selective network warning handling;
-  - environment detection;
-  - dependency verification and optional installation;
-  - timezone/bootstrap context.
+  - tratamento seletivo de avisos de rede;
+  - detecção do ambiente de execução;
+  - verificação e instalação opcional de dependências;
+  - contexto de timezone e bootstrap.
 
 - `core/config_loader.py`
-  - repository root discovery;
-  - canonical config path resolution;
-  - JSON config loading;
-  - safe nested config access.
+  - descoberta da raiz do repositório;
+  - resolução do caminho do config canônico;
+  - carregamento do JSON de configuração;
+  - acesso seguro a chaves aninhadas.
 
 - `core/io_planilha.py`
-  - canonical workbook path resolution;
-  - workbook loading;
-  - initial sheet loading;
-  - initial column canonicalization based on config aliases.
+  - resolução do caminho da planilha canônica;
+  - carregamento do workbook;
+  - leitura inicial das abas;
+  - canonização inicial de colunas com base nos aliases definidos no config.
 
-Minimal application entry point:
+### Ponto de entrada mínimo
 
 - `app/main.py`
 
-This entry point only inspects the baseline and prints a structured summary of the
-current config and workbook. It does **not** run payment optimization, switching,
-simulation, or financial reconciliation yet.
+Esse ponto de entrada apenas inspeciona a baseline e imprime um resumo estruturado do config e da planilha.
+Ele **ainda não** executa otimização de pagamentos, switching, simulação ou reconciliação financeira.
 
-## Current Repository Structure
+## Estrutura Atual do Repositório
 
 ```text
-payment-investment-allocation/
+.
 ├── .editorconfig
 ├── .gitattributes
 ├── .gitignore
@@ -90,6 +89,7 @@ payment-investment-allocation/
 ├── scripts/
 │   └── inspecionar_baseline.py
 ├── tests/
+│   └── .gitkeep
 ├── data/
 │   ├── config_atualizado.json
 │   ├── dados_financeiros.xlsx
@@ -105,65 +105,78 @@ payment-investment-allocation/
     └── .gitkeep
 ```
 
-## Minimal Usage
+## Uso Mínimo
 
-Create or activate your Python environment and install the current requirements:
+Crie ou ative seu ambiente Python e instale as dependências atuais:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Run the baseline inspection entry point from the repository root:
+Execute a inspeção da baseline a partir da raiz do repositório:
 
 ```bash
 python app/main.py
 ```
 
-or:
+ou:
 
 ```bash
 python scripts/inspecionar_baseline.py
 ```
 
-The command prints:
+O comando imprime:
 
-- resolved repository root;
-- resolved config path;
-- resolved workbook path;
-- dependency report;
-- workbook sheet names;
-- initial workbook summary.
+- raiz do repositório resolvida;
+- caminho do config resolvido;
+- caminho da planilha resolvido;
+- relatório de dependências;
+- nomes das abas da planilha;
+- resumo inicial da baseline.
 
-## Design Principles Maintained
+## Princípios de Projeto Mantidos
 
-This repository still follows the controlled migration policy:
+Este repositório continua seguindo a política de migração controlada:
 
-- single canonical config;
-- single canonical workbook interpretation;
-- incremental modularization;
-- lot-level auditability as a future invariant;
-- no deep structural corrections before core unification is stable;
-- full zipped repository delivery at each version.
+- config canônico único;
+- interpretação canônica única da planilha;
+- modularização incremental;
+- auditabilidade futura em nível de lote;
+- nenhuma correção estrutural profunda antes que a unificação do núcleo esteja estável;
+- entrega do repositório completo em `.zip` a cada versão.
 
-## What V2 Does Not Change Yet
+## O que a V2 ainda não altera
 
-V2 deliberately does **not** implement or rewrite:
+A V2 deliberadamente **não** implementa nem reescreve:
 
-- financial core calculations;
-- tax logic;
-- IOF/IR reconciliation;
-- payment ranking;
-- switching ranking;
-- joint scenario evaluation;
-- historical lot reconstruction.
+- cálculos do núcleo financeiro;
+- lógica tributária;
+- reconciliação de IOF e IR;
+- ranking de pagamento;
+- ranking de switching;
+- avaliação conjunta de cenários;
+- reconstrução histórica de lotes.
 
-Those layers should be migrated in later controlled versions.
+Essas camadas deverão ser migradas em versões controladas posteriores.
 
-## Immediate Next Structural Step
+## Recomendação antes da V3
 
-The next controlled version should focus on expanding the shared core around:
+Antes de expandir a base modular para contratos de entidades e validações mais profundas, a recomendação é auditar mais blocos equivalentes dos dois scripts-base. Isso reduz o risco de criar funções ou estruturas duplicadas que já existam nos scripts originais, preserva a identificação correta das responsabilidades e melhora a qualidade da unificação.
 
-- canonical sheet/block loading;
-- initial entity contracts for lots, expenses, and products;
-- basic validation/reporting of critical sheet columns;
-- preparation for the first migration of payment and switching domain logic.
+A prioridade recomendada para os próximos blocos é:
+
+1. leitura do config e resolução de caminhos;
+2. carga da planilha e interpretação das abas;
+3. normalização/canonização de colunas;
+4. construção inicial das estruturas de lotes, despesas e produtos;
+5. validações operacionais mínimas;
+6. só depois disso, migração controlada do núcleo de pagamento e switching.
+
+## Próximo passo sugerido
+
+O próximo passo mais seguro é continuar a auditoria comparativa dos scripts-base antes de ampliar demais a V2. A V3 deve nascer apenas depois que os próximos blocos equivalentes forem comparados e classificados em:
+
+- manter;
+- unificar;
+- excluir;
+- reescrever posteriormente.
