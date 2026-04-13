@@ -303,3 +303,21 @@ As saídas detalhadas do console foram divididas em subtabelas menores para faci
 - lotes esgotados: identificação e valores
 - switchings por evento: identificação e valores/motivo
 - switchings agrupados: identificação e valores/fragmentação
+
+
+## Classificação operacional dos lotes
+O gerador do workbook e o resumo do console usam o **Inventário de Lotes** como fonte primária para:
+- `Valor_Original`
+- `Data_Aplicacao`
+- `Investimento`
+- classe do lote
+
+A data de referência é **hoje em Brasília** (`America/Sao_Paulo`).
+
+Classes operacionais:
+- `INVESTIDOS_ATUAIS`
+- `LIVRES_DISPONIVEIS`
+- `LIVRES_FUTUROS`
+- `BLOQUEADOS_JA_GASTOS` (`Investimento == "-"`)
+
+A planilha de referência é usada apenas como apoio para saldos reconstruídos.

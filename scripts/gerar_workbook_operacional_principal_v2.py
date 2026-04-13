@@ -4,16 +4,15 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 import argparse
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.exportacao_workbook_operacional_principal import build_operational_workbook
-
+from src.exportacao_workbook_operacional_principal import build_operational_workbook, build_lotes_operacionais
 import pandas as pd
-
-
 
 
 def _fmt_money(x: float) -> str:
@@ -55,13 +54,12 @@ def _print_console_summary(
     gastos_raw.columns = ["Data", "Descricao", "Valor", "Pago", "Lote_usado_1", "Lote_usado_2"]
     gastos_raw["Pago"] = gastos_raw["Pago"].fillna("").astype(str).str.strip().str.upper()
 
-    lotes_raw = pd.read_excel(raw_path, sheet_name="Inventário de Lotes")
-    lotes_raw.columns = ["Lote ID", "Data Aplicacao", "Valor Original", "Investimento"]
-
-    situacao = pd.read_excel(reference_path, sheet_name="Situacao Atual")
     switchings = pd.read_csv(switchings_path)
     resgates = pd.read_csv(resgates_path)
     timeline = pd.read_csv(timeline_path)
+
+    lotes_views = build_lotes_operacionais(raw_path, reference_path)
+    ref_date = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
 
     gastos_hist = gastos_raw[gastos_raw["Pago"].eq("OK")].copy()
     gastos_fut = gastos_raw[~gastos_raw["Pago"].eq("OK")].copy()
@@ -82,33 +80,13 @@ def _print_console_summary(
             primeira_data_critica = crit["data"].min().strftime("%d/%m/%Y")
             ultima_data_critica = crit["data"].max().strftime("%d/%m/%Y")
 
-    lote_to_carteira = lotes_raw.set_index("Lote ID")["Investimento"].to_dict()
-    lotes_console = situacao[[
-        "Lote ID", "Data Aplicação", "Dias Corridos até Hoje", "Dias Úteis até Hoje",
-        "Valor Planejado Original (R$)", "Saldo Bruto Atual (R$)", "Saldo Líquido Atual (R$)",
-        "Total Bruto Sacado (R$)", "Total Líquido Sacado (R$)", "Vezes Usado (Futuro)", "Esgotado no Passado"
-    ]].copy()
-    lotes_console["Carteira"] = lotes_console["Lote ID"].map(lote_to_carteira)
-    lotes_console["Status"] = lotes_console["Esgotado no Passado"].map(lambda v: "ESGOTADO_NO_PASSADO" if bool(v) else "ATIVO/REMANESCENTE")
-    lotes_console = lotes_console.rename(columns={
-        "Lote ID": "Lote",
-        "Data Aplicação": "Data_Aplicacao",
-        "Dias Corridos até Hoje": "Dias_Corridos",
-        "Dias Úteis até Hoje": "Dias_Uteis",
-        "Valor Planejado Original (R$)": "Valor_Original_R$",
-        "Saldo Bruto Atual (R$)": "Saldo_Bruto_R$",
-        "Saldo Líquido Atual (R$)": "Saldo_Liquido_R$",
-        "Total Bruto Sacado (R$)": "Total_Bruto_Sacado_R$",
-        "Total Líquido Sacado (R$)": "Total_Liquido_Sacado_R$",
-        "Vezes Usado (Futuro)": "Vezes_Usado_Futuro",
-    }).sort_values(["Data_Aplicacao", "Lote"])
-
-    lotes_ativos = lotes_console[lotes_console["Status"].eq("ATIVO/REMANESCENTE")].copy()
-    lotes_hist = lotes_console[lotes_console["Status"].eq("ESGOTADO_NO_PASSADO")].copy()
-
     switchings_console = pd.DataFrame()
     switchings_group = pd.DataFrame()
     if len(switchings):
+        lotes_raw = pd.read_excel(raw_path, sheet_name="Inventário de Lotes")
+        lotes_raw.columns = ["Lote ID", "Data Aplicacao", "Valor Original", "Investimento"]
+        lote_to_carteira = lotes_raw.set_index("Lote ID")["Investimento"].fillna("").astype(str).to_dict()
+
         switchings_console = switchings.copy()
         switchings_console["Carteira_Origem"] = switchings_console["id_lote_origem"].map(lote_to_carteira)
         switchings_console["Valor_Switching_R$"] = switchings_console["valor_switching_centavos"] / 100
@@ -140,7 +118,7 @@ def _print_console_summary(
     print("RESUMO DA EXECUÇÃO — WORKBOOK OPERACIONAL PRINCIPAL V2")
     print("=" * 92)
     print(f"Workbook gerado: {output_workbook}")
-    print("Data de referência (Brasília): 13/04/2026")
+    print(f"Data de referência (Brasília): {ref_date.strftime('%d/%m/%Y')}")
     print("Fuso horário: America/Sao_Paulo")
     print(f"Pagamentos históricos: {len(gastos_hist)}")
     print(f"Pagamentos futuros: {len(gastos_fut)}")
@@ -154,23 +132,21 @@ def _print_console_summary(
     print(f"Ganho total vs base: {_fmt_money(ganho_total)}")
     print("=" * 92)
 
-    _print_console_table(
-        "LOTES / RECEBIDOS ATIVOS — IDENTIFICAÇÃO",
-        lotes_ativos[["Lote", "Data_Aplicacao", "Carteira", "Status", "Dias_Corridos", "Dias_Uteis"]]
-    )
-    _print_console_table(
-        "LOTES / RECEBIDOS ATIVOS — VALORES",
-        lotes_ativos[["Lote", "Valor_Original_R$", "Saldo_Bruto_R$", "Saldo_Liquido_R$", "Total_Bruto_Sacado_R$", "Total_Liquido_Sacado_R$", "Vezes_Usado_Futuro"]]
-    )
-
-    _print_console_table(
-        "LOTES / RECEBIDOS ESGOTADOS — IDENTIFICAÇÃO",
-        lotes_hist[["Lote", "Data_Aplicacao", "Carteira", "Status", "Dias_Corridos", "Dias_Uteis"]]
-    )
-    _print_console_table(
-        "LOTES / RECEBIDOS ESGOTADOS — VALORES",
-        lotes_hist[["Lote", "Valor_Original_R$", "Saldo_Bruto_R$", "Saldo_Liquido_R$", "Total_Bruto_Sacado_R$", "Total_Liquido_Sacado_R$", "Vezes_Usado_Futuro"]]
-    )
+    for chave, label in [
+        ("INVESTIDOS_ATUAIS", "LOTES INVESTIDOS ATUAIS"),
+        ("LIVRES_DISPONIVEIS", "LOTES LIVRES DISPONÍVEIS"),
+        ("LIVRES_FUTUROS", "LOTES LIVRES FUTUROS"),
+        ("BLOQUEADOS_JA_GASTOS", "LOTES BLOQUEADOS / JÁ GASTOS"),
+    ]:
+        df = lotes_views[chave]
+        _print_console_table(
+            f"{label} — IDENTIFICAÇÃO",
+            df[["Lote", "Data_Aplicacao", "Investimento", "Classe_Lote", "Dias_Corridos", "Dias_Uteis"]]
+        )
+        _print_console_table(
+            f"{label} — VALORES",
+            df[["Lote", "Valor_Original_R$", "Saldo_Bruto_R$", "Saldo_Liquido_R$", "Total_Bruto_Sacado_R$", "Total_Liquido_Sacado_R$", "Vezes_Usado_Futuro"]]
+        )
 
     if not switchings_console.empty:
         _print_console_table(
@@ -192,13 +168,13 @@ def _print_console_summary(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Gera o workbook operacional principal da baseline v2.')
-    parser.add_argument('--raw', default=str(ROOT / 'examples' / 'dados_financeiros.xlsx'))
-    parser.add_argument('--reference', default=str(ROOT / 'examples' / 'resultado_economica_cliff_agrupado.xlsx'))
-    parser.add_argument('--switchings', default=str(ROOT / 'examples' / 'full_end_to_end_confirmation_v2_switchings.csv'))
-    parser.add_argument('--resgates', default=str(ROOT / 'examples' / 'full_end_to_end_confirmation_v2_resgates.csv'))
-    parser.add_argument('--timeline', default=str(ROOT / 'examples' / 'full_end_to_end_confirmation_v2_timeline.csv'))
-    parser.add_argument('--output', default=str(ROOT / 'outputs' / 'workbook_operacional_principal_v2.xlsx'))
+    parser = argparse.ArgumentParser(description="Gera o workbook operacional principal da baseline v2.")
+    parser.add_argument("--raw", default=str(ROOT / "examples" / "dados_financeiros.xlsx"))
+    parser.add_argument("--reference", default=str(ROOT / "examples" / "resultado_economica_cliff_agrupado.xlsx"))
+    parser.add_argument("--switchings", default=str(ROOT / "examples" / "full_end_to_end_confirmation_v2_switchings.csv"))
+    parser.add_argument("--resgates", default=str(ROOT / "examples" / "full_end_to_end_confirmation_v2_resgates.csv"))
+    parser.add_argument("--timeline", default=str(ROOT / "examples" / "full_end_to_end_confirmation_v2_timeline.csv"))
+    parser.add_argument("--output", default=str(ROOT / "outputs" / "workbook_operacional_principal_v2.xlsx"))
     args = parser.parse_args()
 
     output_workbook = Path(args.output)
@@ -212,7 +188,7 @@ def main() -> None:
         official_timeline_csv=Path(args.timeline),
         output_path=output_workbook,
     )
-    print(f'Workbook gerado em: {output_workbook}')
+    print(f"Workbook gerado em: {output_workbook}")
     _print_console_summary(
         raw_path=Path(args.raw),
         reference_path=Path(args.reference),
