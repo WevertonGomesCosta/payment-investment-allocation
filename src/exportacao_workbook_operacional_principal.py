@@ -56,7 +56,8 @@ def _write_df(ws, df: pd.DataFrame, title: str, notes: str) -> None:
         max_len = max(len(str(col_name)), 12)
         if len(df) > 0:
             sample = df[col_name].head(100).map(lambda x: "" if pd.isna(x) else str(x))
-            max_len = max(max_len, min(60, int(sample.map(len).max())))
+            max_len_sample = int(sample.map(len).max()) if len(sample) > 0 else 0
+            max_len = max(max_len, min(60, max_len_sample))
         ws.column_dimensions[get_column_letter(col_idx)].width = max_len + 2
 
         header = str(col_name)
@@ -325,14 +326,18 @@ def build_operational_workbook(
             "Status": "PLANEJADO",
         })
     extrato_future = pd.DataFrame(future_events)
-    extrato = pd.concat([
+    extrato_frames = [
         extrato_hist[["Data", "Ordem Evento", "Tipo Evento", "Conta", "Lote", "Carteira Origem", "Carteira Destino",
                       "Saldo Antes", "Bruto", "Imposto", "Liquido", "Dias Corridos", "Dias Úteis",
-                      "Saldo Remanescente", "Motivo", "Status"]],
-        extrato_future[["Data", "Ordem Evento", "Tipo Evento", "Conta", "Lote", "Carteira Origem", "Carteira Destino",
-                        "Saldo Antes", "Bruto", "Imposto", "Liquido", "Dias Corridos", "Dias Úteis",
-                        "Saldo Remanescente", "Motivo", "Status"]],
-    ], ignore_index=True).sort_values(["Data", "Ordem Evento", "Tipo Evento"]).reset_index(drop=True)
+                      "Saldo Remanescente", "Motivo", "Status"]]
+    ]
+    if not extrato_future.empty:
+        extrato_frames.append(
+            extrato_future[["Data", "Ordem Evento", "Tipo Evento", "Conta", "Lote", "Carteira Origem", "Carteira Destino",
+                            "Saldo Antes", "Bruto", "Imposto", "Liquido", "Dias Corridos", "Dias Úteis",
+                            "Saldo Remanescente", "Motivo", "Status"]]
+        )
+    extrato = pd.concat(extrato_frames, ignore_index=True).sort_values(["Data", "Ordem Evento", "Tipo Evento"]).reset_index(drop=True)
 
     wb = Workbook()
     wb.remove(wb.active)

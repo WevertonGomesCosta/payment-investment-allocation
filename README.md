@@ -258,3 +258,22 @@ Esse workbook foi reconstruído para ficar mais enxuto e orientado à validaçã
 - justificativa resumida de switching
 - carteira final operacional
 - conferência geral
+
+
+## Execução do workbook operacional principal
+
+Com os exemplos do repositório:
+```bash
+python scripts/gerar_workbook_operacional_principal_v2.py
+```
+
+Com caminhos explícitos:
+```bash
+python scripts/gerar_workbook_operacional_principal_v2.py \
+  --raw examples/dados_financeiros.xlsx \
+  --reference examples/resultado_economica_cliff_agrupado.xlsx \
+  --switchings examples/full_end_to_end_confirmation_v2_switchings.csv \
+  --resgates examples/full_end_to_end_confirmation_v2_resgates.csv \
+  --timeline examples/full_end_to_end_confirmation_v2_timeline.csv \
+  --output outputs/workbook_operacional_principal_v2.xlsx
+```
