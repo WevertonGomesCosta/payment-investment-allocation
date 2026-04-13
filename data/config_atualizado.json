@@ -1,0 +1,652 @@
+{
+  "google_drive": {
+    "sheets_file_id": "17Rbdi74kVuXm8tqto3TUP19BVRXMjvqe",
+    "fallback_bcb_file_id": "1B-xAeSXVzB8fEj5RJbbK17W-wWRAlXVn",
+    "fallback_param_5p_file_id": "1x2NXINcmzFHHINewQLkhwCflAsjUMEGf"
+  },
+  "arquivos": {
+    "planilha": "dados_financeiros.xlsx",
+    "cache_bcb": "cache_bcb.json",
+    "workbook_saida": "sistema_unificado_resultado.xlsx",
+    "config_atualizado": "config_atualizado.json",
+    "parametros_5p": "melhores_parametros_5p.json",
+    "log_decisoes_csv": "log_decisoes.csv",
+    "historico_lotes_csv": "historico_lotes.csv",
+    "temporario_fallback_bcb": "cdi_fallback.xlsx"
+  },
+  "ambiente": {
+    "modo": "auto",
+    "base_dir_local": ".",
+    "base_dir_colab": "/content",
+    "instalar_dependencias_automaticamente": true
+  },
+  "bootstrap": {
+    "config_preferido": "config_atualizado.json",
+    "config_fallback": "config.json",
+    "parametros_5p_default_nome": "melhores_parametros_5p"
+  },
+  "rede": {
+    "user_agent_download_planilha": "Mozilla/5.0",
+    "user_agent_bcb": "Mozilla/5.0 (compatible; FinBot/1.0)",
+    "accept_bcb": "application/json",
+    "timeout_download_segundos": 30,
+    "timeout_bcb_segundos": 10,
+    "verificar_ssl": false
+  },
+  "abas": {
+    "carteira": "Carteira",
+    "lotes": "Inventário de Lotes",
+    "despesas": "Todos os Gastos"
+  },
+  "colunas": {
+    "carteira": {
+      "produto_id": [
+        "produto_id",
+        "id",
+        "codigo"
+      ],
+      "nome": [
+        "nome",
+        "produto",
+        "investimento",
+        "Nome",
+        "Produto",
+        "Investimento"
+      ],
+      "tipo": [
+        "tipo",
+        "Tipo"
+      ],
+      "indexador": [
+        "indexador",
+        "Indexador"
+      ],
+      "taxa_base": [
+        "taxa_base",
+        "taxa_base_cdi",
+        "percentual_cdi",
+        "Taxa_Base_CDI"
+      ],
+      "taxa_bonus": [
+        "taxa_bonus",
+        "taxa_bonus_cdi",
+        "Taxa_Bonus_CDI"
+      ],
+      "dias_bonus": [
+        "dias_bonus",
+        "Dias_Bonus"
+      ],
+      "prazo_dias": [
+        "prazo_dias",
+        "prazo",
+        "Prazo_Dias"
+      ],
+      "carencia_dias": [
+        "carencia_dias",
+        "carência_dias",
+        "carencia",
+        "Carência_Dias",
+        "Carencia_Dias"
+      ],
+      "liquidez_dias": [
+        "liquidez_dias",
+        "liquidez",
+        "Liquidez_Dias"
+      ],
+      "isento_ir": [
+        "isento_ir",
+        "Isento_IR"
+      ],
+      "aplicacao_minima": [
+        "aplicacao_minima",
+        "aplicação_mínima",
+        "Aplicacao_Minima"
+      ],
+      "aplicacao_maxima": [
+        "aplicacao_maxima",
+        "aplicação_máxima",
+        "Aplicacao_Maxima"
+      ],
+      "ativo": [
+        "ativo",
+        "Ativo"
+      ],
+      "fgc": [
+        "fgc",
+        "FGC"
+      ],
+      "banco_emissor": [
+        "banco_emissor",
+        "Banco_Emissor"
+      ],
+      "risco_real": [
+        "risco_real",
+        "Risco_Real"
+      ],
+      "somente_combo": [
+        "somente_combo",
+        "Somente_Combo"
+      ],
+      "produto_base": [
+        "produto_base",
+        "Produto_Base"
+      ],
+      "produto_bonus": [
+        "produto_bonus",
+        "Produto_Bonus"
+      ],
+      "ratio_base": [
+        "ratio_base",
+        "Ratio_Base"
+      ],
+      "ratio_bonus": [
+        "ratio_bonus",
+        "Ratio_Bonus"
+      ],
+      "max_usos": [
+        "max_usos",
+        "Max_Usos"
+      ],
+      "observacoes": [
+        "observacoes",
+        "observações",
+        "Observacoes",
+        "Observações"
+      ],
+      "produto_padrao": [
+        "produto_padrao",
+        "Produto_Padrao",
+        "produto padrão",
+        "Produto Padrão",
+        "padrao",
+        "padrão",
+        "default"
+      ]
+    },
+    "lotes": {
+      "lote_id": [
+        "lote_id",
+        "lote (id)",
+        "lote",
+        "Lote (ID)",
+        "ID"
+      ],
+      "data_aplicacao": [
+        "data_aplicacao",
+        "data aplicação",
+        "data aplicacao",
+        "Data Aplicação",
+        "Data Aplicacao"
+      ],
+      "valor_original": [
+        "valor_original",
+        "valor original",
+        "Valor Original"
+      ],
+      "produto_id": [
+        "produto_id",
+        "investimento",
+        "produto",
+        "Investimento",
+        "Produto"
+      ],
+      "status_lote": [
+        "status_lote",
+        "status",
+        "Status"
+      ],
+      "data_base_fiscal": [
+        "data_base_fiscal",
+        "Data Base Fiscal"
+      ]
+    },
+    "despesas": {
+      "despesa_id": [
+        "despesa_id",
+        "id",
+        "ID"
+      ],
+      "data": [
+        "data",
+        "Data"
+      ],
+      "descricao": [
+        "descricao",
+        "descrição",
+        "Descrição",
+        "Descricao"
+      ],
+      "valor": [
+        "valor",
+        "Valor"
+      ],
+      "pago": [
+        "pago",
+        "Pago"
+      ],
+      "lote_usado_1": [
+        "lote_usado_1",
+        "lote usado 1",
+        "Lote usado 1",
+        "lote usado",
+        "Lote usado"
+      ],
+      "lote_usado_2": [
+        "lote_usado_2",
+        "lote usado 2",
+        "Lote usado 2"
+      ]
+    },
+    "aportes": {
+      "aporte_id": [
+        "aporte_id",
+        "id",
+        "ID"
+      ],
+      "data": [
+        "data",
+        "Data"
+      ],
+      "valor": [
+        "valor",
+        "Valor"
+      ],
+      "descricao": [
+        "descricao",
+        "descrição",
+        "Descrição",
+        "Descricao"
+      ]
+    },
+    "ligacoes_gastos_lotes": {
+      "despesa_id": [
+        "despesa_id",
+        "Despesa_ID"
+      ],
+      "lote_id": [
+        "lote_id",
+        "Lote_ID",
+        "lote usado",
+        "Lote usado",
+        "lote usado 1",
+        "Lote usado 1"
+      ],
+      "valor_bruto": [
+        "valor_bruto",
+        "valor",
+        "Valor",
+        "Valor_Bruto"
+      ],
+      "ordem_resgate": [
+        "ordem_resgate",
+        "Ordem_Resgate"
+      ],
+      "lote_encontrado": [
+        "lote_encontrado",
+        "Lote_Encontrado"
+      ]
+    }
+  },
+  "execucao": {
+    "timezone": "America/Sao_Paulo",
+    "nivel_log": "INFO",
+    "data_referencia_simulacao": null,
+    "convencao_dias_ano": {
+      "cdi": 252,
+      "selic_percentual": 252,
+      "selic_spread": 252,
+      "ipca": 365,
+      "prefixado": 252
+    },
+    "ordem_processamento_sentinela": 1000000000000,
+    "defaults_interativos": {
+      "modo_treinamento_padrao": "1",
+      "filtrar_ano_atual_padrao": false,
+      "perfil_treino_padrao": "balanceado",
+      "perfil_treino_auto_opcao": "a",
+      "tempo_alvo_auto_padrao_minutos": 12,
+      "modo_analise_final_padrao": "automatico"
+    }
+  },
+  "premissas_mercado": {
+    "cdi_anual_modelo": 0.149,
+    "selic_anual_modelo": 0.149,
+    "ipca_anual_modelo": 0.045,
+    "fonte_cdi_modelo": "config"
+  },
+  "politicas": {
+    "permitir_alias_coluna": true,
+    "abortar_sem_coluna_critica": true,
+    "gerar_ligacoes_gastos_lotes": true,
+    "tratar_pago_nulo_como_nao": true,
+    "aceitar_multiplos_lotes_por_despesa": true,
+    "lote_futuro_sem_produto_comportamento": "caixa",
+    "pos_vencimento": {
+      "rendimento": "parar",
+      "acao": "disponivel_para_resgate"
+    }
+  },
+  "politicas_coluna": {
+    "lote_id_tokens_fortes": [
+      "id",
+      "lote",
+      "lote id",
+      "lote (id)"
+    ],
+    "lote_id_exigir_tokens_conjuntos": [
+      "lote",
+      "id"
+    ],
+    "produto_tokens_busca": [
+      "invest",
+      "produto",
+      "carteira",
+      "aplic"
+    ],
+    "peso_preenchimento_id_lote": 1000.0,
+    "bonus_unicidade_id_lote": 10000.0,
+    "peso_preenchimento_produto": 100.0,
+    "peso_match_investimento_produto": 1000.0,
+    "cardinalidade_minima_lote_id": 2,
+    "exigir_unicidade_lote_id": true
+  },
+  "politicas_taxa": {
+    "limite_percentual_vs_multiplicador": 10.0,
+    "remover_percentual_string": true,
+    "substituir_virgula_decimal": true
+  },
+  "validacoes": {
+    "produto_inexistente_em_lote": "erro",
+    "produto_inativo_em_novo_aporte": "erro",
+    "lote_futuro_sem_produto": "permitir",
+    "despesa_id_ausente": "gerar_automatico",
+    "valor_nao_numerico": "erro",
+    "data_invalida": "erro",
+    "coluna_ausente_critica": "erro",
+    "alias_desconhecido": "aviso",
+    "falha_reconciliacao_financeira": "erro"
+  },
+  "semantica_bonus": {
+    "produto_temporal": "taxa_bonus_aplicada_nos_primeiros_dias_bonus_depois_taxa_base",
+    "combo": "taxa_bonus_representa_a_perna_bonus_do_combo"
+  },
+  "historico_bcb": {
+    "data_minima_consulta": "2025-01-01",
+    "data_minima_consulta_formatada": "01/01/2025"
+  },
+  "calendario": {
+    "ano_inicio_dias_sem_rendimento": 2025,
+    "ano_fim_dias_sem_rendimento": 2035
+  },
+  "ir": {
+    "criterio_limite": "inclusivo",
+    "referencia_normativa": "IN RFB 1585/2015",
+    "faixas": [
+      {
+        "dias_max": 180,
+        "aliquota": 0.225
+      },
+      {
+        "dias_max": 360,
+        "aliquota": 0.2
+      },
+      {
+        "dias_max": 720,
+        "aliquota": 0.175
+      },
+      {
+        "dias_max": null,
+        "aliquota": 0.15
+      }
+    ]
+  },
+  "iof": {
+    "usar_tabela_padrao": true,
+    "tabela": [
+      0.96,
+      0.93,
+      0.9,
+      0.86,
+      0.83,
+      0.8,
+      0.76,
+      0.73,
+      0.7,
+      0.66,
+      0.63,
+      0.6,
+      0.56,
+      0.53,
+      0.5,
+      0.46,
+      0.43,
+      0.4,
+      0.36,
+      0.33,
+      0.3,
+      0.26,
+      0.23,
+      0.2,
+      0.16,
+      0.13,
+      0.1,
+      0.06,
+      0.03
+    ]
+  },
+  "replay": {
+    "usar_event_sourcing": true,
+    "capitalizar_apenas_dias_uteis": true,
+    "gerar_eventos_capitalizacao": true,
+    "reconciliar_saldo_ao_final": true,
+    "tolerancia_monetaria": 0.01,
+    "registrar_lineage_lotes": true,
+    "valor_minimo_lote_ativo": 0.01
+  },
+  "pagamento": {
+    "estrategia_resgate": "menor_ir",
+    "permitir_split_resgate": true,
+    "ordenacao_padrao": "score_economico",
+    "penalizar_iof_ate_30_dias": true,
+    "usar_vpl_no_score": false,
+    "dias_cliff_ir": 10,
+    "valor_minimo_resgate_bruto": 0.01
+  },
+  "simulacao": {
+    "horizonte_extra_dias": 365,
+    "horizonte_alocacao_dias": 180,
+    "horizonte_minimo_dias": 30
+  },
+  "estrategias": {
+    "aporte": "cliff",
+    "resgate": "menor_ir",
+    "switch": "cliff"
+  },
+  "defaults": {
+    "produto_fallback_id": "SOFISA_105",
+    "ignorar_lote_invalido": false,
+    "investimento_referencia_futuro": "CDB Sofisa 105%",
+    "produto_fallback_nome": "CDB Turbinado",
+    "investimento_referencia_futuro_match_exato": true
+  },
+  "auditoria": {
+    "salvar_eventos": true,
+    "salvar_reconciliacao": true,
+    "salvar_decisoes_pagamento": true,
+    "lotes_monitorados_liquido": [
+      "Lote 3000 mar. V",
+      "Lote 3000 mar. B"
+    ],
+    "auditar_coluna_escolhida": true
+  },
+  "saidas": {
+    "exportar_excel_final": true,
+    "exportar_config_corrigido": true,
+    "aba_extrato": "Extrato",
+    "aba_auditoria_extrato": "Auditoria Extrato",
+    "aba_carteira_final": "Carteira Final",
+    "aba_resumo": "Resumo",
+    "aba_situacao_atual": "Situacao Atual",
+    "template_arquivo_resultado_estrategia": "resultado_{estrategia}_{modo}.xlsx"
+  },
+  "urls": {
+    "google_sheets_export_base": "https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx",
+    "google_drive_download_base": "https://drive.google.com/uc?export=download&id={file_id}",
+    "google_sheets_edit_base": "https://docs.google.com/spreadsheets/d/{file_id}/edit",
+    "bcb_sgs_12_url": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial={data_inicial}&dataFinal={data_final}"
+  },
+  "exportacao": {
+    "abas_oficiais": [
+      "carteira_canonica",
+      "lotes_canonicos",
+      "lotes_base",
+      "gastos_canonicos",
+      "aportes_canonicos",
+      "ligacoes_canonicas",
+      "log_passado",
+      "master_lotes_status",
+      "resumo_status_lotes",
+      "overview_carteira",
+      "overview_lotes",
+      "overview_gastos",
+      "overview_ligacoes",
+      "recomendacoes_pagamento",
+      "simulacoes_estrategias",
+      "comparativos_economicos",
+      "switch_diagnostico",
+      "switch_execucao"
+    ],
+    "abas_minimas_mvf1": [
+      "log_passado",
+      "master_lotes_status",
+      "resumo_status_lotes"
+    ]
+  },
+  "logging": {
+    "nivel": "normal"
+  },
+  "defaults_lote": {
+    "taxa_base_cdi": 1.0,
+    "taxa_bonus_cdi": 0.0,
+    "dias_bonus": 0,
+    "produto_fallback_nome": "CDB Turbinado",
+    "taxa_base_referencia_futura_default": 1.05
+  },
+  "treinamento": {
+    "perfis": {
+      "rapido": {
+        "gen_maxiter": 80,
+        "gen_popsize": 24,
+        "pen_maxiter": 40,
+        "pen_popsize": 20,
+        "max_contas_treino": 90,
+        "wf_splits": 3
+      },
+      "balanceado": {
+        "gen_maxiter": 180,
+        "gen_popsize": 48,
+        "pen_maxiter": 100,
+        "pen_popsize": 36,
+        "max_contas_treino": 140,
+        "wf_splits": 4
+      },
+      "profundo": {
+        "gen_maxiter": 300,
+        "gen_popsize": 80,
+        "pen_maxiter": 200,
+        "pen_popsize": 60,
+        "max_contas_treino": 999999,
+        "wf_splits": 4
+      }
+    },
+    "modo_auto": {
+      "tempo_alvo_minimo_absoluto": 3,
+      "tempo_alvo_padrao_minutos": 12,
+      "thresholds": {
+        "tempo_alvo_curto_max": 6,
+        "tempo_alvo_longo_min": 35,
+        "carga_media_min": 450,
+        "carga_alta_min": 700,
+        "carga_baixa_max": 500
+      }
+    },
+    "reducao_contas": {
+      "max_contas_padrao": 120
+    }
+  },
+  "otimizacao": {
+    "genetica_profunda": {
+      "seed": 42,
+      "strategy": "best1bin",
+      "updating": "deferred",
+      "init_sem_populacao_inicial": "latinhypercube",
+      "workers": 1,
+      "bounds": [
+        [
+          0,
+          500
+        ],
+        [
+          0,
+          500
+        ],
+        [
+          -100,
+          100
+        ],
+        [
+          0,
+          500
+        ],
+        [
+          0,
+          1000
+        ]
+      ]
+    },
+    "penalidade_5p": {
+      "seed": 42,
+      "strategy": "best1bin",
+      "updating": "deferred",
+      "init_sem_populacao_inicial": "latinhypercube",
+      "workers": 1,
+      "bounds": [
+        [
+          0.0,
+          10000.0
+        ],
+        [
+          0.0,
+          10000.0
+        ],
+        [
+          -100.0,
+          100.0
+        ],
+        [
+          0.0,
+          10000.0
+        ],
+        [
+          0.0,
+          100000.0
+        ]
+      ]
+    }
+  },
+  "avaliacao": {
+    "walkforward": {
+      "pct_treino": 0.7,
+      "robustez_default": 95.0
+    },
+    "ranking": {
+      "peso_saldo": 0.7,
+      "peso_robustez": 0.3
+    }
+  },
+  "relatorio": {
+    "situacao_atual": {
+      "modo_data_fiscal_liquido": "data_referencia"
+    }
+  }
+}
