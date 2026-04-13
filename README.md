@@ -295,3 +295,15 @@ Além do resumo executivo, o script principal agora imprime:
 - tabela de lotes/recebidos em carteira com saldo bruto, saldo líquido, dias corridos e dias úteis
 - tabela de switchings oficiais com motivo
 - tabela de switchings agrupados para explicar a fragmentação em vários dias
+
+
+## Data de referência dos cálculos
+O workbook operacional principal passa a considerar a **data de referência como hoje em Brasília** (`America/Sao_Paulo`) para os cálculos visuais de:
+- dias corridos
+- dias úteis
+
+Além disso, a visualização foi reorganizada para separar:
+- `Recebidos_Ativos`
+- `Recebidos_Historico`
+- `Switchings_Por_Evento`
+- `Switchings_Agrupados`

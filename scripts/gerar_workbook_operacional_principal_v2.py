@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 import argparse
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -12,11 +14,23 @@ if str(ROOT) not in sys.path:
 from src.exportacao_workbook_operacional_principal import build_operational_workbook
 
 import pandas as pd
+import numpy as np
 
+BRASILIA_TZ = ZoneInfo("America/Sao_Paulo")
 
 
 def _fmt_money(x: float) -> str:
     return f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _business_days(start_date, end_date) -> int:
+    if pd.isna(start_date):
+        return 0
+    s = pd.Timestamp(start_date).date()
+    e = pd.Timestamp(end_date).date()
+    if e < s:
+        return 0
+    return int(np.busday_count(s, e) + np.is_busday(s))
 
 
 def _print_console_summary(
@@ -27,6 +41,8 @@ def _print_console_summary(
     timeline_path: Path,
     output_workbook: Path,
 ) -> None:
+    ref_date = datetime.now(BRASILIA_TZ).date()
+
     gastos_raw = pd.read_excel(raw_path, sheet_name="Todos os Gastos", usecols=[0, 1, 2, 3, 4, 5])
     gastos_raw.columns = ["Data", "Descricao", "Valor", "Pago", "Lote_usado_1", "Lote_usado_2"]
     gastos_raw["Pago"] = gastos_raw["Pago"].fillna("").astype(str).str.strip().str.upper()
@@ -47,37 +63,40 @@ def _print_console_summary(
     riqueza_oficial = float(switchings["riqueza_terminal_switch_centavos"].max() / 100) if len(switchings) else riqueza_base
     ganho_total = round(float(switchings["ganho_vs_base_centavos"].sum() / 100), 2) if len(switchings) else 0.0
 
-    datas_deficit = 0
-    primeira_data_critica = ""
-    ultima_data_critica = ""
-    if "deficit_sem_acao_centavos" in timeline.columns:
-        timeline["data"] = pd.to_datetime(timeline["data"])
-        crit = timeline[timeline["deficit_sem_acao_centavos"] > 0].copy()
-        datas_deficit = int(len(crit))
-        if len(crit):
-            primeira_data_critica = crit["data"].min().strftime("%d/%m/%Y")
-            ultima_data_critica = crit["data"].max().strftime("%d/%m/%Y")
+    timeline["data"] = pd.to_datetime(timeline["data"])
+    crit = timeline[timeline["deficit_sem_acao_centavos"] > 0].copy() if "deficit_sem_acao_centavos" in timeline.columns else pd.DataFrame()
+    primeira_data_critica = crit["data"].min().strftime("%d/%m/%Y") if len(crit) else "-"
+    ultima_data_critica = crit["data"].max().strftime("%d/%m/%Y") if len(crit) else "-"
 
     lote_to_carteira = lotes_raw.set_index("Lote ID")["Investimento"].to_dict()
-    lotes_console = situacao[[
-        "Lote ID", "Data Aplicação", "Dias Corridos até Hoje", "Dias Úteis até Hoje",
-        "Valor Planejado Original (R$)", "Saldo Bruto Atual (R$)", "Saldo Líquido Atual (R$)",
-        "Total Bruto Sacado (R$)", "Total Líquido Sacado (R$)", "Vezes Usado (Futuro)", "Esgotado no Passado"
-    ]].copy()
+
+    lotes_console = lotes_raw.copy()
+    lotes_console = lotes_console.merge(
+        situacao[[
+            "Lote ID", "Saldo Bruto Atual (R$)", "Saldo Líquido Atual (R$)",
+            "Total Bruto Sacado (R$)", "Total Líquido Sacado (R$)",
+            "Vezes Usado (Futuro)", "Esgotado no Passado"
+        ]],
+        on="Lote ID",
+        how="left",
+    )
+    lotes_console["Data Aplicacao"] = pd.to_datetime(lotes_console["Data Aplicacao"], errors="coerce")
+    lotes_console["Dias Corridos"] = lotes_console["Data Aplicacao"].apply(lambda d: max(0, (ref_date - d.date()).days) if pd.notna(d) else None)
+    lotes_console["Dias Uteis"] = lotes_console["Data Aplicacao"].apply(lambda d: _business_days(d, ref_date) if pd.notna(d) else None)
     lotes_console["Carteira"] = lotes_console["Lote ID"].map(lote_to_carteira)
     lotes_console["Status"] = lotes_console["Esgotado no Passado"].map(lambda v: "ESGOTADO_NO_PASSADO" if bool(v) else "ATIVO/REMANESCENTE")
     lotes_console = lotes_console.rename(columns={
         "Lote ID": "Lote",
-        "Data Aplicação": "Data_Aplicacao",
-        "Dias Corridos até Hoje": "Dias_Corridos",
-        "Dias Úteis até Hoje": "Dias_Uteis",
-        "Valor Planejado Original (R$)": "Valor_Original_R$",
+        "Data Aplicacao": "Data_Aplicacao",
+        "Valor Original": "Valor_Original_R$",
         "Saldo Bruto Atual (R$)": "Saldo_Bruto_R$",
         "Saldo Líquido Atual (R$)": "Saldo_Liquido_R$",
         "Total Bruto Sacado (R$)": "Total_Bruto_Sacado_R$",
         "Total Líquido Sacado (R$)": "Total_Liquido_Sacado_R$",
         "Vezes Usado (Futuro)": "Vezes_Usado_Futuro",
-    }).sort_values(["Data_Aplicacao", "Lote"])
+    }).sort_values(["Status", "Data_Aplicacao", "Lote"])
+    lotes_ativos = lotes_console[lotes_console["Status"] != "ESGOTADO_NO_PASSADO"].copy()
+    lotes_historicos = lotes_console[lotes_console["Status"] == "ESGOTADO_NO_PASSADO"].copy()
 
     sw_console = pd.DataFrame()
     if len(switchings):
@@ -107,31 +126,38 @@ def _print_console_summary(
         ).reset_index(name="Datas_Envolvidas")
         sw_group = sw_group.merge(dates, on=["Lote_Origem", "Carteira_Destino"], how="left")
         sw_group["Motivo_Fragmentacao"] = sw_group["Qtd_Eventos"].apply(
-            lambda n: "Mesma origem/destino foi recalculada em várias datas críticas." if n > 1 else "Switching único."
+            lambda n: "Mesmo lote/origem foi recalculado em várias datas críticas." if n > 1 else "Switching único."
         )
 
     print("\n" + "=" * 92)
     print("RESUMO DA EXECUÇÃO — WORKBOOK OPERACIONAL PRINCIPAL V2")
     print("=" * 92)
     print(f"Workbook gerado: {output_workbook}")
+    print(f"Data de referência (Brasília): {ref_date.strftime('%d/%m/%Y')}")
+    print("Fuso horário: America/Sao_Paulo")
     print(f"Pagamentos históricos: {len(gastos_hist)}")
     print(f"Pagamentos futuros: {len(gastos_fut)}")
-    print(f"Datas críticas: {datas_deficit}")
+    print(f"Datas críticas: {len(crit)}")
     print(f"Switchings oficiais: {len(switchings)}")
     print(f"Resgates oficiais: {len(resgates)}")
-    print(f"Primeira data crítica: {primeira_data_critica or '-'}")
-    print(f"Última data crítica: {ultima_data_critica or '-'}")
+    print(f"Primeira data crítica: {primeira_data_critica}")
+    print(f"Última data crítica: {ultima_data_critica}")
     print(f"Riqueza terminal base: {_fmt_money(riqueza_base)}")
     print(f"Riqueza terminal oficial v2: {_fmt_money(riqueza_oficial)}")
     print(f"Ganho total vs base: {_fmt_money(ganho_total)}")
     print("=" * 92)
 
-    print("\nLOTES / RECEBIDOS EM CARTEIRA")
+    print("\nLOTES / RECEBIDOS ATIVOS")
     print("-" * 92)
-    print(lotes_console.to_string(index=False))
+    print(lotes_ativos.to_string(index=False))
+
+    if len(lotes_historicos):
+        print("\nLOTES / RECEBIDOS ESGOTADOS NO PASSADO")
+        print("-" * 92)
+        print(lotes_historicos.to_string(index=False))
 
     if len(sw_console):
-        print("\nSWITCHINGS OFICIAIS")
+        print("\nSWITCHINGS POR EVENTO")
         print("-" * 92)
         sw_console_print = sw_console.copy()
         sw_console_print["Data"] = pd.to_datetime(sw_console_print["Data"]).dt.strftime("%d/%m/%Y")
@@ -146,13 +172,13 @@ def _print_console_summary(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Gera o workbook operacional principal da baseline v2.')
-    parser.add_argument('--raw', default=str(ROOT / 'examples' / 'dados_financeiros.xlsx'))
-    parser.add_argument('--reference', default=str(ROOT / 'examples' / 'resultado_economica_cliff_agrupado.xlsx'))
-    parser.add_argument('--switchings', default=str(ROOT / 'examples' / 'full_end_to_end_confirmation_v2_switchings.csv'))
-    parser.add_argument('--resgates', default=str(ROOT / 'examples' / 'full_end_to_end_confirmation_v2_resgates.csv'))
-    parser.add_argument('--timeline', default=str(ROOT / 'examples' / 'full_end_to_end_confirmation_v2_timeline.csv'))
-    parser.add_argument('--output', default=str(ROOT / 'outputs' / 'workbook_operacional_principal_v2.xlsx'))
+    parser = argparse.ArgumentParser(description="Gera o workbook operacional principal da baseline v2.")
+    parser.add_argument("--raw", default=str(ROOT / "examples" / "dados_financeiros.xlsx"))
+    parser.add_argument("--reference", default=str(ROOT / "examples" / "resultado_economica_cliff_agrupado.xlsx"))
+    parser.add_argument("--switchings", default=str(ROOT / "examples" / "full_end_to_end_confirmation_v2_switchings.csv"))
+    parser.add_argument("--resgates", default=str(ROOT / "examples" / "full_end_to_end_confirmation_v2_resgates.csv"))
+    parser.add_argument("--timeline", default=str(ROOT / "examples" / "full_end_to_end_confirmation_v2_timeline.csv"))
+    parser.add_argument("--output", default=str(ROOT / "outputs" / "workbook_operacional_principal_v2.xlsx"))
     args = parser.parse_args()
 
     output_workbook = Path(args.output)
@@ -166,7 +192,7 @@ def main() -> None:
         official_timeline_csv=Path(args.timeline),
         output_path=output_workbook,
     )
-    print(f'Workbook gerado em: {output_workbook}')
+    print(f"Workbook gerado em: {output_workbook}")
     _print_console_summary(
         raw_path=Path(args.raw),
         reference_path=Path(args.reference),

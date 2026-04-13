@@ -1,11 +1,45 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import numpy as np
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+
+
+BRASILIA_TZ = ZoneInfo("America/Sao_Paulo")
+
+
+def get_reference_date_brasilia() -> datetime.date:
+    return datetime.now(BRASILIA_TZ).date()
+
+
+def _business_days(start_date, end_date) -> int:
+    if pd.isna(start_date):
+        return 0
+    s = pd.Timestamp(start_date).date()
+    e = pd.Timestamp(end_date).date()
+    if e < s:
+        return 0
+    # include the start date when it is a business day
+    return int(np.busday_count(s, e) + np.is_busday(s))
+
+
+def _compute_days_columns(df: pd.DataFrame, date_col: str, reference_date) -> pd.DataFrame:
+    out = df.copy()
+    out[date_col] = pd.to_datetime(out[date_col], errors="coerce")
+    out["Dias_Corridos"] = out[date_col].apply(
+        lambda d: max(0, (reference_date - d.date()).days) if pd.notna(d) else None
+    )
+    out["Dias_Uteis"] = out[date_col].apply(
+        lambda d: _business_days(d, reference_date) if pd.notna(d) else None
+    )
+    return out
 
 
 def _write_df(ws, df: pd.DataFrame, title: str, notes: str) -> None:
@@ -78,6 +112,8 @@ def build_operational_workbook(
     reference_workbook_path = Path(reference_workbook_path)
     output_path = Path(output_path)
 
+    reference_date = get_reference_date_brasilia()
+
     gastos_raw = pd.read_excel(raw_workbook_path, sheet_name="Todos os Gastos", usecols=[0, 1, 2, 3, 4, 5])
     gastos_raw.columns = ["Data", "Descricao", "Valor", "Pago", "Lote_usado_1", "Lote_usado_2"]
     lotes_raw = pd.read_excel(raw_workbook_path, sheet_name="Inventário de Lotes")
@@ -123,6 +159,7 @@ def build_operational_workbook(
          "Total Líquido Sacado (R$)", "Vezes Usado (Futuro)", "Esgotado no Passado"]
     ].copy()
     recebidos_aportes = recebidos_aportes.merge(ref_situacao_small, on="Lote ID", how="left")
+    recebidos_aportes = _compute_days_columns(recebidos_aportes, "Data Aplicacao", reference_date)
     recebidos_aportes["Status_Atual"] = recebidos_aportes.apply(
         lambda r: "ESGOTADO_NO_PASSADO" if bool(r.get("Esgotado no Passado", False))
         else ("INVESTIDO_ATUAL" if str(r["Classe_Lote"]) == "INVESTIDO"
@@ -132,9 +169,18 @@ def build_operational_workbook(
     recebidos_aportes = recebidos_aportes.rename(columns={
         "Data Aplicacao": "Data_Aplicacao",
         "Valor Original": "Valor_Original_R$",
-        "Investimento": "Carteira_Atual"
-    }).sort_values(["Data_Aplicacao", "Lote ID"])
+        "Investimento": "Carteira_Atual",
+        "Saldo Bruto Atual (R$)": "Saldo_Bruto_Atual_R$",
+        "Saldo Líquido Atual (R$)": "Saldo_Liquido_Atual_R$",
+        "Total Bruto Sacado (R$)": "Total_Bruto_Sacado_R$",
+        "Total Líquido Sacado (R$)": "Total_Liquido_Sacado_R$",
+        "Vezes Usado (Futuro)": "Vezes_Usado_Futuro",
+    }).sort_values(["Status_Atual", "Data_Aplicacao", "Lote ID"])
 
+    recebidos_ativos = recebidos_aportes[recebidos_aportes["Status_Atual"] != "ESGOTADO_NO_PASSADO"].copy()
+    recebidos_historico = recebidos_aportes[recebidos_aportes["Status_Atual"] == "ESGOTADO_NO_PASSADO"].copy()
+
+    # official outputs
     timeline["data"] = pd.to_datetime(timeline["data"])
     switchings["data_switching"] = pd.to_datetime(switchings["data_switching"])
     resgates["data"] = pd.to_datetime(resgates["data"])
@@ -179,6 +225,7 @@ def build_operational_workbook(
         ["Data", "Lote_Origem", "carteira_origem", "Lote_Destino", "Carteira_Destino", "Tipo",
          "valor_switching_R$", "ganho_vs_base_R$", "riqueza_terminal_base_R$", "riqueza_terminal_switch_R$", "Motivo"]
     ].rename(columns={"carteira_origem": "Carteira_Origem", "valor_switching_R$": "Valor_Switching_R$"})
+    switchings_prop = switchings_prop.sort_values(["Data", "Lote_Origem", "Carteira_Destino"]).reset_index(drop=True)
 
     sw_group = switchings_prop.groupby(["Lote_Origem", "Carteira_Origem", "Carteira_Destino"], dropna=False).agg(
         Qtd_Eventos=("Data", "count"),
@@ -193,7 +240,7 @@ def build_operational_workbook(
     sw_group = sw_group.merge(sw_dates, on=["Lote_Origem", "Carteira_Destino"], how="left")
     sw_group["Fragmentado_em_varios_dias?"] = sw_group["Qtd_Eventos"].gt(1).map({True: "SIM", False: "NAO"})
     sw_group["Por_que_em_varios_dias"] = sw_group["Qtd_Eventos"].apply(
-        lambda n: "Decisão recalculada por data crítica; o motor só aciona novo switching quando surge novo déficit." if n > 1 else "Switching único suficiente para a necessidade observada."
+        lambda n: "Mesmo lote/origem foi recalculado em várias datas críticas do horizonte." if n > 1 else "Switching único suficiente para a necessidade observada."
     )
 
     justificativa = pd.DataFrame([
@@ -205,9 +252,9 @@ def build_operational_workbook(
             "Valor_Total_R$": row["Valor_Total_R$"],
             "Qtd_Eventos": row["Qtd_Eventos"],
             "Por_que_essa_carteira": "Foi a carteira vencedora entre os destinos elegíveis nas datas críticas, maximizando a riqueza terminal no horizonte remanescente.",
-            "Por_que_nao_tudo_de_uma_vez": "A política oficial v2 decide por data crítica. O mesmo lote pode ser reutilizado em novas datas quando um novo déficit aparece.",
+            "Por_que_fragmentou": "A política oficial v2 decide por data crítica; quando o mesmo par origem/destino continua vencedor em outra data crítica, ele reaparece.",
             "Por_que_nao_outro_lote": "Os demais lotes elegíveis tiveram pior resultado intertemporal, foram bloqueados por regras do motor ou não melhoraram a riqueza terminal.",
-            "Observacao": "Esta aba resume a lógica; a aba agrupada mostra a soma do plano por origem/destino.",
+            "Observacao": "A aba agrupada permite validar a soma do plano por origem/destino; esta aba resume o porquê da escolha.",
         }
         for _, row in sw_group.iterrows()
     ])
@@ -221,6 +268,7 @@ def build_operational_workbook(
          "Saldo Bruto Atual (R$)", "Total Bruto Sacado (R$)", "Total Líquido Sacado (R$)",
          "Vezes Usado (Futuro)", "Esgotado no Passado", "Taxa Base CDI (%)"]
     ].copy()
+    carteira_final = _compute_days_columns(carteira_final, "Data Aplicação", reference_date)
     carteira_final["Carteira_Atual"] = carteira_final["Lote ID"].map(lote_to_carteira)
     carteira_final["Resgates_Futuros_Oficiais_R$"] = carteira_final["Lote ID"].map(future_res_by_lot).fillna(0)
     carteira_final["Qtd_Switchings_Futuros"] = carteira_final["Lote ID"].map(future_sw_count).fillna(0).astype(int)
@@ -238,15 +286,19 @@ def build_operational_workbook(
         "Vezes Usado (Futuro)": "Vezes_Usado_Futuro",
         "Esgotado no Passado": "Esgotado_no_Passado",
         "Taxa Base CDI (%)": "Taxa_Base_CDI_%",
+        "Dias_Corridos": "Dias_Corridos",
+        "Dias_Uteis": "Dias_Uteis",
     })
 
     first_critical = timeline.loc[timeline["deficit_sem_acao_centavos"] > 0, "data"].min()
     last_critical = timeline.loc[timeline["deficit_sem_acao_centavos"] > 0, "data"].max()
-    lote_dominante = switchings_prop["Lote_Origem"].mode().iat[0]
-    destino_dominante = switchings_prop["Carteira_Destino"].mode().iat[0]
+    lote_dominante = switchings_prop["Lote_Origem"].mode().iat[0] if len(switchings_prop) else ""
+    destino_dominante = switchings_prop["Carteira_Destino"].mode().iat[0] if len(switchings_prop) else ""
 
     resumo = pd.DataFrame([
         ["Status da política oficial v2", "APPROVED"],
+        ["Data de referência (Brasília)", reference_date.strftime("%d/%m/%Y")],
+        ["Fuso horário", "America/Sao_Paulo"],
         ["Data de corte", "2026-04-10"],
         ["Horizonte final", "2027-03-31"],
         ["Caixa livre inicial (R$)", 8640.25],
@@ -264,6 +316,10 @@ def build_operational_workbook(
     ], columns=["Indicador", "Valor"])
 
     conferencia = pd.DataFrame([
+        ["Data de referência usada", reference_date.strftime("%d/%m/%Y")],
+        ["Fuso horário", "America/Sao_Paulo"],
+        ["Recebidos ativos", len(recebidos_ativos)],
+        ["Recebidos históricos/esgotados", len(recebidos_historico)],
         ["Historico_Pagamentos carregado", len(historico_pag)],
         ["Pagamentos futuros carregados", len(plano_futuro)],
         ["Switchings oficiais carregados", len(switchings_prop)],
@@ -325,18 +381,22 @@ def build_operational_workbook(
             "Motivo": "Resgate oficial confirmado pela baseline v2.",
             "Status": "PLANEJADO",
         })
-    extrato_future = pd.DataFrame(future_events)
     extrato_frames = [
         extrato_hist[["Data", "Ordem Evento", "Tipo Evento", "Conta", "Lote", "Carteira Origem", "Carteira Destino",
                       "Saldo Antes", "Bruto", "Imposto", "Liquido", "Dias Corridos", "Dias Úteis",
                       "Saldo Remanescente", "Motivo", "Status"]]
     ]
-    if not extrato_future.empty:
+    if future_events:
+        extrato_future = pd.DataFrame(future_events)
         extrato_frames.append(
             extrato_future[["Data", "Ordem Evento", "Tipo Evento", "Conta", "Lote", "Carteira Origem", "Carteira Destino",
                             "Saldo Antes", "Bruto", "Imposto", "Liquido", "Dias Corridos", "Dias Úteis",
                             "Saldo Remanescente", "Motivo", "Status"]]
         )
+    extrato_frames = [f.copy() for f in extrato_frames]
+    for _f in extrato_frames:
+        if "Imposto" in _f.columns:
+            _f["Imposto"] = _f["Imposto"].fillna("")
     extrato = pd.concat(extrato_frames, ignore_index=True).sort_values(["Data", "Ordem Evento", "Tipo Evento"]).reset_index(drop=True)
 
     wb = Workbook()
@@ -344,12 +404,13 @@ def build_operational_workbook(
     sheets = [
         ("Resumo", resumo, "Resumo executivo do plano oficial v2", "Visão curta para validar o que já foi feito e o que deve ser feito."),
         ("Extrato", extrato, "Extrato operacional", "Histórico realizado + eventos futuros oficiais (switchings e resgates)."),
-        ("Recebidos_Aportes", recebidos_aportes, "Recebidos e aportes em carteira", "Mostra os lotes existentes, de onde vieram e em que carteira estão hoje."),
+        ("Recebidos_Ativos", recebidos_ativos, "Recebidos / lotes ativos", f"Data de referência: {reference_date.strftime('%d/%m/%Y')} (Brasília). Mostra os lotes ativos, livres ou bloqueados ainda relevantes."),
+        ("Recebidos_Historico", recebidos_historico, "Recebidos / lotes esgotados no passado", f"Data de referência: {reference_date.strftime('%d/%m/%Y')} (Brasília). Mostra os lotes já esgotados historicamente."),
         ("Plano_Futuro", plano_futuro, "Plano futuro de pagamentos", "Lista as contas futuras e a ação oficial associada ao dia."),
-        ("Switchings_Propostos", switchings_prop, "Switchings oficiais propostos", "Switchings realmente escolhidos pela baseline oficial v2."),
-        ("Switchings_Agrupados", sw_group, "Switchings agrupados", "Agrupa repetições da mesma origem/destino para facilitar validação operacional."),
+        ("Switchings_Por_Evento", switchings_prop, "Switchings oficiais por evento", "Mostra cada switching oficial da baseline v2, com motivo."),
+        ("Switchings_Agrupados", sw_group, "Switchings oficiais agrupados", "Agrupa repetições da mesma origem/destino para facilitar validação operacional."),
         ("Justificativa_Switching", justificativa, "Justificativa resumida do switching", "Explica por que a carteira foi escolhida e por que o switching foi fragmentado em mais de um dia."),
-        ("Carteira_Final", carteira_final, "Carteira final operacional", "Visão operacional simplificada do saldo por lote após os eventos oficiais."),
+        ("Carteira_Final", carteira_final, "Carteira final operacional", f"Visão operacional simplificada do saldo por lote após os eventos oficiais. Dias calculados até {reference_date.strftime('%d/%m/%Y')} em Brasília."),
         ("Conferencia", conferencia, "Conferência geral", "Checagens simples para validar a consistência do workbook principal."),
     ]
     for name, df, title, notes in sheets:
