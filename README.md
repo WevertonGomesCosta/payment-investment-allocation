@@ -11,15 +11,15 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V5
+**Versão atual da baseline:** V6
 
-A V5 preserva a baseline neutra da V4 e aplica apenas ajustes mínimos de
-alinhamento operacional:
+A V6 preserva a baseline neutra da V5 e aplica apenas ajustes documentais e de
+validação local para consolidar a regra de estabilidade mínima antes de cada
+entrega:
 
-- remoção de script legado de inspeção;
-- consolidação do contrato operacional como documento-base rastreado;
-- alinhamento fino do README com a estrutura real do repositório;
-- organização mais legível da saída inicial do console.
+- incorporação formal da regra de validação e correção local prévia antes de cada entrega;
+- registro da validação local executada nesta versão;
+- manutenção da baseline neutra sem abertura de novas frentes funcionais.
 
 A regra de trabalho do projeto continua sendo:
 
@@ -77,6 +77,9 @@ Esse documento deve ser tratado como a referência principal para:
 - auditoria dos scripts-base;
 - validação de novas regras;
 - futuras alterações organizadas do projeto.
+
+A validação local executada antes desta entrega está registrada em:
+- `relatorios/VALIDACAO_LOCAL_V6.md`
 
 ## Entradas canônicas atuais
 
@@ -146,7 +149,8 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Ela deve mostrar, no mínimo:
+validação incremental da baseline. Nesta V6, a execução local mínima foi
+realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;
 - relatório de dependências;

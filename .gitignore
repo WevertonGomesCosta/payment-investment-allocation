@@ -79,6 +79,7 @@ relatorios/*
 !relatorios/.gitkeep
 !relatorios/AUDITORIA_ARQUITETURAL_V3.md
 !relatorios/CONTRATO_OPERACIONAL_PROJETO.md
+!relatorios/VALIDACAO_LOCAL_V6.md
 
 # ---------------------------------------------------------
 # Derivados de dados e caches

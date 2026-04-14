@@ -10,7 +10,7 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 2. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial (`v1`, `v2`, `v3`, ...).
 3. O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas do repositório diretamente na raiz.
 4. Todo o projeto deve permanecer em português.
-5. A baseline atual é a V5.
+5. A baseline atual é a V6.
 
 ## 2. Objetivo central do sistema
 
@@ -125,9 +125,10 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 
 ## 20. Regras de arquitetura e evolução da baseline
 
-54. Não devemos abrir domínio profundo antes da auditoria correspondente.
-55. A V5 deve ser tratada como baseline neutra.
-56. O fluxo correto de evolução continua sendo: auditar, mapear responsabilidade real, reavaliar a baseline atual e implementar apenas o que estiver sustentado pela auditoria.
+54. Antes de cada entrega de nova versão do repositório, a etapa implementada deve ser executada e validada localmente no ambiente disponível, com identificação e correção prévia dos bugs observáveis, para que o usuário receba o repositório com a menor necessidade de ajuste posterior possível dentro do escopo da etapa.
+55. Não devemos abrir domínio profundo antes da auditoria correspondente.
+56. A V6 deve ser tratada como baseline neutra.
+57. O fluxo correto de evolução continua sendo: auditar, mapear responsabilidade real, reavaliar a baseline atual e implementar apenas o que estiver sustentado pela auditoria.
 
 ## Observação final
 
