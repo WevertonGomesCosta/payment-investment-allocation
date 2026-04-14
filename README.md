@@ -11,15 +11,17 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V11
+**Versão atual da baseline:** V12
 
-A V11 preserva a baseline fixa da fase atual e abre de forma restrita o bloco 05 apenas na parte de **dados operacionais canônicos**, sem replay do passado e sem núcleo financeiro:
+A V12 preserva a baseline fixa da fase atual e acrescenta uma camada neutra compartilhada de **calendário financeiro, dias de rendimento e taxas/CDI base**, mantendo tudo o que já havia sido aberto até a V11:
 
 - inventário canônico;
 - gastos canônicos;
 - classificação operacional mínima dos lotes;
 - separação estrutural entre passado pago e futuro/pendente;
-- nova validação local da baseline.
+- calendário financeiro neutro;
+- cálculo da taxa diária base do CDI;
+- validação local da baseline.
 
 A regra de trabalho do projeto continua sendo:
 
@@ -81,7 +83,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V11.md`
+- `relatorios/VALIDACAO_LOCAL_V12.md`
 
 ## Entradas canônicas atuais
 
@@ -124,6 +126,22 @@ Responsável por:
 - mapa canônico simples de produtos;
 - validação estrutural da aba `Carteira`.
 
+### `nucleo/dados_operacionais_canonicos.py`
+Responsável por:
+- leitura restrita de `Inventário de Lotes` e `Todos os Gastos`;
+- construção do inventário canônico;
+- construção dos gastos canônicos;
+- classificação operacional mínima;
+- separação estrutural entre passado pago e futuro/pendente.
+
+### `nucleo/calendario_financeiro.py`
+Responsável por:
+- calendário financeiro neutro;
+- geração de dias sem rendimento bancário;
+- contagem de dias de rendimento;
+- cálculo da taxa diária base do CDI;
+- metadados neutros de série CDI, sem fetch de rede.
+
 ## O que esta baseline ainda não implementa
 
 Esta baseline ainda não implementa:
@@ -159,7 +177,7 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V11, a execução local mínima foi
+validação incremental da baseline. Nesta V12, a execução local mínima foi
 realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;

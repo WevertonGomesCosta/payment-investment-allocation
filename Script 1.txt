@@ -1,225 +1,1796 @@
 # =========================================================
-# 05. DADOS OPERACIONAIS E REPLAY DO PASSADO
+# 06. SWITCHING SHADOW E RECONCILIAÇÃO
 # =========================================================
+def normalizar_lotes_brutos(
+    df_lotes,
+    mapa_produtos,
+    *,
+    normalizar_nome_fn=None,
+):
+    """Constrói df_lotes_norm em modo sombra, sem substituir o fluxo legado."""
+    if normalizar_nome_fn is None:
+        normalizar_nome_fn = lambda x: str(x).strip().lower()
 
-def extrair_lote_usado_unico(row, nome_coluna=None):
-    """
-    Extrai um único lote usado de uma linha do Excel.
-    Retorna string vazia quando ausente.
-    """
-    if not nome_coluna or nome_coluna not in row.index:
-        return ''
+    auditoria = {
+        'coluna_id_lote': None,
+        'coluna_produto_lote': None,
+        'qtd_lotes_norm': 0,
+        'qtd_produto_reconhecido': 0,
+        'qtd_caixa': 0,
+        'qtd_produto_nao_reconhecido': 0,
+        'qtd_data_base_fiscal_inferida': 0,
+        'qtd_ids_duplicados': 0,
+        'linhas_descartadas': [],
+    }
 
-    val = row[nome_coluna]
-    if pd.isna(val):
-        return ''
+    col_id = selecionar_coluna_id_lote(df_lotes)
+    col_produto = selecionar_coluna_produto_lote(df_lotes, INVESTIMENTOS_NORM)
+    auditoria['coluna_id_lote'] = col_id
+    auditoria['coluna_produto_lote'] = col_produto
 
-    s = str(val).strip()
-    if not s or s.lower() == 'nan':
-        return ''
+    col_data_aplic = resolver_coluna(df_lotes, 'lotes', 'data_aplicacao')
+    col_valor_orig = resolver_coluna(df_lotes, 'lotes', 'valor_original')
 
-    return s
+    try:
+        col_data_base_fiscal = resolver_coluna(df_lotes, 'lotes', 'data_base_fiscal', required=False)
+    except Exception:
+        col_data_base_fiscal = None
 
-def simular_passado(aportes_raw, contas_pagas, bcb_map, taxa_proj):
-    """
-    Simula os pagamentos passados para ajustar os saldos dos lotes.
-    Retorna:
-      - novos_aportes: lotes remanescentes para simulação futura
-      - log_passado: extrato dos saques passados
-      - estado_lotes_passado: snapshot de TODOS os lotes após contas pagas
-    """
-    if not aportes_raw or not contas_pagas:
-        return aportes_raw, [], []
+    try:
+        col_status_lote = resolver_coluna(df_lotes, 'lotes', 'status_lote', required=False)
+    except Exception:
+        col_status_lote = None
 
-    print(">>> [SIMULAÇÃO PASSADO] Processando contas pagas...")
+    registros = []
+    for i, (_, row) in enumerate(df_lotes.iterrows(), start=1):
+        lote_id_raw = row[col_id] if col_id in df_lotes.columns else None
+        lote_id = _normalizar_lote_id(lote_id_raw)
+        data_aplicacao = _normalizar_data_lote(row[col_data_aplic] if col_data_aplic in df_lotes.columns else None)
+        valor_original = _normalizar_valor_lote(row[col_valor_orig] if col_valor_orig in df_lotes.columns else None, default=None)
 
-    aportes_ordenados = sorted(aportes_raw, key=lambda x: x[0])
-    data_inicial = aportes_ordenados[0][0]
-    data_final = max(c[0] for c in contas_pagas)
-
-    lotes = []
-    for x in aportes_ordenados:
-        meta = x[3] if len(x) > 3 and isinstance(x[3], dict) else {}
-        lotes.append(criar_lote_de_aporte(x[0], x[1], x[2], meta))
-
-    lotes_por_id = {l.id: l for l in lotes}
-    contas_pagas_ordenadas = ordenar_contas_processamento(contas_pagas)
-
-    data_atual = data_inicial
-    contas_processadas = 0
-    log_passado = []
-    evento_financeiro_global = 1
-
-    while data_atual <= data_final:
-        atualizar_saldo_lotes_no_dia(lotes, data_atual, bcb_map=bcb_map, taxa_proj=taxa_proj)
-
-        contas_hoje = [c for c in contas_pagas_ordenadas if c[0] == data_atual]
-        for conta in contas_hoje:
-            _, valor_conta, desc, lote_usado, ordem_processamento = conta
-            sequencia_saque = 1
-            if not lote_usado:
-                continue
-
-            l = lotes_por_id.get(lote_usado)
-            if not l or l.esgotado:
-                contas_processadas += 1
-                continue
-
-            movimento = executar_saque_lote(l, valor_conta, data_atual)
-            if movimento is None:
-                contas_processadas += 1
-                continue
-
-            log_passado.append(montar_log_movimento_lote(
-                movimento, data_atual, desc, bcb_map=bcb_map,
-                ordem_processamento=ordem_processamento, sequencia_saque=sequencia_saque,
-                evento_financeiro=evento_financeiro_global
-            ))
-            sequencia_saque += 1
-            evento_financeiro_global += 1
-            contas_processadas += 1
-        data_atual += timedelta(days=1)
-
-    novos_aportes = []
-    for l in lotes:
-        if l.saldo_bruto <= VALOR_MINIMO_LOTE_ATIVO:
+        if lote_id is None:
+            auditoria['linhas_descartadas'].append({'ordem': i, 'motivo': 'lote_id_invalido'})
             continue
-        novos_aportes.append(serializar_lote_remanescente(l, data_final))
+        if data_aplicacao is None:
+            auditoria['linhas_descartadas'].append({'ordem': i, 'motivo': 'data_aplicacao_invalida', 'lote_id': lote_id})
+            continue
+        if valor_original is None or valor_original <= 0:
+            auditoria['linhas_descartadas'].append({'ordem': i, 'motivo': 'valor_original_invalido', 'lote_id': lote_id})
+            continue
 
-    estado_lotes_passado = []
-    for l in lotes:
-        estado_lotes_passado.append({
-            'Lote ID': l.id,
-            'Data Aplicação': l.data_aplicacao,
-            'Data Base Fiscal': l.data_base_fiscal,
-            'Valor Inicial': float(l.valor_inicial),
-            'Saldo Após Passado': float(round(l.saldo_bruto, 2)),
-            'Fator Acumulado': float(l.fator_acumulado),
-            'Esgotado no Passado': bool(l.esgotado),
-            'Vezes Usado no Passado': int(l.vezes_usado),
-            'Total Sacado no Passado': float(round(l.total_bruto_sacado, 2)),
-            'Taxa Base CDI': float(l.taxa_base_cdi),
-            'Taxa Bonus CDI': float(l.taxa_bonus_cdi),
-            'Dias Bonus': int(l.dias_bonus),
-            'Principal Remanescente': float(getattr(l, 'principal_remanescente', l.valor_inicial)),
-            'Investimento': str(getattr(l, 'investimento', '') or ''),
+        valor_produto_bruto = row[col_produto] if (col_produto and col_produto in df_lotes.columns) else None
+        produto_info = _resolver_produto_lote_shadow(valor_produto_bruto, mapa_produtos, normalizar_nome_fn=normalizar_nome_fn)
+
+        data_base_fiscal = None
+        if col_data_base_fiscal and col_data_base_fiscal in df_lotes.columns:
+            data_base_fiscal = _normalizar_data_lote(row[col_data_base_fiscal])
+        if data_base_fiscal is None:
+            data_base_fiscal = data_aplicacao
+            auditoria['qtd_data_base_fiscal_inferida'] += 1
+
+        status_lote = 'ativo_observado'
+        if col_status_lote and col_status_lote in df_lotes.columns:
+            raw_status = row[col_status_lote]
+            if raw_status is not None and str(raw_status).strip() != '':
+                status_lote = str(raw_status).strip()
+
+        if produto_info['tipo_match_produto'] == 'vazio':
+            tipo_lote = 'caixa'
+            auditoria['qtd_caixa'] += 1
+        elif produto_info['produto_encontrado']:
+            tipo_lote = 'produto_observado'
+            auditoria['qtd_produto_reconhecido'] += 1
+        else:
+            tipo_lote = 'produto_nao_reconhecido'
+            auditoria['qtd_produto_nao_reconhecido'] += 1
+
+        registros.append({
+            'lote_id': lote_id,
+            'lote_id_raw': None if lote_id_raw is None else str(lote_id_raw),
+            'data_aplicacao': data_aplicacao,
+            'data_base_fiscal': data_base_fiscal,
+            'valor_original': float(valor_original),
+            'principal_remanescente_inicial': float(valor_original),
+            'saldo_bruto_inicial': float(valor_original),
+            'saldo_liquido_inicial': float(valor_original),
+            'produto_valor_bruto': None if valor_produto_bruto is None else str(valor_produto_bruto),
+            'produto_key': produto_info['produto_key'],
+            'produto_nome': produto_info['produto_nome'],
+            'produto_nome_norm': produto_info['produto_nome_norm'],
+            'produto_encontrado': bool(produto_info['produto_encontrado']),
+            'tipo_match_produto': produto_info['tipo_match_produto'],
+            'tipo_lote': tipo_lote,
+            'status_lote': status_lote,
+            'origem_registro': 'inventario_lotes',
+            'eh_lote_observado': True,
+            'eh_aporte_historico': True,
+            'ordem_planilha_lote': i,
         })
 
-    print(f" -> {contas_processadas} contas processadas")
-    print(f" -> {len(novos_aportes)} lotes remanescentes | {len(estado_lotes_passado)} lotes no snapshot\n")
-    return novos_aportes, log_passado, estado_lotes_passado
-
-def _normalizar_lote_id(valor):
-    """
-    Normaliza identificador de lote:
-    - string
-    - trim
-    - remove sufixo '.0' vindo de Excel numérico
-    """
-    if valor is None:
-        return None
-    try:
-        s = str(valor).strip()
-        if s == "" or s.lower() == "nan":
-            return None
-        if s.endswith('.0'):
-            s = s[:-2]
-        return s
-    except Exception:
-        return None
-
-def _normalizar_data_lote(valor):
-    """Converte valor para date, de forma defensiva."""
-    if valor is None:
-        return None
-    try:
-        if hasattr(valor, 'date'):
-            return valor.date()
-    except Exception:
-        pass
-    try:
-        ts = pd.to_datetime(valor, errors='coerce')
-        if pd.isna(ts):
-            return None
-        return ts.date()
-    except Exception:
-        return None
-
-def _normalizar_valor_lote(valor, default=None):
-    """Converte valor monetário do lote para float."""
-    if valor is None:
-        return default
-    try:
-        if isinstance(valor, (int, float)):
-            return float(valor)
-        s = str(valor).strip()
-        if s == '' or s.lower() == 'nan':
-            return default
-        s = s.replace('R$', '').replace('%', '').strip()
+    df_lotes_norm = pd.DataFrame(registros)
+    auditoria['qtd_lotes_norm'] = len(df_lotes_norm)
+    if len(df_lotes_norm) > 0:
         try:
-            return float(s)
+            auditoria['qtd_ids_duplicados'] = int(df_lotes_norm['lote_id'].duplicated().sum())
         except Exception:
-            pass
-        s = s.replace('.', '').replace(',', '.')
-        return float(s)
-    except Exception:
-        try:
-            return float(valor)
-        except Exception:
-            return default
+            auditoria['qtd_ids_duplicados'] = None
+    return df_lotes_norm, auditoria
 
-def _resolver_produto_lote_shadow(valor_produto, mapa_produtos, *, normalizar_nome_fn=None):
+def construir_indice_lotes(df_lotes_norm):
+    indice = {}
+    if df_lotes_norm is None or len(df_lotes_norm) == 0:
+        return indice
+    for _, row in df_lotes_norm.iterrows():
+        indice[row['lote_id']] = row.to_dict()
+    return indice
+
+def derivar_eventos_aporte_de_lotes(df_lotes_norm):
+    registros = []
+    if df_lotes_norm is None or len(df_lotes_norm) == 0:
+        return pd.DataFrame(registros)
+    for _, row in df_lotes_norm.iterrows():
+        lote_id = row['lote_id']
+        registros.append({
+            'evento_id': f'aporte::{lote_id}',
+            'tipo_evento': 'aporte_historico',
+            'data_evento': row['data_aplicacao'],
+            'lote_id': lote_id,
+            'produto_key': row['produto_key'],
+            'produto_nome': row['produto_nome'],
+            'valor': _safe_float(row['valor_original'], 0.0),
+            'origem_evento': 'inventario_lotes',
+            'ordem_planilha_lote': row['ordem_planilha_lote'],
+        })
+    return pd.DataFrame(registros)
+
+def comparar_aportes_legado_vs_shadow(aportes_legado, df_eventos_aporte_shadow):
+    legado = []
+    for ap in (aportes_legado or []):
+        try:
+            data_ap = _normalizar_data_lote(ap[0])
+            valor_ap = _safe_float(ap[1], 0.0)
+            lote_id = _normalizar_lote_id(ap[2] if len(ap) > 2 else None)
+            legado.append({'lote_id': lote_id, 'data_evento': data_ap, 'valor': valor_ap})
+        except Exception:
+            continue
+
+    shadow = []
+    if df_eventos_aporte_shadow is not None and len(df_eventos_aporte_shadow) > 0:
+        for _, row in df_eventos_aporte_shadow.iterrows():
+            shadow.append({
+                'lote_id': _normalizar_lote_id(row.get('lote_id')),
+                'data_evento': _normalizar_data_lote(row.get('data_evento')),
+                'valor': _safe_float(row.get('valor'), 0.0),
+            })
+
+    ids_legado = {x['lote_id'] for x in legado if x['lote_id'] is not None}
+    ids_shadow = {x['lote_id'] for x in shadow if x['lote_id'] is not None}
+
+    datas_diferentes = []
+    valores_diferentes = []
+    map_legado = {x['lote_id']: x for x in legado if x['lote_id'] is not None}
+    map_shadow = {x['lote_id']: x for x in shadow if x['lote_id'] is not None}
+
+    for lote_id in sorted(ids_legado & ids_shadow):
+        a = map_legado[lote_id]
+        b = map_shadow[lote_id]
+        if a['data_evento'] != b['data_evento']:
+            datas_diferentes.append((lote_id, a['data_evento'], b['data_evento']))
+        if abs(_safe_float(a['valor'], 0.0) - _safe_float(b['valor'], 0.0)) > 1e-9:
+            valores_diferentes.append((lote_id, a['valor'], b['valor']))
+
+    soma_legado = sum(_safe_float(x['valor'], 0.0) for x in legado)
+    soma_shadow = sum(_safe_float(x['valor'], 0.0) for x in shadow)
+
+    equivalentes_essenciais = (
+        len(legado) == len(shadow)
+        and len(ids_legado - ids_shadow) == 0
+        and len(ids_shadow - ids_legado) == 0
+        and len(datas_diferentes) == 0
+        and len(valores_diferentes) == 0
+        and abs(soma_legado - soma_shadow) <= 1e-9
+    )
+
+    return {
+        'qtd_legado': len(legado),
+        'qtd_shadow': len(shadow),
+        'soma_legado': soma_legado,
+        'soma_shadow': soma_shadow,
+        'ids_somente_legado': sorted(list(ids_legado - ids_shadow)),
+        'ids_somente_shadow': sorted(list(ids_shadow - ids_legado)),
+        'datas_diferentes': datas_diferentes,
+        'valores_diferentes': valores_diferentes,
+        'equivalentes_essenciais': equivalentes_essenciais,
+    }
+
+# =========================================================
+# switching em modo sombra
+# =========================================================
+
+def gerar_lote_tecnico_id(lote_id, ordem_planilha_lote, *, prefixo="obs"):
     """
-    Resolve o produto do lote contra o mapa canônico ativo.
+    Gera chave técnica estável para lote, preservando distinção entre
+    lote_id legado e ocorrência na planilha.
+    """
+    lote_id_norm = _normalizar_lote_id(lote_id)
+    ordem = ordem_planilha_lote if ordem_planilha_lote is not None else "sem_ordem"
+    if lote_id_norm is None:
+        lote_id_norm = "sem_lote_id"
+    return f"{prefixo}::{lote_id_norm}::{ordem}"
+
+def gerar_switch_grupo_id(lote_tecnico_id, produto_destino_key, data_evento, ordem_switch=1):
+    """
+    Gera ID único para agrupar switch_out e switch_in do mesmo switching.
+    """
+    d = _normalizar_data_lote(data_evento)
+    d_txt = str(d) if d is not None else "sem_data"
+    destino = produto_destino_key if produto_destino_key is not None else "sem_destino"
+    origem = lote_tecnico_id if lote_tecnico_id is not None else "sem_origem"
+    return f"swgrp::{origem}::{destino}::{d_txt}::{ordem_switch}"
+
+def projetar_eventos_brutos_de_aportes(df_eventos_aporte_shadow, df_lotes_norm):
+    """
+    Converte eventos de aporte históricos derivados dos lotes em eventos
+    financeiros brutos canônicos do tipo 'aporte_historico'.
+    """
+    registros = []
+    if df_eventos_aporte_shadow is None or len(df_eventos_aporte_shadow) == 0:
+        return pd.DataFrame(registros)
+
+    mapa_lotes = {}
+    if df_lotes_norm is not None and len(df_lotes_norm) > 0:
+        for _, row in df_lotes_norm.iterrows():
+            lote_id = row.get("lote_id")
+            ordem = row.get("ordem_planilha_lote")
+            mapa_lotes[(lote_id, ordem)] = row.to_dict()
+
+    for _, row in df_eventos_aporte_shadow.iterrows():
+        lote_id = _normalizar_lote_id(row.get("lote_id"))
+        ordem = row.get("ordem_planilha_lote")
+        lote_info = mapa_lotes.get((lote_id, ordem), {})
+        data_evento = _normalizar_data_lote(row.get("data_evento"))
+        valor = _safe_float(row.get("valor"), 0.0)
+        produto_key = lote_info.get("produto_key")
+        produto_nome = lote_info.get("produto_nome")
+        data_base_fiscal = _normalizar_data_lote(lote_info.get("data_base_fiscal", data_evento))
+        lote_tecnico_id = gerar_lote_tecnico_id(lote_id, ordem, prefixo="obs")
+
+        registros.append({
+            "evento_id": row.get("evento_id", f"aporte::{lote_id}"),
+            "evento_tipo": "aporte_historico",
+            "data_evento": data_evento,
+            "lote_origem_id": lote_id,
+            "lote_tecnico_id": lote_tecnico_id,
+            "produto_origem_key": None,
+            "produto_destino_key": produto_key,
+            "produto_destino_nome": produto_nome,
+            "valor_bruto": valor,
+            "valor_transferido": valor,
+            "data_base_fiscal": data_base_fiscal,
+            "ordem_evento": int(ordem) if ordem is not None else 0,
+            "evento_grupo_id": f"grp::{lote_tecnico_id}::aporte",
+            "origem_evento": "inventario_lotes",
+            "observacao_evento": "aporte_historico_derivado_do_inventario",
+        })
+
+    return pd.DataFrame(registros)
+
+def derivar_eventos_switch_shadow(
+    df_lotes_norm,
+    regras_switch,
+    *,
+    normalizar_nome_fn=None,
+):
+    """
+    Para cada regra válida, gera um par de eventos:
+    - switch_out
+    - switch_in
     """
     if normalizar_nome_fn is None:
         normalizar_nome_fn = lambda x: str(x).strip().lower()
 
-    vazio = {
-        'produto_key': None,
-        'produto_nome': None,
-        'produto_nome_norm': None,
-        'produto_encontrado': False,
-        'tipo_match_produto': 'vazio',
+    registros = []
+    auditoria = {
+        "qtd_regras_switch": 0,
+        "qtd_switch_out": 0,
+        "qtd_switch_in": 0,
+        "qtd_lotes_origem_nao_encontrados": 0,
+        "qtd_produtos_destino_invalidos": 0,
+        "qtd_switch_valor_excede_origem": 0,
+        "qtd_eventos_totais": 0,
+        "regras_invalidas": [],
     }
 
-    if valor_produto is None and not PRODUTO_FALLBACK_NOME_RAW:
-        return vazio
+    regras_switch = regras_switch or []
+    auditoria["qtd_regras_switch"] = len(regras_switch)
 
-    placeholder_produto = _eh_produto_lote_ausente(valor_produto)
-    s = _resolver_nome_produto_lote_efetivo(valor_produto)
-    if not s:
-        return vazio
+    if df_lotes_norm is None or len(df_lotes_norm) == 0:
+        auditoria["regras_invalidas"].append("df_lotes_norm_vazio")
+        return pd.DataFrame(registros), auditoria
 
-    by_key = mapa_produtos.get('by_key', {}) if isinstance(mapa_produtos, dict) else {}
-    by_nome_norm = mapa_produtos.get('by_nome_norm', {}) if isinstance(mapa_produtos, dict) else {}
+    mapa_lotes_tecnicos = {}
+    for _, row in df_lotes_norm.iterrows():
+        lote_tecnico_id = gerar_lote_tecnico_id(
+            row.get("lote_id"),
+            row.get("ordem_planilha_lote"),
+            prefixo="obs",
+        )
+        mapa_lotes_tecnicos[lote_tecnico_id] = row.to_dict()
 
-    if s in by_key:
-        info = by_key[s]
-        return {
-            'produto_key': info.get('produto_key'),
-            'produto_nome': info.get('nome'),
-            'produto_nome_norm': info.get('nome_norm'),
-            'produto_encontrado': True,
-            'tipo_match_produto': 'fallback_config' if placeholder_produto else 'chave_exata',
-        }
+    mapa_produtos = MAPA_PRODUTOS_CANONICO if isinstance(MAPA_PRODUTOS_CANONICO, dict) else {"by_key": {}, "by_nome_norm": {}}
+    by_key = mapa_produtos.get("by_key", {})
 
-    nome_norm = normalizar_nome_fn(s)
-    if nome_norm in by_nome_norm:
-        produto_key = by_nome_norm[nome_norm]
-        info = by_key.get(produto_key, {})
-        return {
-            'produto_key': info.get('produto_key'),
-            'produto_nome': info.get('nome'),
-            'produto_nome_norm': info.get('nome_norm'),
-            'produto_encontrado': True,
-            'tipo_match_produto': 'fallback_config' if placeholder_produto else 'nome_norm',
-        }
+    for i, regra in enumerate(regras_switch, start=1):
+        lote_tecnico_id_origem = regra.get("lote_tecnico_id_origem")
+        produto_destino_key = regra.get("produto_destino_key")
+        data_switch = _normalizar_data_lote(regra.get("data_switch"))
+        valor_switch = _safe_float(regra.get("valor_switch"), 0.0)
+        manter_data_base_destino = bool(regra.get("manter_data_base_destino", False))
+        observacao = regra.get("observacao")
+
+        lote_origem = mapa_lotes_tecnicos.get(lote_tecnico_id_origem)
+        if lote_origem is None:
+            auditoria["qtd_lotes_origem_nao_encontrados"] += 1
+            auditoria["regras_invalidas"].append(
+                {"ordem_switch": i, "motivo": "lote_origem_nao_encontrado", "lote_tecnico_id_origem": lote_tecnico_id_origem}
+            )
+            continue
+
+        if produto_destino_key not in by_key:
+            auditoria["qtd_produtos_destino_invalidos"] += 1
+            auditoria["regras_invalidas"].append(
+                {"ordem_switch": i, "motivo": "produto_destino_invalido", "produto_destino_key": produto_destino_key}
+            )
+            continue
+
+        valor_origem_max = _safe_float(lote_origem.get("valor_original"), 0.0)
+        if valor_switch <= 0:
+            auditoria["regras_invalidas"].append(
+                {"ordem_switch": i, "motivo": "valor_switch_invalido", "valor_switch": valor_switch}
+            )
+            continue
+
+        if valor_switch - valor_origem_max > 1e-9:
+            auditoria["qtd_switch_valor_excede_origem"] += 1
+            auditoria["regras_invalidas"].append(
+                {
+                    "ordem_switch": i,
+                    "motivo": "valor_switch_excede_origem",
+                    "valor_switch": valor_switch,
+                    "valor_origem_max": valor_origem_max,
+                }
+            )
+            continue
+
+        data_aplicacao_origem = _normalizar_data_lote(lote_origem.get("data_aplicacao"))
+        if data_switch is None or (data_aplicacao_origem is not None and data_switch < data_aplicacao_origem):
+            auditoria["regras_invalidas"].append(
+                {"ordem_switch": i, "motivo": "data_switch_invalida", "data_switch": data_switch}
+            )
+            continue
+
+        produto_origem_key = lote_origem.get("produto_key")
+        produto_destino = by_key.get(produto_destino_key, {})
+        lote_origem_id = lote_origem.get("lote_id")
+        ordem_planilha_lote = lote_origem.get("ordem_planilha_lote")
+        evento_grupo_id = gerar_switch_grupo_id(
+            lote_tecnico_id_origem,
+            produto_destino_key,
+            data_switch,
+            ordem_switch=i,
+        )
+
+        data_base_fiscal_origem = _normalizar_data_lote(lote_origem.get("data_base_fiscal"))
+        data_base_fiscal_destino = data_base_fiscal_origem if manter_data_base_destino else data_switch
+        lote_tecnico_id_destino = f"sw::{evento_grupo_id}::in"
+
+        registros.append({
+            "evento_id": f"{evento_grupo_id}::out",
+            "evento_tipo": "switch_out",
+            "data_evento": data_switch,
+            "lote_origem_id": lote_origem_id,
+            "lote_tecnico_id": lote_tecnico_id_origem,
+            "produto_origem_key": produto_origem_key,
+            "produto_destino_key": produto_destino_key,
+            "produto_destino_nome": produto_destino.get("nome"),
+            "valor_bruto": valor_switch,
+            "valor_transferido": valor_switch,
+            "data_base_fiscal": data_base_fiscal_origem,
+            "ordem_evento": int(ordem_planilha_lote) if ordem_planilha_lote is not None else 0,
+            "evento_grupo_id": evento_grupo_id,
+            "origem_evento": "switch_shadow",
+            "observacao_evento": observacao or "switch_out_shadow",
+        })
+
+        registros.append({
+            "evento_id": f"{evento_grupo_id}::in",
+            "evento_tipo": "switch_in",
+            "data_evento": data_switch,
+            "lote_origem_id": lote_origem_id,
+            "lote_tecnico_id": lote_tecnico_id_destino,
+            "produto_origem_key": produto_origem_key,
+            "produto_destino_key": produto_destino_key,
+            "produto_destino_nome": produto_destino.get("nome"),
+            "valor_bruto": valor_switch,
+            "valor_transferido": valor_switch,
+            "data_base_fiscal": data_base_fiscal_destino,
+            "ordem_evento": int(ordem_planilha_lote) if ordem_planilha_lote is not None else 0,
+            "evento_grupo_id": evento_grupo_id,
+            "origem_evento": "switch_shadow",
+            "observacao_evento": observacao or "switch_in_shadow",
+        })
+
+        auditoria["qtd_switch_out"] += 1
+        auditoria["qtd_switch_in"] += 1
+
+    auditoria["qtd_eventos_totais"] = len(registros)
+    return pd.DataFrame(registros), auditoria
+
+def consolidar_eventos_financeiros_brutos(
+    df_eventos_aporte_bruto,
+    df_eventos_switch_shadow=None,
+):
+    """
+    Consolida trilha bruta de eventos financeiros.
+    """
+    frames = []
+    if df_eventos_aporte_bruto is not None and len(df_eventos_aporte_bruto) > 0:
+        frames.append(df_eventos_aporte_bruto.copy())
+    if df_eventos_switch_shadow is not None and len(df_eventos_switch_shadow) > 0:
+        frames.append(df_eventos_switch_shadow.copy())
+    if not frames:
+        return pd.DataFrame([])
+
+    df = pd.concat(frames, ignore_index=True, sort=False)
+
+    if "data_evento" in df.columns:
+        try:
+            df["__data_ord__"] = pd.to_datetime(df["data_evento"], errors="coerce")
+        except Exception:
+            df["__data_ord__"] = None
+    else:
+        df["__data_ord__"] = None
+
+    if "ordem_evento" not in df.columns:
+        df["ordem_evento"] = 0
+
+    tipo_ordem = {"aporte_historico": 1, "switch_out": 2, "switch_in": 3}
+    df["__tipo_ord__"] = df["evento_tipo"].map(tipo_ordem).fillna(99)
+
+    df = df.sort_values(
+        by=["__data_ord__", "ordem_evento", "__tipo_ord__", "evento_id"],
+        ascending=[True, True, True, True],
+        kind="stable",
+    ).reset_index(drop=True)
+
+    return df.drop(columns=["__data_ord__", "__tipo_ord__"], errors="ignore")
+
+def ordenar_eventos_financeiros_brutos_shadow(df_eventos_financeiros_brutos):
+    """
+    Ordena eventos brutos de forma determinística para o replay sombra.
+    """
+    if df_eventos_financeiros_brutos is None or len(df_eventos_financeiros_brutos) == 0:
+        return pd.DataFrame([])
+
+    df = df_eventos_financeiros_brutos.copy()
+    prioridade_tipo = {"aporte_historico": 1, "switch_out": 2, "switch_in": 3}
+
+    if "data_evento" in df.columns:
+        df["__data_ord__"] = pd.to_datetime(df["data_evento"], errors="coerce")
+    else:
+        df["__data_ord__"] = pd.NaT
+
+    if "ordem_evento" not in df.columns:
+        df["ordem_evento"] = 0
+
+    df["__tipo_ord__"] = df["evento_tipo"].map(prioridade_tipo).fillna(99)
+
+    if "evento_id" not in df.columns:
+        df["evento_id"] = [f"evento::{i}" for i in range(len(df))]
+
+    df = df.sort_values(
+        by=["__data_ord__", "ordem_evento", "__tipo_ord__", "evento_id"],
+        ascending=[True, True, True, True],
+        kind="stable",
+    ).reset_index(drop=True)
+
+    return df.drop(columns=["__data_ord__", "__tipo_ord__"], errors="ignore")
+
+def projetar_estado_lotes_pre_replay_shadow(df_eventos_ordenados):
+    """
+    Aplica os eventos brutos em modo sombra e projeta o estado técnico
+    dos lotes antes do replay principal.
+    """
+    estado = {}
+    inconsistencias = []
+
+    auditoria = {
+        "qtd_eventos_aporte": 0,
+        "qtd_eventos_switch_out": 0,
+        "qtd_eventos_switch_in": 0,
+        "qtd_lotes_ativos": 0,
+        "qtd_lotes_encerrados_por_switch": 0,
+        "qtd_lotes_tecnicos_novos": 0,
+        "soma_saldos_pre": 0.0,
+        "soma_saldos_pos": 0.0,
+        "delta_conservacao": 0.0,
+        "qtd_inconsistencias": 0,
+        "inconsistencias": [],
+    }
+
+    if df_eventos_ordenados is None or len(df_eventos_ordenados) == 0:
+        return pd.DataFrame([]), auditoria
+
+    soma_pre = 0.0
+    for _, ev in df_eventos_ordenados.iterrows():
+        if ev.get("evento_tipo") in ("aporte_historico", "switch_in"):
+            soma_pre += _safe_float(ev.get("valor_transferido"), 0.0)
+        if ev.get("evento_tipo") == "switch_out":
+            soma_pre -= _safe_float(ev.get("valor_transferido"), 0.0)
+    auditoria["soma_saldos_pre"] = soma_pre
+
+    for _, ev in df_eventos_ordenados.iterrows():
+        evento_tipo = ev.get("evento_tipo")
+        evento_id = ev.get("evento_id")
+        lote_tecnico_id = ev.get("lote_tecnico_id")
+        lote_origem_id = ev.get("lote_origem_id")
+        produto_origem_key = ev.get("produto_origem_key")
+        produto_destino_key = ev.get("produto_destino_key")
+        valor = _safe_float(ev.get("valor_transferido"), 0.0)
+        data_evento = _normalizar_data_lote(ev.get("data_evento"))
+        data_base_fiscal = _normalizar_data_lote(ev.get("data_base_fiscal"))
+        evento_grupo_id = ev.get("evento_grupo_id")
+        origem_evento = ev.get("origem_evento")
+        observacao_evento = ev.get("observacao_evento")
+
+        if evento_tipo == "aporte_historico":
+            auditoria["qtd_eventos_aporte"] += 1
+            if lote_tecnico_id in estado:
+                inconsistencias.append({"evento_id": evento_id, "motivo": "aporte_historico_lote_tecnico_duplicado", "lote_tecnico_id": lote_tecnico_id})
+                continue
+            estado[lote_tecnico_id] = {
+                "lote_tecnico_id": lote_tecnico_id,
+                "lote_origem_id": lote_origem_id,
+                "produto_key": produto_destino_key,
+                "saldo_inicial": valor,
+                "saldo_atual": valor,
+                "data_aplicacao": data_evento,
+                "data_base_fiscal": data_base_fiscal,
+                "status": "ativo",
+                "origem": "aporte_historico",
+                "evento_grupo_id_origem": evento_grupo_id,
+                "historico_eventos": [evento_id],
+            }
+            continue
+
+        if evento_tipo == "switch_out":
+            auditoria["qtd_eventos_switch_out"] += 1
+            lote_origem = estado.get(lote_tecnico_id)
+            if lote_origem is None:
+                inconsistencias.append({"evento_id": evento_id, "motivo": "switch_out_sem_lote_origem", "lote_tecnico_id": lote_tecnico_id})
+                continue
+            saldo_antes = _safe_float(lote_origem.get("saldo_atual"), 0.0)
+            if valor <= 0:
+                inconsistencias.append({"evento_id": evento_id, "motivo": "switch_out_valor_invalido", "valor": valor})
+                continue
+            if saldo_antes + 1e-9 < valor:
+                inconsistencias.append({"evento_id": evento_id, "motivo": "switch_out_excede_saldo", "saldo_antes": saldo_antes, "valor": valor})
+                continue
+            saldo_depois = saldo_antes - valor
+            lote_origem["saldo_atual"] = max(saldo_depois, 0.0)
+            lote_origem["historico_eventos"].append(evento_id)
+            if lote_origem["saldo_atual"] <= 1e-9:
+                lote_origem["saldo_atual"] = 0.0
+                lote_origem["status"] = "encerrado_por_switch"
+            continue
+
+        if evento_tipo == "switch_in":
+            auditoria["qtd_eventos_switch_in"] += 1
+            if lote_tecnico_id in estado:
+                inconsistencias.append({"evento_id": evento_id, "motivo": "switch_in_lote_tecnico_duplicado", "lote_tecnico_id": lote_tecnico_id})
+                continue
+            if valor <= 0:
+                inconsistencias.append({"evento_id": evento_id, "motivo": "switch_in_valor_invalido", "valor": valor})
+                continue
+            estado[lote_tecnico_id] = {
+                "lote_tecnico_id": lote_tecnico_id,
+                "lote_origem_id": lote_origem_id,
+                "produto_key": produto_destino_key,
+                "saldo_inicial": valor,
+                "saldo_atual": valor,
+                "data_aplicacao": data_evento,
+                "data_base_fiscal": data_base_fiscal,
+                "status": "ativo",
+                "origem": "switch_in",
+                "evento_grupo_id_origem": evento_grupo_id,
+                "historico_eventos": [evento_id],
+                "produto_origem_key": produto_origem_key,
+                "origem_evento": origem_evento,
+                "observacao_evento": observacao_evento,
+            }
+            continue
+
+        inconsistencias.append({"evento_id": evento_id, "motivo": "evento_tipo_desconhecido", "evento_tipo": evento_tipo})
+
+    registros_estado = []
+    qtd_ativos = 0
+    qtd_encerrados_por_switch = 0
+    qtd_lotes_tecnicos_novos = 0
+    soma_pos = 0.0
+    for lote_tecnico_id, info in estado.items():
+        saldo_atual = _safe_float(info.get("saldo_atual"), 0.0)
+        soma_pos += saldo_atual
+        status = info.get("status")
+        origem = info.get("origem")
+        if status == "ativo":
+            qtd_ativos += 1
+        if status == "encerrado_por_switch":
+            qtd_encerrados_por_switch += 1
+        if origem == "switch_in":
+            qtd_lotes_tecnicos_novos += 1
+        registros_estado.append({
+            "lote_tecnico_id": lote_tecnico_id,
+            "lote_origem_id": info.get("lote_origem_id"),
+            "produto_key": info.get("produto_key"),
+            "saldo_inicial": _safe_float(info.get("saldo_inicial"), 0.0),
+            "saldo_atual": saldo_atual,
+            "data_aplicacao": info.get("data_aplicacao"),
+            "data_base_fiscal": info.get("data_base_fiscal"),
+            "status": status,
+            "origem": origem,
+            "evento_grupo_id_origem": info.get("evento_grupo_id_origem"),
+            "qtd_eventos_historico": len(info.get("historico_eventos", [])),
+        })
+
+    auditoria["qtd_lotes_ativos"] = qtd_ativos
+    auditoria["qtd_lotes_encerrados_por_switch"] = qtd_encerrados_por_switch
+    auditoria["qtd_lotes_tecnicos_novos"] = qtd_lotes_tecnicos_novos
+    auditoria["soma_saldos_pos"] = soma_pos
+    auditoria["delta_conservacao"] = soma_pos - auditoria["soma_saldos_pre"]
+    auditoria["qtd_inconsistencias"] = len(inconsistencias)
+    auditoria["inconsistencias"] = inconsistencias
+
+    return pd.DataFrame(registros_estado), auditoria
+
+def ordenar_lotes_para_replay_shadow(df_estado_lotes_pre_replay):
+    """
+    Ordena lotes técnicos elegíveis para o replay sombra simplificado.
+
+    Ordem:
+    1. data_base_fiscal
+    2. data_aplicacao
+    3. prioridade da origem (aporte_historico antes de switch_in)
+    4. lote_tecnico_id
+    """
+    if df_estado_lotes_pre_replay is None or len(df_estado_lotes_pre_replay) == 0:
+        return pd.DataFrame([])
+
+    df = df_estado_lotes_pre_replay.copy()
+    df = df[df.get('status').eq('ativo') & (pd.to_numeric(df.get('saldo_atual'), errors='coerce').fillna(0.0) > 0)].copy()
+
+    if len(df) == 0:
+        df['ordem_replay_shadow'] = []
+        return df
+
+    prioridade_origem = {'aporte_historico': 1, 'switch_in': 2}
+    df['__data_base_ord__'] = pd.to_datetime(df.get('data_base_fiscal'), errors='coerce')
+    df['__data_aplic_ord__'] = pd.to_datetime(df.get('data_aplicacao'), errors='coerce')
+    df['__origem_ord__'] = df.get('origem').map(prioridade_origem).fillna(99)
+
+    if 'lote_tecnico_id' not in df.columns:
+        df['lote_tecnico_id'] = [f'lote_tecnico::{i}' for i in range(len(df))]
+
+    df = df.sort_values(
+        by=['__data_base_ord__', '__data_aplic_ord__', '__origem_ord__', 'lote_tecnico_id'],
+        ascending=[True, True, True, True],
+        kind='stable',
+    ).reset_index(drop=True)
+
+    df['ordem_replay_shadow'] = np.arange(1, len(df) + 1)
+    return df.drop(columns=['__data_base_ord__', '__data_aplic_ord__', '__origem_ord__'], errors='ignore')
+
+def aplicar_contas_pagas_shadow(df_estado_lotes_pre_replay, contas_pagas):
+    """
+    Aplica um replay sombra simplificado das contas pagas sobre o estado técnico
+    dos lotes. Não recalcula rendimento, IOF ou IR; apenas consome saldo_atual.
+    """
+    auditoria = {
+        'qtd_contas_processadas': 0,
+        'qtd_contas_cobertas': 0,
+        'qtd_contas_parcialmente_cobertas': 0,
+        'qtd_contas_nao_cobertas': 0,
+        'valor_total_contas': 0.0,
+        'valor_total_consumido': 0.0,
+        'qtd_lotes_vivos': 0,
+        'qtd_lotes_consumidos_no_replay': 0,
+        'qtd_lotes_switch_vivos': 0,
+        'qtd_lotes_switch_consumidos': 0,
+        'qtd_inconsistencias': 0,
+        'inconsistencias': [],
+    }
+
+    if df_estado_lotes_pre_replay is None or len(df_estado_lotes_pre_replay) == 0:
+        return pd.DataFrame([]), pd.DataFrame([]), auditoria
+
+    df_estado = ordenar_lotes_para_replay_shadow(df_estado_lotes_pre_replay)
+    if len(df_estado) == 0:
+        return df_estado, pd.DataFrame([]), auditoria
+
+    df_estado = df_estado.copy()
+    if 'saldo_atual' not in df_estado.columns:
+        df_estado['saldo_atual'] = 0.0
+    df_estado['saldo_atual'] = pd.to_numeric(df_estado['saldo_atual'], errors='coerce').fillna(0.0)
+
+    registros_log = []
+
+    for conta_idx, conta in enumerate(contas_pagas or [], start=1):
+        try:
+            data_conta = _normalizar_data_lote(conta[0]) if len(conta) > 0 else None
+            valor_conta_original = _safe_float(conta[1], 0.0) if len(conta) > 1 else 0.0
+            conta_id = conta[4] if len(conta) > 4 else conta_idx
+        except Exception:
+            data_conta = None
+            valor_conta_original = 0.0
+            conta_id = conta_idx
+
+        auditoria['qtd_contas_processadas'] += 1
+        auditoria['valor_total_contas'] += valor_conta_original
+
+        restante = valor_conta_original
+        consumiu_algum = False
+
+        for idx in df_estado.index:
+            if restante <= 1e-9:
+                break
+
+            status = df_estado.at[idx, 'status'] if 'status' in df_estado.columns else 'ativo'
+            saldo_antes = _safe_float(df_estado.at[idx, 'saldo_atual'], 0.0)
+            if status != 'ativo' or saldo_antes <= 1e-9:
+                continue
+
+            valor_consumido = min(saldo_antes, restante)
+            if valor_consumido <= 0:
+                continue
+
+            saldo_depois = saldo_antes - valor_consumido
+            df_estado.at[idx, 'saldo_atual'] = max(saldo_depois, 0.0)
+            if df_estado.at[idx, 'saldo_atual'] <= 1e-9:
+                df_estado.at[idx, 'saldo_atual'] = 0.0
+                df_estado.at[idx, 'status'] = 'consumido_no_replay'
+
+            registros_log.append({
+                'conta_idx': conta_idx,
+                'conta_id': conta_id,
+                'data_conta': data_conta,
+                'valor_conta_original': valor_conta_original,
+                'valor_consumido': valor_consumido,
+                'valor_restante_conta': max(restante - valor_consumido, 0.0),
+                'lote_tecnico_id': df_estado.at[idx, 'lote_tecnico_id'] if 'lote_tecnico_id' in df_estado.columns else None,
+                'lote_origem_id': df_estado.at[idx, 'lote_origem_id'] if 'lote_origem_id' in df_estado.columns else None,
+                'saldo_lote_antes': saldo_antes,
+                'saldo_lote_depois': df_estado.at[idx, 'saldo_atual'],
+                'ordem_replay_shadow': df_estado.at[idx, 'ordem_replay_shadow'] if 'ordem_replay_shadow' in df_estado.columns else None,
+            })
+
+            restante -= valor_consumido
+            auditoria['valor_total_consumido'] += valor_consumido
+            consumiu_algum = True
+
+        if restante <= 1e-9:
+            auditoria['qtd_contas_cobertas'] += 1
+        elif consumiu_algum:
+            auditoria['qtd_contas_parcialmente_cobertas'] += 1
+        else:
+            auditoria['qtd_contas_nao_cobertas'] += 1
+
+    vivos = df_estado[(df_estado['status'] == 'ativo') & (pd.to_numeric(df_estado['saldo_atual'], errors='coerce').fillna(0.0) > 0)] if len(df_estado) else df_estado
+    consumidos = df_estado[df_estado['status'] == 'consumido_no_replay'] if len(df_estado) else df_estado
+    switch_vivos = vivos[vivos.get('origem').eq('switch_in')] if len(vivos) else vivos
+    switch_consumidos = consumidos[consumidos.get('origem').eq('switch_in')] if len(consumidos) else consumidos
+
+    auditoria['qtd_lotes_vivos'] = int(len(vivos))
+    auditoria['qtd_lotes_consumidos_no_replay'] = int(len(consumidos))
+    auditoria['qtd_lotes_switch_vivos'] = int(len(switch_vivos))
+    auditoria['qtd_lotes_switch_consumidos'] = int(len(switch_consumidos))
+    auditoria['qtd_inconsistencias'] = len(auditoria['inconsistencias'])
+
+    return df_estado, pd.DataFrame(registros_log), auditoria
+
+def comparar_remanescente_legado_vs_shadow(estado_lotes_passado_legado, df_estado_pos_passado_shadow):
+    """
+    Compara o remanescente legado pós-passado com o remanescente sombra.
+    A comparação estrutural é aproximada via lote_origem_id.
+    """
+    legado_reg = []
+    for item in (estado_lotes_passado_legado or []):
+        try:
+            lote_id = _normalizar_lote_id(item.get('Lote ID'))
+            saldo = _safe_float(item.get('Saldo Após Passado'), 0.0)
+            if saldo > 1e-9:
+                legado_reg.append({'lote_id': lote_id, 'saldo': saldo})
+        except Exception:
+            continue
+
+    df_shadow = df_estado_pos_passado_shadow.copy() if df_estado_pos_passado_shadow is not None else pd.DataFrame([])
+    if len(df_shadow) > 0:
+        df_shadow = df_shadow[(pd.to_numeric(df_shadow.get('saldo_atual'), errors='coerce').fillna(0.0) > 1e-9) & (df_shadow.get('status') == 'ativo')].copy()
+    shadow_reg = []
+    if len(df_shadow) > 0:
+        for _, row in df_shadow.iterrows():
+            shadow_reg.append({
+                'lote_tecnico_id': row.get('lote_tecnico_id'),
+                'lote_origem_id': _normalizar_lote_id(row.get('lote_origem_id')),
+                'saldo': _safe_float(row.get('saldo_atual'), 0.0),
+                'origem': row.get('origem'),
+            })
+
+    ids_legado = {r['lote_id'] for r in legado_reg if r['lote_id'] is not None}
+    ids_shadow = {r['lote_origem_id'] for r in shadow_reg if r['lote_origem_id'] is not None}
+    switch_shadow = [r for r in shadow_reg if r.get('origem') == 'switch_in']
 
     return {
-        'produto_key': None,
-        'produto_nome': s,
-        'produto_nome_norm': nome_norm,
-        'produto_encontrado': False,
-        'tipo_match_produto': 'nao_encontrado',
+        'qtd_legado': len(legado_reg),
+        'qtd_shadow': len(shadow_reg),
+        'soma_legado': sum(r['saldo'] for r in legado_reg),
+        'soma_shadow': sum(r['saldo'] for r in shadow_reg),
+        'delta_qtd': len(shadow_reg) - len(legado_reg),
+        'delta_soma': sum(r['saldo'] for r in shadow_reg) - sum(r['saldo'] for r in legado_reg),
+        'ids_origem_somente_legado': sorted(list(ids_legado - ids_shadow)),
+        'ids_origem_somente_shadow': sorted(list(ids_shadow - ids_legado)),
+        'qtd_lotes_switch_no_shadow': len(switch_shadow),
+        'soma_lotes_switch_no_shadow': sum(r['saldo'] for r in switch_shadow),
     }
+
+
+def resolver_destino_switch_v1(produto_atual, investimentos_norm, config, *, normalizar_nome_fn=None):
+    if normalizar_nome_fn is None:
+        normalizar_nome_fn = normalizar_nome
+
+    defaults_cfg = (config or {}).get("defaults", {}) if isinstance(config, dict) else {}
+    destino_raw = str(defaults_cfg.get("investimento_referencia_futuro", "") or "").strip()
+    match_exato = bool(defaults_cfg.get("investimento_referencia_futuro_match_exato", True))
+
+    if not destino_raw:
+        return {
+            "produto_destino_recomendado": None,
+            "produto_destino_key": None,
+            "destino_info": None,
+            "motivo_indisponibilidade": "destino_nao_configurado",
+            "destino_igual_ao_atual": False,
+        }
+
+    destino_norm = normalizar_nome_fn(destino_raw)
+    info_dest = None
+    if match_exato:
+        info_dest = (investimentos_norm or {}).get(destino_norm)
+    else:
+        for nome_norm, info in (investimentos_norm or {}).items():
+            if destino_norm and destino_norm in str(nome_norm):
+                info_dest = info
+                break
+
+    if info_dest is None:
+        return {
+            "produto_destino_recomendado": destino_raw,
+            "produto_destino_key": None,
+            "destino_info": None,
+            "motivo_indisponibilidade": "destino_nao_encontrado",
+            "destino_igual_ao_atual": False,
+        }
+
+    atual_norm = normalizar_nome_fn(produto_atual)
+    destino_igual = bool(atual_norm and atual_norm == normalizar_nome_fn(info_dest.get("investimento", destino_raw)))
+
+    return {
+        "produto_destino_recomendado": info_dest.get("investimento", destino_raw),
+        "produto_destino_key": info_dest.get("produto_key"),
+        "destino_info": info_dest,
+        "motivo_indisponibilidade": "",
+        "destino_igual_ao_atual": destino_igual,
+    }
+
+
+def estimar_patrimonio_switch_v1(
+    saldo_inicial,
+    taxa_base_cdi,
+    taxa_bonus_cdi,
+    dias_bonus_restantes,
+    horizonte_dias,
+    mapa_bcb,
+    data_referencia,
+):
+    saldo = float(max(_safe_float(saldo_inicial, 0.0), 0.0))
+    horizonte_dias = int(max(_safe_float(horizonte_dias, 0), 0))
+    if saldo <= 0.0 or horizonte_dias <= 0:
+        return dinheiro_round(saldo)
+
+    dias_bonus_restantes = int(max(_safe_float(dias_bonus_restantes, 0), 0))
+    taxa_base_cdi = float(_safe_float(taxa_base_cdi, 0.0))
+    taxa_bonus_cdi = float(_safe_float(taxa_bonus_cdi, 0.0))
+
+    for offset in range(1, horizonte_dias + 1):
+        d = data_referencia + timedelta(days=offset)
+        if not is_dia_rendimento(d, mapa_bcb):
+            continue
+        taxa_dia = _safe_float(mapa_bcb.get(d), 1.0 + TAXA_PROJ) - 1.0 if mapa_bcb else TAXA_PROJ
+        em_bonus = taxa_bonus_cdi > 0.0 and offset <= dias_bonus_restantes
+        mult = taxa_bonus_cdi if em_bonus else taxa_base_cdi
+        fator_dia = (1.0 + taxa_dia) ** mult
+        saldo = dinheiro_round(saldo * fator_dia)
+
+    return dinheiro_round(saldo)
+
+
+def _switch_info_produto(info, nome_padrao):
+    info = info or {}
+    nome_produto = str(info.get("investimento") or info.get("nome_original") or nome_padrao or "").strip()
+    produto_key = info.get("produto_key")
+    nome_norm = normalizar_nome(nome_produto or nome_padrao)
+
+    meta_canonica = {}
+    try:
+        mapa = MAPA_PRODUTOS_CANONICO or {}
+        if produto_key and isinstance(mapa.get("by_key"), dict):
+            meta_canonica = mapa.get("by_key", {}).get(produto_key) or {}
+        if (not meta_canonica) and nome_norm and isinstance(mapa.get("by_nome_norm"), dict):
+            meta_canonica = mapa.get("by_nome_norm", {}).get(nome_norm) or {}
+    except Exception:
+        meta_canonica = {}
+
+    base = float(_safe_float(info.get("base", meta_canonica.get("taxa_base_cdi", TAXA_BASE_DEFAULT)), TAXA_BASE_DEFAULT))
+    bonus = float(_safe_float(info.get("bonus", meta_canonica.get("taxa_bonus_cdi", 0.0)), 0.0))
+    dias_bonus = int(max(_safe_float(info.get("dias_bonus", meta_canonica.get("dias_bonus", 0)), 0), 0))
+    indexador = str(
+        info.get("indexador")
+        or meta_canonica.get("indexador")
+        or ""
+    ).strip()
+    tipo_produto = str(
+        info.get("tipo_produto")
+        or meta_canonica.get("tipo_produto")
+        or ""
+    ).strip()
+
+    return {
+        "produto": nome_produto,
+        "produto_key": produto_key or meta_canonica.get("produto_key"),
+        "nome_norm": nome_norm,
+        "base": base,
+        "bonus": bonus,
+        "dias_bonus": dias_bonus,
+        "ativo": bool(info.get("ativo", meta_canonica.get("ativo", True))),
+        "somente_combo": bool(info.get("somente_combo", meta_canonica.get("somente_combo", False))),
+        "aplicacao_minima": float(max(_safe_float(info.get("aplicacao_minima", meta_canonica.get("aplicacao_minima", 0.0)), 0.0), 0.0)),
+        "aplicacao_maxima": float(max(_safe_float(info.get("aplicacao_maxima", meta_canonica.get("aplicacao_maxima", 0.0)), 0.0), 0.0)),
+        "indexador": indexador,
+        "tipo_produto": tipo_produto,
+        "destino_info": info,
+        "meta_canonica": meta_canonica,
+    }
+
+
+def _switch_indexador_suportado(meta):
+    meta = meta or {}
+    indexador = str(meta.get("indexador") or "").strip().lower()
+    nome = str(meta.get("produto") or "").strip().lower()
+    tipo_produto = str(meta.get("tipo_produto") or "").strip().lower()
+    base = float(_safe_float(meta.get("base"), 0.0))
+    bonus = float(_safe_float(meta.get("bonus"), 0.0))
+
+    tokens_nao_suportados = ("ipca", "prefix", "pré", "pre", "selic")
+    if any(tok in indexador for tok in tokens_nao_suportados):
+        return False, f"indexador_nao_suportado:{indexador or 'vazio'}"
+    if any(tok in nome for tok in tokens_nao_suportados):
+        return False, "produto_nao_suportado_pela_projecao_atual"
+    if any(tok in tipo_produto for tok in tokens_nao_suportados):
+        return False, f"tipo_produto_nao_suportado:{tipo_produto or 'vazio'}"
+
+    if base <= 0.0:
+        return False, "taxa_base_invalida"
+    if base > 5.0 or bonus > 5.0:
+        return False, "taxa_fora_escala_cdi"
+
+    if indexador and ("cdi" not in indexador and "di" not in indexador):
+        return False, f"indexador_nao_cdi:{indexador}"
+
+    return True, "ok"
+
+
+def _classificar_origem_recurso_switch(row, data_referencia=None):
+    dias_corridos = int(_safe_float(row.get("Dias Corridos até Hoje"), 0))
+    saldo_liquido = dinheiro_round(_safe_float(row.get("Saldo Líquido Atual (R$)"), 0.0))
+    saldo_bruto = dinheiro_round(_safe_float(row.get("Saldo Bruto Atual (R$)"), 0.0))
+    total_liquido_sacado = dinheiro_round(_safe_float(row.get("Total Líquido Sacado (R$)"), 0.0))
+    data_aplicacao = _normalizar_data_lote(row.get("Data Aplicação"))
+
+    caixa_disponivel = (
+        saldo_liquido > 0.0
+        and saldo_bruto > 0.0
+        and total_liquido_sacado <= 1e-9
+        and (
+            dias_corridos <= 0
+            or (data_referencia is not None and data_aplicacao is not None and data_aplicacao >= data_referencia)
+        )
+    )
+    return "caixa_disponivel" if caixa_disponivel else "lote_investido"
+
+
+def listar_destinos_elegiveis_switch_v2(
+    produto_atual,
+    valor_aporte,
+    investimentos_norm,
+    *,
+    normalizar_nome_fn=None,
+    excluir_produto_atual=True,
+):
+    if normalizar_nome_fn is None:
+        normalizar_nome_fn = normalizar_nome
+
+    valor_aporte = float(max(_safe_float(valor_aporte, 0.0), 0.0))
+    atual_norm = normalizar_nome_fn(produto_atual)
+    destinos = []
+
+    for nome_norm, info in (investimentos_norm or {}).items():
+        meta = _switch_info_produto(info, nome_norm)
+        nome_produto = meta["produto"]
+        destino_norm = normalizar_nome_fn(nome_produto)
+
+        if not nome_produto:
+            continue
+        if excluir_produto_atual and atual_norm and destino_norm == atual_norm:
+            continue
+        if not meta["ativo"]:
+            continue
+        if meta["somente_combo"]:
+            continue
+        if meta["aplicacao_minima"] > 0 and valor_aporte + 1e-9 < meta["aplicacao_minima"]:
+            continue
+        if meta["aplicacao_maxima"] > 0 and valor_aporte - 1e-9 > meta["aplicacao_maxima"]:
+            continue
+
+        suportado, motivo_suporte = _switch_indexador_suportado(meta)
+        if not suportado:
+            continue
+        meta["motivo_suporte"] = motivo_suporte
+        destinos.append(meta)
+
+    return destinos
+
+
+def escolher_melhor_destino_switch_v2(
+    produto_atual,
+    valor_aporte,
+    patrimonio_referencia,
+    horizonte_analise_dias,
+    investimentos_norm,
+    mapa_bcb,
+    data_referencia,
+    *,
+    normalizar_nome_fn=None,
+    excluir_produto_atual=True,
+):
+    if normalizar_nome_fn is None:
+        normalizar_nome_fn = normalizar_nome
+
+    destinos = listar_destinos_elegiveis_switch_v2(
+        produto_atual,
+        valor_aporte,
+        investimentos_norm,
+        normalizar_nome_fn=normalizar_nome_fn,
+        excluir_produto_atual=excluir_produto_atual,
+    )
+
+    if not destinos:
+        return {
+            "produto_destino_recomendado": None,
+            "produto_destino_key": None,
+            "destino_info": None,
+            "motivo_indisponibilidade": "nenhum_destino_elegivel",
+            "destino_igual_ao_atual": False,
+            "n_destinos_avaliados": 0,
+            "patrimonio_destino": dinheiro_round(valor_aporte),
+            "ganho_switch": dinheiro_round(valor_aporte - patrimonio_referencia),
+            "ganho_pct": 0.0,
+            "ganho_diario": 0.0,
+            "criterio_escolha_destino": "sem_candidatos",
+        }
+
+    melhor = None
+    for candidato in destinos:
+        patrimonio_candidato = estimar_patrimonio_switch_v1(
+            valor_aporte,
+            candidato["base"],
+            candidato["bonus"],
+            candidato["dias_bonus"],
+            horizonte_analise_dias,
+            mapa_bcb,
+            data_referencia,
+        )
+        ganho_candidato = dinheiro_round(patrimonio_candidato - patrimonio_referencia)
+        ganho_pct = round((ganho_candidato / patrimonio_referencia), 6) if patrimonio_referencia > 0 else 0.0
+        ganho_diario = ganho_candidato / horizonte_analise_dias if horizonte_analise_dias > 0 else 0.0
+
+        cand = dict(candidato)
+        cand.update({
+            "patrimonio_destino": patrimonio_candidato,
+            "ganho_switch": ganho_candidato,
+            "ganho_pct": ganho_pct,
+            "ganho_diario": ganho_diario,
+        })
+
+        if melhor is None:
+            melhor = cand
+            continue
+
+        chave_nova = (
+            dinheiro_round(cand["patrimonio_destino"]),
+            dinheiro_round(cand["ganho_switch"]),
+            cand["base"],
+            cand["dias_bonus"],
+            cand["produto"],
+        )
+        chave_melhor = (
+            dinheiro_round(melhor["patrimonio_destino"]),
+            dinheiro_round(melhor["ganho_switch"]),
+            melhor["base"],
+            melhor["dias_bonus"],
+            melhor["produto"],
+        )
+        if chave_nova > chave_melhor:
+            melhor = cand
+
+    atual_norm = normalizar_nome_fn(produto_atual)
+    destino_norm = normalizar_nome_fn(melhor["produto"])
+    return {
+        "produto_destino_recomendado": melhor["produto"],
+        "produto_destino_key": melhor.get("produto_key"),
+        "destino_info": melhor.get("destino_info") or {},
+        "motivo_indisponibilidade": "",
+        "destino_igual_ao_atual": bool(excluir_produto_atual and atual_norm and destino_norm == atual_norm),
+        "n_destinos_avaliados": len(destinos),
+        "patrimonio_destino": dinheiro_round(melhor["patrimonio_destino"]),
+        "ganho_switch": dinheiro_round(melhor["ganho_switch"]),
+        "ganho_pct": float(melhor["ganho_pct"]),
+        "ganho_diario": float(melhor["ganho_diario"]),
+        "criterio_escolha_destino": "maior_patrimonio_estimado",
+    }
+
+
+def calcular_pressao_caixa_curto_prazo_v1(contas_exec, data_referencia, config):
+    sim_cfg = (config or {}).get("simulacao", {}) if isinstance(config, dict) else {}
+    horizonte_min = int(_safe_float(sim_cfg.get("horizonte_minimo_dias", 30), 30))
+    data_limite = data_referencia + timedelta(days=horizonte_min)
+    necessidade = 0.0
+
+    for conta in contas_exec or []:
+        try:
+            data_conta = _normalizar_data_lote(conta[0]) if len(conta) > 0 else None
+            valor_conta = _safe_float(conta[1], 0.0) if len(conta) > 1 else 0.0
+        except Exception:
+            continue
+        if data_conta is None or data_conta < data_referencia or data_conta > data_limite:
+            continue
+        necessidade += max(valor_conta, 0.0)
+
+    return dinheiro_round(necessidade)
+
+
+def aplicar_bloqueio_pagamento_proximo_v1(df_switch_diag, necessidade_curto_prazo):
+    if df_switch_diag is None or len(df_switch_diag) == 0:
+        return pd.DataFrame()
+
+    df = df_switch_diag.copy()
+    df["bloqueado_por_pagamento_proximo"] = False
+    if "motivo_bloqueio" not in df.columns:
+        df["motivo_bloqueio"] = ""
+
+    necessidade = float(max(_safe_float(necessidade_curto_prazo, 0.0), 0.0))
+    if necessidade <= 1e-9:
+        return df
+
+    cols_ord = ["custo_fiscal_saida", "dias_para_cliff_ir", "saldo_liquido_atual"]
+    for c in cols_ord:
+        if c not in df.columns:
+            df[c] = 0.0
+
+    candidatos = df[df["saldo_liquido_atual"] > 0].sort_values(
+        by=["custo_fiscal_saida", "dias_para_cliff_ir", "saldo_liquido_atual"],
+        ascending=[True, True, False],
+        kind="mergesort",
+    )
+
+    acumulado = 0.0
+    for idx, row in candidatos.iterrows():
+        if acumulado >= necessidade:
+            break
+        df.at[idx, "bloqueado_por_pagamento_proximo"] = True
+        motivo = str(df.at[idx, "motivo_bloqueio"] or "").strip()
+        motivo_extra = "necessario_para_curto_prazo"
+        df.at[idx, "motivo_bloqueio"] = f"{motivo}; {motivo_extra}".strip("; ").strip()
+        acumulado += _safe_float(row.get("saldo_liquido_atual"), 0.0)
+
+    return df
+
+
+def gerar_switch_diagnostico(
+    df_situacao_atual,
+    contas_exec,
+    investimentos_norm,
+    mapa_bcb,
+    data_referencia,
+    config,
+):
+    if df_situacao_atual is None or len(df_situacao_atual) == 0:
+        return pd.DataFrame()
+
+    sim_cfg = (config or {}).get("simulacao", {}) if isinstance(config, dict) else {}
+    horizonte_analise_dias = int(_safe_float(sim_cfg.get("horizonte_alocacao_dias", HORIZONTE_PROJECAO_DIAS), HORIZONTE_PROJECAO_DIAS))
+    registros = []
+
+    df_base = df_situacao_atual.copy()
+    if "Lote ID" in df_base.columns:
+        df_base = df_base[df_base["Lote ID"].astype(str).str.upper() != "TOTAL"].copy()
+    if "Saldo Bruto Atual (R$)" in df_base.columns:
+        df_base = df_base[pd.to_numeric(df_base["Saldo Bruto Atual (R$)"], errors="coerce").fillna(0.0) > 0].copy()
+
+    if len(df_base):
+        df_base["origem_recurso"] = df_base.apply(lambda row: _classificar_origem_recurso_switch(row, data_referencia=data_referencia), axis=1)
+        df_base = df_base[df_base["origem_recurso"] != "caixa_disponivel"].copy()
+
+    for _, row in df_base.iterrows():
+        lote_id = str(row.get("Lote ID", "")).strip()
+        origem_recurso = str(row.get("origem_recurso", "lote_investido") or "lote_investido").strip()
+        produto_atual = str(row.get("Carteira", "") or "").strip()
+        saldo_bruto_atual = dinheiro_round(_safe_float(row.get("Saldo Bruto Atual (R$)"), 0.0))
+        saldo_liquido_atual = dinheiro_round(_safe_float(row.get("Saldo Líquido Atual (R$)"), 0.0))
+        data_aplicacao = _normalizar_data_lote(row.get("Data Aplicação"))
+        data_base_fiscal = _normalizar_data_lote(row.get("Data Base Fiscal"))
+        dias_corridos = int(_safe_float(row.get("Dias Corridos até Hoje"), 0))
+        dias_uteis = int(_safe_float(row.get("Dias Úteis até Hoje"), 0))
+        valor_original = dinheiro_round(_safe_float(row.get("Valor Original (R$)"), 0.0))
+        total_liquido_sacado = dinheiro_round(_safe_float(row.get("Total Líquido Sacado (R$)"), 0.0))
+
+        produto_norm = normalizar_nome(produto_atual)
+        info_atual = (investimentos_norm or {}).get(produto_norm)
+        if info_atual:
+            taxa_atual_base_raw = _safe_float(info_atual.get("base"), TAXA_BASE_DEFAULT)
+            taxa_atual_bonus_raw = _safe_float(info_atual.get("bonus"), 0.0)
+            dias_bonus_total = int(_safe_float(info_atual.get("dias_bonus"), 0))
+        else:
+            taxa_atual_base_raw, taxa_atual_bonus_raw, dias_bonus_total = get_taxas_lote(produto_atual)
+
+        dias_bonus_restantes = max(dias_bonus_total - dias_corridos, 0)
+        custo_fiscal_saida = dinheiro_round(max(saldo_bruto_atual - saldo_liquido_atual, 0.0))
+        imposto_estimado_saida = custo_fiscal_saida
+        fator_liquido_saida = round((saldo_liquido_atual / saldo_bruto_atual), 6) if saldo_bruto_atual > 0 else 0.0
+        dias_para_cliff_ir = int(distancia_proximo_cliff_ir(dias_corridos))
+        em_janela_iof = bool(dias_corridos < 30)
+
+        patrimonio_manter = estimar_patrimonio_switch_v1(
+            saldo_bruto_atual,
+            taxa_atual_base_raw,
+            taxa_atual_bonus_raw,
+            dias_bonus_restantes,
+            horizonte_analise_dias,
+            mapa_bcb,
+            data_referencia,
+        )
+
+        destino = escolher_melhor_destino_switch_v2(
+            produto_atual,
+            saldo_liquido_atual,
+            patrimonio_manter,
+            horizonte_analise_dias,
+            investimentos_norm,
+            mapa_bcb,
+            data_referencia,
+            normalizar_nome_fn=normalizar_nome,
+            excluir_produto_atual=True,
+        )
+        info_dest = destino.get("destino_info") or {}
+        taxa_dest_base_raw = _safe_float(info_dest.get("base"), 0.0)
+        taxa_dest_bonus_raw = _safe_float(info_dest.get("bonus"), 0.0)
+        dias_bonus_dest = int(_safe_float(info_dest.get("dias_bonus"), 0))
+        patrimonio_switch = dinheiro_round(destino.get("patrimonio_destino", saldo_liquido_atual))
+        ganho_switch = dinheiro_round(destino.get("ganho_switch", patrimonio_switch - patrimonio_manter))
+        ganho_pct = round(_safe_float(destino.get("ganho_pct"), 0.0), 6) if patrimonio_manter > 0 else 0.0
+        ganho_diario = _safe_float(destino.get("ganho_diario"), 0.0)
+        dias_payback = round((custo_fiscal_saida / ganho_diario), 2) if ganho_diario > 1e-12 else float("inf")
+
+        motivo_bloqueio = ""
+        elegivel_preliminar = True
+        motivo_decisao = ""
+
+        if not destino.get("produto_destino_recomendado"):
+            elegivel_preliminar = False
+            motivo_decisao = destino.get("motivo_indisponibilidade") or "destino_indisponivel"
+        elif destino.get("destino_igual_ao_atual"):
+            elegivel_preliminar = False
+            motivo_decisao = "produto_destino_igual_ao_atual"
+        elif em_janela_iof:
+            elegivel_preliminar = False
+            motivo_bloqueio = "janela_iof"
+            motivo_decisao = "bloqueado_fiscal_curto_prazo"
+        elif ganho_switch <= 0:
+            elegivel_preliminar = False
+            motivo_decisao = "ganho_liquido_nao_positivo"
+        elif dias_payback > horizonte_analise_dias:
+            elegivel_preliminar = False
+            motivo_decisao = "payback_fora_do_horizonte"
+        elif dias_bonus_restantes > 0 and ganho_switch <= max(custo_fiscal_saida, 0.01):
+            elegivel_preliminar = False
+            motivo_bloqueio = "bonus_atual_ainda_relevante"
+            motivo_decisao = "bloqueado_bonus_atual"
+
+        registros.append({
+            "lote_id": lote_id,
+            "origem_recurso": origem_recurso,
+            "produto_atual": produto_atual,
+            "produto_destino_recomendado": destino.get("produto_destino_recomendado"),
+            "produto_destino_key": destino.get("produto_destino_key"),
+            "n_destinos_avaliados": int(_safe_float(destino.get("n_destinos_avaliados"), 0)),
+            "criterio_escolha_destino": destino.get("criterio_escolha_destino") or "maior_patrimonio_estimado",
+            "data_aplicacao": data_aplicacao,
+            "data_base_fiscal": data_base_fiscal,
+            "dias_corridos_ate_hoje": dias_corridos,
+            "dias_uteis_ate_hoje": dias_uteis,
+            "valor_original": valor_original,
+            "total_liquido_sacado": total_liquido_sacado,
+            "saldo_bruto_atual": saldo_bruto_atual,
+            "saldo_liquido_atual": saldo_liquido_atual,
+            "imposto_estimado_saida": imposto_estimado_saida,
+            "custo_fiscal_saida": custo_fiscal_saida,
+            "fator_liquido_saida": fator_liquido_saida,
+            "dias_para_cliff_ir": dias_para_cliff_ir,
+            "em_janela_iof": em_janela_iof,
+            "taxa_atual_base": round(taxa_atual_base_raw * 100, 4),
+            "taxa_atual_bonus": round(taxa_atual_bonus_raw * 100, 4),
+            "dias_bonus_restantes": dias_bonus_restantes,
+            "taxa_destino_base": round(taxa_dest_base_raw * 100, 4),
+            "taxa_destino_bonus": round(taxa_dest_bonus_raw * 100, 4),
+            "dias_bonus_destino": dias_bonus_dest,
+            "horizonte_analise_dias": horizonte_analise_dias,
+            "patrimonio_estimado_manter_horizonte": patrimonio_manter,
+            "patrimonio_estimado_switch_horizonte": patrimonio_switch,
+            "ganho_liquido_estimado_switch": ganho_switch,
+            "ganho_percentual_estimado_switch": ganho_pct,
+            "ganho_diario_incremental_estimado": dinheiro_round(ganho_diario),
+            "dias_payback_switch": None if dias_payback == float("inf") else dias_payback,
+            "bloqueado_por_pagamento_proximo": False,
+            "motivo_bloqueio": motivo_bloqueio,
+            "elegivel_switch": bool(elegivel_preliminar),
+            "switch_recomendado": bool(elegivel_preliminar),
+            "motivo_decisao": motivo_decisao or "elegivel_preliminar",
+            "prioridade_switch": "media" if elegivel_preliminar else "bloqueado",
+        })
+
+    df_switch_diag = pd.DataFrame(registros)
+    if len(df_switch_diag) == 0:
+        return df_switch_diag
+
+    necessidade_curto_prazo = calcular_pressao_caixa_curto_prazo_v1(contas_exec, data_referencia, config)
+    df_switch_diag = aplicar_bloqueio_pagamento_proximo_v1(df_switch_diag, necessidade_curto_prazo)
+
+    if "bloqueado_por_pagamento_proximo" not in df_switch_diag.columns:
+        df_switch_diag["bloqueado_por_pagamento_proximo"] = False
+
+    for idx in df_switch_diag.index:
+        if bool(df_switch_diag.at[idx, "bloqueado_por_pagamento_proximo"]):
+            df_switch_diag.at[idx, "elegivel_switch"] = False
+            df_switch_diag.at[idx, "switch_recomendado"] = False
+            motivo_decisao = str(df_switch_diag.at[idx, "motivo_decisao"] or "").strip()
+            if "curto_prazo" not in motivo_decisao:
+                df_switch_diag.at[idx, "motivo_decisao"] = (motivo_decisao + "; bloqueado_por_pagamento_proximo").strip("; ").strip()
+
+        if bool(df_switch_diag.at[idx, "switch_recomendado"]):
+            ganho = _safe_float(df_switch_diag.at[idx, "ganho_liquido_estimado_switch"], 0.0)
+            payback = df_switch_diag.at[idx, "dias_payback_switch"]
+            if ganho > 100 or (payback is not None and _safe_float(payback, 9999) <= max(30, horizonte_analise_dias * 0.25)):
+                df_switch_diag.at[idx, "prioridade_switch"] = "alta"
+            elif ganho > 0:
+                df_switch_diag.at[idx, "prioridade_switch"] = "media"
+            else:
+                df_switch_diag.at[idx, "prioridade_switch"] = "baixa"
+        else:
+            df_switch_diag.at[idx, "prioridade_switch"] = "bloqueado"
+
+    ordenacao = ["switch_recomendado", "prioridade_switch", "ganho_liquido_estimado_switch", "saldo_liquido_atual"]
+    asc = [False, True, False, False]
+    return df_switch_diag.sort_values(by=ordenacao, ascending=asc, kind="mergesort").reset_index(drop=True)
+
+
+def gerar_switch_execucao_v2(
+    df_situacao_atual,
+    contas_exec,
+    investimentos_norm,
+    mapa_bcb,
+    data_referencia,
+    config,
+):
+    if df_situacao_atual is None or len(df_situacao_atual) == 0:
+        return pd.DataFrame()
+
+    sim_cfg = (config or {}).get("simulacao", {}) if isinstance(config, dict) else {}
+    horizonte_analise_dias = int(_safe_float(sim_cfg.get("horizonte_alocacao_dias", HORIZONTE_PROJECAO_DIAS), HORIZONTE_PROJECAO_DIAS))
+    registros = []
+
+    df_base = df_situacao_atual.copy()
+    if "Lote ID" in df_base.columns:
+        df_base = df_base[df_base["Lote ID"].astype(str).str.upper() != "TOTAL"].copy()
+    if "Saldo Líquido Atual (R$)" in df_base.columns:
+        df_base = df_base[pd.to_numeric(df_base["Saldo Líquido Atual (R$)"], errors="coerce").fillna(0.0) > 0].copy()
+
+    if len(df_base):
+        df_base["origem_recurso"] = df_base.apply(lambda row: _classificar_origem_recurso_switch(row, data_referencia=data_referencia), axis=1)
+        df_base = df_base[df_base["origem_recurso"] == "caixa_disponivel"].copy()
+
+    for _, row in df_base.iterrows():
+        lote_id = str(row.get("Lote ID", "")).strip()
+        origem_recurso = str(row.get("origem_recurso", "caixa_disponivel") or "caixa_disponivel").strip()
+        produto_origem = "CAIXA_DISPONIVEL" if origem_recurso == "caixa_disponivel" else str(row.get("Carteira", "") or "").strip()
+        valor_aporte = dinheiro_round(_safe_float(row.get("Saldo Líquido Atual (R$)"), 0.0))
+        if valor_aporte <= 0:
+            continue
+
+        escolha = escolher_melhor_destino_switch_v2(
+            produto_origem,
+            valor_aporte,
+            valor_aporte,
+            horizonte_analise_dias,
+            investimentos_norm,
+            mapa_bcb,
+            data_referencia,
+            normalizar_nome_fn=normalizar_nome,
+            excluir_produto_atual=False,
+        )
+        info_dest = escolha.get("destino_info") or {}
+        taxa_dest_base_raw = _safe_float(info_dest.get("base"), 0.0)
+        taxa_dest_bonus_raw = _safe_float(info_dest.get("bonus"), 0.0)
+        dias_bonus_dest = int(_safe_float(info_dest.get("dias_bonus"), 0))
+        patrimonio_aporte = dinheiro_round(escolha.get("patrimonio_destino", valor_aporte))
+        ganho_aporte = dinheiro_round(patrimonio_aporte - valor_aporte)
+        elegivel_aporte = bool(escolha.get("produto_destino_recomendado"))
+        motivo_decisao = "elegivel_aporte"
+        if not elegivel_aporte:
+            motivo_decisao = escolha.get("motivo_indisponibilidade") or "nenhum_destino_elegivel"
+
+        registros.append({
+            "lote_id_origem": lote_id,
+            "origem_recurso": origem_recurso,
+            "produto_origem": produto_origem,
+            "valor_aporte_disponivel": valor_aporte,
+            "produto_destino_recomendado": escolha.get("produto_destino_recomendado"),
+            "produto_destino_key": escolha.get("produto_destino_key"),
+            "n_destinos_avaliados": int(_safe_float(escolha.get("n_destinos_avaliados"), 0)),
+            "criterio_escolha_destino": escolha.get("criterio_escolha_destino") or "maior_patrimonio_estimado",
+            "taxa_destino_base": round(taxa_dest_base_raw * 100, 4),
+            "taxa_destino_bonus": round(taxa_dest_bonus_raw * 100, 4),
+            "dias_bonus_destino": dias_bonus_dest,
+            "horizonte_alocacao_dias": horizonte_analise_dias,
+            "patrimonio_estimado_aporte_horizonte": patrimonio_aporte,
+            "ganho_estimado_aporte_horizonte": ganho_aporte,
+            "ganho_percentual_estimado_aporte": round((ganho_aporte / valor_aporte), 6) if valor_aporte > 0 else 0.0,
+            "ganho_diario_estimado_aporte": dinheiro_round((ganho_aporte / horizonte_analise_dias) if horizonte_analise_dias > 0 else 0.0),
+            "saldo_liquido_atual": valor_aporte,
+            "custo_fiscal_saida": 0.0,
+            "dias_para_cliff_ir": 999,
+            "bloqueado_por_pagamento_proximo": False,
+            "motivo_bloqueio": "",
+            "elegivel_aporte": elegivel_aporte,
+            "recomendado_aporte": elegivel_aporte,
+            "motivo_decisao": motivo_decisao,
+            "prioridade_aporte": "media" if elegivel_aporte else "bloqueado",
+        })
+
+    df_exec = pd.DataFrame(registros)
+    if len(df_exec) == 0:
+        return df_exec
+
+    necessidade_curto_prazo = calcular_pressao_caixa_curto_prazo_v1(contas_exec, data_referencia, config)
+    df_exec = aplicar_bloqueio_pagamento_proximo_v1(df_exec, necessidade_curto_prazo)
+
+    for idx in df_exec.index:
+        if bool(df_exec.at[idx, "bloqueado_por_pagamento_proximo"]):
+            df_exec.at[idx, "elegivel_aporte"] = False
+            df_exec.at[idx, "recomendado_aporte"] = False
+            motivo_decisao = str(df_exec.at[idx, "motivo_decisao"] or "").strip()
+            if "curto_prazo" not in motivo_decisao:
+                df_exec.at[idx, "motivo_decisao"] = (motivo_decisao + "; bloqueado_por_pagamento_proximo").strip("; ").strip()
+            df_exec.at[idx, "prioridade_aporte"] = "bloqueado"
+        elif bool(df_exec.at[idx, "recomendado_aporte"]):
+            ganho = _safe_float(df_exec.at[idx, "ganho_estimado_aporte_horizonte"], 0.0)
+            if ganho > 100:
+                df_exec.at[idx, "prioridade_aporte"] = "alta"
+            elif ganho > 0:
+                df_exec.at[idx, "prioridade_aporte"] = "media"
+            else:
+                df_exec.at[idx, "prioridade_aporte"] = "baixa"
+        else:
+            df_exec.at[idx, "prioridade_aporte"] = "bloqueado"
+
+    ordenacao = ["recomendado_aporte", "prioridade_aporte", "ganho_estimado_aporte_horizonte", "valor_aporte_disponivel"]
+    asc = [False, True, False, False]
+    return df_exec.sort_values(by=ordenacao, ascending=asc, kind="mergesort").reset_index(drop=True)
+
+
+def carregar_dados_excel_detalhado():
+    if not baixar_planilha_google() and not os.path.exists(NOME_ARQUIVO_LOCAL):
+        raise FileNotFoundError("ERRO: Sem arquivo e sem internet.")
+
+    print(">>> [EXCEL] Lendo arquivo local...")
+    try:
+        xls = pd.ExcelFile(NOME_ARQUIVO_LOCAL)
+
+        df_gastos = pd.read_excel(xls, nome_aba('despesas'))
+        col_data_gasto = resolver_coluna(df_gastos, 'despesas', 'data')
+        col_valor_gasto = resolver_coluna(df_gastos, 'despesas', 'valor')
+        col_desc_gasto = resolver_coluna(df_gastos, 'despesas', 'descricao', required=False)
+        col_pago = resolver_coluna(df_gastos, 'despesas', 'pago', required=False)
+        col_lote_unico = resolver_coluna(df_gastos, 'despesas', 'lote_usado_1', required=False)
+
+        df_gastos.dropna(subset=[col_data_gasto, col_valor_gasto], inplace=True)
+        df_gastos[col_data_gasto] = pd.to_datetime(df_gastos[col_data_gasto]).dt.date
+
+        if col_desc_gasto is None:
+            col_desc_gasto = '__descricao_padrao__'
+            df_gastos[col_desc_gasto] = 'Despesa Diversa'
+
+        tem_lotes_usados = col_lote_unico is not None
+
+        contas_pagas = []
+        contas_nao_pagas = []
+        if col_pago is not None:
+            df_gastos[col_pago] = df_gastos[col_pago].astype(str).str.upper().str.strip()
+            for ordem_processamento, (_, row) in enumerate(df_gastos.iterrows(), start=1):
+                desc = str(row[col_desc_gasto])[:100].encode('utf-8', 'replace').decode('utf-8')
+                if row[col_pago] == 'OK':
+                    lote_usado = extrair_lote_usado_unico(row, col_lote_unico) if tem_lotes_usados else ''
+                    contas_pagas.append((row[col_data_gasto], float(row[col_valor_gasto]), desc, lote_usado, ordem_processamento))
+                else:
+                    contas_nao_pagas.append((row[col_data_gasto], float(row[col_valor_gasto]), desc, ordem_processamento))
+        else:
+            print(f"   [AVISO] Coluna de pagamento não encontrada na aba {nome_aba('despesas')}. Todas as contas serão consideradas não pagas.")
+            for ordem_processamento, (_, row) in enumerate(df_gastos.iterrows(), start=1):
+                desc = str(row[col_desc_gasto])[:100].encode('utf-8', 'replace').decode('utf-8')
+                contas_nao_pagas.append((row[col_data_gasto], float(row[col_valor_gasto]), desc, ordem_processamento))
+
+        contas_pagas = ordenar_contas_processamento(contas_pagas)
+        contas_nao_pagas = ordenar_contas_processamento(contas_nao_pagas)
+
+        df_lotes = pd.read_excel(xls, nome_aba('lotes'))
+        col_id = selecionar_coluna_id_lote(df_lotes)
+        col_data_apl = resolver_coluna(df_lotes, 'lotes', 'data_aplicacao')
+        col_valor_original = resolver_coluna(df_lotes, 'lotes', 'valor_original')
+        col_invest = selecionar_coluna_produto_lote(df_lotes, INVESTIMENTOS_NORM)
+        df_lotes.dropna(subset=[col_id, col_data_apl, col_valor_original], inplace=True)
+
+        try:
+            df_lotes_norm, auditoria_lotes_canonica = normalizar_lotes_brutos(
+                df_lotes,
+                MAPA_PRODUTOS_CANONICO if isinstance(MAPA_PRODUTOS_CANONICO, dict) else {'by_key': {}, 'by_nome_norm': {}},
+                normalizar_nome_fn=normalizar_nome,
+            )
+            indice_lotes_canonico = construir_indice_lotes(df_lotes_norm)
+            df_eventos_aporte_shadow = derivar_eventos_aporte_de_lotes(df_lotes_norm)
+
+            log_debug(
+                DEBUG_SHADOW,
+                "SHADOW-LOTES",
+                lotes_norm=len(df_lotes_norm),
+                indice_lotes=len(indice_lotes_canonico),
+                eventos_aporte=len(df_eventos_aporte_shadow),
+            )
+            if isinstance(auditoria_lotes_canonica, dict):
+                log_debug(
+                    DEBUG_SHADOW,
+                    "SHADOW-LOTES",
+                    produto_reconhecido=auditoria_lotes_canonica.get('qtd_produto_reconhecido'),
+                    caixa=auditoria_lotes_canonica.get('qtd_caixa'),
+                    produto_nao_reconhecido=auditoria_lotes_canonica.get('qtd_produto_nao_reconhecido'),
+                    ids_duplicados=auditoria_lotes_canonica.get('qtd_ids_duplicados'),
+                )
+        except Exception as e:
+            log_erro("SHADOW-LOTES", e)
+
+        aportes = []
+        for _, row in df_lotes.iterrows():
+            d = pd.to_datetime(row[col_data_apl]).date()
+            val = float(row[col_valor_original])
+            lid = str(row[col_id])
+            invest_raw = row[col_invest] if col_invest and col_invest in df_lotes.columns and pd.notna(row[col_invest]) else ''
+            investimento_ausente_na_origem = _eh_produto_lote_ausente(invest_raw)
+            invest = _resolver_nome_produto_lote_efetivo(invest_raw)
+            if invest and normalizar_nome(invest) not in INVESTIMENTOS_NORM:
+                print(f" -> [AUDITORIA] Produto do lote não reconhecido na carteira: '{invest}' (lote={lid}). Usando fallback de taxas.")
+            taxa_base, taxa_bonus, dias_bonus = get_taxas_lote(invest)
+            meta = {
+                'taxa_base_cdi': taxa_base,
+                'taxa_bonus_cdi': taxa_bonus,
+                'dias_bonus': dias_bonus,
+                'investimento': invest,
+                'investimento_ausente_na_origem': bool(investimento_ausente_na_origem),
+            }
+            aportes.append((d, val, lid, meta))
+        aportes.sort(key=lambda x: x[0])
+
+        try:
+            global comparacao_aportes_shadow
+            if df_eventos_aporte_shadow is not None:
+                comparacao_aportes_shadow = comparar_aportes_legado_vs_shadow(
+                    aportes,
+                    df_eventos_aporte_shadow,
+                )
+                log_debug(
+                    DEBUG_SHADOW,
+                    "SHADOW-LOTES",
+                    qtd_legado=comparacao_aportes_shadow.get('qtd_legado'),
+                    qtd_shadow=comparacao_aportes_shadow.get('qtd_shadow'),
+                    soma_legado=comparacao_aportes_shadow.get('soma_legado'),
+                    soma_shadow=comparacao_aportes_shadow.get('soma_shadow'),
+                    equivalentes_essenciais=comparacao_aportes_shadow.get('equivalentes_essenciais'),
+                )
+                if DEBUG_SHADOW and comparacao_aportes_shadow.get('ids_somente_legado'):
+                    print(f"[SHADOW-LOTES] ids_somente_legado={comparacao_aportes_shadow.get('ids_somente_legado')}")
+                if DEBUG_SHADOW and comparacao_aportes_shadow.get('ids_somente_shadow'):
+                    print(f"[SHADOW-LOTES] ids_somente_shadow={comparacao_aportes_shadow.get('ids_somente_shadow')}")
+                if DEBUG_SHADOW and comparacao_aportes_shadow.get('datas_diferentes'):
+                    print(f"[SHADOW-LOTES] datas_diferentes={comparacao_aportes_shadow.get('datas_diferentes')[:5]}")
+                if DEBUG_SHADOW and comparacao_aportes_shadow.get('valores_diferentes'):
+                    print(f"[SHADOW-LOTES] valores_diferentes={comparacao_aportes_shadow.get('valores_diferentes')[:5]}")
+        except Exception as e:
+            log_erro("SHADOW-LOTES", e)
+
+        try:
+            df_eventos_aporte_bruto_shadow = projetar_eventos_brutos_de_aportes(
+                df_eventos_aporte_shadow,
+                df_lotes_norm,
+            )
+            df_eventos_switch_shadow, auditoria_switch_shadow = derivar_eventos_switch_shadow(
+                df_lotes_norm,
+                [],
+                normalizar_nome_fn=normalizar_nome,
+            )
+            df_eventos_financeiros_brutos = consolidar_eventos_financeiros_brutos(
+                df_eventos_aporte_bruto_shadow,
+                df_eventos_switch_shadow,
+            )
+            if DEBUG_SWITCH_SHADOW:
+                print(
+                    "[SHADOW-SWITCH] "
+                    f"eventos_aporte_bruto={len(df_eventos_aporte_bruto_shadow)} "
+                    f"eventos_switch={len(df_eventos_switch_shadow)} "
+                    f"eventos_totais={len(df_eventos_financeiros_brutos)}"
+                )
+                if isinstance(auditoria_switch_shadow, dict):
+                    print(
+                        "[SHADOW-SWITCH] "
+                        f"qtd_regras_switch={auditoria_switch_shadow.get('qtd_regras_switch')} "
+                        f"qtd_switch_out={auditoria_switch_shadow.get('qtd_switch_out')} "
+                        f"qtd_switch_in={auditoria_switch_shadow.get('qtd_switch_in')} "
+                        f"qtd_lotes_origem_nao_encontrados={auditoria_switch_shadow.get('qtd_lotes_origem_nao_encontrados')} "
+                        f"qtd_produtos_destino_invalidos={auditoria_switch_shadow.get('qtd_produtos_destino_invalidos')} "
+                        f"qtd_switch_valor_excede_origem={auditoria_switch_shadow.get('qtd_switch_valor_excede_origem')}"
+                    )
+                if df_eventos_switch_shadow is not None and len(df_eventos_switch_shadow) > 0:
+                    print("[SHADOW-SWITCH] amostra_eventos_switch=")
+                    print(df_eventos_switch_shadow.head(4).to_string(index=False))
+        except Exception as e:
+            print(f"[SHADOW-SWITCH] erro={e}")
+
+        try:
+            df_eventos_ordenados_shadow = ordenar_eventos_financeiros_brutos_shadow(
+                df_eventos_financeiros_brutos
+            )
+
+            estado_lotes_shadow_pre_replay, auditoria_replay_switch_shadow = projetar_estado_lotes_pre_replay_shadow(
+                df_eventos_ordenados_shadow
+            )
+            if DEBUG_SWITCH_SHADOW:
+                print(
+                    "[SHADOW-SWITCH-REPLAY] "
+                    f"eventos_total={len(df_eventos_ordenados_shadow)} "
+                    f"lotes_ativos={auditoria_replay_switch_shadow.get('qtd_lotes_ativos')} "
+                    f"lotes_encerrados_por_switch={auditoria_replay_switch_shadow.get('qtd_lotes_encerrados_por_switch')} "
+                    f"lotes_tecnicos_novos={auditoria_replay_switch_shadow.get('qtd_lotes_tecnicos_novos')} "
+                    f"soma_saldos_pre={auditoria_replay_switch_shadow.get('soma_saldos_pre')} "
+                    f"soma_saldos_pos={auditoria_replay_switch_shadow.get('soma_saldos_pos')} "
+                    f"delta_conservacao={auditoria_replay_switch_shadow.get('delta_conservacao')} "
+                    f"qtd_inconsistencias={auditoria_replay_switch_shadow.get('qtd_inconsistencias')}"
+                )
+                if estado_lotes_shadow_pre_replay is not None and len(estado_lotes_shadow_pre_replay) > 0:
+                    print("[SHADOW-SWITCH-REPLAY] amostra_estado_pre_replay=")
+                    print(estado_lotes_shadow_pre_replay.head(8).to_string(index=False))
+                if auditoria_replay_switch_shadow.get('inconsistencias'):
+                    print("[SHADOW-SWITCH-REPLAY] inconsistencias=")
+                    print(auditoria_replay_switch_shadow.get('inconsistencias')[:5])
+        except Exception as e:
+            print(f"[SHADOW-SWITCH-REPLAY] erro={e}")
+
+        print(f" -> Dados brutos: {len(aportes)} lotes, {len(contas_pagas)} pagas, {len(contas_nao_pagas)} não pagas")
+
+        taxas_info = {}
+        for ap in aportes:
+            key = (ap[3]['taxa_base_cdi'], ap[3]['taxa_bonus_cdi'], ap[3]['dias_bonus'])
+            taxas_info[key] = taxas_info.get(key, 0) + 1
+        for k, cnt in taxas_info.items():
+            print(f"    -> {cnt} lote(s) com taxa_base={k[0]*100:.0f}% CDI, bonus={k[1]*100:.0f}% CDI por {k[2]} dias")
+
+        log_passado_global = []
+        estado_lotes_passado = []
+        if contas_pagas and tem_lotes_usados:
+            global MAPA_BCB, TAXA_PROJ
+            aportes, log_passado_global, estado_lotes_passado = simular_passado(aportes, contas_pagas, MAPA_BCB, TAXA_PROJ)
+        else:
+            estado_lotes_passado = [
+                {
+                    'Lote ID': str(ap[2]),
+                    'Data Aplicação': ap[0],
+                    'Valor Inicial': float(ap[1]),
+                    'Saldo Após Passado': float(ap[1]),
+                    'Esgotado no Passado': False,
+                    'Data Base Fiscal': ap[0],
+                    'Fator Acumulado': 1.0,
+                    'Taxa Base CDI': float(ap[3].get('taxa_base_cdi', TAXA_BASE_DEFAULT)),
+                    'Taxa Bonus CDI': float(ap[3].get('taxa_bonus_cdi', TAXA_BONUS_DEFAULT)),
+                    'Dias Bonus': int(ap[3].get('dias_bonus', DIAS_BONUS_DEFAULT)),
+                    'Principal Remanescente': float(ap[3].get('principal_remanescente', ap[1])),
+                    'Investimento': str(ap[3].get('investimento', '') or ''),
+                    'Investimento Ausente na Origem': bool(ap[3].get('investimento_ausente_na_origem', False)),
+                }
+                for ap in aportes
+            ]
+
+        try:
+            df_lotes_ordenados_replay_shadow = ordenar_lotes_para_replay_shadow(
+                estado_lotes_shadow_pre_replay
+            )
+            estado_lotes_shadow_pos_passado, _, auditoria_replay_contas_switch_shadow = aplicar_contas_pagas_shadow(
+                df_lotes_ordenados_replay_shadow,
+                contas_pagas,
+            )
+            comparacao_remanescente_legado_vs_shadow = comparar_remanescente_legado_vs_shadow(
+                estado_lotes_passado,
+                estado_lotes_shadow_pos_passado,
+            )
+            if DEBUG_SWITCH_SHADOW:
+                print(
+                    "[SHADOW-SWITCH-PAST] "
+                    f"contas_processadas={auditoria_replay_contas_switch_shadow.get('qtd_contas_processadas')} "
+                    f"contas_cobertas={auditoria_replay_contas_switch_shadow.get('qtd_contas_cobertas')} "
+                    f"lotes_vivos_shadow={auditoria_replay_contas_switch_shadow.get('qtd_lotes_vivos')} "
+                    f"lotes_switch_vivos={auditoria_replay_contas_switch_shadow.get('qtd_lotes_switch_vivos')} "
+                    f"soma_shadow={comparacao_remanescente_legado_vs_shadow.get('soma_shadow')} "
+                    f"soma_legado={comparacao_remanescente_legado_vs_shadow.get('soma_legado')} "
+                    f"delta_soma={comparacao_remanescente_legado_vs_shadow.get('delta_soma')}"
+                )
+        except Exception as e:
+            print(f"[SHADOW-SWITCH-PAST] erro={e}")
+
+        df_agrupado = pd.DataFrame(
+            contas_nao_pagas,
+            columns=['Data', 'Valor', 'Descrição', 'Ordem Processamento']
+        )
+        df_agrupado = df_agrupado.groupby('Data', as_index=False).agg({
+            'Valor': 'sum',
+            'Descrição': lambda x: ' | '.join(str(v) for v in x)[:100],
+            'Ordem Processamento': 'min',
+        })
+
+        contas_agrupadas = []
+        for _, row in df_agrupado.iterrows():
+            desc = str(row['Descrição'])[:100].encode('utf-8', 'replace').decode('utf-8')
+            contas_agrupadas.append((
+                row['Data'],
+                float(row['Valor']),
+                desc,
+                int(row['Ordem Processamento']) if pd.notna(row['Ordem Processamento']) else ORDEM_PROCESSAMENTO_SENTINELA,
+            ))
+        contas_agrupadas = ordenar_contas_processamento(contas_agrupadas)
+
+        contas_individuais = ordenar_contas_processamento(contas_nao_pagas)
+
+        print(f" -> Carregados: {len(aportes)} lotes, {len(contas_individuais)} contas individuais, {len(contas_agrupadas)} dias.\n")
+        return aportes, contas_agrupadas, contas_individuais, log_passado_global, estado_lotes_passado
+
+    except Exception as e:
+        raise ValueError(f"Erro ao ler Excel: {e}")

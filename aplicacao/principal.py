@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from typing import Iterable
+from datetime import timedelta
 
 RAIZ_REPOSITORIO = Path(__file__).resolve().parents[1]
 if str(RAIZ_REPOSITORIO) not in sys.path:
@@ -15,6 +16,7 @@ from nucleo.carregador_config import carregar_config
 from nucleo.leitor_planilha import carregar_planilha, construir_resumo_planilha
 from nucleo.carteira_canonica import carregar_carteira_canonica
 from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
+from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento
 
 
 def _imprimir_titulo(texto: str) -> None:
@@ -32,6 +34,10 @@ def main() -> None:
         pacote_config.conteudo,
         grupos_extras=["financeiro"],
         instalar_automaticamente=False,
+    )
+    calendario_financeiro = construir_calendario_financeiro(
+        pacote_config.conteudo,
+        data_referencia=contexto.data_referencia,
     )
     pacote_planilha = carregar_planilha(
         pacote_config.conteudo,
@@ -57,7 +63,7 @@ def main() -> None:
 
     _imprimir_titulo("BASELINE")
     _imprimir_pares([
-        ("versão", "V11"),
+        ("versão", "V12"),
         ("raiz do repositório", pacote_config.raiz_repositorio),
         ("config carregado", pacote_config.caminho),
         ("planilha carregada", pacote_planilha.caminho),
@@ -75,6 +81,25 @@ def main() -> None:
     _imprimir_pares([
         ("instaladas", ", ".join(contexto.relatorio_dependencias.get("instaladas", [])) or "nenhuma"),
         ("ausentes", ", ".join(contexto.relatorio_dependencias.get("ausentes", [])) or "nenhuma"),
+    ])
+
+    exemplo_inicio = contexto.data_referencia.replace(day=1)
+    dias_rendimento_mes = contar_dias_rendimento(
+        exemplo_inicio - timedelta(days=1),
+        contexto.data_referencia,
+        calendario_financeiro,
+    )
+
+    _imprimir_titulo("CALENDÁRIO FINANCEIRO E TAXAS BASE")
+    _imprimir_pares([
+        ("CDI anual do modelo", f"{calendario_financeiro.cdi_anual_modelo:.6f}"),
+        ("convenção dias/ano CDI", calendario_financeiro.convencao_dias_ano_cdi),
+        ("taxa diária base", f"{calendario_financeiro.taxa_dia_base:.12f}"),
+        ("anos dias sem rendimento", f"{calendario_financeiro.ano_inicio_dias_sem_rendimento}-{calendario_financeiro.ano_fim_dias_sem_rendimento}"),
+        ("dias sem rendimento mapeados", len(calendario_financeiro.dias_sem_rendimento_bancario)),
+        ("workalendar disponível", "sim" if calendario_financeiro.workalendar_disponivel else "não"),
+        ("calendário Brasil disponível", "sim" if calendario_financeiro.calendario_brasil_disponivel else "não"),
+        ("dias de rendimento no mês até a data de referência", dias_rendimento_mes),
     ])
 
     _imprimir_titulo("ABAS ENCONTRADAS")
