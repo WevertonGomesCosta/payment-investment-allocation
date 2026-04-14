@@ -1,407 +1,225 @@
 # =========================================================
-# 04. CDI E CALENDÁRIO
+# 05. DADOS OPERACIONAIS E REPLAY DO PASSADO
 # =========================================================
-def gdrive_uc_download(file_id: str) -> str:
-    return GOOGLE_DRIVE_DOWNLOAD_BASE.format(file_id=file_id)
 
-def baixar_planilha_google():
-    print(f">>> [DOWNLOAD] Iniciando download...")
-    if not GOOGLE_SHEETS_FILE_ID:
-        print(" -> [ERRO] GOOGLE_SHEETS_FILE_ID não definido. Crie/ajuste o arquivo config.json.")
-        return False
-    url_export = GOOGLE_SHEETS_EXPORT_BASE.format(file_id=GOOGLE_SHEETS_FILE_ID)
-    try:
-        headers = {"User-Agent": REDE_USER_AGENT_DOWNLOAD}
-        response = requests.get(url_export, headers=headers, timeout=REDE_TIMEOUT_DOWNLOAD_SEGUNDOS, verify=REDE_VERIFICAR_SSL)
-        response.raise_for_status()
-        with open(NOME_ARQUIVO_LOCAL, 'wb') as f:
-            f.write(response.content)
-        print(f" -> Sucesso! Arquivo salvo em: {NOME_ARQUIVO_LOCAL}\n")
-        return True
-    except Exception as e:
-        print(f" -> [ERRO] Falha no download: {e}")
-        return False
+def extrair_lote_usado_unico(row, nome_coluna=None):
+    """
+    Extrai um único lote usado de uma linha do Excel.
+    Retorna string vazia quando ausente.
+    """
+    if not nome_coluna or nome_coluna not in row.index:
+        return ''
 
-def baixar_fallback_bcb():
-    """Baixa arquivo de fallback do Google Drive e preenche datas faltantes."""
-    print(">>> [BCB FALLBACK] Baixando dados históricos do Drive...")
+    val = row[nome_coluna]
+    if pd.isna(val):
+        return ''
 
-    if not FALLBACK_BCB_FILE_ID and not FALLBACK_BCB_URL:
-        print(" -> [AVISO] FALLBACK_BCB_FILE_ID não definido no config.json. Fallback desabilitado.")
-        return {}, TAXA_DIA_BASE
+    s = str(val).strip()
+    if not s or s.lower() == 'nan':
+        return ''
 
-    url_export = FALLBACK_BCB_URL or gdrive_uc_download(FALLBACK_BCB_FILE_ID)
+    return s
 
-    try:
-        headers = {"User-Agent": REDE_USER_AGENT_DOWNLOAD}
-        response = requests.get(url_export, headers=headers, timeout=REDE_TIMEOUT_DOWNLOAD_SEGUNDOS, verify=REDE_VERIFICAR_SSL)
-        response.raise_for_status()
+def simular_passado(aportes_raw, contas_pagas, bcb_map, taxa_proj):
+    """
+    Simula os pagamentos passados para ajustar os saldos dos lotes.
+    Retorna:
+      - novos_aportes: lotes remanescentes para simulação futura
+      - log_passado: extrato dos saques passados
+      - estado_lotes_passado: snapshot de TODOS os lotes após contas pagas
+    """
+    if not aportes_raw or not contas_pagas:
+        return aportes_raw, [], []
 
-        fallback_file = ARQUIVO_TEMPORARIO_FALLBACK_BCB
-        with open(fallback_file, 'wb') as f:
-            f.write(response.content)
+    print(">>> [SIMULAÇÃO PASSADO] Processando contas pagas...")
 
-        df = pd.read_excel(fallback_file)
-        mapa_cdi = {}
-        ultima_taxa = TAXA_DIA_BASE
+    aportes_ordenados = sorted(aportes_raw, key=lambda x: x[0])
+    data_inicial = aportes_ordenados[0][0]
+    data_final = max(c[0] for c in contas_pagas)
 
-        for _, row in df.iterrows():
-            try:
-                dt = pd.to_datetime(row['data']).date()
-                val_pct = float(row['valor'])
-                taxa_dec = val_pct / 100.0
-                mapa_cdi[dt] = 1.0 + taxa_dec
-                ultima_taxa = taxa_dec
-            except Exception:
+    lotes = []
+    for x in aportes_ordenados:
+        meta = x[3] if len(x) > 3 and isinstance(x[3], dict) else {}
+        lotes.append(criar_lote_de_aporte(x[0], x[1], x[2], meta))
+
+    lotes_por_id = {l.id: l for l in lotes}
+    contas_pagas_ordenadas = ordenar_contas_processamento(contas_pagas)
+
+    data_atual = data_inicial
+    contas_processadas = 0
+    log_passado = []
+    evento_financeiro_global = 1
+
+    while data_atual <= data_final:
+        atualizar_saldo_lotes_no_dia(lotes, data_atual, bcb_map=bcb_map, taxa_proj=taxa_proj)
+
+        contas_hoje = [c for c in contas_pagas_ordenadas if c[0] == data_atual]
+        for conta in contas_hoje:
+            _, valor_conta, desc, lote_usado, ordem_processamento = conta
+            sequencia_saque = 1
+            if not lote_usado:
                 continue
 
-        if mapa_cdi:
-            data_inicio = min(mapa_cdi.keys())
-            data_final = DATA_REFERENCIA
-            data_atual = data_inicio
-            dias_preenchidos = 0
+            l = lotes_por_id.get(lote_usado)
+            if not l or l.esgotado:
+                contas_processadas += 1
+                continue
 
-            while data_atual <= data_final:
-                if data_atual not in mapa_cdi:
-                    mapa_cdi[data_atual] = 1.0 + TAXA_DIA_BASE
-                    dias_preenchidos += 1
-                data_atual += timedelta(days=1)
+            movimento = executar_saque_lote(l, valor_conta, data_atual)
+            if movimento is None:
+                contas_processadas += 1
+                continue
 
-            print(f" -> Fallback OK: {len(mapa_cdi)} dias totais")
-            print(f"    ({len(mapa_cdi) - dias_preenchidos} do arquivo, {dias_preenchidos} preenchidos)\n")
-        else:
-            print(f" -> Fallback carregado: {len(mapa_cdi)} dias\n")
+            log_passado.append(montar_log_movimento_lote(
+                movimento, data_atual, desc, bcb_map=bcb_map,
+                ordem_processamento=ordem_processamento, sequencia_saque=sequencia_saque,
+                evento_financeiro=evento_financeiro_global
+            ))
+            sequencia_saque += 1
+            evento_financeiro_global += 1
+            contas_processadas += 1
+        data_atual += timedelta(days=1)
 
-        return mapa_cdi, ultima_taxa
+    novos_aportes = []
+    for l in lotes:
+        if l.saldo_bruto <= VALOR_MINIMO_LOTE_ATIVO:
+            continue
+        novos_aportes.append(serializar_lote_remanescente(l, data_final))
 
-    except Exception as e:
-        print(f" -> [ERRO] Falha no fallback: {e}\n")
-        return {}, TAXA_DIA_BASE
+    estado_lotes_passado = []
+    for l in lotes:
+        estado_lotes_passado.append({
+            'Lote ID': l.id,
+            'Data Aplicação': l.data_aplicacao,
+            'Data Base Fiscal': l.data_base_fiscal,
+            'Valor Inicial': float(l.valor_inicial),
+            'Saldo Após Passado': float(round(l.saldo_bruto, 2)),
+            'Fator Acumulado': float(l.fator_acumulado),
+            'Esgotado no Passado': bool(l.esgotado),
+            'Vezes Usado no Passado': int(l.vezes_usado),
+            'Total Sacado no Passado': float(round(l.total_bruto_sacado, 2)),
+            'Taxa Base CDI': float(l.taxa_base_cdi),
+            'Taxa Bonus CDI': float(l.taxa_bonus_cdi),
+            'Dias Bonus': int(l.dias_bonus),
+            'Principal Remanescente': float(getattr(l, 'principal_remanescente', l.valor_inicial)),
+            'Investimento': str(getattr(l, 'investimento', '') or ''),
+        })
 
-def _coagir_para_date(valor):
-    """Converte timestamps/datetime para date quando possível."""
+    print(f" -> {contas_processadas} contas processadas")
+    print(f" -> {len(novos_aportes)} lotes remanescentes | {len(estado_lotes_passado)} lotes no snapshot\n")
+    return novos_aportes, log_passado, estado_lotes_passado
+
+def _normalizar_lote_id(valor):
+    """
+    Normaliza identificador de lote:
+    - string
+    - trim
+    - remove sufixo '.0' vindo de Excel numérico
+    """
     if valor is None:
         return None
     try:
-        if hasattr(valor, "date"):
+        s = str(valor).strip()
+        if s == "" or s.lower() == "nan":
+            return None
+        if s.endswith('.0'):
+            s = s[:-2]
+        return s
+    except Exception:
+        return None
+
+def _normalizar_data_lote(valor):
+    """Converte valor para date, de forma defensiva."""
+    if valor is None:
+        return None
+    try:
+        if hasattr(valor, 'date'):
             return valor.date()
     except Exception:
         pass
-    return valor
+    try:
+        ts = pd.to_datetime(valor, errors='coerce')
+        if pd.isna(ts):
+            return None
+        return ts.date()
+    except Exception:
+        return None
 
-def extrair_metadata_serie_cdi(serie_cdi):
-    """Extrai data inicial/final e quantidade de observações da série CDI."""
-    meta = {"data_inicial": None, "data_final": None, "qtd_observacoes": 0}
-    if serie_cdi is None:
-        return meta
+def _normalizar_valor_lote(valor, default=None):
+    """Converte valor monetário do lote para float."""
+    if valor is None:
+        return default
     try:
-        if isinstance(serie_cdi, dict) and len(serie_cdi) > 0:
-            datas = [_coagir_para_date(k) for k in serie_cdi.keys()]
-            datas = [d for d in datas if d is not None]
-            if datas:
-                meta["data_inicial"] = min(datas)
-                meta["data_final"] = max(datas)
-                meta["qtd_observacoes"] = len(datas)
-                return meta
-    except Exception:
-        pass
-    try:
-        if isinstance(serie_cdi, list) and len(serie_cdi) > 0:
-            datas = []
-            for item in serie_cdi:
-                if isinstance(item, (tuple, list)) and len(item) >= 1:
-                    datas.append(_coagir_para_date(item[0]))
-                elif isinstance(item, dict):
-                    if "Data" in item:
-                        datas.append(_coagir_para_date(item["Data"]))
-                    elif "data" in item:
-                        datas.append(_coagir_para_date(item["data"]))
-            datas = [d for d in datas if d is not None]
-            if datas:
-                meta["data_inicial"] = min(datas)
-                meta["data_final"] = max(datas)
-                meta["qtd_observacoes"] = len(datas)
-                return meta
-    except Exception:
-        pass
-    try:
-        if hasattr(serie_cdi, "index") and not hasattr(serie_cdi, "columns"):
-            datas = [_coagir_para_date(x) for x in list(serie_cdi.index)]
-            datas = [d for d in datas if d is not None]
-            if datas:
-                meta["data_inicial"] = min(datas)
-                meta["data_final"] = max(datas)
-                meta["qtd_observacoes"] = len(datas)
-                return meta
-    except Exception:
-        pass
-    try:
-        if hasattr(serie_cdi, "columns") and hasattr(serie_cdi, "__len__"):
-            col_data = None
-            for cand in ("Data", "data", "DATE", "date"):
-                if cand in serie_cdi.columns:
-                    col_data = cand
-                    break
-            if col_data is not None and len(serie_cdi) > 0:
-                datas = [_coagir_para_date(x) for x in list(serie_cdi[col_data])]
-                datas = [d for d in datas if d is not None]
-                if datas:
-                    meta["data_inicial"] = min(datas)
-                    meta["data_final"] = max(datas)
-                    meta["qtd_observacoes"] = len(datas)
-                    return meta
-    except Exception:
-        pass
-    return meta
-
-def atualizar_metadata_cdi(serie_cdi, fonte: str) -> None:
-    global CDI_FONTE_UTILIZADA, CDI_DATA_FINAL_UTILIZADA
-    meta = extrair_metadata_serie_cdi(serie_cdi)
-    CDI_FONTE_UTILIZADA = fonte
-    CDI_DATA_FINAL_UTILIZADA = meta.get("data_final")
-
-def obter_data_corte_cdi(serie_cdi=None, fallback=None):
-    global CDI_DATA_CORTE_CONGELADA
-    try:
-        meta = extrair_metadata_serie_cdi(serie_cdi)
-        if meta.get("data_final") is not None:
-            return meta["data_final"]
-    except Exception:
-        pass
-    if CDI_DATA_CORTE_CONGELADA is not None:
-        return CDI_DATA_CORTE_CONGELADA
-    try:
-        if Path(CACHE_BCB_FILE).exists():
-            import json as _json
-            with open(CACHE_BCB_FILE, 'r', encoding='utf-8') as f:
-                cache_data = _json.load(f)
-            mapa = cache_data.get('mapa', {})
-            datas = [datetime.strptime(k, '%Y-%m-%d').date() for k in mapa.keys()]
-            if datas:
-                return max(datas)
-    except Exception:
-        pass
-    return fallback
-
-def construir_cdi_fixo_ate_data(data_inicial, data_final, taxa_diaria_padrao, calendario=None):
-    """Constrói série CDI fixa SOMENTE até a data_final informada."""
-    if data_inicial is None or data_final is None:
-        raise ValueError("Data inicial/final inválida para construir CDI fixo.")
-    if data_final < data_inicial:
-        raise ValueError("data_final < data_inicial na construção do CDI fixo.")
-    serie = {}
-    d = data_inicial
-    while d <= data_final:
-        incluir = True
+        if isinstance(valor, (int, float)):
+            return float(valor)
+        s = str(valor).strip()
+        if s == '' or s.lower() == 'nan':
+            return default
+        s = s.replace('R$', '').replace('%', '').strip()
         try:
-            if calendario is not None and hasattr(calendario, "is_working_day"):
-                incluir = bool(calendario.is_working_day(d))
-        except Exception:
-            incluir = True
-        if incluir:
-            serie[d] = 1.0 + float(taxa_diaria_padrao)
-        d = d + timedelta(days=1)
-    return serie
-
-def logar_metadata_cdi():
-    if not DEBUG_CDI:
-        return
-    log_resumo(
-        "CDI",
-        fonte=CDI_FONTE_UTILIZADA,
-        data_final=CDI_DATA_FINAL_UTILIZADA,
-        corte_congelado=CDI_DATA_CORTE_CONGELADA,
-    )
-
-def obter_historico_bcb(data_inicio=None, usar_cache=True):
-    global CDI_DATA_CORTE_CONGELADA
-    print(">>> [BCB] Carregando histórico CDI diário...")
-
-    if usar_cache and Path(CACHE_BCB_FILE).exists():
-        try:
-            with open(CACHE_BCB_FILE, 'r', encoding='utf-8') as f:
-                cache_data = json.load(f)
-            mapa_cdi = {datetime.strptime(k, '%Y-%m-%d').date(): v
-                       for k, v in cache_data['mapa'].items()}
-            ultima_data_cache = max(mapa_cdi.keys())
-            hoje = DATA_REFERENCIA
-            if (hoje - ultima_data_cache).days <= 2:
-                print(f" -> Cache válido: {len(mapa_cdi)} dias (até {ultima_data_cache})")
-                print(f" -> Usando CDI DIÁRIO real para cada data\n")
-                atualizar_metadata_cdi(mapa_cdi, fonte="cache_local")
-                CDI_DATA_CORTE_CONGELADA = CDI_DATA_FINAL_UTILIZADA
-                logar_metadata_cdi()
-                return mapa_cdi, cache_data['taxa_projecao']
-            else:
-                print(f" -> Cache desatualizado (última: {ultima_data_cache})")
-                try:
-                    atualizar_metadata_cdi(mapa_cdi, fonte="cache_local_desatualizado")
-                    CDI_DATA_CORTE_CONGELADA = CDI_DATA_FINAL_UTILIZADA
-                    logar_metadata_cdi()
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f" -> Cache inválido: {e}")
-
-    if data_inicio:
-        dt_query = max(data_inicio, HISTORICO_BCB_DATA_MINIMA).strftime('%d/%m/%Y')
-    else:
-        dt_query = HISTORICO_BCB_DATA_MINIMA_FORMATADA
-
-    hoje_str = DATA_REFERENCIA.strftime('%d/%m/%Y')
-    url = BCB_SERIE_12_URL.format(data_inicial=dt_query, data_final=hoje_str)
-    headers = {"User-Agent": REDE_USER_AGENT_BCB, "Accept": REDE_ACCEPT_BCB}
-
-    try:
-        print(" -> Tentando API do BCB...")
-        r = requests.get(url, headers=headers, timeout=REDE_TIMEOUT_BCB_SEGUNDOS, verify=REDE_VERIFICAR_SSL)
-        r.raise_for_status()
-        dados_json = r.json()
-        mapa_cdi = {}
-        ultima_taxa = TAXA_DIA_BASE
-
-        for item in dados_json:
-            dt = datetime.strptime(item['data'], '%d/%m/%Y').date()
-            val_pct = float(item['valor'])
-            taxa_dec = val_pct / 100.0
-            mapa_cdi[dt] = 1.0 + taxa_dec
-            ultima_taxa = taxa_dec
-
-        cache_data = {
-            'mapa': {k.strftime('%Y-%m-%d'): v for k, v in mapa_cdi.items()},
-            'taxa_projecao': ultima_taxa,
-            'data_atualizacao': DATA_REFERENCIA.strftime('%Y-%m-%d')
-        }
-        with open(CACHE_BCB_FILE, 'w', encoding='utf-8') as f:
-            json.dump(cache_data, f, indent=2)
-
-        print(f" -> API BCB OK: {len(mapa_cdi)} dias carregados")
-        print(f" -> Usando CDI DIÁRIO real para cada data\n")
-        atualizar_metadata_cdi(mapa_cdi, fonte="bcb_api")
-        CDI_DATA_CORTE_CONGELADA = CDI_DATA_FINAL_UTILIZADA
-        logar_metadata_cdi()
-        return mapa_cdi, ultima_taxa
-
-    except Exception as e:
-        print(f" -> API BCB falhou: {e}")
-
-        print(" -> Tentando arquivo fallback do Drive...")
-        mapa_fallback, taxa_fallback = baixar_fallback_bcb()
-
-        if mapa_fallback:
-            atualizar_metadata_cdi(mapa_fallback, fonte="drive_fallback")
-            CDI_DATA_CORTE_CONGELADA = CDI_DATA_FINAL_UTILIZADA
-
-            if data_inicio:
-                data_atual = data_inicio
-            else:
-                data_atual = min(mapa_fallback.keys()) if mapa_fallback else HISTORICO_BCB_DATA_MINIMA
-
-            data_final = obter_data_corte_cdi(mapa_fallback, fallback=DATA_REFERENCIA)
-            dias_preenchidos = 0
-
-            while data_atual <= data_final:
-                if data_atual not in mapa_fallback:
-                    mapa_fallback[data_atual] = 1.0 + TAXA_DIA_BASE
-                    dias_preenchidos += 1
-                data_atual += timedelta(days=1)
-
-            print(f" -> Fallback + preenchimento: {len(mapa_fallback)} dias totais")
-            print(f"    ({len(mapa_fallback) - dias_preenchidos} do arquivo, {dias_preenchidos} preenchidos)")
-            print(f" -> Usando CDI DIÁRIO (real quando disponível, padrão quando não)\n")
-
-            cache_data = {
-                'mapa': {k.strftime('%Y-%m-%d'): v for k, v in mapa_fallback.items()},
-                'taxa_projecao': taxa_fallback,
-                'data_atualizacao': DATA_REFERENCIA.strftime('%Y-%m-%d'),
-                'fonte': 'fallback+preenchimento'
-            }
-            with open(CACHE_BCB_FILE, 'w', encoding='utf-8') as f:
-                json.dump(cache_data, f, indent=2)
-
-            atualizar_metadata_cdi(mapa_fallback, fonte="drive_fallback_preenchido")
-            logar_metadata_cdi()
-            return mapa_fallback, taxa_fallback
-
-        data_final_fixa = obter_data_corte_cdi(fallback=None)
-        if data_final_fixa is None:
-            raise ValueError(
-                "Não foi possível determinar a data terminal do CDI para fallback fixo comparável."
-            )
-
-        data_inicial_fixa = data_inicio if data_inicio else HISTORICO_BCB_DATA_MINIMA
-        calendario = None
-        try:
-            calendario = Brazil()
-        except Exception:
-            calendario = None
-
-        mapa_fixo = construir_cdi_fixo_ate_data(
-            data_inicial=data_inicial_fixa,
-            data_final=data_final_fixa,
-            taxa_diaria_padrao=TAXA_DIA_BASE,
-            calendario=calendario,
-        )
-        atualizar_metadata_cdi(mapa_fixo, fonte="taxa_fixa_fallback")
-        if CDI_DATA_CORTE_CONGELADA is None:
-            CDI_DATA_CORTE_CONGELADA = CDI_DATA_FINAL_UTILIZADA
-
-        print(f" -> Usando taxa fixa padrão SOMENTE até a data terminal congelada\n")
-        logar_metadata_cdi()
-        return mapa_fixo, TAXA_DIA_BASE
-
-# =========================================================
-# calendário
-# =========================================================
-def _calcular_pascoa(ano):
-    a = ano % 19
-    b = ano // 100
-    c = ano % 100
-    d = b // 4
-    e = b % 4
-    f = (b + 8) // 25
-    g = (b - f + 1) // 3
-    h = (19 * a + b - d - g + 15) % 30
-    i = c // 4
-    k = c % 4
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    mes = (h + l - 7 * m + 114) // 31
-    dia = ((h + l - 7 * m + 114) % 31) + 1
-    return date(ano, mes, dia)
-
-def gerar_dias_sem_rendimento_bancario(
-    ano_ini=CALENDARIO_ANO_INICIO_DIAS_SEM_RENDIMENTO,
-    ano_fim=CALENDARIO_ANO_FIM_DIAS_SEM_RENDIMENTO,
-):
-    dias = set()
-    for ano in range(ano_ini, ano_fim + 1):
-        pascoa = _calcular_pascoa(ano)
-        terca_carnaval = pascoa - timedelta(days=47)
-        dias.update([terca_carnaval])
-    return dias
-
-DIAS_SEM_RENDIMENTO_BANCARIO = gerar_dias_sem_rendimento_bancario()
-
-def is_dia_rendimento(data_atual, bcb_map=None):
-    if data_atual in DIAS_SEM_RENDIMENTO_BANCARIO:
-        return False
-    if bcb_map:
-        try:
-            max_bcb = max(bcb_map.keys())
-            if data_atual <= max_bcb:
-                return data_atual in bcb_map
+            return float(s)
         except Exception:
             pass
-    return cal.is_working_day(data_atual)
+        s = s.replace('.', '').replace(',', '.')
+        return float(s)
+    except Exception:
+        try:
+            return float(valor)
+        except Exception:
+            return default
 
-def contar_dias_rendimento(data_inicio, data_fim, bcb_map=None):
-    if data_fim <= data_inicio:
-        return 0
-    dias = 0
-    d = data_inicio + timedelta(days=1)
-    while d <= data_fim:
-        if is_dia_rendimento(d, bcb_map):
-            dias += 1
-        d += timedelta(days=1)
-    return dias
+def _resolver_produto_lote_shadow(valor_produto, mapa_produtos, *, normalizar_nome_fn=None):
+    """
+    Resolve o produto do lote contra o mapa canônico ativo.
+    """
+    if normalizar_nome_fn is None:
+        normalizar_nome_fn = lambda x: str(x).strip().lower()
+
+    vazio = {
+        'produto_key': None,
+        'produto_nome': None,
+        'produto_nome_norm': None,
+        'produto_encontrado': False,
+        'tipo_match_produto': 'vazio',
+    }
+
+    if valor_produto is None and not PRODUTO_FALLBACK_NOME_RAW:
+        return vazio
+
+    placeholder_produto = _eh_produto_lote_ausente(valor_produto)
+    s = _resolver_nome_produto_lote_efetivo(valor_produto)
+    if not s:
+        return vazio
+
+    by_key = mapa_produtos.get('by_key', {}) if isinstance(mapa_produtos, dict) else {}
+    by_nome_norm = mapa_produtos.get('by_nome_norm', {}) if isinstance(mapa_produtos, dict) else {}
+
+    if s in by_key:
+        info = by_key[s]
+        return {
+            'produto_key': info.get('produto_key'),
+            'produto_nome': info.get('nome'),
+            'produto_nome_norm': info.get('nome_norm'),
+            'produto_encontrado': True,
+            'tipo_match_produto': 'fallback_config' if placeholder_produto else 'chave_exata',
+        }
+
+    nome_norm = normalizar_nome_fn(s)
+    if nome_norm in by_nome_norm:
+        produto_key = by_nome_norm[nome_norm]
+        info = by_key.get(produto_key, {})
+        return {
+            'produto_key': info.get('produto_key'),
+            'produto_nome': info.get('nome'),
+            'produto_nome_norm': info.get('nome_norm'),
+            'produto_encontrado': True,
+            'tipo_match_produto': 'fallback_config' if placeholder_produto else 'nome_norm',
+        }
+
+    return {
+        'produto_key': None,
+        'produto_nome': s,
+        'produto_nome_norm': nome_norm,
+        'produto_encontrado': False,
+        'tipo_match_produto': 'nao_encontrado',
+    }

@@ -14,6 +14,7 @@ from nucleo.ambiente import bootstrap_ambiente
 from nucleo.carregador_config import carregar_config
 from nucleo.leitor_planilha import carregar_planilha, construir_resumo_planilha
 from nucleo.carteira_canonica import carregar_carteira_canonica
+from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
 
 
 def _imprimir_titulo(texto: str) -> None:
@@ -38,6 +39,12 @@ def main() -> None:
     )
 
     carteira_canonica = carregar_carteira_canonica(pacote_planilha, pacote_config.conteudo)
+    dados_operacionais = carregar_dados_operacionais_canonicos(
+        pacote_planilha,
+        pacote_config.conteudo,
+        data_referencia=contexto.data_referencia,
+        carteira_canonica=carteira_canonica,
+    )
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
     resumo_por_aba = {item["nome_aba"]: item for item in resumo_planilha}
     abas_config = pacote_config.conteudo.get("abas", {}) if isinstance(pacote_config.conteudo.get("abas"), dict) else {}
@@ -50,7 +57,7 @@ def main() -> None:
 
     _imprimir_titulo("BASELINE")
     _imprimir_pares([
-        ("versão", "V10"),
+        ("versão", "V11"),
         ("raiz do repositório", pacote_config.raiz_repositorio),
         ("config carregado", pacote_config.caminho),
         ("planilha carregada", pacote_planilha.caminho),
@@ -122,6 +129,56 @@ def main() -> None:
     if avisos:
         print("- avisos de validação:")
         for aviso in avisos:
+            print(f"  - {aviso}")
+
+
+    _imprimir_titulo("INVENTÁRIO CANÔNICO")
+    resumo_inventario = dados_operacionais.auditoria_inventario.get("resumo", {})
+    validacao_inventario = dados_operacionais.auditoria_inventario.get("validacao", {})
+    _imprimir_pares([
+        ("aba", dados_operacionais.nome_aba_lotes),
+        ("lotes canônicos", len(dados_operacionais.inventario_canonico)),
+        ("aportados", resumo_inventario.get("aportados", 0)),
+        ("não aportados disponíveis", resumo_inventario.get("nao_aportados_disponiveis", 0)),
+        ("não aportados exauridos", resumo_inventario.get("nao_aportados_exauridos", 0)),
+        ("recebidos futuros", resumo_inventario.get("recebidos_futuros", 0)),
+        ("validação estrutural", "ok" if validacao_inventario.get("ok") else "com pendências"),
+    ])
+    print("- colunas resolvidas:")
+    for chave, valor in dados_operacionais.auditoria_inventario.get("colunas_resolvidas", {}).items():
+        if valor:
+            print(f"  - {chave}: {valor}")
+    if validacao_inventario.get("erros"):
+        print("- erros de validação:")
+        for erro in validacao_inventario.get("erros", []):
+            print(f"  - {erro}")
+    if validacao_inventario.get("avisos"):
+        print("- avisos de validação:")
+        for aviso in validacao_inventario.get("avisos", []):
+            print(f"  - {aviso}")
+
+    _imprimir_titulo("GASTOS CANÔNICOS")
+    resumo_gastos = dados_operacionais.auditoria_gastos.get("resumo", {})
+    validacao_gastos = dados_operacionais.auditoria_gastos.get("validacao", {})
+    _imprimir_pares([
+        ("aba", dados_operacionais.nome_aba_despesas),
+        ("despesas canônicas", len(dados_operacionais.gastos_canonicos)),
+        ("pagas até data de referência", resumo_gastos.get("pagas_ate_data_referencia", 0)),
+        ("futuras ou pendentes", resumo_gastos.get("futuras_ou_pendentes", 0)),
+        ("com lote informado", resumo_gastos.get("com_lote_informado", 0)),
+        ("validação estrutural", "ok" if validacao_gastos.get("ok") else "com pendências"),
+    ])
+    print("- colunas resolvidas:")
+    for chave, valor in dados_operacionais.auditoria_gastos.get("colunas_resolvidas", {}).items():
+        if valor:
+            print(f"  - {chave}: {valor}")
+    if validacao_gastos.get("erros"):
+        print("- erros de validação:")
+        for erro in validacao_gastos.get("erros", []):
+            print(f"  - {erro}")
+    if validacao_gastos.get("avisos"):
+        print("- avisos de validação:")
+        for aviso in validacao_gastos.get("avisos", []):
             print(f"  - {aviso}")
 
     _imprimir_titulo("RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS")

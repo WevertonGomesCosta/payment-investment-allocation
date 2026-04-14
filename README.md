@@ -11,14 +11,14 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V10
+**Versão atual da baseline:** V11
 
-A V10 preserva a baseline fixa da fase atual e abre de forma restrita o bloco 03 apenas na parte estrutural da aba `Carteira`, sem abrir domínio financeiro, fiscal, combos ou switching:
+A V11 preserva a baseline fixa da fase atual e abre de forma restrita o bloco 05 apenas na parte de **dados operacionais canônicos**, sem replay do passado e sem núcleo financeiro:
 
-- carteira canônica inicial;
-- geração de `produto_key`;
-- mapa canônico simples de produtos;
-- validação estrutural da aba `Carteira`;
+- inventário canônico;
+- gastos canônicos;
+- classificação operacional mínima dos lotes;
+- separação estrutural entre passado pago e futuro/pendente;
 - nova validação local da baseline.
 
 A regra de trabalho do projeto continua sendo:
@@ -45,7 +45,8 @@ A regra de trabalho do projeto continua sendo:
 │   ├── ambiente.py
 │   ├── carregador_config.py
 │   ├── leitor_planilha.py
-│   └── carteira_canonica.py
+│   ├── carteira_canonica.py
+│   └── dados_operacionais_canonicos.py
 ├── scripts/
 │   └── inspecionar_base.py
 ├── dados/
@@ -80,7 +81,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V10.md`
+- `relatorios/VALIDACAO_LOCAL_V11.md`
 
 ## Entradas canônicas atuais
 
@@ -158,7 +159,7 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V10, a execução local mínima foi
+validação incremental da baseline. Nesta V11, a execução local mínima foi
 realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;

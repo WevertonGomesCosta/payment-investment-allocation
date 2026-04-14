@@ -1,138 +1,274 @@
 # =========================================================
-# 04. CDI E CALENDÁRIO
+# 05. DADOS OPERACIONAIS E REPLAY DO PASSADO
 # =========================================================
 
-def obter_historico_bcb(data_inicial_str='01/01/2025'):
-    print(">>> Obtendo histórico CDI do BCB...")
-    if Path(CACHE_BCB_FILE).exists():
-        try:
-            with open(CACHE_BCB_FILE, 'r', encoding='utf-8') as f:
-                cache = json.load(f)
-            mapa = {
-                datetime.strptime(k, '%Y-%m-%d').date(): v
-                for k, v in cache['mapa'].items()
-            }
-            ultima_data_cache = max(mapa.keys())
-            hoje = data_hoje_referencia()
-            if (hoje - ultima_data_cache).days <= 2:
-                print(f"    Cache válido: {len(mapa)} dias (até {ultima_data_cache})")
-                return mapa, cache.get('ultima', TAXA_DIA_BASE)
-            else:
-                print(f"    Cache desatualizado (última: {ultima_data_cache})")
-        except Exception as e:
-            print(f"    Cache inválido: {e}")
+def _lote_nao_investivel_mesmo_dia(lote, data_ref):
+    produto = getattr(lote, 'produto', None)
+    investimento_nome = str(getattr(produto, 'nome', '-') if produto is not None else '-').strip()
+    return (
+        investimento_nome in {'', '-', '—', '–'}
+        and getattr(lote, 'data_aplicacao', None) == data_ref
+    )
 
-    try:
-        import requests
-        hoje = data_hoje_referencia()
-        url = (
-            "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados"
-            f"?formato=json&dataInicial={data_inicial_str}&dataFinal={hoje.strftime('%d/%m/%Y')}"
-        )
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=15, verify=False)
-        r.raise_for_status()
-        dados = r.json()
-        if not dados:
-            print("    API retornou lista vazia. Tentando fallback...")
-            raise ValueError("No data")
-        mapa = {}
-        ultima = TAXA_DIA_BASE
-        for item in dados:
-            dt = datetime.strptime(item['data'], '%d/%m/%Y').date()
-            taxa = float(item['valor']) / 100.0
-            mapa[dt] = 1.0 + taxa
-            ultima = taxa
-        cache = {
-            'mapa': {k.strftime('%Y-%m-%d'): v for k, v in mapa.items()},
-            'ultima': ultima,
-            'data_atualizacao': hoje.strftime('%Y-%m-%d'),
+def simular_passado(aportes_raw: list, contas_pagas: list, bcb_map: dict, lote_produto: dict, data_referencia_snapshot: date = None):
+    params_hibrido_passado, origem_params_hibrido_passado = carregar_parametros_hibrido_5p_passado()
+    print(f">>> [PASSADO-HIBRIDO] parâmetros locais carregados de: {origem_params_hibrido_passado}")
+
+    lotes_por_id = {}
+    for aporte in aportes_raw:
+        if len(aporte) >= 5:
+            d, val, lid, _ja_aplicado, nao_disponivel_para_aporte = aporte[:5]
+        else:
+            d, val, lid, _ja_aplicado = aporte[:4]
+            nao_disponivel_para_aporte = False
+        lid = str(lid).strip()
+        produto_lote = lote_produto.get(lid)
+        taxa_base_lote = float(getattr(produto_lote, 'taxa_base', TAXA_BASE_DEFAULT) if produto_lote is not None else TAXA_BASE_DEFAULT)
+        taxa_bonus_lote = float(getattr(produto_lote, 'taxa_bonus', TAXA_BONUS_DEFAULT) if produto_lote is not None else TAXA_BONUS_DEFAULT)
+        dias_bonus_lote = int(getattr(produto_lote, 'dias_bonus', DIAS_BONUS_DEFAULT) if produto_lote is not None else DIAS_BONUS_DEFAULT)
+        if nao_disponivel_para_aporte and produto_lote is None:
+            taxa_base_lote = 0.0
+            taxa_bonus_lote = 0.0
+            dias_bonus_lote = 0
+        meta_lote = {
+            'produto': produto_lote,
+            'investimento': getattr(produto_lote, 'nome', '-') if produto_lote is not None else '-',
+            'data_base_fiscal': d,
+            'fator_acumulado_inicial': 1.0,
+            'taxa_base_cdi': taxa_base_lote,
+            'taxa_bonus_cdi': taxa_bonus_lote,
+            'dias_bonus': dias_bonus_lote,
+            'principal_remanescente': float(val),
+            'carencia_ate': (d + timedelta(days=int(getattr(produto_lote, 'carencia_dias', 0) or 0))) if produto_lote is not None and int(getattr(produto_lote, 'carencia_dias', 0) or 0) > 0 else None,
+            'nao_disponivel_para_aporte': bool(nao_disponivel_para_aporte),
         }
-        with open(CACHE_BCB_FILE, 'w', encoding='utf-8') as f:
-            json.dump(cache, f, indent=2)
-        print(f"    BCB OK: {len(mapa)} dias carregados.")
-        return mapa, ultima
-    except Exception as e:
-        print(f"    API BCB falhou: {e}")
+        lote = criar_lote_de_aporte(d, val, lid, meta_lote)
+        lote.nao_disponivel_para_aporte = bool(nao_disponivel_para_aporte)
+        lote.data_efetiva_snapshot_lote = d
+        lotes_por_id[lid] = lote
 
-    print("    Tentando fallback do Drive...")
-    fallback_file = 'cdi_fallback.xlsx'
-    if baixar_arquivo_drive(FALLBACK_BCB_URL, fallback_file):
-        try:
-            df = pd.read_excel(fallback_file)
-            if 'data' not in df.columns or 'valor' not in df.columns:
-                print("    Fallback: colunas 'data' e 'valor' não encontradas. Usando CDI fixo.")
-                return {}, TAXA_DIA_BASE
-            mapa = {}
-            ultima = TAXA_DIA_BASE
-            for _, row in df.iterrows():
-                try:
-                    dt = pd.to_datetime(row['data']).date()
-                    taxa = float(row['valor']) / 100.0
-                    mapa[dt] = 1.0 + taxa
-                    ultima = taxa
-                except:
-                    continue
-            if mapa:
-                data_atual = min(mapa.keys())
-                data_final = data_hoje_referencia()
-                while data_atual <= data_final:
-                    if data_atual not in mapa:
-                        mapa[data_atual] = 1.0 + TAXA_DIA_BASE
-                    data_atual += timedelta(days=1)
-                print(f"    Fallback OK: {len(mapa)} dias.")
-                return mapa, ultima
+    contas_pagas = ordenar_contas_processamento(contas_pagas)
+    log_passado = []
+    tolerancia_zeramento = max(float(globals().get('VALOR_MINIMO_LOTE_ATIVO', 0.01) or 0.01), 5.0)
+    if not lotes_por_id:
+        return [], [], pd.DataFrame(), pd.DataFrame()
+    if not contas_pagas:
+        lotes_final = list(lotes_por_id.values())
+        data_snapshot = data_referencia_snapshot or min(getattr(l, 'data_aplicacao', None) for l in lotes_final)
+        estado_lotes_passado = pd.DataFrame([serializar_lote_remanescente(l, data_snapshot) for l in lotes_final])
+        return lotes_final, [], estado_lotes_passado, pd.DataFrame()
+
+    data_inicial = min(l.data_aplicacao for l in lotes_por_id.values())
+    ultima_conta_paga = max(c[0] for c in contas_pagas)
+    data_final = max(ultima_conta_paga, data_referencia_snapshot) if data_referencia_snapshot is not None else ultima_conta_paga
+    contas_por_data = {}
+    for conta in contas_pagas:
+        contas_por_data.setdefault(conta[0], []).append(conta)
+
+    data_atual = data_inicial
+    while data_atual <= data_final:
+        contas_do_dia = contas_por_data.get(data_atual, [])
+        lotes_legados_explicitos_do_dia = {
+            str(lid).strip()
+            for conta in contas_do_dia
+            for lid in _normalizar_conta_processamento(conta)[3:5]
+            if lid and str(lid).strip().lower() != 'nan'
+        }
+
+        if is_dia_rendimento(data_atual, bcb_map):
+            lotes_para_capitalizar_antes = [l for l in lotes_por_id.values() if str(getattr(l, 'id', '')).strip() not in lotes_legados_explicitos_do_dia]
+            atualizar_saldo_lotes_no_dia(lotes_para_capitalizar_antes, data_atual, bcb_map, TAXA_DIA_BASE)
+            for l in lotes_para_capitalizar_antes:
+                if not l.esgotado and l.saldo_bruto > 0 and l.data_aplicacao <= data_atual:
+                    l.data_efetiva_snapshot_lote = data_atual
+
+        lotes_usados_no_dia, lotes_nao_investiveis_usados_no_mesmo_dia = set(), set()
+        for conta_item in contas_do_dia:
+            data, valor, desc, lote1, lote2, ordem_processamento = _normalizar_conta_processamento(conta_item)
+            falta = float(valor)
+            lotes_usados = [str(l).strip() for l in (lote1, lote2) if l and str(l).strip().lower() != 'nan']
+            lotes_usados_set = set(lotes_usados)
+            disponiveis = [
+                l for l in lotes_por_id.values()
+                if not l.esgotado and float(getattr(l, 'saldo_bruto', 0.0) or 0.0) > 0.01
+                and getattr(l, 'data_aplicacao', data_atual) <= data_atual
+                and not (getattr(l, 'carencia_ate', None) and data_atual < getattr(l, 'carencia_ate'))
+            ]
+            disponiveis_admissiveis = [l for l in disponiveis if str(getattr(l, 'id', '')).strip() in lotes_usados_set] if lotes_usados_set else list(disponiveis)
+            saques_planejados = []
+            if not lotes_usados_set and params_hibrido_passado is not None and disponiveis_admissiveis:
+                valores_otimos = resolver_hibrido_5p(disponiveis_admissiveis, float(falta), data_atual, params_hibrido_passado, data_final, bcb_map, TAXA_DIA_BASE)
+                saques_planejados = [(l, min(float(v), float(l.saldo_bruto)), 'hibrido') for l, v in zip(disponiveis_admissiveis, valores_otimos) if float(v or 0.0) > VALOR_MINIMO_RESGATE_BRUTO]
             else:
-                print("    Fallback não contém dados válidos.")
-        except Exception as e:
-            print(f"    Erro ao processar fallback: {e}")
+                saques_planejados = [(lotes_por_id[id_lote], None, 'legacy') for id_lote in lotes_usados if id_lote in lotes_por_id and not lotes_por_id[id_lote].esgotado]
 
-    print("    Usando CDI fixo para todos os dias.")
-    return {}, TAXA_DIA_BASE
+            for l, val_b, modo_saque in saques_planejados:
+                if falta <= 0.001:
+                    break
+                lotes_usados_no_dia.add(l.id)
+                if _lote_nao_investivel_mesmo_dia(l, data_atual):
+                    lotes_nao_investiveis_usados_no_mesmo_dia.add(l.id)
+                if modo_saque == 'legacy':
+                    valor_liquido_alvo = min(_money_round_half_up(float(falta)), _money_round_half_up(float(l.valor_liquido_hoje(data_atual) or 0.0)))
+                    if valor_liquido_alvo <= 0:
+                        continue
+                    movimento = executar_saque_lote(l, valor_liquido_alvo, data_atual)
+                else:
+                    fator = l.get_fator_liquido(data_atual)
+                    if fator <= 0:
+                        continue
+                    valor_liquido_alvo = min(round(float(val_b) * float(fator), 2), round(float(falta), 2))
+                    movimento = executar_saque_lote(l, valor_liquido_alvo, data_atual)
+                if movimento is None:
+                    continue
 
-cal = Brazil()
+                falta -= float(movimento['liquido'])
+                l.data_efetiva_snapshot_lote = data_atual
+                log_passado.append({
+                    'Data': data_atual,
+                    'Conta': desc,
+                    'Lote': l.id,
+                    'Saldo Antes': float(movimento['saldo_antes']),
+                    'Bruto': float(movimento['bruto']),
+                    'Imposto': float(movimento['imposto']),
+                    'Liquido': float(movimento['liquido']),
+                    'Dias Corridos': (data_atual - l.data_aplicacao).days,
+                    'Dias Úteis': contar_dias_rendimento(l.data_aplicacao, data_atual, bcb_map),
+                    'Saldo Remanescente': float(movimento['saldo_remanescente']),
+                })
 
-def _calcular_pascoa(ano):
-    a = ano % 19
-    b = ano // 100
-    c = ano % 100
-    d = b // 4
-    e = b % 4
-    f = (b + 8) // 25
-    g = (b - f + 1) // 3
-    h = (19 * a + b - d - g + 15) % 30
-    i = c // 4
-    k = c % 4
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    mes = (h + l - 7 * m + 114) // 31
-    dia = ((h + l - 7 * m + 114) % 31) + 1
-    return date(ano, mes, dia)
+        if is_dia_rendimento(data_atual, bcb_map) and lotes_legados_explicitos_do_dia:
+            lotes_para_capitalizar_depois = [
+                l for l in lotes_por_id.values()
+                if str(getattr(l, 'id', '')).strip() in lotes_legados_explicitos_do_dia
+                and str(getattr(l, 'id', '')).strip() not in lotes_usados_no_dia
+                and not getattr(l, 'esgotado', False)
+                and float(getattr(l, 'saldo_bruto', 0.0) or 0.0) > 0.0
+                and getattr(l, 'data_aplicacao', data_atual) <= data_atual
+            ]
+            atualizar_saldo_lotes_no_dia(lotes_para_capitalizar_depois, data_atual, bcb_map, TAXA_DIA_BASE)
+            for l in lotes_para_capitalizar_depois:
+                l.data_efetiva_snapshot_lote = data_atual
 
-def gerar_dias_sem_rendimento_bancario(ano_ini=2015, ano_fim=2035):
-    dias = set()
-    for ano in range(ano_ini, ano_fim + 1):
-        pascoa = _calcular_pascoa(ano)
-        terca_carnaval = pascoa - timedelta(days=47)
-        dias.add(terca_carnaval)
-    return dias
+        for lote_id_force in lotes_nao_investiveis_usados_no_mesmo_dia:
+            lforce = lotes_por_id.get(lote_id_force)
+            if lforce is None:
+                continue
+            lforce.saldo_bruto = 0.0
+            lforce.principal_remanescente = 0.0
+            lforce.esgotado = True
+            lforce.data_efetiva_snapshot_lote = data_atual
 
-DIAS_SEM_RENDIMENTO_BANCARIO = gerar_dias_sem_rendimento_bancario()
+        for lote_id_trunc in lotes_usados_no_dia:
+            ltr = lotes_por_id.get(lote_id_trunc)
+            if ltr is None:
+                continue
+            if float(getattr(ltr, 'saldo_bruto', 0.0) or 0.0) <= tolerancia_zeramento:
+                ltr.saldo_bruto = 0.0
+                ltr.principal_remanescente = 0.0
+                ltr.esgotado = True
+                ltr.data_efetiva_snapshot_lote = data_atual
 
-def is_dia_rendimento(data_atual: date, bcb_map: dict = None) -> bool:
-    if data_atual in DIAS_SEM_RENDIMENTO_BANCARIO:
-        return False
-    if bcb_map and data_atual in bcb_map:
-        return True
-    return cal.is_working_day(data_atual)
+        data_atual += timedelta(days=1)
 
-def contar_dias_rendimento(data_inicio: date, data_fim: date, bcb_map: dict = None) -> int:
-    if data_fim <= data_inicio:
-        return 0
-    dias = 0
-    d = data_inicio + timedelta(days=1)
-    while d <= data_fim:
-        if is_dia_rendimento(d, bcb_map):
-            dias += 1
-        d += timedelta(days=1)
-    return dias
+    lotes_final = list(lotes_por_id.values())
+    estado_lotes_passado = pd.DataFrame([serializar_lote_remanescente(l, data_final) for l in lotes_final])
+    return lotes_final, log_passado, estado_lotes_passado, pd.DataFrame()
+
+def _ingestao_passado(produtos_dict, hoje):
+    df_inv = ler_aba_excel(ABA_INVENTARIO)
+    print(f"\n[CHECK] Aba '{ABA_INVENTARIO}': linhas={len(df_inv)} | colunas={list(df_inv.columns)}")
+    col_id = 'Lote (ID)' if 'Lote (ID)' in df_inv.columns else 'ID'
+    df_inv = df_inv.dropna(subset=[col_id, 'Data Aplicação', 'Valor Original']).copy()
+
+    def _classificar_investimento_inventario(valor):
+        if pd.isna(valor):
+            return '', False
+        txt = str(valor).strip()
+        if txt in {'-', '—', '–'}:
+            return '', True
+        if txt.lower() in {'', 'none', 'nan'}:
+            return '', False
+        return txt, False
+
+    lote_produto, aportes_raw = {}, []
+    for _, row in df_inv.iterrows():
+        lote_id = str(row[col_id]).strip()
+        produto_nome, nao_disponivel_para_aporte = _classificar_investimento_inventario(row.get('Investimento'))
+        lote_produto[lote_id] = produtos_dict.get(produto_nome) if produto_nome else None
+        aportes_raw.append((
+            pd.to_datetime(row['Data Aplicação']).date(),
+            float(row['Valor Original']),
+            lote_id,
+            bool(produto_nome),
+            bool(nao_disponivel_para_aporte),
+        ))
+
+    aba_gastos = nome_aba('despesas', ABA_GASTOS)
+    df_gastos = ler_aba_excel(aba_gastos)
+    print(f"[CHECK] Aba '{aba_gastos}': linhas={len(df_gastos)} | colunas={list(df_gastos.columns)}")
+    df_gastos.columns = [str(c).strip() for c in df_gastos.columns]
+    col_data = resolver_coluna(df_gastos, 'despesas', 'data')
+    col_valor = resolver_coluna(df_gastos, 'despesas', 'valor')
+    col_desc = resolver_coluna(df_gastos, 'despesas', 'descricao', required=False) or '__descricao_padrao__'
+    col_pago = resolver_coluna(df_gastos, 'despesas', 'pago', required=False)
+    col_lote1 = resolver_coluna(df_gastos, 'despesas', 'lote_usado_1', required=False)
+    col_lote2 = resolver_coluna(df_gastos, 'despesas', 'lote_usado_2', required=False)
+    if col_desc == '__descricao_padrao__':
+        df_gastos[col_desc] = 'Despesa Diversa'
+    df_gastos[col_data] = pd.to_datetime(df_gastos[col_data], errors='coerce').dt.date
+    df_gastos[col_valor] = pd.to_numeric(df_gastos[col_valor], errors='coerce')
+    df_gastos = df_gastos.dropna(subset=[col_data, col_valor]).copy()
+
+    def _valor_lote(row, col):
+        if col is None:
+            return ''
+        v = row.get(col, '')
+        if pd.isna(v):
+            return ''
+        s = str(v).strip()
+        return '' if s.lower() in {'', 'nan', 'none'} else s
+
+    contas_pagas, contas_nao_pagas = [], []
+    for ordem, (_, row) in enumerate(df_gastos.iterrows(), start=1):
+        conta = (row[col_data], float(row[col_valor]), str(row.get(col_desc, ''))[:100], _valor_lote(row, col_lote1), _valor_lote(row, col_lote2), ordem)
+        pago = str(row.get(col_pago, '')).upper().strip() == 'OK' if col_pago is not None else False
+        if pago and conta[0] <= hoje:
+            contas_pagas.append(conta)
+        elif (not pago) and conta[0] >= hoje:
+            contas_nao_pagas.append(conta)
+
+    contas_pagas = ordenar_contas_processamento(contas_pagas)
+    contas_nao_pagas = ordenar_contas_processamento(contas_nao_pagas)
+    data_referencia_snapshot = min(hoje, max(c[0] for c in contas_pagas) + timedelta(days=1)) if contas_pagas else hoje
+    return lote_produto, aportes_raw, contas_pagas, contas_nao_pagas, data_referencia_snapshot
+
+def _montar_snapshot_passado(lotes_todos, lote_produto, aportes_raw, data_referencia_snapshot):
+    lotes_extra = []
+    for aporte in aportes_raw:
+        if len(aporte) >= 5:
+            data_apl, valor, lote_id, ja_aplicado, nao_disponivel_para_aporte = aporte[:5]
+        else:
+            data_apl, valor, lote_id, ja_aplicado = aporte[:4]
+            nao_disponivel_para_aporte = False
+        if ja_aplicado or nao_disponivel_para_aporte:
+            continue
+        novo = Lote(lote_id, max(data_apl, data_referencia_snapshot), float(valor), produto=None, pendente_aporte=True)
+        novo.nao_disponivel_para_aporte = False
+        lotes_extra.append(novo)
+    lotes_todos = list(lotes_todos) + lotes_extra
+    for lote in lotes_todos:
+        if lote.id in lote_produto:
+            lote.produto = lote_produto[lote.id]
+    lotes_passados = [l for l in lotes_todos if l.saldo_bruto > 0.01 and l.data_aplicacao <= data_referencia_snapshot and not getattr(l, 'pendente_aporte', False)]
+    lotes_futuros = [l for l in lotes_todos if (l.data_aplicacao > data_referencia_snapshot or getattr(l, 'pendente_aporte', False)) and not getattr(l, 'nao_disponivel_para_aporte', False)]
+    return lotes_passados, lotes_futuros
+
+def carregar_inventario_e_gastos(produtos: list, bcb_map: dict):
+    produtos_dict = {p.nome: p for p in produtos}
+    hoje = data_hoje_referencia()
+    lote_produto, aportes_raw, contas_pagas, contas_nao_pagas, data_referencia_snapshot = _ingestao_passado(produtos_dict, hoje)
+    print("\n>>> Simulando pagamentos passados...")
+    lotes_todos, log_passado, estado_lotes_passado, _ = simular_passado(aportes_raw, contas_pagas, bcb_map, lote_produto, data_referencia_snapshot=data_referencia_snapshot)
+    lotes_passados, lotes_futuros = _montar_snapshot_passado(lotes_todos, lote_produto, aportes_raw, data_referencia_snapshot)
+    return lotes_passados, lotes_futuros, contas_nao_pagas, log_passado, data_referencia_snapshot, estado_lotes_passado
