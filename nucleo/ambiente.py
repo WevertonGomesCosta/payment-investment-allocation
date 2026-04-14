@@ -6,7 +6,8 @@ seguras neste estágio:
 - detecção da raiz do repositório;
 - configuração seletiva de warnings de rede;
 - verificação e instalação opcional de dependências por import real;
-- resolução de timezone operacional.
+- resolução de timezone operacional;
+- determinação central da data de referência da análise.
 
 Ele não implementa regras financeiras, fiscais, de pagamento ou de switching.
 """
@@ -18,6 +19,7 @@ import subprocess
 import sys
 import warnings
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable, Mapping, Optional
 
@@ -52,6 +54,7 @@ class ContextoExecucao:
     diretorio_dados: Path
     timezone_nome: str
     em_colab: bool
+    data_referencia: date
     warnings_configurados: bool = False
     relatorio_dependencias: dict[str, list[str]] = field(default_factory=dict)
 
@@ -131,6 +134,31 @@ def resolver_timezone(nome_timezone: str):
         return None
 
 
+def obter_data_referencia(config: Optional[Mapping[str, object]] = None, *, timezone_nome: Optional[str] = None) -> date:
+    cfg = dict(config or {})
+    execucao_cfg = cfg.get("execucao", {}) if isinstance(cfg.get("execucao"), dict) else {}
+
+    valor_config = execucao_cfg.get("data_referencia_simulacao")
+    if valor_config not in (None, ""):
+        if isinstance(valor_config, datetime):
+            return valor_config.date()
+        if isinstance(valor_config, date):
+            return valor_config
+        try:
+            return datetime.fromisoformat(str(valor_config)).date()
+        except Exception as erro:
+            raise ValueError(
+                f"execucao/data_referencia_simulacao inválida: {valor_config!r}. Use ISO 8601 (YYYY-MM-DD)."
+            ) from erro
+
+    nome = timezone_nome or str(execucao_cfg.get("timezone") or "America/Sao_Paulo")
+    tz = resolver_timezone(nome)
+    try:
+        return datetime.now(tz).date() if tz is not None else datetime.now().date()
+    except Exception:
+        return datetime.now().date()
+
+
 def bootstrap_ambiente(
     config: Optional[Mapping[str, object]] = None,
     *,
@@ -159,6 +187,7 @@ def bootstrap_ambiente(
         diretorio_dados=diretorio_dados,
         timezone_nome=timezone_nome,
         em_colab=ambiente_em_colab(),
+        data_referencia=obter_data_referencia(cfg, timezone_nome=timezone_nome),
         warnings_configurados=configurar_warnings_rede(),
         relatorio_dependencias=relatorio,
     )

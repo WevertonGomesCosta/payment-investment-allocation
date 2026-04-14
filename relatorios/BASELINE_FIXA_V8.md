@@ -1,4 +1,4 @@
-# Baseline fixa V7
+# Baseline fixa V8
 
 Esta versão do repositório foi congelada como baseline fixa de referência da fase atual do projeto.
 

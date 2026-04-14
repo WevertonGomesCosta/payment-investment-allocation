@@ -31,6 +31,17 @@ VARIAVEIS_AMBIENTE_CONFIG: tuple[str, ...] = (
     "OTIMIZADOR_CONFIG",
 )
 
+CAMINHOS_OBRIGATORIOS_NUCLEO: tuple[tuple[str, ...], ...] = (
+    ("execucao", "timezone"),
+    ("arquivos", "planilha"),
+    ("abas", "carteira"),
+    ("abas", "lotes"),
+    ("abas", "despesas"),
+    ("colunas", "carteira"),
+    ("colunas", "lotes"),
+    ("colunas", "despesas"),
+)
+
 
 @dataclass(slots=True)
 class PacoteConfig:
@@ -46,7 +57,6 @@ def _candidatos_config(raiz_repositorio: Path, nomes: Sequence[str]) -> list[Pat
         candidatos.append((raiz_repositorio / "dados" / nome).resolve())
         candidatos.append((raiz_repositorio / "data" / nome).resolve())
         candidatos.append((raiz_repositorio / nome).resolve())
-    # preserva ordem e remove duplicatas
     vistos: set[Path] = set()
     ordenados: list[Path] = []
     for caminho in candidatos:
@@ -84,7 +94,9 @@ def resolver_caminho_config(
             return candidato
 
     caminhos_testados = "\n - ".join(str(c) for c in candidatos)
-    raise FileNotFoundError(f"Nenhum arquivo de configuração encontrado. Caminhos testados:\n - {caminhos_testados}")
+    raise FileNotFoundError(
+        f"Nenhum arquivo de configuração encontrado. Caminhos testados:\n - {caminhos_testados}"
+    )
 
 
 def carregar_config(
@@ -103,6 +115,8 @@ def carregar_config(
 
     if not isinstance(conteudo, dict):
         raise RuntimeError(f"O arquivo de configuração {caminho} deve conter um objeto JSON na raiz.")
+
+    validar_config_nucleo(conteudo)
 
     diretorio_dados = (raiz / "dados") if (raiz / "dados").exists() else (raiz / "data")
     return PacoteConfig(
@@ -142,3 +156,15 @@ def obter_primeiro_config_disponivel(
         if valor is not None:
             return valor
     return padrao
+
+
+def validar_config_nucleo(config: dict[str, Any]) -> None:
+    for caminho in CAMINHOS_OBRIGATORIOS_NUCLEO:
+        valor = obter_config_obrigatorio(config, *caminho)
+        if valor in (None, ""):
+            raise ValueError(f"Config obrigatório vazio: {'/'.join(caminho)}")
+
+    for secao in ("carteira", "lotes", "despesas"):
+        aliases = obter_config_obrigatorio(config, "colunas", secao)
+        if not isinstance(aliases, dict) or not aliases:
+            raise ValueError(f"Config inválido: colunas/{secao} deve ser um dicionário não vazio.")

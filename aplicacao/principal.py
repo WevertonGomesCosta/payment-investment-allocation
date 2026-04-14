@@ -48,7 +48,7 @@ def main() -> None:
 
     _imprimir_titulo("BASELINE")
     _imprimir_pares([
-        ("versão", "V6"),
+        ("versão", "V8"),
         ("raiz do repositório", pacote_config.raiz_repositorio),
         ("config carregado", pacote_config.caminho),
         ("planilha carregada", pacote_planilha.caminho),
@@ -57,6 +57,7 @@ def main() -> None:
     _imprimir_titulo("AMBIENTE")
     _imprimir_pares([
         ("timezone", contexto.timezone_nome),
+        ("data de referência", contexto.data_referencia.isoformat()),
         ("colab", "sim" if contexto.em_colab else "não"),
         ("warnings de rede configurados", "sim" if contexto.warnings_configurados else "não"),
     ])

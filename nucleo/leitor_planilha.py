@@ -76,6 +76,52 @@ def canonizar_colunas(
     return quadro_canonico.rename(columns=renomear)
 
 
+def aliases_coluna(config: Mapping[str, Any], secao: str, chave: str) -> list[str]:
+    colunas_cfg = config.get("colunas", {}) if isinstance(config.get("colunas"), Mapping) else {}
+    secao_cfg = colunas_cfg.get(secao, {}) if isinstance(colunas_cfg.get(secao), Mapping) else {}
+    aliases = secao_cfg.get(chave)
+    if aliases is None:
+        raise KeyError(f"Config de coluna ausente para {secao}/{chave}.")
+    if not isinstance(aliases, list) or not aliases:
+        raise KeyError(f"Aliases de coluna inválidos para {secao}/{chave}.")
+    return [str(alias) for alias in aliases]
+
+
+def resolver_coluna(
+    df: pd.DataFrame,
+    config: Mapping[str, Any],
+    secao: str,
+    chave: str,
+    obrigatoria: bool = True,
+) -> Optional[str]:
+    if df is None or len(getattr(df, "columns", [])) == 0:
+        if obrigatoria:
+            raise KeyError(f"DataFrame vazio ao resolver coluna {secao}/{chave}.")
+        return None
+
+    cols_reais = list(df.columns)
+    mapa_norm = {normalizar_texto(c): c for c in cols_reais}
+
+    try:
+        aliases = aliases_coluna(config, secao, chave)
+    except Exception:
+        if obrigatoria:
+            raise
+        return None
+
+    for alias in aliases:
+        alias_norm = normalizar_texto(alias)
+        if alias_norm in mapa_norm:
+            return str(mapa_norm[alias_norm])
+
+    if obrigatoria:
+        raise KeyError(
+            f"Coluna não encontrada para {secao}/{chave}. "
+            f"Aliases tentados: {aliases}. Colunas disponíveis: {cols_reais}"
+        )
+    return None
+
+
 def resolver_caminho_planilha(
     config: Mapping[str, Any],
     *,

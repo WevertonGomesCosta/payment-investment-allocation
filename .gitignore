@@ -115,3 +115,7 @@ dados/processado/*
 !relatorios/VALIDACAO_LOCAL_V7.md
 !relatorios/BASELINE_FIXA_V7.md
 relatorios/_log_validacao_v7_*.txt
+
+!relatorios/VALIDACAO_LOCAL_V8.md
+!relatorios/BASELINE_FIXA_V8.md
+relatorios/_log_validacao_v8_*.txt

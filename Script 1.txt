@@ -1,214 +1,1264 @@
 # =========================================================
-# 02. POLÍTICAS E UTILITÁRIOS CENTRAIS
+# 03. PRODUTOS E CARTEIRA
 # =========================================================
+INVESTIMENTOS_NORM = {}  # chave normalizada -> {base, bonus, dias_bonus}
 
-_tz_nome = _cfg_get_required(["execucao", "timezone"])
-if ZoneInfo is not None:
+def normalizar_nome(nome):
+    """Colapsa espaços, remove espaços extras e converte para minúsculas."""
+    if not isinstance(nome, str):
+        return ''
+    return re.sub(r'\s+', ' ', nome).strip().lower()
+
+def _eh_produto_lote_ausente(valor):
+    if valor is None:
+        return True
+    s = str(valor).strip().lower()
+    return s in {'', '-', '—', '--', 'nan', 'none', 'null'}
+
+def _resolver_nome_produto_lote_efetivo(valor_produto):
+    if _eh_produto_lote_ausente(valor_produto):
+        return PRODUTO_FALLBACK_NOME_RAW
+    return str(valor_produto).strip()
+
+PRODUTO_FALLBACK_NOME = normalizar_nome(PRODUTO_FALLBACK_NOME_RAW)
+
+def _normalizar_chave_coluna(valor):
+    s = '' if valor is None else str(valor)
+    s = unicodedata.normalize('NFKD', s)
+    s = ''.join(ch for ch in s if not unicodedata.combining(ch))
+    s = s.replace('_', ' ')
+    s = re.sub(r'\s+', ' ', s).strip().lower()
+    return s
+
+def nome_aba(chave: str) -> str:
+    chave = str(chave or '').strip()
+    if not chave:
+        raise KeyError('nome_aba requer uma chave não vazia.')
+
+    if isinstance(CONTRATO_OPERACIONAL, dict):
+        for bloco in ('abas_entrada_obrigatorias', 'abas_entrada_opcionais'):
+            nome = (CONTRATO_OPERACIONAL.get(bloco) or {}).get(chave)
+            if isinstance(nome, str) and nome.strip():
+                return nome.strip()
+
+    nome = _cfg_get(['abas', chave], None)
+    if isinstance(nome, str) and nome.strip():
+        return nome.strip()
+
+    return chave
+
+def _aliases_config_coluna(secao: str, campo: str) -> list:
+    aliases = []
     try:
-        TZ_BRASIL = ZoneInfo(_tz_nome)
+        aliases_cfg = (((config or {}).get('colunas') or {}).get(secao) or {}).get(campo)
+        if isinstance(aliases_cfg, list):
+            aliases.extend(str(x) for x in aliases_cfg if str(x).strip())
+        elif isinstance(aliases_cfg, str) and aliases_cfg.strip():
+            aliases.append(aliases_cfg)
     except Exception:
-        TZ_BRASIL = None
-else:
-    TZ_BRASIL = None
-if TZ_BRASIL is None:
+        pass
+    if campo not in aliases:
+        aliases.append(campo)
+    return aliases
+
+def resolver_coluna(df: pd.DataFrame, secao: str, campo: str, required: bool = True):
+    if df is None or len(getattr(df, 'columns', [])) == 0:
+        if required:
+            raise KeyError(f'Sem colunas disponíveis para resolver {secao}.{campo}')
+        return None
+
+    colunas = list(df.columns)
+    mapa_norm = {_normalizar_chave_coluna(c): c for c in colunas}
+    aliases = _aliases_config_coluna(secao, campo)
+
+    for alias in aliases:
+        if alias in df.columns:
+            return alias
+
+    for alias in aliases:
+        alias_norm = _normalizar_chave_coluna(alias)
+        if alias_norm in mapa_norm:
+            return mapa_norm[alias_norm]
+
+    tokens_alvo = set(_normalizar_chave_coluna(a) for a in aliases if str(a).strip())
+    melhor = None
+    melhor_score = -1
+    for col in colunas:
+        col_norm = _normalizar_chave_coluna(col)
+        score = 0
+        if col_norm in tokens_alvo:
+            score += 1000
+        for alias in aliases:
+            alias_norm = _normalizar_chave_coluna(alias)
+            if alias_norm and alias_norm in col_norm:
+                score = max(score, 100 + len(alias_norm))
+        if score > melhor_score:
+            melhor = col
+            melhor_score = score
+
+    if melhor is not None and melhor_score >= 100:
+        return melhor
+
+    if required:
+        raise KeyError(
+            f'Coluna não encontrada para {secao}.{campo}. Aliases={aliases}. Colunas disponíveis={colunas}'
+        )
+    return None
+
+def selecionar_coluna_id_lote(df: pd.DataFrame, contexto: str | None = None):
+    return resolver_coluna(df, 'lotes', 'lote_id', required=True)
+
+def _construir_vocab_investimentos(investimentos_map: dict | None):
+    vocab = set()
+    if not isinstance(investimentos_map, dict):
+        return vocab
+    for chave, info in investimentos_map.items():
+        if chave is not None:
+            vocab.add(normalizar_nome(chave))
+        if isinstance(info, dict):
+            for campo in ('nome_original', 'investimento', 'nome', 'produto_nome'):
+                valor = info.get(campo)
+                if valor:
+                    vocab.add(normalizar_nome(valor))
+    return {v for v in vocab if v}
+
+def selecionar_coluna_produto_lote(df: pd.DataFrame, investimentos_map=None):
+    candidatos = []
+    alias_preferencial = resolver_coluna(df, 'lotes', 'produto_id', required=False)
+    if alias_preferencial is not None:
+        candidatos.append(alias_preferencial)
+
+    tokens_busca = [
+        _normalizar_chave_coluna(x)
+        for x in (_cfg_get(['politicas_coluna', 'produto_tokens_busca'], []) or [])
+    ]
+    for col in df.columns:
+        col_norm = _normalizar_chave_coluna(col)
+        if any(tok and tok in col_norm for tok in tokens_busca):
+            candidatos.append(col)
+
+    vistos = set()
+    candidatos_ordenados = []
+    for c in candidatos + list(df.columns):
+        if c not in vistos:
+            vistos.add(c)
+            candidatos_ordenados.append(c)
+
+    vocab = _construir_vocab_investimentos(investimentos_map)
+    melhor = None
+    melhor_score = float('-inf')
+    for col in candidatos_ordenados:
+        serie = df[col] if col in df.columns else None
+        if serie is None:
+            continue
+        score = 0.0
+        if alias_preferencial and col == alias_preferencial:
+            score += 1000.0
+        col_norm = _normalizar_chave_coluna(col)
+        if 'invest' in col_norm or 'produto' in col_norm:
+            score += 100.0
+
+        total_validos = 0
+        reconhecidos = 0
+        for valor in serie.tolist():
+            if valor is None:
+                continue
+            s = str(valor).strip()
+            if not s or s.lower() in {'nan', 'none', 'null', '-', '—', '--'}:
+                continue
+            total_validos += 1
+            if normalizar_nome(s) in vocab:
+                reconhecidos += 1
+        if total_validos > 0:
+            score += 500.0 * (reconhecidos / total_validos)
+
+        if score > melhor_score:
+            melhor = col
+            melhor_score = score
+
+    if melhor is not None:
+        return melhor
+    raise KeyError(f'Não foi possível selecionar a coluna de produto dos lotes. Colunas disponíveis={list(df.columns)}')
+
+def _to_cdi_multiplier(x, default=1.0):
+    """
+    Converte um valor da planilha para multiplicador CDI.
+    Ex.: 103 -> 1.03, 1.03 -> 1.03, '103%' -> 1.03
+    """
     try:
-        import pytz
-        TZ_BRASIL = pytz.timezone(_tz_nome)
+        if x is None or (isinstance(x, float) and pd.isna(x)):
+            return float(default)
+        s = str(x).strip()
+        if POL_TAXA_REMOVER_PERCENTUAL_STRING:
+            s = s.replace('%', '')
+        if POL_TAXA_SUBSTITUIR_VIRGULA_DECIMAL:
+            s = s.replace(',', '.')
+        if not s:
+            return float(default)
+        v = float(s)
+        # Heurística configurável: se for acima do limite, assume percentual; senão, multiplicador
+        if v > POL_TAXA_LIMITE_PERCENTUAL_VS_MULTIPLICADOR:
+            return v / 100.0
+        return v
     except Exception:
-        TZ_BRASIL = None
-try:
-    DATA_REFERENCIA = datetime.now(TZ_BRASIL).date() if TZ_BRASIL is not None else datetime.now().date()
-except Exception:
-    DATA_REFERENCIA = datetime.now().date()
+        return float(default)
 
 # =========================================================
-# configurações globais
+# carteira canônica
 # =========================================================
-NOME_ARQUIVO_LOCAL = str(BASE_DIR_ATIVA / _cfg_get_required_any([["arquivos", "planilha"], ["paths", "excel_local"]]))
-CACHE_BCB_FILE = str(BASE_DIR_ATIVA / _cfg_get_required_any([["arquivos", "cache_bcb"], ["paths", "cache_bcb"]]))
-_PARAM_FILE_NAME = _cfg_get_required_any(
-    [["arquivos", "parametros_5p"], ["arquivos", "melhores_parametros_5p"]]
-)
-PARAM_FILE_5P = str(BASE_DIR_ATIVA / _normalizar_nome_arquivo_json(_PARAM_FILE_NAME))
 
-GOOGLE_SHEETS_FILE_ID = _cfg_get(["google_drive", "sheets_file_id"], None)
-FALLBACK_BCB_FILE_ID = _cfg_get(["google_drive", "fallback_bcb_file_id"], None)
-FALLBACK_PARAM_5P_FILE_ID = _cfg_get(["google_drive", "fallback_param_5p_file_id"], None)
+def _to_bool_produto(valor, default=False):
+    if valor is None:
+        return default
+    try:
+        if isinstance(valor, bool):
+            return valor
+        s = str(valor).strip().lower()
+        if s in {"1", "true", "t", "sim", "s", "ok", "ativo", "yes", "y"}:
+            return True
+        if s in {"0", "false", "f", "nao", "não", "n", "inativo", "no"}:
+            return False
+        return default
+    except Exception:
+        return default
 
-GOOGLE_SHEETS_EXPORT_BASE = _cfg_get_required(["urls", "google_sheets_export_base"])
-GOOGLE_DRIVE_DOWNLOAD_BASE = _cfg_get_required(["urls", "google_drive_download_base"])
-BCB_SERIE_12_URL = _cfg_get_required(["urls", "bcb_sgs_12_url"])
+def _to_int_produto(valor, default=0):
+    if valor is None or valor == "":
+        return default
+    try:
+        s = str(valor).strip().replace(",", ".")
+        return int(float(s))
+    except Exception:
+        return default
 
-ABA_EXTRATO = _cfg_get_required(["saidas", "aba_extrato"])
-ABA_AUDITORIA_EXTRATO = _cfg_get_required(["saidas", "aba_auditoria_extrato"])
-ABA_CARTEIRA_FINAL = _cfg_get_required(["saidas", "aba_carteira_final"])
-ABA_RESUMO = _cfg_get_required(["saidas", "aba_resumo"])
-ABA_SITUACAO_ATUAL = _cfg_get_required(["saidas", "aba_situacao_atual"])
-ABA_SWITCH_DIAGNOSTICO = "switch_diagnostico"
-ABA_SWITCH_EXECUCAO = "switch_execucao"
-TEMPLATE_RESULTADO_ESTRATEGIA = _cfg_get_required(["saidas", "template_arquivo_resultado_estrategia"])
+def _to_float_produto(valor, default=0.0):
+    if valor is None or valor == "":
+        return default
+    try:
+        if isinstance(valor, (int, float)):
+            return float(valor)
+        s = str(valor).strip()
+        s = s.replace("R$", "").replace("%", "").replace(".", "").replace(",", ".")
+        return float(s)
+    except Exception:
+        try:
+            s = str(valor).strip().replace(",", ".")
+            return float(s)
+        except Exception:
+            return default
 
-FALLBACK_BCB_URL = GOOGLE_DRIVE_DOWNLOAD_BASE.format(file_id=FALLBACK_BCB_FILE_ID) if FALLBACK_BCB_FILE_ID else None
-FALLBACK_PARAM_URL_5P = GOOGLE_DRIVE_DOWNLOAD_BASE.format(file_id=FALLBACK_PARAM_5P_FILE_ID) if FALLBACK_PARAM_5P_FILE_ID else None
+def _normalizar_taxa_cdi(valor, *, default=0.0, limite_percentual_vs_multiplicador=10.0):
+    """
+    Converte taxa para multiplicador decimal interno.
+    Exemplos:
+      103   -> 1.03
+      103%  -> 1.03
+      1.03  -> 1.03
+      130   -> 1.30
+    """
+    if valor is None or valor == "":
+        return default
+    try:
+        if isinstance(valor, (int, float)):
+            x = float(valor)
+        else:
+            s = str(valor).strip().replace("%", "").replace(",", ".")
+            x = float(s)
 
-CDI_ANUAL = float(_cfg_get_required(["premissas_mercado", "cdi_anual_modelo"]))
-CONVENCAO_DIAS_ANO_CDI = int(_cfg_get_required(["execucao", "convencao_dias_ano", "cdi"]))
-TAXA_DIA_BASE = ((1 + CDI_ANUAL) ** (1 / CONVENCAO_DIAS_ANO_CDI)) - 1
+        if x >= limite_percentual_vs_multiplicador:
+            return x / 100.0
+        return x
+    except Exception:
+        return default
 
-TAXA_BASE_DEFAULT = float(_cfg_get_required(["defaults_lote", "taxa_base_cdi"]))
-TAXA_BONUS_DEFAULT = float(_cfg_get_required(["defaults_lote", "taxa_bonus_cdi"]))
-DIAS_BONUS_DEFAULT = int(_cfg_get_required(["defaults_lote", "dias_bonus"]))
-PRODUTO_FALLBACK_NOME_RAW = str(_cfg_get_required_any([["defaults", "produto_fallback_nome"], ["defaults_lote", "produto_fallback_nome"]]))
-INVESTIMENTO_REFERENCIA_FUTURO_NOME = str(_cfg_get_any([["defaults", "investimento_referencia_futuro"]], "") or "").strip()
-INVESTIMENTO_REFERENCIA_FUTURO_MATCH_EXATO = bool(_cfg_get_any([["defaults", "investimento_referencia_futuro_match_exato"]], True))
-TAXA_BASE_REFERENCIA_FUTURA_DEFAULT = float(_cfg_get_any([["defaults_lote", "taxa_base_referencia_futura_default"], ["defaults", "taxa_base_referencia_futura_default"]], TAXA_BASE_DEFAULT))
+def _gerar_produto_key(produto_id, nome, normalizar_nome_fn):
+    pid = None if produto_id is None else str(produto_id).strip()
+    if pid:
+        return pid
 
-IOF_TABLE = np.array(_cfg_get_required(["iof", "tabela"]), dtype=np.float64)
-if IOF_TABLE.size == 29:
-    IOF_TABLE = np.concatenate(([1.0], IOF_TABLE))
-elif IOF_TABLE.size != 30:
-    raise RuntimeError(
-        f"config['iof']['tabela'] deve ter 29 ou 30 valores; recebido: {IOF_TABLE.size}."
+    nome = "" if nome is None else str(nome)
+    nome_norm = normalizar_nome_fn(nome) if callable(normalizar_nome_fn) else nome.strip().lower()
+    return f"prod::{nome_norm}"
+
+def _normalizar_texto_produto(valor, default=""):
+    if valor is None:
+        return default
+    try:
+        return " ".join(str(valor).strip().split())
+    except Exception:
+        return default
+
+def normalizar_carteira_bruta(
+    df_carteira,
+    config: dict,
+    contrato: dict,
+    *,
+    normalizar_nome_fn=None,
+):
+    """
+    Constrói a carteira canônica em modo sombra.
+    Não altera o INVESTIMENTOS_NORM ativo.
+    """
+    if normalizar_nome_fn is None:
+        normalizar_nome_fn = lambda x: str(x).strip().lower()
+
+    auditoria = {
+        "colunas_resolvidas": {},
+        "defaults_aplicados": [],
+        "linhas_descartadas": [],
+        "sem_produto_id": 0,
+        "produtos_total": 0,
+    }
+
+    campos = {
+        "produto_id": resolver_coluna(df_carteira, "carteira", "produto_id", required=False),
+        "nome": resolver_coluna(df_carteira, "carteira", "nome", required=True),
+        "tipo": resolver_coluna(df_carteira, "carteira", "tipo", required=False),
+        "indexador": resolver_coluna(df_carteira, "carteira", "indexador", required=False),
+        "taxa_base": resolver_coluna(df_carteira, "carteira", "taxa_base", required=True),
+        "taxa_bonus": resolver_coluna(df_carteira, "carteira", "taxa_bonus", required=False),
+        "dias_bonus": resolver_coluna(df_carteira, "carteira", "dias_bonus", required=False),
+        "carencia_dias": resolver_coluna(df_carteira, "carteira", "carencia_dias", required=False),
+        "liquidez_dias": resolver_coluna(df_carteira, "carteira", "liquidez_dias", required=False),
+        "isento_ir": resolver_coluna(df_carteira, "carteira", "isento_ir", required=False),
+        "ativo": resolver_coluna(df_carteira, "carteira", "ativo", required=False),
+        "aplicacao_minima": resolver_coluna(df_carteira, "carteira", "aplicacao_minima", required=False),
+        "aplicacao_maxima": resolver_coluna(df_carteira, "carteira", "aplicacao_maxima", required=False),
+        "fgc": resolver_coluna(df_carteira, "carteira", "fgc", required=False),
+        "banco_emissor": resolver_coluna(df_carteira, "carteira", "banco_emissor", required=False),
+        "risco_real": resolver_coluna(df_carteira, "carteira", "risco_real", required=False),
+        "somente_combo": resolver_coluna(df_carteira, "carteira", "somente_combo", required=False),
+        "produto_base": resolver_coluna(df_carteira, "carteira", "produto_base", required=False),
+        "produto_bonus": resolver_coluna(df_carteira, "carteira", "produto_bonus", required=False),
+        "ratio_base": resolver_coluna(df_carteira, "carteira", "ratio_base", required=False),
+        "ratio_bonus": resolver_coluna(df_carteira, "carteira", "ratio_bonus", required=False),
+        "max_usos": resolver_coluna(df_carteira, "carteira", "max_usos", required=False),
+    }
+    auditoria["colunas_resolvidas"] = campos.copy()
+
+    limite = None
+    try:
+        if isinstance(contrato, dict):
+            limite = contrato.get("politicas", {}).get("limite_percentual_vs_multiplicador", None)
+    except Exception:
+        limite = None
+
+    if limite is None:
+        try:
+            if isinstance(config, dict):
+                limite = config.get("politicas", {}).get("limite_percentual_vs_multiplicador", 10.0)
+        except Exception:
+            limite = 10.0
+
+    limite = _to_float_produto(limite, 10.0)
+
+    registros = []
+    for idx, row in df_carteira.iterrows():
+        nome = _normalizar_texto_produto(row[campos["nome"]]) if campos["nome"] in df_carteira.columns else ""
+        if not nome:
+            auditoria["linhas_descartadas"].append(
+                {"idx": int(idx), "motivo": "nome_vazio"}
+            )
+            continue
+
+        produto_id_raw = None
+        if campos["produto_id"] and campos["produto_id"] in df_carteira.columns:
+            produto_id_raw = row[campos["produto_id"]]
+        if produto_id_raw is None or str(produto_id_raw).strip() == "":
+            auditoria["sem_produto_id"] += 1
+
+        nome_norm = normalizar_nome_fn(nome)
+        produto_key = _gerar_produto_key(produto_id_raw, nome, normalizar_nome_fn)
+
+        taxa_base = _normalizar_taxa_cdi(
+            row[campos["taxa_base"]] if campos["taxa_base"] in df_carteira.columns else None,
+            default=0.0,
+            limite_percentual_vs_multiplicador=limite,
+        )
+        taxa_bonus = _normalizar_taxa_cdi(
+            row[campos["taxa_bonus"]] if campos["taxa_bonus"] and campos["taxa_bonus"] in df_carteira.columns else None,
+            default=0.0,
+            limite_percentual_vs_multiplicador=limite,
+        )
+
+        reg = {
+            "produto_key": produto_key,
+            "produto_id_raw": None if produto_id_raw is None else str(produto_id_raw).strip(),
+            "nome": nome,
+            "nome_norm": nome_norm,
+            "taxa_base_cdi": taxa_base,
+            "taxa_bonus_cdi": taxa_bonus,
+            "dias_bonus": _to_int_produto(row[campos["dias_bonus"]], 0) if campos["dias_bonus"] and campos["dias_bonus"] in df_carteira.columns else 0,
+            "ativo": _to_bool_produto(row[campos["ativo"]], True) if campos["ativo"] and campos["ativo"] in df_carteira.columns else True,
+            "tipo_produto": _normalizar_texto_produto(row[campos["tipo"]]) if campos["tipo"] and campos["tipo"] in df_carteira.columns else "",
+            "indexador": _normalizar_texto_produto(row[campos["indexador"]]) if campos["indexador"] and campos["indexador"] in df_carteira.columns else "",
+            "carencia_dias": _to_int_produto(row[campos["carencia_dias"]], 0) if campos["carencia_dias"] and campos["carencia_dias"] in df_carteira.columns else 0,
+            "liquidez_dias": _to_int_produto(row[campos["liquidez_dias"]], 0) if campos["liquidez_dias"] and campos["liquidez_dias"] in df_carteira.columns else 0,
+            "isento_ir": _to_bool_produto(row[campos["isento_ir"]], False) if campos["isento_ir"] and campos["isento_ir"] in df_carteira.columns else False,
+            "aplicacao_minima": _to_float_produto(row[campos["aplicacao_minima"]], 0.0) if campos["aplicacao_minima"] and campos["aplicacao_minima"] in df_carteira.columns else 0.0,
+            "aplicacao_maxima": _to_float_produto(row[campos["aplicacao_maxima"]], 0.0) if campos["aplicacao_maxima"] and campos["aplicacao_maxima"] in df_carteira.columns else 0.0,
+            "fgc": _to_bool_produto(row[campos["fgc"]], False) if campos["fgc"] and campos["fgc"] in df_carteira.columns else False,
+            "banco_emissor": _normalizar_texto_produto(row[campos["banco_emissor"]]) if campos["banco_emissor"] and campos["banco_emissor"] in df_carteira.columns else "",
+            "risco_real": _normalizar_texto_produto(row[campos["risco_real"]]) if campos["risco_real"] and campos["risco_real"] in df_carteira.columns else "",
+            "somente_combo": _to_bool_produto(row[campos["somente_combo"]], False) if campos["somente_combo"] and campos["somente_combo"] in df_carteira.columns else False,
+            "produto_base": _normalizar_texto_produto(row[campos["produto_base"]]) if campos["produto_base"] and campos["produto_base"] in df_carteira.columns else "",
+            "produto_bonus": _normalizar_texto_produto(row[campos["produto_bonus"]]) if campos["produto_bonus"] and campos["produto_bonus"] in df_carteira.columns else "",
+            "ratio_base": _to_float_produto(row[campos["ratio_base"]], 0.0) if campos["ratio_base"] and campos["ratio_base"] in df_carteira.columns else 0.0,
+            "ratio_bonus": _to_float_produto(row[campos["ratio_bonus"]], 0.0) if campos["ratio_bonus"] and campos["ratio_bonus"] in df_carteira.columns else 0.0,
+            "max_usos": _to_int_produto(row[campos["max_usos"]], 0) if campos["max_usos"] and campos["max_usos"] in df_carteira.columns else 0,
+        }
+        registros.append(reg)
+
+    df_carteira_norm = pd.DataFrame(registros)
+    auditoria["produtos_total"] = len(df_carteira_norm)
+    return df_carteira_norm, auditoria
+
+def construir_mapa_produtos(
+    df_carteira_norm,
+    *,
+    normalizar_nome_fn=None,
+):
+    """
+    Constrói mapa canônico de produtos em modo sombra.
+    """
+    if normalizar_nome_fn is None:
+        normalizar_nome_fn = lambda x: str(x).strip().lower()
+
+    mapa = {"by_key": {}, "by_nome_norm": {}}
+    auditoria = {
+        "duplicados_produto_key": [],
+        "duplicados_nome_norm": [],
+    }
+
+    for _, row in df_carteira_norm.iterrows():
+        produto_key = row["produto_key"]
+        nome_norm = row["nome_norm"]
+
+        registro = {
+            "produto_key": produto_key,
+            "nome": row["nome"],
+            "nome_norm": nome_norm,
+            "taxa_base_cdi": _safe_float(row["taxa_base_cdi"], 0.0),
+            "taxa_bonus_cdi": _safe_float(row["taxa_bonus_cdi"], 0.0),
+            "dias_bonus": _to_int_produto(row["dias_bonus"], 0),
+            "ativo": bool(row["ativo"]),
+            "tipo_produto": row["tipo_produto"],
+            "indexador": row["indexador"],
+            "carencia_dias": _to_int_produto(row["carencia_dias"], 0),
+            "liquidez_dias": _to_int_produto(row["liquidez_dias"], 0),
+            "isento_ir": bool(row["isento_ir"]),
+            "somente_combo": bool(row["somente_combo"]),
+            "produto_base": row["produto_base"],
+            "produto_bonus": row["produto_bonus"],
+            "ratio_base": _safe_float(row["ratio_base"], 0.0),
+            "ratio_bonus": _safe_float(row["ratio_bonus"], 0.0),
+            "max_usos": _to_int_produto(row["max_usos"], 0),
+            "banco_emissor": row["banco_emissor"],
+            "fgc": bool(row["fgc"]),
+            "risco_real": row["risco_real"],
+        }
+
+        if produto_key in mapa["by_key"]:
+            auditoria["duplicados_produto_key"].append(produto_key)
+        mapa["by_key"][produto_key] = registro
+
+        if nome_norm in mapa["by_nome_norm"]:
+            auditoria["duplicados_nome_norm"].append(nome_norm)
+        mapa["by_nome_norm"][nome_norm] = produto_key
+
+    return mapa, auditoria
+
+def validar_carteira_normalizada(
+    df_carteira_norm,
+    *,
+    abortar_em_erro=False,
+):
+    """
+    Validação mínima em modo sombra. Não aborta por padrão.
+    """
+    auditoria = {
+        "erros": [],
+        "avisos": [],
+        "ok": True,
+    }
+
+    if df_carteira_norm is None or len(df_carteira_norm) == 0:
+        auditoria["erros"].append("carteira_normalizada_vazia")
+
+    if df_carteira_norm is not None and len(df_carteira_norm) > 0:
+        if df_carteira_norm["produto_key"].isna().any():
+            auditoria["erros"].append("produto_key_nulo")
+        if df_carteira_norm["produto_key"].duplicated().any():
+            auditoria["erros"].append("produto_key_duplicado")
+        if df_carteira_norm["nome_norm"].isna().any():
+            auditoria["erros"].append("nome_norm_nulo")
+        if df_carteira_norm["nome_norm"].duplicated().any():
+            auditoria["erros"].append("nome_norm_duplicado")
+
+        try:
+            invalidos = df_carteira_norm[df_carteira_norm["dias_bonus"] < 0]
+            if len(invalidos) > 0:
+                auditoria["avisos"].append(f"dias_bonus_negativo={len(invalidos)}")
+        except Exception:
+            pass
+
+        for campo in ("carencia_dias", "liquidez_dias"):
+            try:
+                invalidos = df_carteira_norm[df_carteira_norm[campo] < 0]
+                if len(invalidos) > 0:
+                    auditoria["avisos"].append(f"{campo}_negativo={len(invalidos)}")
+            except Exception:
+                pass
+
+        try:
+            invalidos = df_carteira_norm[df_carteira_norm["taxa_base_cdi"].isna()]
+            if len(invalidos) > 0:
+                auditoria["avisos"].append(f"taxa_base_nula={len(invalidos)}")
+        except Exception:
+            pass
+
+    if auditoria["erros"]:
+        auditoria["ok"] = False
+        if abortar_em_erro:
+            raise ValueError(f"Carteira canônica inválida: {auditoria['erros']}")
+
+    return auditoria
+
+def projetar_investimentos_norm_legado(
+    df_carteira_norm,
+):
+    """
+    Projeta a carteira canônica para o formato legado de INVESTIMENTOS_NORM.
+    NÃO substitui a estrutura atual; apenas gera INVESTIMENTOS_NORM_NEW.
+
+    Mantém compatibilidade total com o contrato legado consumido por
+    get_taxas_lote(), expondo também as chaves:
+    - base
+    - bonus
+    - dias_bonus
+    """
+    investimentos = {}
+    for _, row in df_carteira_norm.iterrows():
+        nome_norm = row["nome_norm"]
+        base = _safe_float(row["taxa_base_cdi"], 0.0)
+        bonus = _safe_float(row["taxa_bonus_cdi"], 0.0)
+        dias_bonus = _to_int_produto(row["dias_bonus"], 0)
+
+        investimentos[nome_norm] = {
+            "investimento": row["nome"],
+            "base": base,
+            "bonus": bonus,
+            "dias_bonus": dias_bonus,
+
+            "taxa_base_cdi": base,
+            "taxa_bonus_cdi": bonus,
+            "produto_key": row["produto_key"],
+            "ativo": bool(row["ativo"]),
+            "somente_combo": bool(row["somente_combo"]),
+        }
+    return investimentos
+
+def comparar_investimentos_norm(
+    investimentos_old: dict | None,
+    investimentos_new: dict | None,
+    *,
+    tolerancia: float = 1e-12,
+):
+    """
+    Compara INVESTIMENTOS_NORM legado com a projeção canônica em modo sombra.
+    """
+    old = investimentos_old or {}
+    new = investimentos_new or {}
+
+    chaves_old = set(old.keys())
+    chaves_new = set(new.keys())
+
+    divergencias_taxa_base = []
+    divergencias_taxa_bonus = []
+    divergencias_dias_bonus = []
+
+    for k in sorted(chaves_old & chaves_new):
+        vo = old.get(k, {})
+        vn = new.get(k, {})
+
+        base_old = _safe_float(vo.get("taxa_base_cdi", vo.get("base")), 0.0)
+        base_new = _safe_float(vn.get("taxa_base_cdi", vn.get("base")), 0.0)
+        if abs(base_old - base_new) > tolerancia:
+            divergencias_taxa_base.append((k, base_old, base_new))
+
+        bonus_old = _safe_float(vo.get("taxa_bonus_cdi", vo.get("bonus")), 0.0)
+        bonus_new = _safe_float(vn.get("taxa_bonus_cdi", vn.get("bonus")), 0.0)
+        if abs(bonus_old - bonus_new) > tolerancia:
+            divergencias_taxa_bonus.append((k, bonus_old, bonus_new))
+
+        dias_old = _to_int_produto(vo.get("dias_bonus"), 0)
+        dias_new = _to_int_produto(vn.get("dias_bonus"), 0)
+        if dias_old != dias_new:
+            divergencias_dias_bonus.append((k, dias_old, dias_new))
+
+    iguais_essenciais = (
+        len(chaves_old - chaves_new) == 0 and
+        len(chaves_new - chaves_old) == 0 and
+        len(divergencias_taxa_base) == 0 and
+        len(divergencias_taxa_bonus) == 0 and
+        len(divergencias_dias_bonus) == 0
     )
 
-IR_FAIXAS = {}
-for faixa in _cfg_get_required(["ir", "faixas"]):
-    dias_max = faixa.get("dias_max")
-    chave = 9999 if dias_max is None else int(dias_max)
-    aliquota = float(faixa["aliquota"])
-    IR_FAIXAS[chave] = {"ir": aliquota, "proxima": aliquota, "delta": 0.0}
+    return {
+        "qtd_old": len(old),
+        "qtd_new": len(new),
+        "chaves_somente_old": sorted(list(chaves_old - chaves_new)),
+        "chaves_somente_new": sorted(list(chaves_new - chaves_old)),
+        "divergencias_taxa_base": divergencias_taxa_base,
+        "divergencias_taxa_bonus": divergencias_taxa_bonus,
+        "divergencias_dias_bonus": divergencias_dias_bonus,
+        "iguais_essenciais": iguais_essenciais,
+    }
 
-if not IR_FAIXAS:
-    raise RuntimeError("config['ir']['faixas'] não pode estar vazio.")
+def ativar_investimentos_norm_controlado(
+    investimentos_old: dict | None,
+    investimentos_new: dict | None,
+    *,
+    usar_novo: bool = True,
+):
+    """Decide qual mapa será ativado inicialmente."""
+    old = investimentos_old or {}
+    new = investimentos_new or {}
 
-_ordenadas = sorted(IR_FAIXAS.keys())
-for i, chave in enumerate(_ordenadas):
-    prox = _ordenadas[i + 1] if i + 1 < len(_ordenadas) else chave
-    IR_FAIXAS[chave]["proxima"] = IR_FAIXAS[prox]["ir"]
-    IR_FAIXAS[chave]["delta"] = max(0.0, IR_FAIXAS[chave]["ir"] - IR_FAIXAS[prox]["ir"])
+    meta = {
+        "fonte_ativa": None,
+        "qtd_old": len(old),
+        "qtd_new": len(new),
+        "motivo": None,
+    }
 
-IR_MARCOS_CLIFF = tuple(sorted(int(f["dias_max"]) for f in _cfg_get_required(["ir", "faixas"]) if f.get("dias_max") is not None))
-IR_MARCOS_CLIFF_NUMBA = np.array(IR_MARCOS_CLIFF, dtype=np.int64)
-DIAS_CLIFF_IR = int(_cfg_get_required(["pagamento", "dias_cliff_ir"]))
-LOTES_MONITORADOS_LIQUIDO = set(_cfg_get_required(["auditoria", "lotes_monitorados_liquido"]))
-TOLERANCIA_MONETARIA = float(_cfg_get_required(["replay", "tolerancia_monetaria"]))
-VALOR_MINIMO_LOTE_ATIVO = float(_cfg_get_required(["replay", "valor_minimo_lote_ativo"]))
-VALOR_MINIMO_RESGATE_BRUTO = float(_cfg_get_required(["pagamento", "valor_minimo_resgate_bruto"]))
+    if not usar_novo:
+        meta["fonte_ativa"] = "old"
+        meta["motivo"] = "flag_uso_novo_false"
+        return old, meta
 
-TREINAMENTO_PERFIS = _cfg_get_required(["treinamento", "perfis"])
+    if not isinstance(new, dict) or len(new) == 0:
+        meta["fonte_ativa"] = "old"
+        meta["motivo"] = "novo_indisponivel_ou_vazio"
+        return old, meta
 
-TREINAMENTO_TEMPO_ALVO_MINIMO_ABSOLUTO = int(_cfg_get_required(["treinamento", "modo_auto", "tempo_alvo_minimo_absoluto"]))
-TREINAMENTO_AUTO_TEMPO_ALVO_CURTO_MAX = int(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "tempo_alvo_curto_max"]))
-TREINAMENTO_AUTO_TEMPO_ALVO_LONGO_MIN = int(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "tempo_alvo_longo_min"]))
-TREINAMENTO_AUTO_CARGA_MEDIA_MIN = float(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "carga_media_min"]))
-TREINAMENTO_AUTO_CARGA_ALTA_MIN = float(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "carga_alta_min"]))
-TREINAMENTO_AUTO_CARGA_BAIXA_MAX = float(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "carga_baixa_max"]))
-TREINAMENTO_MAX_CONTAS_PADRAO = int(_cfg_get_required(["treinamento", "reducao_contas", "max_contas_padrao"]))
+    meta["fonte_ativa"] = "new"
+    meta["motivo"] = "novo_disponivel"
+    return new, meta
 
-MODO_TREINAMENTO_PADRAO = str(_cfg_get_required(["execucao", "defaults_interativos", "modo_treinamento_padrao"]))
-PERFIL_TREINO_PADRAO = str(_cfg_get_required(["execucao", "defaults_interativos", "perfil_treino_padrao"]))
-PERFIL_TREINO_AUTO_OPCAO = str(_cfg_get_required(["execucao", "defaults_interativos", "perfil_treino_auto_opcao"]))
-TEMPO_ALVO_AUTO_PADRAO_MINUTOS = int(_cfg_get_required(["execucao", "defaults_interativos", "tempo_alvo_auto_padrao_minutos"]))
+def _comparar_reconhecimento_coluna_produto(df_lotes, col_produto, investimentos_map, *, normalizar_nome_fn=None):
+    """Mede reconhecimento dos valores de uma coluna de produto contra um mapa de investimentos."""
+    if normalizar_nome_fn is None:
+        normalizar_nome_fn = lambda x: str(x).strip().lower()
 
-HORIZONTE_PROJECAO_DIAS = int(_cfg_get_required(["simulacao", "horizonte_extra_dias"]))
+    reconhecidos = set()
+    nao_reconhecidos = set()
+    total_validos = 0
+    reconhecidos_por_valor = 0
 
-CFG_OPT_GEN = _cfg_get_required(["otimizacao", "genetica_profunda"])
-CFG_OPT_PEN = _cfg_get_required(["otimizacao", "penalidade_5p"])
+    if col_produto is None or col_produto not in df_lotes.columns:
+        return {
+            "qtd_reconhecidos": 0,
+            "qtd_nao_reconhecidos": 0,
+            "reconhecidos": [],
+            "nao_reconhecidos": [],
+            "match_rate": 0.0,
+        }
 
-OPT_GEN_SEED = int(_cfg_get_required(["otimizacao", "genetica_profunda", "seed"]))
-OPT_GEN_STRATEGY = str(_cfg_get_required(["otimizacao", "genetica_profunda", "strategy"]))
-OPT_GEN_UPDATING = str(_cfg_get_required(["otimizacao", "genetica_profunda", "updating"]))
-OPT_GEN_INIT_SEM_POPULACAO_INICIAL = str(_cfg_get_required(["otimizacao", "genetica_profunda", "init_sem_populacao_inicial"]))
-OPT_GEN_WORKERS = int(_cfg_get_required(["otimizacao", "genetica_profunda", "workers"]))
+    for valor in df_lotes[col_produto].tolist():
+        if valor is None:
+            continue
+        s = str(valor).strip()
+        if s == "" or s.lower() == "nan":
+            continue
 
-OPT_PEN_SEED = int(_cfg_get_required(["otimizacao", "penalidade_5p", "seed"]))
-OPT_PEN_STRATEGY = str(_cfg_get_required(["otimizacao", "penalidade_5p", "strategy"]))
-OPT_PEN_UPDATING = str(_cfg_get_required(["otimizacao", "penalidade_5p", "updating"]))
-OPT_PEN_INIT_SEM_POPULACAO_INICIAL = str(_cfg_get_required(["otimizacao", "penalidade_5p", "init_sem_populacao_inicial"]))
-OPT_PEN_WORKERS = int(_cfg_get_required(["otimizacao", "penalidade_5p", "workers"]))
+        total_validos += 1
+        nome_norm = normalizar_nome_fn(s)
+        if nome_norm in investimentos_map:
+            reconhecidos.add(nome_norm)
+            reconhecidos_por_valor += 1
+        else:
+            nao_reconhecidos.add(nome_norm)
 
-CFG_OPT_GEN_POP_INIT = CFG_OPT_GEN.get("populacao_inicial", {}) or {}
-OPT_GEN_DIVISOR_POPSIZE_CLONES = int(CFG_OPT_GEN_POP_INIT.get("divisor_popsize_clones", 3))
-OPT_GEN_MIN_CLONES = int(CFG_OPT_GEN_POP_INIT.get("min_clones", 1))
-OPT_GEN_RUIDO_GAUSSIANO_MEDIA = float(CFG_OPT_GEN_POP_INIT.get("ruido_gaussiano_media", 0.0))
-OPT_GEN_RUIDO_GAUSSIANO_DESVIO = float(CFG_OPT_GEN_POP_INIT.get("ruido_gaussiano_desvio", 0.1))
-if OPT_GEN_DIVISOR_POPSIZE_CLONES < 1:
-    raise ValueError("otimizacao/genetica_profunda/populacao_inicial/divisor_popsize_clones deve ser >= 1")
-if OPT_GEN_MIN_CLONES < 0:
-    raise ValueError("otimizacao/genetica_profunda/populacao_inicial/min_clones deve ser >= 0")
-if OPT_GEN_RUIDO_GAUSSIANO_DESVIO < 0:
-    raise ValueError("otimizacao/genetica_profunda/populacao_inicial/ruido_gaussiano_desvio deve ser >= 0")
+    match_rate = (reconhecidos_por_valor / total_validos) if total_validos > 0 else 0.0
 
-CFG_OPT_PEN_POP_INIT = CFG_OPT_PEN.get("populacao_inicial", {}) or {}
-OPT_PEN_DIVISOR_POPSIZE_CLONES = int(CFG_OPT_PEN_POP_INIT.get("divisor_popsize_clones", 3))
-OPT_PEN_MIN_CLONES = int(CFG_OPT_PEN_POP_INIT.get("min_clones", 1))
-OPT_PEN_RUIDO_GAUSSIANO_MEDIA = float(CFG_OPT_PEN_POP_INIT.get("ruido_gaussiano_media", 0.0))
-OPT_PEN_RUIDO_GAUSSIANO_DESVIO = float(CFG_OPT_PEN_POP_INIT.get("ruido_gaussiano_desvio", 0.1))
-if OPT_PEN_DIVISOR_POPSIZE_CLONES < 1:
-    raise ValueError("otimizacao/penalidade_5p/populacao_inicial/divisor_popsize_clones deve ser >= 1")
-if OPT_PEN_MIN_CLONES < 0:
-    raise ValueError("otimizacao/penalidade_5p/populacao_inicial/min_clones deve ser >= 0")
-if OPT_PEN_RUIDO_GAUSSIANO_DESVIO < 0:
-    raise ValueError("otimizacao/penalidade_5p/populacao_inicial/ruido_gaussiano_desvio deve ser >= 0")
+    return {
+        "qtd_reconhecidos": len(reconhecidos),
+        "qtd_nao_reconhecidos": len(nao_reconhecidos),
+        "reconhecidos": sorted(list(reconhecidos)),
+        "nao_reconhecidos": sorted(list(nao_reconhecidos)),
+        "match_rate": match_rate,
+    }
 
-def _cfg_bounds_to_tuples(cfg_dict, *path, expected_dims=5):
-    cur = cfg_dict
-    for k in path:
-        if not isinstance(cur, dict) or k not in cur:
-            raise KeyError(f"Chave obrigatória ausente no config: {'/'.join(path)}")
-        cur = cur[k]
-    raw = cur
-    if not isinstance(raw, list):
-        raise TypeError(f"Bounds em {'/'.join(path)} devem ser uma lista.")
-    if len(raw) != expected_dims:
-        raise ValueError(f"Bounds em {'/'.join(path)} devem ter {expected_dims} dimensões, encontrado {len(raw)}.")
-    bounds = []
-    for i, item in enumerate(raw):
-        if not isinstance(item, (list, tuple)) or len(item) != 2:
-            raise ValueError(f"Bound na posição {i} em {'/'.join(path)} deve ter exatamente 2 valores.")
-        lo, hi = float(item[0]), float(item[1])
-        if lo > hi:
-            raise ValueError(f"Bound inválido na posição {i} em {'/'.join(path)}: mínimo {lo} maior que máximo {hi}.")
-        bounds.append((lo, hi))
-    return bounds
+def comparar_matching_produtos_lotes(
+    df_lotes,
+    investimentos_old: dict,
+    investimentos_new: dict,
+    *,
+    normalizar_nome_fn=None,
+):
+    """Compara o efeito do mapa antigo vs novo no matching dos produtos dos lotes."""
+    if normalizar_nome_fn is None:
+        normalizar_nome_fn = lambda x: str(x).strip().lower()
 
-OPT_GEN_BOUNDS = _cfg_bounds_to_tuples(config, "otimizacao", "genetica_profunda", "bounds")
-OPT_PEN_BOUNDS = _cfg_bounds_to_tuples(config, "otimizacao", "penalidade_5p", "bounds")
+    coluna_old = selecionar_coluna_produto_lote(
+        df_lotes,
+        investimentos_old or {}
+    )
+    coluna_new = selecionar_coluna_produto_lote(
+        df_lotes,
+        investimentos_new or {}
+    )
 
-def obter_aliquota_ir(dias_vida):
-    dias_vida = int(dias_vida)
-    for threshold in sorted(IR_FAIXAS.keys()):
-        if dias_vida <= threshold:
-            return float(IR_FAIXAS[threshold]["ir"])
-    ultima = max(IR_FAIXAS.keys())
-    return float(IR_FAIXAS[ultima]["ir"])
+    metricas_old = _comparar_reconhecimento_coluna_produto(
+        df_lotes,
+        coluna_old,
+        investimentos_old or {},
+        normalizar_nome_fn=normalizar_nome_fn,
+    )
+    metricas_new = _comparar_reconhecimento_coluna_produto(
+        df_lotes,
+        coluna_new,
+        investimentos_new or {},
+        normalizar_nome_fn=normalizar_nome_fn,
+    )
 
-IR_THRESHOLDS_NUMBA = np.array(sorted(IR_FAIXAS.keys()), dtype=np.int64)
-IR_ALIQUOTAS_NUMBA = np.array([float(IR_FAIXAS[k]["ir"]) for k in sorted(IR_FAIXAS.keys())], dtype=np.float64)
+    somente_old = sorted(list(set(metricas_old["reconhecidos"]) - set(metricas_new["reconhecidos"])))
+    somente_new = sorted(list(set(metricas_new["reconhecidos"]) - set(metricas_old["reconhecidos"])))
 
-@njit(nogil=True, fastmath=True)
-def obter_aliquota_ir_numba(dias_vida, thresholds, aliquotas):
-    dias_vida = int(dias_vida)
-    for i in range(len(thresholds)):
-        if dias_vida <= thresholds[i]:
-            return aliquotas[i]
-    return aliquotas[len(aliquotas) - 1]
+    matching_identico = (
+        coluna_old == coluna_new
+        and abs(metricas_old["match_rate"] - metricas_new["match_rate"]) <= 1e-12
+        and metricas_old["qtd_reconhecidos"] == metricas_new["qtd_reconhecidos"]
+        and len(somente_old) == 0
+        and len(somente_new) == 0
+    )
 
+    return {
+        "coluna_produto_old": coluna_old,
+        "coluna_produto_new": coluna_new,
+        "match_old": metricas_old["match_rate"],
+        "match_new": metricas_new["match_rate"],
+        "qtd_reconhecidos_old": metricas_old["qtd_reconhecidos"],
+        "qtd_reconhecidos_new": metricas_new["qtd_reconhecidos"],
+        "qtd_nao_reconhecidos_old": metricas_old["qtd_nao_reconhecidos"],
+        "qtd_nao_reconhecidos_new": metricas_new["qtd_nao_reconhecidos"],
+        "somente_old": somente_old,
+        "somente_new": somente_new,
+        "matching_identico": matching_identico,
+    }
 
-def distancia_proximo_cliff_ir(dias_vida):
-    dias_vida = int(dias_vida)
-    for marco in IR_MARCOS_CLIFF:
-        if dias_vida < marco:
-            return marco - dias_vida
-    return 999
+def decidir_rollback_investimentos_norm(comparacao_matching: dict) -> bool:
+    """Decide se deve haver rollback local para o mapa antigo."""
+    if not isinstance(comparacao_matching, dict):
+        return True
 
-@njit(nogil=True, fastmath=True)
-def distancia_proximo_cliff_ir_numba(dias_vida):
-    dias_vida = int(dias_vida)
-    for i in range(len(IR_MARCOS_CLIFF_NUMBA)):
-        marco = IR_MARCOS_CLIFF_NUMBA[i]
-        if dias_vida < marco:
-            return float(marco - dias_vida)
-    return 999.0
+    if comparacao_matching.get("coluna_produto_old") != comparacao_matching.get("coluna_produto_new"):
+        return True
 
-cal = Brazil()
+    match_old = _safe_float(comparacao_matching.get("match_old"), 0.0)
+    match_new = _safe_float(comparacao_matching.get("match_new"), 0.0)
+    if match_new + 1e-12 < match_old:
+        return True
+
+    if comparacao_matching.get("qtd_reconhecidos_new", 0) < comparacao_matching.get("qtd_reconhecidos_old", 0):
+        return True
+
+    if len(comparacao_matching.get("somente_old", [])) > 0:
+        return True
+
+    if not bool(comparacao_matching.get("matching_identico", False)):
+        return True
+
+    return False
+
+def logar_ativacao_investimentos_norm(meta_ativacao: dict, comparacao_matching: dict | None = None, rollback: bool | None = None):
+    """Loga ativação e eventual rollback do mapa de investimentos."""
+    if isinstance(meta_ativacao, dict):
+        print(
+            "[SWAP-INVEST] "
+            f"fonte_ativa_inicial={meta_ativacao.get('fonte_ativa')} "
+            f"qtd_old={meta_ativacao.get('qtd_old')} "
+            f"qtd_new={meta_ativacao.get('qtd_new')} "
+            f"motivo={meta_ativacao.get('motivo')}"
+        )
+
+    if isinstance(comparacao_matching, dict):
+        print(
+            "[SWAP-INVEST] "
+            f"coluna_old={comparacao_matching.get('coluna_produto_old')} "
+            f"coluna_new={comparacao_matching.get('coluna_produto_new')} "
+            f"match_old={comparacao_matching.get('match_old'):.3f} "
+            f"match_new={comparacao_matching.get('match_new'):.3f}"
+        )
+        print(
+            "[SWAP-INVEST] "
+            f"qtd_reconhecidos_old={comparacao_matching.get('qtd_reconhecidos_old')} "
+            f"qtd_reconhecidos_new={comparacao_matching.get('qtd_reconhecidos_new')} "
+            f"rollback={rollback}"
+        )
+
+    if isinstance(meta_ativacao, dict) and "fonte_ativa_final" in meta_ativacao:
+        print(
+            "[SWAP-INVEST] "
+            f"fonte_ativa_final={meta_ativacao.get('fonte_ativa_final')} "
+            f"motivo_final={meta_ativacao.get('motivo_final')}"
+        )
+
+def carregar_investimentos():
+    """Lê a aba configurada de carteira e retorna dicionário normalizado com as regras."""
+    try:
+        df = pd.read_excel(NOME_ARQUIVO_LOCAL, sheet_name=nome_aba("carteira"))
+        col_nome = resolver_coluna(df, "carteira", "nome")
+        col_taxa_base = resolver_coluna(df, "carteira", "taxa_base")
+        col_taxa_bonus = resolver_coluna(df, "carteira", "taxa_bonus", required=False)
+        col_dias_bonus = resolver_coluna(df, "carteira", "dias_bonus", required=False)
+
+        invest = {}
+        for _, row in df.iterrows():
+            nome = str(row[col_nome]).strip()
+            if not nome or nome.lower() in ("nan", "none"):
+                continue
+
+            bonus_raw = row.get(col_taxa_bonus) if col_taxa_bonus else None
+            invest[normalizar_nome(nome)] = {
+                "base": _to_cdi_multiplier(row.get(col_taxa_base), default=TAXA_BASE_DEFAULT),
+                "bonus": None if (bonus_raw is None or (isinstance(bonus_raw, float) and pd.isna(bonus_raw))) else _to_cdi_multiplier(bonus_raw, default=TAXA_BONUS_DEFAULT),
+                "dias_bonus": int(row[col_dias_bonus]) if col_dias_bonus and pd.notna(row.get(col_dias_bonus)) else DIAS_BONUS_DEFAULT,
+                "nome_original": nome,
+            }
+
+        print(f" >>> Carregados {len(invest)} investimentos da aba {nome_aba('carteira')}.")
+
+        investimentos_norm_new = invest
+        try:
+            global MAPA_PRODUTOS_CANONICO
+
+            df_carteira = pd.read_excel(NOME_ARQUIVO_LOCAL, sheet_name=nome_aba("carteira"))
+            carteira_canonica_df, _ = normalizar_carteira_bruta(
+                df_carteira,
+                config,
+                CONTRATO_OPERACIONAL,
+                normalizar_nome_fn=normalizar_nome,
+            )
+            MAPA_PRODUTOS_CANONICO, _ = construir_mapa_produtos(
+                carteira_canonica_df,
+                normalizar_nome_fn=normalizar_nome,
+            )
+
+            auditoria_validacao_carteira = validar_carteira_normalizada(
+                carteira_canonica_df,
+                abortar_em_erro=False,
+            )
+            investimentos_norm_new = projetar_investimentos_norm_legado(carteira_canonica_df)
+            comparacao_investimentos_norm = comparar_investimentos_norm(invest, investimentos_norm_new)
+
+            if DEBUG_SHADOW:
+                log_debug(
+                    DEBUG_SHADOW,
+                    "SHADOW-CARTEIRA",
+                    produtos_norm=len(carteira_canonica_df),
+                    mapa_by_key=len(MAPA_PRODUTOS_CANONICO.get("by_key", {})),
+                    investimentos_new=len(investimentos_norm_new),
+                )
+                log_debug(
+                    DEBUG_SHADOW,
+                    "SHADOW-CARTEIRA",
+                    iguais_essenciais=comparacao_investimentos_norm.get("iguais_essenciais"),
+                    somente_old=len(comparacao_investimentos_norm.get("chaves_somente_old", [])),
+                    somente_new=len(comparacao_investimentos_norm.get("chaves_somente_new", [])),
+                    div_base=len(comparacao_investimentos_norm.get("divergencias_taxa_base", [])),
+                    div_bonus=len(comparacao_investimentos_norm.get("divergencias_taxa_bonus", [])),
+                    div_dias=len(comparacao_investimentos_norm.get("divergencias_dias_bonus", [])),
+                )
+
+                avisos = auditoria_validacao_carteira.get("avisos")
+                erros = auditoria_validacao_carteira.get("erros")
+                if avisos:
+                    print(f"[SHADOW-CARTEIRA] avisos_validacao={avisos}")
+                if erros:
+                    print(f"[SHADOW-CARTEIRA] erros_validacao={erros}")
+
+        except Exception as e:
+            print(f"[SHADOW-CARTEIRA] erro={e}")
+
+        investimentos_norm_old = dict(invest) if isinstance(invest, dict) else {}
+        try:
+            investimentos_norm_ativo, meta_ativacao_invest = ativar_investimentos_norm_controlado(
+                investimentos_norm_old,
+                investimentos_norm_new,
+                usar_novo=USAR_INVESTIMENTOS_NORM_NEW,
+            )
+
+            df_lotes = pd.read_excel(NOME_ARQUIVO_LOCAL, sheet_name=nome_aba("lotes"))
+            comparacao_matching_lotes = comparar_matching_produtos_lotes(
+                df_lotes,
+                investimentos_norm_old,
+                investimentos_norm_ativo,
+                normalizar_nome_fn=normalizar_nome,
+            )
+
+            rollback_investimentos_norm = decidir_rollback_investimentos_norm(comparacao_matching_lotes)
+            if rollback_investimentos_norm:
+                investimentos_norm_ativo = investimentos_norm_old
+                meta_ativacao_invest["fonte_ativa_final"] = "old"
+                meta_ativacao_invest["motivo_final"] = "rollback_matching"
+            else:
+                meta_ativacao_invest["fonte_ativa_final"] = meta_ativacao_invest.get("fonte_ativa")
+                meta_ativacao_invest["motivo_final"] = "matching_preservado"
+
+            if DEBUG_SHADOW or rollback_investimentos_norm:
+                logar_ativacao_investimentos_norm(
+                    meta_ativacao_invest,
+                    comparacao_matching_lotes,
+                    rollback=rollback_investimentos_norm,
+                )
+
+            invest = investimentos_norm_ativo
+
+        except Exception as e:
+            try:
+                if investimentos_norm_old:
+                    invest = investimentos_norm_old
+            except Exception:
+                pass
+            print(f"[SWAP-INVEST] erro={e}")
+            print("[SWAP-INVEST] fonte_ativa_final=old motivo_final=erro_no_swap")
+
+        return invest
+    except Exception as e:
+        print(f" >>> [AVISO] Não foi possível carregar a carteira: {e}")
+        return {}
+
+def obter_taxa_base_referencia_futura(default=None):
+    """Retorna a taxa base de referência para projeções futuras.
+
+    Prioriza o investimento de referência configurado e preserva fallback compatível.
+    """
+    if default is None:
+        default = TAXA_BASE_REFERENCIA_FUTURA_DEFAULT
+
+    ref_nome_norm = normalizar_nome(INVESTIMENTO_REFERENCIA_FUTURO_NOME)
+
+    if INVESTIMENTO_REFERENCIA_FUTURO_MATCH_EXATO:
+        info = INVESTIMENTOS_NORM.get(ref_nome_norm)
+        if info is not None:
+            try:
+                return float(info.get('base', default))
+            except Exception:
+                return float(default)
+    else:
+        for nome_norm, info in INVESTIMENTOS_NORM.items():
+            if ref_nome_norm and ref_nome_norm in nome_norm:
+                try:
+                    return float(info.get('base', default))
+                except Exception:
+                    return float(default)
+
+    for nome_norm, info in INVESTIMENTOS_NORM.items():
+        if 'sofisa' in nome_norm and '105' in nome_norm:
+            try:
+                return float(info.get('base', default))
+            except Exception:
+                return float(default)
+    return float(default)
+
+def get_taxas_lote(nome_investimento):
+    """Retorna (taxa_base, taxa_bonus, dias_bonus) para o investimento, com fallback."""
+    if nome_investimento and str(nome_investimento).lower() not in ('nan', 'none', ''):
+        nome_norm = normalizar_nome(nome_investimento)
+        info = INVESTIMENTOS_NORM.get(nome_norm)
+        if info:
+            return info['base'], info['bonus'] or 0.0, info['dias_bonus']
+    info_turb = INVESTIMENTOS_NORM.get(PRODUTO_FALLBACK_NOME)
+    if info_turb:
+        return info_turb['base'], info_turb['bonus'] or 0.0, info_turb['dias_bonus']
+    return TAXA_BASE_DEFAULT, TAXA_BONUS_DEFAULT, DIAS_BONUS_DEFAULT
+
+def carregar_valores_originais_lotes(nome_arquivo: str) -> dict:
+    """Carrega valores originais por lote para relatórios e validações."""
+    try:
+        df_lotes_orig = pd.read_excel(nome_arquivo, sheet_name=nome_aba('lotes'))
+        col_id = selecionar_coluna_id_lote(df_lotes_orig, contexto='aba de lotes (valores originais)')
+        valores_originais = {}
+        for _, row in df_lotes_orig.iterrows():
+            lid = str(row[col_id]).strip()
+            if not lid:
+                continue
+            col_valor = resolver_coluna(df_lotes_orig, 'lotes', 'valor_original')
+            valores_originais[lid] = float(row[col_valor])
+        print(f" -> Valores originais carregados para {len(valores_originais)} lotes.")
+        return valores_originais
+    except Exception as e:
+        print(f"Aviso: não foi possível carregar valores originais - {e}")
+        return {}
+
+def acumular_saques_por_lote(log_movimentos):
+    """Acumula saques bruto e líquido por lote a partir do log histórico."""
+    total_bruto = {}
+    total_liquido = {}
+    for entrada in log_movimentos:
+        lote_id = str(entrada.get('Lote'))
+        total_bruto[lote_id] = total_bruto.get(lote_id, 0.0) + float(entrada.get('Bruto', 0.0))
+        total_liquido[lote_id] = total_liquido.get(lote_id, 0.0) + float(entrada.get('Liquido', 0.0))
+    return total_bruto, total_liquido
+
+def obter_data_referencia_relatorio(data_referencia=None):
+    """Retorna a data-base operacional do relatório.
+
+    Modelo financeiro adotado:
+    - o saldo atual deve refletir a posição do app bancário na data de referência
+      do Brasil (America/Sao_Paulo);
+    - para datas ainda não publicadas no BCB, o script já possui uma taxa futura
+      de referência (TAXA_PROJ) e deve projetar esses dias úteis faltantes;
+    - portanto, a data-base do relatório é a própria DATA_REFERENCIA, e não a
+      penúltima/última data do mapa BCB.
+
+    O mapa do BCB continua sendo usado sempre que existir taxa real para a data;
+    nos dias úteis posteriores ao último ponto do mapa, o motor aplica TAXA_PROJ.
+    """
+    if data_referencia is None:
+        data_referencia = DATA_REFERENCIA
+    return data_referencia
+
+def dinheiro_round(valor):
+    return float(Decimal(str(valor)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+def ordenar_contas_processamento(contas):
+    """Ordena contas de forma estável e canônica, preservando a ordem original da planilha.
+
+    Formato aceito:
+    - (data, valor, desc)
+    - (data, valor, desc, ordem)
+    - (data, valor, desc, lote, ordem)
+    """
+    def _key(c):
+        data = c[0]
+        valor = float(c[1]) if len(c) > 1 else 0.0
+        desc = str(c[2]) if len(c) > 2 else ""
+        if len(c) >= 5:
+            ordem = int(c[4]) if c[4] is not None else ORDEM_PROCESSAMENTO_SENTINELA
+        elif len(c) == 4 and not isinstance(c[3], str):
+            ordem = int(c[3]) if c[3] is not None else ORDEM_PROCESSAMENTO_SENTINELA
+        else:
+            ordem = ORDEM_PROCESSAMENTO_SENTINELA
+        return (data, ordem, desc, valor)
+    return sorted(contas, key=_key)
+
+def obter_data_fiscal_liquido_relatorio(data_fiscal_relatorio, data_base_fiscal):
+    return max(data_base_fiscal, data_fiscal_relatorio)
+
+def calcular_liquido_atual_relatorio(lote, saldo_bruto_atual, data_resgate_fiscal):
+    dias_vida = (data_resgate_fiscal - lote.data_base_fiscal).days
+    if dias_vida < 0:
+        return 0.0
+    iof = IOF_TABLE[dias_vida] if dias_vida < 30 else 0.0
+    ir = obter_aliquota_ir(dias_vida)
+    principal_base = max(min(float(getattr(lote, 'principal_remanescente', lote.valor_inicial)), saldo_bruto_atual), 0.0)
+    lucro = max(saldo_bruto_atual - principal_base, 0.0)
+    taxa_total = iof + (1 - iof) * ir
+    imposto = dinheiro_round(lucro * taxa_total)
+    liquido = dinheiro_round(max(saldo_bruto_atual - imposto, 0.0))
+    return liquido
+
+def diagnosticar_liquido_atual_relatorio(lote, saldo_bruto_atual, data_resgate_fiscal):
+    dias_vida = (data_resgate_fiscal - lote.data_base_fiscal).days
+    principal_base = max(min(float(getattr(lote, 'principal_remanescente', lote.valor_inicial)), saldo_bruto_atual), 0.0)
+    lucro = max(saldo_bruto_atual - principal_base, 0.0)
+    if dias_vida < 0:
+        return {
+            'dias_vida': dias_vida,
+            'principal_base': dinheiro_round(principal_base),
+            'lucro': dinheiro_round(lucro),
+            'iof_aliquota': 0.0,
+            'ir_aliquota': 0.0,
+            'iof_valor_bruto': 0.0,
+            'iof_valor_round': 0.0,
+            'base_ir': dinheiro_round(lucro),
+            'ir_valor_bruto': 0.0,
+            'ir_valor_round': 0.0,
+            'imposto_total': 0.0,
+            'liquido_final': 0.0,
+        }
+    iof = IOF_TABLE[dias_vida] if dias_vida < 30 else 0.0
+    ir = obter_aliquota_ir(dias_vida)
+    iof_valor_bruto = lucro * iof
+    iof_valor_round = dinheiro_round(iof_valor_bruto)
+    base_ir = max(lucro - iof_valor_round, 0.0)
+    ir_valor_bruto = base_ir * ir
+    ir_valor_round = dinheiro_round(ir_valor_bruto)
+    imposto_total = dinheiro_round(iof_valor_round + ir_valor_round)
+    liquido_final = dinheiro_round(max(saldo_bruto_atual - imposto_total, 0.0))
+    return {
+        'dias_vida': dias_vida,
+        'principal_base': dinheiro_round(principal_base),
+        'lucro': dinheiro_round(lucro),
+        'iof_aliquota': float(iof),
+        'ir_aliquota': float(ir),
+        'iof_valor_bruto': float(iof_valor_bruto),
+        'iof_valor_round': float(iof_valor_round),
+        'base_ir': dinheiro_round(base_ir),
+        'ir_valor_bruto': float(ir_valor_bruto),
+        'ir_valor_round': float(ir_valor_round),
+        'imposto_total': float(imposto_total),
+        'liquido_final': float(liquido_final),
+    }
+
+def gerar_relatorio_situacao_atual(
+    estado_lotes_passado,
+    log_passado,
+    valores_originais,
+    mapa_bcb,
+    data_referencia=None,
+):
+    """
+    Gera a aba 'Situacao Atual' apenas com o estado efetivamente realizado até a data atual.
+
+    Importante:
+    - NÃO incorpora saques futuros da estratégia vencedora;
+    - usa somente o snapshot pós-passado e atualiza os lotes até a data efetiva do relatório;
+    - alinha saldo bruto e saldo líquido na mesma data-base fechada.
+    """
+    if data_referencia is None:
+        data_referencia = DATA_REFERENCIA
+    data_referencia_efetiva = obter_data_referencia_relatorio(data_referencia)
+
+    if not estado_lotes_passado:
+        return pd.DataFrame()
+
+    total_sacado_bruto_passado, total_sacado_liquido_passado = acumular_saques_por_lote(log_passado or [])
+    data_corte_passado = max((x.get('Data') for x in (log_passado or []) if x.get('Data') is not None), default=None)
+
+    relatorio = []
+    diagnosticos_liquido = []
+    for st in estado_lotes_passado:
+        lote_id = str(st['Lote ID'])
+        data_aplicacao_original = st.get('Data Aplicação', st.get('Data Base Fiscal'))
+        data_base_fiscal = st.get('Data Base Fiscal', data_aplicacao_original)
+        investimento_ausente_na_origem = bool(st.get('Investimento Ausente na Origem', False))
+        if data_base_fiscal > data_referencia_efetiva:
+            continue
+        if investimento_ausente_na_origem and data_aplicacao_original == data_referencia_efetiva:
+            continue
+
+        lotex = Lote(
+            lote_id,
+            data_aplicacao_original,
+            st['Valor Inicial'],
+            data_base_fiscal=data_base_fiscal,
+            fator_acumulado_inicial=float(st.get('Fator Acumulado', 1.0)),
+            taxa_base_cdi=float(st.get('Taxa Base CDI', TAXA_BASE_DEFAULT)),
+            taxa_bonus_cdi=float(st.get('Taxa Bonus CDI', TAXA_BONUS_DEFAULT)),
+            dias_bonus=int(st.get('Dias Bonus', DIAS_BONUS_DEFAULT)),
+            principal_remanescente_inicial=float(st.get('Principal Remanescente', st['Valor Inicial'])),
+        )
+        lotex.investimento = str(st.get('Investimento', '') or '')
+        lotex.investimento_ausente_na_origem = investimento_ausente_na_origem
+        lotex.saldo_bruto = max(float(st.get('Saldo Após Passado', 0.0)), 0.0)
+        lotex.esgotado = lotex.saldo_bruto <= VALOR_MINIMO_LOTE_ATIVO
+
+        investimento_norm_rel = normalizar_nome(lotex.investimento)
+        produto_turbinado_norm = normalizar_nome(PRODUTO_FALLBACK_NOME_RAW)
+        bonus_dias_relatorio = int(lotex.dias_bonus)
+        aplicar_bonus_localizado_relatorio = (
+            not lotex.esgotado
+            and investimento_norm_rel == produto_turbinado_norm
+            and lotex.taxa_bonus_cdi > 0.0
+            and bonus_dias_relatorio > 0
+        )
+        if aplicar_bonus_localizado_relatorio:
+            lotex.dias_bonus = bonus_dias_relatorio + 1
+
+        # Atualiza apenas o rendimento entre o corte do passado e a data efetiva do relatório.
+        if data_corte_passado is not None and data_referencia_efetiva > data_corte_passado:
+            d = data_corte_passado + timedelta(days=1)
+            while d <= data_referencia_efetiva:
+                atualizar_saldo_lotes_no_dia([lotex], d, bcb_map=mapa_bcb, taxa_proj=TAXA_PROJ)
+                d += timedelta(days=1)
+
+        if aplicar_bonus_localizado_relatorio:
+            lotex.dias_bonus = bonus_dias_relatorio
+
+        saldo_bruto_atual = float(round(max(lotex.saldo_bruto, 0.0), 2))
+
+        # O líquido usa a data fiscal efetiva para manter coerência com o bruto já materializado no snapshot.
+        data_fiscal_relatorio = data_referencia_efetiva
+        if data_corte_passado is not None and data_corte_passado > data_fiscal_relatorio:
+            data_fiscal_relatorio = data_corte_passado
+
+        data_fiscal_para_liquido = obter_data_fiscal_liquido_relatorio(
+            data_fiscal_relatorio,
+            data_base_fiscal
+        )
+
+        liq_atual = calcular_liquido_atual_relatorio(
+            lotex,
+            saldo_bruto_atual,
+            data_fiscal_para_liquido
+        )
+        if lote_id in LOTES_MONITORADOS_LIQUIDO:
+            diag = diagnosticar_liquido_atual_relatorio(lotex, saldo_bruto_atual, data_fiscal_para_liquido)
+            diag.update({
+                'Lote ID': lote_id,
+                'Carteira': lotex.investimento or '-',
+                'Data Aplicação': data_aplicacao_original,
+                'Data Base Fiscal': data_base_fiscal,
+                'Data Fiscal Líquido': data_fiscal_para_liquido,
+                'Saldo Bruto Atual (R$)': saldo_bruto_atual,
+            })
+            diagnosticos_liquido.append(diag)
+
+        val_orig = float(valores_originais.get(lote_id, st['Valor Inicial']))
+        total_sacado = float(total_sacado_bruto_passado.get(lote_id, 0.0))
+        total_liquido_sacado = float(total_sacado_liquido_passado.get(lote_id, 0.0))
+
+        dias_hoje = (data_fiscal_relatorio - data_base_fiscal).days
+        dias_uteis_hoje = contar_dias_rendimento(data_base_fiscal, data_fiscal_relatorio, mapa_bcb)
+
+        patrimonio_liquido_ate_hoje = liq_atual + total_liquido_sacado
+        rendimento_liquido_acumulado_lotes = patrimonio_liquido_ate_hoje - val_orig
+        saldo_se_dinheiro_ficasse_parado = max(val_orig - total_liquido_sacado, 0.0)
+        ganho_otimizacao_vs_dinheiro_parado = liq_atual - saldo_se_dinheiro_ficasse_parado
+        rent_bruta = ((saldo_bruto_atual + total_sacado) / val_orig - 1) * 100 if val_orig > 0 else 0.0
+        rent_liquida = (patrimonio_liquido_ate_hoje / val_orig - 1) * 100 if val_orig > 0 else 0.0
+
+        relatorio.append({
+            "Lote ID": lote_id,
+            "Carteira": lotex.investimento or '-',
+            "Data Aplicação": data_aplicacao_original,
+            "Data Base Fiscal": data_base_fiscal,
+            "Dias Corridos até Hoje": dias_hoje,
+            "Dias Úteis até Hoje": dias_uteis_hoje,
+            "Valor Original (R$)": dinheiro_round(val_orig),
+            "Total Bruto Sacado (R$)": dinheiro_round(total_sacado),
+            "Total Líquido Sacado (R$)": dinheiro_round(total_liquido_sacado),
+            "Saldo Bruto Atual (R$)": saldo_bruto_atual,
+            "Saldo Líquido Atual (R$)": liq_atual,
+            "Patrimônio Líquido até Hoje (R$)": dinheiro_round(patrimonio_liquido_ate_hoje),
+            "Rendimento Líquido Acumulado dos Lotes (R$)": dinheiro_round(rendimento_liquido_acumulado_lotes),
+            "Saldo se Dinheiro Ficasse Parado (R$)": dinheiro_round(saldo_se_dinheiro_ficasse_parado),
+            "Ganho da Otimização vs Dinheiro Parado (R$)": dinheiro_round(ganho_otimizacao_vs_dinheiro_parado),
+            "Rentabilidade Bruta (%)": round(rent_bruta, 2),
+            "Rentabilidade Líquida (%)": round(rent_liquida, 2),
+            "Esgotado no Passado": bool(st.get('Esgotado no Passado', False)),
+            "Taxa Base CDI (%)": round(float(st.get('Taxa Base CDI', TAXA_BASE_DEFAULT)) * 100, 0),
+        })
+
+    if not relatorio:
+        return pd.DataFrame()
+
+    df_relatorio_atual = pd.DataFrame(relatorio)
+    total_row = {
+        "Lote ID": "TOTAL",
+        "Carteira": "",
+        "Valor Original (R$)": round(df_relatorio_atual["Valor Original (R$)"].sum(), 2),
+        "Total Bruto Sacado (R$)": round(df_relatorio_atual["Total Bruto Sacado (R$)"].sum(), 2),
+        "Total Líquido Sacado (R$)": round(df_relatorio_atual["Total Líquido Sacado (R$)"].sum(), 2),
+        "Saldo Bruto Atual (R$)": round(df_relatorio_atual["Saldo Bruto Atual (R$)"].sum(), 2),
+        "Saldo Líquido Atual (R$)": round(df_relatorio_atual["Saldo Líquido Atual (R$)"].sum(), 2),
+        "Patrimônio Líquido até Hoje (R$)": round(df_relatorio_atual["Patrimônio Líquido até Hoje (R$)"].sum(), 2),
+        "Rendimento Líquido Acumulado dos Lotes (R$)": round(df_relatorio_atual["Rendimento Líquido Acumulado dos Lotes (R$)"].sum(), 2),
+        "Saldo se Dinheiro Ficasse Parado (R$)": round(df_relatorio_atual["Saldo se Dinheiro Ficasse Parado (R$)"].sum(), 2),
+        "Ganho da Otimização vs Dinheiro Parado (R$)": round(df_relatorio_atual["Ganho da Otimização vs Dinheiro Parado (R$)"].sum(), 2),
+    }
+    return pd.concat([df_relatorio_atual, pd.DataFrame([total_row])], ignore_index=True)

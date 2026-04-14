@@ -11,15 +11,14 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V7
+**Versão atual da baseline:** V8
 
-A V7 preserva a baseline neutra da V5 e aplica apenas ajustes documentais e de
-validação local para consolidar a regra de estabilidade mínima antes de cada
-entrega:
+A V8 preserva a baseline fixa da V7 e aplica apenas ajustes neutros derivados da auditoria do bloco 02, sem abrir domínio financeiro, fiscal ou de otimização:
 
-- incorporação formal da regra de validação e correção local prévia antes de cada entrega;
-- registro da validação local executada nesta versão;
-- manutenção da baseline neutra sem abertura de novas frentes funcionais.
+- função central de data de referência;
+- resolução semântica de colunas por alias configurado;
+- endurecimento do contrato de chaves obrigatórias do config;
+- correção documental da versão exibida e nova validação local.
 
 A regra de trabalho do projeto continua sendo:
 
@@ -79,7 +78,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V7.md`
+- `relatorios/VALIDACAO_LOCAL_V8.md`
 
 ## Entradas canônicas atuais
 
@@ -149,7 +148,7 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V7, a execução local mínima foi
+validação incremental da baseline. Nesta V8, a execução local mínima foi
 realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;
