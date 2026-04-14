@@ -6,34 +6,26 @@ para lotes já investidos e lotes disponíveis.
 
 O objetivo de longo prazo é evoluir esta base para um projeto único, auditável
  e modular de alocação conjunta de recebidos entre pagamentos, investimentos e
- decisões de switching, maximizando o patrimônio líquido final com matemática
+decisões de switching, maximizando o patrimônio líquido final com matemática
 financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V4
+**Versão atual da baseline:** V5
 
-A V4 não representa ainda uma expansão funcional do projeto. Ela preserva a
-**reconstrução controlada da baseline** da V3 e adiciona a formalização
-documental do contrato operacional do projeto, para servir como referência
-estável antes das próximas auditorias e migrações.
+A V5 preserva a baseline neutra da V4 e aplica apenas ajustes mínimos de
+alinhamento operacional:
 
-A regra de trabalho adotada no projeto continua sendo:
+- remoção de script legado de inspeção;
+- consolidação do contrato operacional como documento-base rastreado;
+- alinhamento fino do README com a estrutura real do repositório;
+- organização mais legível da saída inicial do console.
+
+A regra de trabalho do projeto continua sendo:
 
 > a estrutura física dos módulos dos scripts-base não é tratada como fronteira
 > semântica confiável; as decisões de migração e unificação devem seguir a
 > responsabilidade real das funções.
-
-## O que mudou na V4
-
-A V4 preserva a base arquitetural da V3 e acrescenta uma consolidação
-documental importante:
-
-- formalização do contrato operacional completo do projeto em arquivo próprio;
-- manutenção da árvore neutra da baseline;
-- manutenção do núcleo inicial em português;
-- preservação do escopo estritamente estrutural dos módulos já criados;
-- alinhamento do README com o contrato operacional consolidado.
 
 ## Estrutura atual do repositório
 
@@ -68,10 +60,23 @@ documental importante:
 │   └── .gitkeep
 ├── relatorios/
 │   ├── .gitkeep
-│   └── AUDITORIA_ARQUITETURAL_V3.md
+│   ├── AUDITORIA_ARQUITETURAL_V3.md
+│   └── CONTRATO_OPERACIONAL_PROJETO.md
 └── testes/
     └── .gitkeep
 ```
+
+## Documento-base oficial
+
+O arquivo oficial de regras da fase atual é:
+
+- `relatorios/CONTRATO_OPERACIONAL_PROJETO.md`
+
+Esse documento deve ser tratado como a referência principal para:
+- reavaliação da baseline;
+- auditoria dos scripts-base;
+- validação de novas regras;
+- futuras alterações organizadas do projeto.
 
 ## Entradas canônicas atuais
 
@@ -80,15 +85,12 @@ A baseline atual utiliza como entradas principais:
 - `dados/config_atualizado.json`
 - `dados/dados_financeiros.xlsx`
 
-O carregamento foi mantido com compatibilidade para caminhos antigos quando
-necessário, mas a convenção oficial da baseline reconstruída passa a ser a
-pasta `dados/`.
+A convenção oficial da baseline reconstruída permanece sendo a pasta `dados/`.
 
 ## Núcleo compartilhado inicial
 
 ### `nucleo/ambiente.py`
 Responsável por:
-
 - detecção da raiz do repositório;
 - warnings seletivos de rede;
 - verificação e instalação opcional de dependências por import real;
@@ -96,7 +98,6 @@ Responsável por:
 
 ### `nucleo/carregador_config.py`
 Responsável por:
-
 - descoberta do config canônico;
 - leitura do JSON de configuração;
 - suporte a lista ordenada de configs candidatos;
@@ -105,23 +106,21 @@ Responsável por:
 
 ### `nucleo/leitor_planilha.py`
 Responsável por:
-
 - descoberta da planilha canônica;
-- carregamento das abas;
-- leitura estrutural inicial;
+- carregamento estrutural das abas;
+- leitura inicial da planilha;
 - canonização inicial de colunas com base nos aliases do config.
 
-## O que esta versão deliberadamente não implementa
+## O que esta baseline ainda não implementa
 
-Esta versão ainda não implementa:
-
+Esta baseline ainda não implementa:
 - contratos finais de entidades de domínio;
 - motores de pagamento;
 - motores de switching;
 - adaptadores remotos;
-- reconstrução histórica de lotes;
+- reconstrução histórica profunda de lotes;
 - regras profundas de IR/IOF;
-- avaliação conjunta de cenários.
+- avaliação conjunta final de cenários.
 
 Essas camadas só devem ser abertas depois de novas auditorias comparativas dos
 scripts-base.
@@ -146,13 +145,13 @@ ou:
 python scripts/inspecionar_base.py
 ```
 
-O comando imprime:
-
-- raiz do repositório resolvida;
-- caminho do config;
-- caminho da planilha;
+A saída atual do console foi organizada em blocos curtos para facilitar a
+validação incremental da baseline. Ela deve mostrar, no mínimo:
+- caminhos principais resolvidos;
+- contexto de ambiente;
 - relatório de dependências;
-- nomes das abas;
+- abas encontradas;
+- abas primárias do contrato;
 - resumo estrutural da planilha.
 
 ## Princípios mantidos nesta baseline
@@ -167,17 +166,6 @@ O comando imprime:
 
 ## Próximo passo recomendado
 
-O próximo passo mais seguro é continuar a auditoria comparativa dos scripts-base
-antes de criar entidades finais, validadores semânticos profundos ou módulos de
-negócio mais específicos.
-
-
-## Documento-base do contrato operacional
-
-O mapa completo de regras do projeto foi formalizado em:
-
-- `relatorios/CONTRATO_OPERACIONAL_PROJETO.md`
-
-Esse documento deve ser tratado como a referência principal das regras da fase
-atual. Alterações futuras podem ocorrer, mas sempre de forma organizada e
-validada antes de serem incorporadas ao projeto.
+O próximo passo mais seguro continua sendo a auditoria comparativa dos
+scripts-base antes da criação de entidades finais, validadores semânticos
+profundos ou módulos de negócio mais específicos.

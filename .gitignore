@@ -78,6 +78,7 @@ relatorios/*
 !saidas/.gitkeep
 !relatorios/.gitkeep
 !relatorios/AUDITORIA_ARQUITETURAL_V3.md
+!relatorios/CONTRATO_OPERACIONAL_PROJETO.md
 
 # ---------------------------------------------------------
 # Derivados de dados e caches
