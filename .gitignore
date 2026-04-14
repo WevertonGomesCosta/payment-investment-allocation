@@ -111,3 +111,7 @@ dados/processado/*
 !dados/bruto/.gitkeep
 !dados/intermediario/.gitkeep
 !dados/processado/.gitkeep
+
+!relatorios/VALIDACAO_LOCAL_V7.md
+!relatorios/BASELINE_FIXA_V7.md
+relatorios/_log_validacao_v7_*.txt

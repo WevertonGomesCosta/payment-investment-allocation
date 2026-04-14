@@ -11,9 +11,9 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V6
+**Versão atual da baseline:** V7
 
-A V6 preserva a baseline neutra da V5 e aplica apenas ajustes documentais e de
+A V7 preserva a baseline neutra da V5 e aplica apenas ajustes documentais e de
 validação local para consolidar a regra de estabilidade mínima antes de cada
 entrega:
 
@@ -79,7 +79,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V6.md`
+- `relatorios/VALIDACAO_LOCAL_V7.md`
 
 ## Entradas canônicas atuais
 
@@ -149,7 +149,7 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V6, a execução local mínima foi
+validação incremental da baseline. Nesta V7, a execução local mínima foi
 realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;
