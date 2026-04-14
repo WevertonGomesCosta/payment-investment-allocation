@@ -11,30 +11,29 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V3
+**Versão atual da baseline:** V4
 
-A V3 não representa ainda uma expansão funcional do projeto. Ela é uma
-**reconstrução controlada da baseline** para deixá-la coerente com a regra de
-trabalho adotada no projeto:
+A V4 não representa ainda uma expansão funcional do projeto. Ela preserva a
+**reconstrução controlada da baseline** da V3 e adiciona a formalização
+documental do contrato operacional do projeto, para servir como referência
+estável antes das próximas auditorias e migrações.
+
+A regra de trabalho adotada no projeto continua sendo:
 
 > a estrutura física dos módulos dos scripts-base não é tratada como fronteira
 > semântica confiável; as decisões de migração e unificação devem seguir a
 > responsabilidade real das funções.
 
-## O que mudou na V3
+## O que mudou na V4
 
-A V2 revisada foi reavaliada e reconstruída para remover compromissos
-arquiteturais prematuros.
+A V4 preserva a base arquitetural da V3 e acrescenta uma consolidação
+documental importante:
 
-As principais mudanças foram:
-
-- simplificação da árvore do repositório para uma base mais neutra;
-- tradução do núcleo inicial para português;
-- remoção de diretórios futuros que ainda poderiam induzir modularização antes
-  da hora;
-- fortalecimento do carregamento do config com base no bloco já auditado do
-  Script 1;
-- manutenção do leitor de planilha em escopo estritamente estrutural.
+- formalização do contrato operacional completo do projeto em arquivo próprio;
+- manutenção da árvore neutra da baseline;
+- manutenção do núcleo inicial em português;
+- preservação do escopo estritamente estrutural dos módulos já criados;
+- alinhamento do README com o contrato operacional consolidado.
 
 ## Estrutura atual do repositório
 
@@ -171,3 +170,14 @@ O comando imprime:
 O próximo passo mais seguro é continuar a auditoria comparativa dos scripts-base
 antes de criar entidades finais, validadores semânticos profundos ou módulos de
 negócio mais específicos.
+
+
+## Documento-base do contrato operacional
+
+O mapa completo de regras do projeto foi formalizado em:
+
+- `relatorios/CONTRATO_OPERACIONAL_PROJETO.md`
+
+Esse documento deve ser tratado como a referência principal das regras da fase
+atual. Alterações futuras podem ocorrer, mas sempre de forma organizada e
+validada antes de serem incorporadas ao projeto.
