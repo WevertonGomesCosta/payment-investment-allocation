@@ -13,13 +13,14 @@ Escopo desta etapa:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Mapping, Optional
 
 import pandas as pd
 
 from nucleo.carteira_canonica import PacoteCarteiraCanonica, normalizar_nome_produto
 from nucleo.leitor_planilha import PacotePlanilha, resolver_coluna
+from nucleo.utilitarios_neutros import limpar_texto, normalizar_identificador, para_bool, para_data, para_float_monetario
 
 
 @dataclass(slots=True)
@@ -32,69 +33,12 @@ class PacoteDadosOperacionaisCanonicos:
     auditoria_gastos: dict[str, Any]
 
 
-def _texto_limpo(valor: Any) -> str:
-    if valor is None:
-        return ""
-    try:
-        texto = str(valor).strip()
-        if texto.lower() in {"nan", "none", "null"}:
-            return ""
-        return " ".join(texto.split())
-    except Exception:
-        return ""
 
 
-def _data_para_date(valor: Any) -> Optional[date]:
-    if valor is None:
-        return None
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, date):
-        return valor
-    try:
-        ts = pd.to_datetime(valor, errors="coerce")
-        if pd.isna(ts):
-            return None
-        return ts.date()
-    except Exception:
-        return None
-
-
-def _para_float(valor: Any, padrao: float = 0.0) -> float:
-    if valor is None:
-        return padrao
-    try:
-        if isinstance(valor, (int, float)):
-            if pd.isna(valor):
-                return padrao
-            return float(valor)
-    except Exception:
-        pass
-    try:
-        texto = str(valor).strip()
-        if not texto or texto.lower() in {"nan", "none", "null"}:
-            return padrao
-        texto = texto.replace("R$", "").replace("%", "").strip()
-        try:
-            return float(texto)
-        except Exception:
-            texto = texto.replace(".", "").replace(",", ".")
-            return float(texto)
-    except Exception:
-        return padrao
-
-
-def _normalizar_lote_id(valor: Any) -> str:
-    texto = _texto_limpo(valor)
-    if not texto:
-        return ""
-    if texto.endswith(".0"):
-        texto = texto[:-2]
-    return texto
 
 
 def _classificar_investimento(valor_investimento: Any, data_aplicacao: Optional[date], data_referencia: date) -> dict[str, Any]:
-    bruto = _texto_limpo(valor_investimento)
+    bruto = limpar_texto(valor_investimento)
     if bruto in {"-", "—", "–", "--"}:
         return {
             "investimento_bruto": bruto,
@@ -187,10 +131,9 @@ def _resolver_produto_canonico(valor_produto: str, carteira: Optional[PacoteCart
 
 
 def _pago_para_bool(valor: Any, tratar_nulo_como_nao: bool) -> bool:
-    texto = _texto_limpo(valor).lower()
-    if texto == "":
+    if limpar_texto(valor) == "":
         return False if tratar_nulo_como_nao else False
-    return texto in {"ok", "sim", "s", "true", "1", "pago", "yes", "y"}
+    return para_bool(valor, False, verdadeiros={"ok", "sim", "s", "true", "1", "pago", "yes", "y"})
 
 
 def carregar_inventario_canonico(
@@ -227,9 +170,9 @@ def carregar_inventario_canonico(
 
     registros = []
     for idx, row in df.iterrows():
-        lote_id = _normalizar_lote_id(row.get(col_lote_id))
-        data_aplicacao = _data_para_date(row.get(col_data_aplicacao))
-        valor_original = _para_float(row.get(col_valor_original), 0.0)
+        lote_id = normalizar_identificador(row.get(col_lote_id))
+        data_aplicacao = para_data(row.get(col_data_aplicacao))
+        valor_original = para_float_monetario(row.get(col_valor_original), 0.0)
 
         if not lote_id:
             auditoria["linhas_descartadas"].append({"idx": int(idx), "motivo": "lote_id_vazio"})
@@ -243,7 +186,7 @@ def carregar_inventario_canonico(
 
         classificacao = _classificar_investimento(row.get(col_produto) if col_produto else None, data_aplicacao, data_referencia)
         produto_resolvido = _resolver_produto_canonico(classificacao["produto_informado"], carteira_canonica)
-        data_base_fiscal = _data_para_date(row.get(col_data_base_fiscal)) if col_data_base_fiscal else None
+        data_base_fiscal = para_data(row.get(col_data_base_fiscal)) if col_data_base_fiscal else None
         if data_base_fiscal is None:
             data_base_fiscal = data_aplicacao
 
@@ -252,7 +195,7 @@ def carregar_inventario_canonico(
             "data_aplicacao": data_aplicacao,
             "valor_original": valor_original,
             "data_base_fiscal": data_base_fiscal,
-            "status_lote_informado": _texto_limpo(row.get(col_status)) if col_status else "",
+            "status_lote_informado": limpar_texto(row.get(col_status)) if col_status else "",
             **classificacao,
             **produto_resolvido,
         })
@@ -330,13 +273,13 @@ def carregar_gastos_canonicos(
     registros = []
     sequencia_gerada = 1
     for idx, row in df.iterrows():
-        despesa_id = _texto_limpo(row.get(col_despesa_id)) if col_despesa_id else ""
+        despesa_id = limpar_texto(row.get(col_despesa_id)) if col_despesa_id else ""
         if despesa_id == "":
             despesa_id = f"despesa_auto_{sequencia_gerada:05d}"
             sequencia_gerada += 1
 
-        data_evento = _data_para_date(row.get(col_data))
-        valor = _para_float(row.get(col_valor), 0.0)
+        data_evento = para_data(row.get(col_data))
+        valor = para_float_monetario(row.get(col_valor), 0.0)
         if data_evento is None:
             auditoria["linhas_descartadas"].append({"idx": int(idx), "motivo": "data_invalida", "despesa_id": despesa_id})
             continue
@@ -344,14 +287,14 @@ def carregar_gastos_canonicos(
             auditoria["linhas_descartadas"].append({"idx": int(idx), "motivo": "valor_nao_positivo", "despesa_id": despesa_id})
             continue
 
-        lote_1 = _normalizar_lote_id(row.get(col_lote_1)) if col_lote_1 else ""
-        lote_2 = _normalizar_lote_id(row.get(col_lote_2)) if col_lote_2 else ""
+        lote_1 = normalizar_identificador(row.get(col_lote_1)) if col_lote_1 else ""
+        lote_2 = normalizar_identificador(row.get(col_lote_2)) if col_lote_2 else ""
         pago = _pago_para_bool(row.get(col_pago) if col_pago else None, tratar_pago_nulo_como_nao)
 
         registros.append({
             "despesa_id": despesa_id,
             "data": data_evento,
-            "descricao": _texto_limpo(row.get(col_descricao)) if col_descricao else "",
+            "descricao": limpar_texto(row.get(col_descricao)) if col_descricao else "",
             "valor": valor,
             "pago": pago,
             "lote_usado_1": lote_1,

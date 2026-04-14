@@ -17,7 +17,8 @@ from typing import Any, Mapping, Optional
 
 import pandas as pd
 
-from nucleo.leitor_planilha import PacotePlanilha, resolver_coluna, normalizar_texto
+from nucleo.leitor_planilha import PacotePlanilha, resolver_coluna
+from nucleo.utilitarios_neutros import limpar_texto, para_bool, para_float_monetario, para_int, normalizar_texto
 
 
 @dataclass(slots=True)
@@ -41,59 +42,12 @@ def gerar_produto_key(produto_id: Any, nome_norm: str) -> str:
     return f"prod::{nome_norm}"
 
 
-def _texto_limpo(valor: Any, default: str = "") -> str:
-    if valor is None:
-        return default
-    try:
-        texto = " ".join(str(valor).strip().split())
-        if texto.lower() in {"nan", "none", "null"}:
-            return default
-        return texto
-    except Exception:
-        return default
 
 
-def _para_bool(valor: Any, default: bool = False) -> bool:
-    if valor is None or (isinstance(valor, float) and pd.isna(valor)):
-        return default
-    if isinstance(valor, bool):
-        return valor
-    texto = str(valor).strip().lower()
-    if texto in {"1", "true", "t", "sim", "s", "ok", "ativo", "yes", "y", "isento"}:
-        return True
-    if texto in {"0", "false", "f", "nao", "não", "n", "inativo", "no"}:
-        return False
-    return default
-
-
-def _para_int(valor: Any, default: int = 0) -> int:
-    if valor is None or valor == "" or (isinstance(valor, float) and pd.isna(valor)):
-        return default
-    try:
-        return int(float(str(valor).strip().replace(",", ".")))
-    except Exception:
-        return default
-
-
-def _para_float(valor: Any, default: float = 0.0) -> float:
-    if valor is None or valor == "" or (isinstance(valor, float) and pd.isna(valor)):
-        return default
-    if isinstance(valor, (int, float)):
-        return float(valor)
-    try:
-        texto = str(valor).strip()
-        texto = texto.replace("R$", "").replace("%", "").replace(" ", "")
-        if "," in texto and "." in texto:
-            texto = texto.replace(".", "").replace(",", ".")
-        elif "," in texto:
-            texto = texto.replace(",", ".")
-        return float(texto)
-    except Exception:
-        return default
 
 
 def _normalizar_taxa_cdi(valor: Any, *, default: float = 0.0, limite_percentual_vs_multiplicador: float = 10.0) -> float:
-    taxa = _para_float(valor, default)
+    taxa = para_float_monetario(valor, default)
     if taxa >= limite_percentual_vs_multiplicador:
         return taxa / 100.0
     return taxa
@@ -128,7 +82,7 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         "produto_padrao": resolver_coluna(df_carteira, config, "carteira", "produto_padrao", obrigatoria=False),
     }
 
-    limite = _para_float(
+    limite = para_float_monetario(
         (((config.get("politicas_taxa") or {}).get("limite_percentual_vs_multiplicador")) if isinstance(config, Mapping) else None),
         10.0,
     )
@@ -143,7 +97,7 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
 
     registros: list[dict[str, Any]] = []
     for idx, row in df_carteira.iterrows():
-        nome = _texto_limpo(row[campos["nome"]]) if campos["nome"] in df_carteira.columns else ""
+        nome = limpar_texto(row[campos["nome"]]) if campos["nome"] in df_carteira.columns else ""
         if not nome:
             auditoria["linhas_descartadas"].append({"indice": int(idx), "motivo": "nome_vazio"})
             continue
@@ -157,32 +111,32 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
 
         registro = {
             "produto_key": produto_key,
-            "produto_id_raw": None if produto_id_raw is None else _texto_limpo(produto_id_raw),
+            "produto_id_raw": None if produto_id_raw is None else limpar_texto(produto_id_raw),
             "nome": nome,
             "nome_norm": nome_norm,
-            "tipo": _texto_limpo(row[campos["tipo"]]) if campos["tipo"] else "",
-            "indexador": _texto_limpo(row[campos["indexador"]]) if campos["indexador"] else "",
+            "tipo": limpar_texto(row[campos["tipo"]]) if campos["tipo"] else "",
+            "indexador": limpar_texto(row[campos["indexador"]]) if campos["indexador"] else "",
             "taxa_base_cdi": _normalizar_taxa_cdi(row[campos["taxa_base"]], default=0.0, limite_percentual_vs_multiplicador=limite),
             "taxa_bonus_cdi": _normalizar_taxa_cdi(row[campos["taxa_bonus"]], default=0.0, limite_percentual_vs_multiplicador=limite) if campos["taxa_bonus"] else 0.0,
-            "dias_bonus": _para_int(row[campos["dias_bonus"]], 0) if campos["dias_bonus"] else 0,
-            "prazo_dias": _para_int(row[campos["prazo_dias"]], 0) if campos["prazo_dias"] else 0,
-            "carencia_dias": _para_int(row[campos["carencia_dias"]], 0) if campos["carencia_dias"] else 0,
-            "liquidez_dias": _para_int(row[campos["liquidez_dias"]], 0) if campos["liquidez_dias"] else 0,
-            "isento_ir": _para_bool(row[campos["isento_ir"]], False) if campos["isento_ir"] else False,
-            "aplicacao_minima": _para_float(row[campos["aplicacao_minima"]], 0.0) if campos["aplicacao_minima"] else 0.0,
-            "aplicacao_maxima": _para_float(row[campos["aplicacao_maxima"]], 0.0) if campos["aplicacao_maxima"] else 0.0,
-            "ativo": _para_bool(row[campos["ativo"]], True) if campos["ativo"] else True,
-            "fgc": _para_bool(row[campos["fgc"]], False) if campos["fgc"] else False,
-            "banco_emissor": _texto_limpo(row[campos["banco_emissor"]]) if campos["banco_emissor"] else "",
-            "risco_real": _texto_limpo(row[campos["risco_real"]]) if campos["risco_real"] else "",
-            "somente_combo": _para_bool(row[campos["somente_combo"]], False) if campos["somente_combo"] else False,
-            "produto_base": _texto_limpo(row[campos["produto_base"]]) if campos["produto_base"] else "",
-            "produto_bonus": _texto_limpo(row[campos["produto_bonus"]]) if campos["produto_bonus"] else "",
-            "ratio_base": _para_float(row[campos["ratio_base"]], 0.0) if campos["ratio_base"] else 0.0,
-            "ratio_bonus": _para_float(row[campos["ratio_bonus"]], 0.0) if campos["ratio_bonus"] else 0.0,
-            "max_usos": _para_int(row[campos["max_usos"]], 0) if campos["max_usos"] else 0,
-            "observacoes": _texto_limpo(row[campos["observacoes"]]) if campos["observacoes"] else "",
-            "produto_padrao": _para_bool(row[campos["produto_padrao"]], False) if campos["produto_padrao"] else False,
+            "dias_bonus": para_int(row[campos["dias_bonus"]], 0) if campos["dias_bonus"] else 0,
+            "prazo_dias": para_int(row[campos["prazo_dias"]], 0) if campos["prazo_dias"] else 0,
+            "carencia_dias": para_int(row[campos["carencia_dias"]], 0) if campos["carencia_dias"] else 0,
+            "liquidez_dias": para_int(row[campos["liquidez_dias"]], 0) if campos["liquidez_dias"] else 0,
+            "isento_ir": para_bool(row[campos["isento_ir"]], False) if campos["isento_ir"] else False,
+            "aplicacao_minima": para_float_monetario(row[campos["aplicacao_minima"]], 0.0) if campos["aplicacao_minima"] else 0.0,
+            "aplicacao_maxima": para_float_monetario(row[campos["aplicacao_maxima"]], 0.0) if campos["aplicacao_maxima"] else 0.0,
+            "ativo": para_bool(row[campos["ativo"]], True) if campos["ativo"] else True,
+            "fgc": para_bool(row[campos["fgc"]], False) if campos["fgc"] else False,
+            "banco_emissor": limpar_texto(row[campos["banco_emissor"]]) if campos["banco_emissor"] else "",
+            "risco_real": limpar_texto(row[campos["risco_real"]]) if campos["risco_real"] else "",
+            "somente_combo": para_bool(row[campos["somente_combo"]], False) if campos["somente_combo"] else False,
+            "produto_base": limpar_texto(row[campos["produto_base"]]) if campos["produto_base"] else "",
+            "produto_bonus": limpar_texto(row[campos["produto_bonus"]]) if campos["produto_bonus"] else "",
+            "ratio_base": para_float_monetario(row[campos["ratio_base"]], 0.0) if campos["ratio_base"] else 0.0,
+            "ratio_bonus": para_float_monetario(row[campos["ratio_bonus"]], 0.0) if campos["ratio_bonus"] else 0.0,
+            "max_usos": para_int(row[campos["max_usos"]], 0) if campos["max_usos"] else 0,
+            "observacoes": limpar_texto(row[campos["observacoes"]]) if campos["observacoes"] else "",
+            "produto_padrao": para_bool(row[campos["produto_padrao"]], False) if campos["produto_padrao"] else False,
         }
         registros.append(registro)
 

@@ -11,9 +11,9 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V13
+**Versão atual da baseline:** V14
 
-A V13 preserva a baseline fixa da fase atual e acrescenta uma camada neutra compartilhada de **calendário financeiro, dias de rendimento e taxas/CDI base**, mantendo tudo o que já havia sido aberto até a V11:
+A V14 preserva a baseline fixa da fase atual e acrescenta uma camada neutra compartilhada de **calendário financeiro, dias de rendimento e taxas/CDI base**, mantendo tudo o que já havia sido aberto até a V11:
 
 - inventário canônico;
 - gastos canônicos;
@@ -83,7 +83,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V13.md`
+- `relatorios/VALIDACAO_LOCAL_V14.md`
 
 ## Entradas canônicas atuais
 
@@ -177,7 +177,7 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V13, a execução local mínima foi
+validação incremental da baseline. Nesta V14, a execução local mínima foi
 realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;

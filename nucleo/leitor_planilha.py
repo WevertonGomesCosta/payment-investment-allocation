@@ -7,12 +7,13 @@ implementa derivação financeira profunda.
 
 from __future__ import annotations
 
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 
 import pandas as pd
+
+from nucleo.utilitarios_neutros import normalizar_texto
 
 
 @dataclass(slots=True)
@@ -21,21 +22,6 @@ class PacotePlanilha:
     nomes_abas: list[str]
     quadros_brutos: dict[str, pd.DataFrame]
     quadros_canonicos: dict[str, pd.DataFrame]
-
-
-def _remover_acentos(texto: str) -> str:
-    return "".join(
-        caractere for caractere in unicodedata.normalize("NFKD", texto)
-        if not unicodedata.combining(caractere)
-    )
-
-
-def normalizar_texto(texto: Any) -> str:
-    texto = "" if texto is None else str(texto)
-    texto = _remover_acentos(texto).strip().lower()
-    for antigo, novo in [("/", " "), ("-", " "), ("(", " "), (")", " ")]:
-        texto = texto.replace(antigo, novo)
-    return " ".join(texto.split())
 
 
 def construir_mapa_alias(mapa_alias: Mapping[str, Iterable[str]]) -> dict[str, str]:
