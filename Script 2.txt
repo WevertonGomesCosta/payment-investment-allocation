@@ -1,0 +1,286 @@
+# =========================================================
+# 02. POLÍTICAS E UTILITÁRIOS CENTRAIS
+# =========================================================
+
+def data_hoje_referencia():
+    if ZoneInfo is not None:
+        try:
+            return datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+        except Exception:
+            pass
+    return datetime.now().date()
+
+def _caminhos_base_projeto():
+    bases = []
+    try:
+        bases.append(Path(__file__).resolve().parent)
+    except NameError:
+        pass
+    bases.append(Path.cwd().resolve())
+
+    vistos = set()
+    saida = []
+    for base in bases:
+        if not base:
+            continue
+        chave = str(base)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        saida.append(base)
+    return saida
+
+def _localizar_arquivo(nome_arquivo: str):
+    if not nome_arquivo:
+        return None
+
+    caminho = Path(nome_arquivo)
+    candidatos = []
+    if caminho.is_absolute():
+        candidatos.append(caminho)
+    else:
+        for base in _caminhos_base_projeto():
+            candidatos.append(base / nome_arquivo)
+            candidatos.append(base / 'code' / nome_arquivo)
+
+    vistos = set()
+    for cand in candidatos:
+        chave = str(cand)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        if cand.exists():
+            return cand.resolve()
+    return None
+
+def _resolver_config_path():
+    candidatos = []
+
+    env_cfg = os.environ.get("CONFIG_PATH")
+    if env_cfg:
+        candidatos.append(Path(env_cfg))
+
+    for base in _caminhos_base_projeto():
+        candidatos.extend([
+            base / 'config_atualizado.json',
+            base / 'code' / 'config_atualizado.json',
+            base / 'config.json',
+            base / 'code' / 'config.json',
+            base / 'config_links.json',
+            base / 'code' / 'config_links.json',
+        ])
+
+    vistos = set()
+    for caminho in candidatos:
+        try:
+            caminho = Path(caminho).expanduser()
+            chave = str(caminho.resolve()) if caminho.exists() else str(caminho)
+            if chave in vistos:
+                continue
+            vistos.add(chave)
+            if caminho.exists():
+                return caminho.resolve()
+        except Exception:
+            continue
+
+    return None
+
+
+def carregar_config():
+    caminho = _resolver_config_path()
+    if caminho is None:
+        print("[AVISO] Nenhum arquivo de configuração encontrado. Usando defaults mínimos.")
+        return {}, None
+
+    try:
+        data = json.loads(caminho.read_text(encoding='utf-8-sig'))
+        if not isinstance(data, dict):
+            raise ValueError("O arquivo de configuração não contém um objeto JSON.")
+        return data, caminho
+    except Exception as e:
+        print(f"[AVISO] Falha ao carregar config em {caminho}: {e}")
+        return {}, caminho
+
+def _cfg_get(path, default=None):
+    cur = CONFIG
+    for chave in path:
+        if not isinstance(cur, dict) or chave not in cur:
+            return default
+        cur = cur[chave]
+    return cur
+
+def _cfg_get_any(paths, default=None):
+    for path in paths:
+        valor = _cfg_get(path, None)
+        if valor is not None:
+            return valor
+    return default
+
+def _cfg_get_required_any(paths):
+    valor = _cfg_get_any(paths, default=None)
+    if valor is None:
+        txt = " OU ".join(" > ".join(p) for p in paths)
+        raise RuntimeError(f"Nenhuma chave obrigatória encontrada no config: {txt}")
+    return valor
+
+def nome_aba(chave, default=None):
+    return _cfg_get(["abas", chave], default)
+
+def aliases_coluna(secao: str, chave: str) -> list:
+    aliases = _cfg_get(["colunas", secao, chave], None)
+    if aliases is None:
+        raise KeyError(f"Config de coluna ausente para {secao}/{chave}.")
+    if not isinstance(aliases, list) or not aliases:
+        raise KeyError(f"Aliases de coluna inválidos para {secao}/{chave}.")
+    return aliases
+
+def resolver_coluna(df: pd.DataFrame, secao: str, chave: str, required: bool = True):
+    if df is None or len(getattr(df, "columns", [])) == 0:
+        if required:
+            raise KeyError(f"DataFrame vazio ao resolver coluna {secao}/{chave}.")
+        return None
+
+    cols_reais = list(df.columns)
+    mapa_norm = {str(c).strip().lower(): c for c in cols_reais}
+
+    try:
+        aliases = aliases_coluna(secao, chave)
+    except Exception:
+        if required:
+            raise
+        return None
+
+    for alias in aliases:
+        alias_norm = str(alias).strip().lower()
+        if alias_norm in mapa_norm:
+            return mapa_norm[alias_norm]
+
+    if required:
+        raise KeyError(
+            f"Coluna não encontrada para {secao}/{chave}. "
+            f"Aliases tentados: {aliases}. Colunas disponíveis: {cols_reais}"
+        )
+    return None
+
+def _iterar_candidatos_arquivo(nome_arquivo: str, extras=None):
+    vistos = set()
+    if extras:
+        for item in extras:
+            if item is None:
+                continue
+            caminho = Path(item)
+            chave = str(caminho.resolve()) if caminho.exists() else str(caminho)
+            if chave in vistos:
+                continue
+            vistos.add(chave)
+            yield caminho
+
+    localizado = _localizar_arquivo(nome_arquivo)
+    if localizado is not None:
+        chave = str(localizado)
+        if chave not in vistos:
+            vistos.add(chave)
+            yield localizado
+
+    for base in _caminhos_base_projeto():
+        for caminho in (base / nome_arquivo, base / 'code' / nome_arquivo):
+            chave = str(caminho.resolve()) if caminho.exists() else str(caminho)
+            if chave in vistos:
+                continue
+            vistos.add(chave)
+            yield caminho
+
+def _resolver_arquivo_excel_local():
+    global NOME_ARQUIVO_LOCAL
+    if len(sys.argv) >= 2 and sys.argv[1].lower().endswith(('.xlsx', '.xlsm', '.xls')):
+        NOME_ARQUIVO_LOCAL = sys.argv[1]
+
+    caminho = _localizar_arquivo(NOME_ARQUIVO_LOCAL)
+    if caminho is None:
+        print(f"Arquivo {NOME_ARQUIVO_LOCAL} não encontrado. Tentando download...")
+        if not baixar_planilha_google():
+            raise FileNotFoundError(f"Falha ao baixar a planilha: {NOME_ARQUIVO_LOCAL}")
+        caminho = _localizar_arquivo(NOME_ARQUIVO_LOCAL) or Path(NOME_ARQUIVO_LOCAL).resolve()
+    else:
+        caminho = Path(caminho).resolve()
+
+    NOME_ARQUIVO_LOCAL = str(caminho)
+    return caminho
+
+def ler_aba_excel(nome_aba: str) -> pd.DataFrame:
+    return pd.read_excel(_resolver_arquivo_excel_local(), sheet_name=nome_aba)
+CONFIG, CONFIG_PATH = carregar_config()
+
+CONFIG_LINKS = CONFIG
+CONFIG_LINKS_PATH = CONFIG_PATH
+
+GOOGLE_CFG = _cfg_get(["google_drive"], {}) if isinstance(CONFIG, dict) else {}
+PATHS_CFG = _cfg_get(["paths"], {}) if isinstance(CONFIG, dict) else {}
+DOWNLOADS_CFG = _cfg_get(["downloads"], {}) if isinstance(CONFIG, dict) else {}
+EXEC_CFG = _cfg_get(["execucao"], _cfg_get(["execution"], {})) if isinstance(CONFIG, dict) else {}
+SIM_CFG = _cfg_get(["simulacao"], _cfg_get(["simulation"], {})) if isinstance(CONFIG, dict) else {}
+SWITCH_CFG = _cfg_get(["switching"], {}) if isinstance(CONFIG, dict) else {}
+
+GOOGLE_SHEETS_FILE_ID = _cfg_get(["google_drive", "sheets_file_id"], "17Rbdi74kVuXm8tqto3TUP19BVRXMjvqe")
+GOOGLE_SHEETS_EDIT_BASE = _cfg_get(["urls", "google_sheets_edit_base"], "https://docs.google.com/spreadsheets/d/{file_id}/edit")
+
+if GOOGLE_SHEETS_FILE_ID:
+    if "{file_id}" in str(GOOGLE_SHEETS_EDIT_BASE):
+        LINK_GOOGLE_SHEETS = str(GOOGLE_SHEETS_EDIT_BASE).format(file_id=GOOGLE_SHEETS_FILE_ID)
+    else:
+        LINK_GOOGLE_SHEETS = f"{str(GOOGLE_SHEETS_EDIT_BASE).rstrip('/')}/{GOOGLE_SHEETS_FILE_ID}/edit"
+else:
+    LINK_GOOGLE_SHEETS = None
+
+sheets_file_id = GOOGLE_SHEETS_FILE_ID
+
+NOME_ARQUIVO_LOCAL = _cfg_get_required_any([
+    ["arquivos", "planilha"],
+    ["paths", "excel_local"],
+])
+
+CACHE_BCB_FILE = _cfg_get_required_any([
+    ["arquivos", "cache_bcb"],
+    ["paths", "cache_bcb"],
+])
+
+RESULTADO_OTIMIZADOR_FIXO = _cfg_get_any([
+    ["paths", "resultado_otimizador_fixo"],
+], default=None)
+
+PARAM_5P_FIXO = _cfg_get_any([
+    ["arquivos", "parametros_5p"],
+    ["paths", "param_5p_fixo"],
+], default="melhores_parametros_5p.json")
+
+fallback_bcb_file_id = GOOGLE_CFG.get('fallback_bcb_file_id', '1B-xAeSXVzB8fEj5RJbbK17W-wWRAlXVn')
+fallback_param_5p_file_id = GOOGLE_CFG.get('fallback_param_5p_file_id', '1x2NXINcmzFHHINewQLkhwCflAsjUMEGf')
+FALLBACK_BCB_URL = DOWNLOADS_CFG.get('fallback_bcb_url') or f"https://drive.google.com/file/d/{fallback_bcb_file_id}/view?usp=sharing"
+FALLBACK_PARAM_URL_3P = DOWNLOADS_CFG.get('fallback_param_3p_url', 'https://drive.google.com/file/d/1sEWjE840c2NxNKyYcveaMD2iWGiNL3lp/view?usp=sharing')
+FALLBACK_PARAM_URL_5P = DOWNLOADS_CFG.get('fallback_param_5p_url') or f"https://drive.google.com/file/d/{fallback_param_5p_file_id}/view?usp=sharing"
+
+PARAMS_HIBRIDO = None
+PLANO_PAGAMENTOS_EXTERNO = None
+ORIGEM_PLANO_PAGAMENTOS = None
+MODO_EXECUCAO_FUTURO = str(EXEC_CFG.get('modo_execucao_futuro', 'rigido_plano_externo'))
+AUTO_REBAIXAR_MODO_SE_PLANO_INCOMPATIVEL = bool(EXEC_CFG.get('auto_rebaixar_plano_incompativel', True))
+MODO_FALLBACK_PLANO_INCOMPATIVEL = str(EXEC_CFG.get('modo_fallback_plano_incompativel', 'dinamico'))
+EXIBIR_DESCRICAO_MODO = bool(EXEC_CFG.get('exibir_descricao_modo', True))
+
+MODOS_EXECUCAO_FUTURO_INFO = {
+    'dinamico': 'Ignora o plano externo na execução das contas futuras e deixa o motor local decidir pagamentos e switches.',
+    'rigido_plano_externo': 'Tenta reproduzir o Extrato do arquivo externo conta a conta; quando faltar saldo ou o lote não existir, registra desvio e ajusta.',
+    'rigido_melhor_data': 'Usa a mesma lógica do plano externo, mas reancora cada switch na melhor data encontrada no diagnóstico antes de rodar o futuro.',
+}
+
+DIAGNOSTICO_MODO_EXECUCAO = {
+    'modo_solicitado': None,
+    'modo_efetivo': None,
+    'houve_rebaixamento': False,
+    'motivos_rebaixamento': [],
+    'plano_externo_carregado': False,
+    'origem_plano_externo': None,
+    'observacao': '',
+}
+
+PRODUTOS_GLOBAIS_SIMULACAO = []

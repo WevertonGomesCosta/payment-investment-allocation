@@ -1,0 +1,214 @@
+# =========================================================
+# 02. POLÍTICAS E UTILITÁRIOS CENTRAIS
+# =========================================================
+
+_tz_nome = _cfg_get_required(["execucao", "timezone"])
+if ZoneInfo is not None:
+    try:
+        TZ_BRASIL = ZoneInfo(_tz_nome)
+    except Exception:
+        TZ_BRASIL = None
+else:
+    TZ_BRASIL = None
+if TZ_BRASIL is None:
+    try:
+        import pytz
+        TZ_BRASIL = pytz.timezone(_tz_nome)
+    except Exception:
+        TZ_BRASIL = None
+try:
+    DATA_REFERENCIA = datetime.now(TZ_BRASIL).date() if TZ_BRASIL is not None else datetime.now().date()
+except Exception:
+    DATA_REFERENCIA = datetime.now().date()
+
+# =========================================================
+# configurações globais
+# =========================================================
+NOME_ARQUIVO_LOCAL = str(BASE_DIR_ATIVA / _cfg_get_required_any([["arquivos", "planilha"], ["paths", "excel_local"]]))
+CACHE_BCB_FILE = str(BASE_DIR_ATIVA / _cfg_get_required_any([["arquivos", "cache_bcb"], ["paths", "cache_bcb"]]))
+_PARAM_FILE_NAME = _cfg_get_required_any(
+    [["arquivos", "parametros_5p"], ["arquivos", "melhores_parametros_5p"]]
+)
+PARAM_FILE_5P = str(BASE_DIR_ATIVA / _normalizar_nome_arquivo_json(_PARAM_FILE_NAME))
+
+GOOGLE_SHEETS_FILE_ID = _cfg_get(["google_drive", "sheets_file_id"], None)
+FALLBACK_BCB_FILE_ID = _cfg_get(["google_drive", "fallback_bcb_file_id"], None)
+FALLBACK_PARAM_5P_FILE_ID = _cfg_get(["google_drive", "fallback_param_5p_file_id"], None)
+
+GOOGLE_SHEETS_EXPORT_BASE = _cfg_get_required(["urls", "google_sheets_export_base"])
+GOOGLE_DRIVE_DOWNLOAD_BASE = _cfg_get_required(["urls", "google_drive_download_base"])
+BCB_SERIE_12_URL = _cfg_get_required(["urls", "bcb_sgs_12_url"])
+
+ABA_EXTRATO = _cfg_get_required(["saidas", "aba_extrato"])
+ABA_AUDITORIA_EXTRATO = _cfg_get_required(["saidas", "aba_auditoria_extrato"])
+ABA_CARTEIRA_FINAL = _cfg_get_required(["saidas", "aba_carteira_final"])
+ABA_RESUMO = _cfg_get_required(["saidas", "aba_resumo"])
+ABA_SITUACAO_ATUAL = _cfg_get_required(["saidas", "aba_situacao_atual"])
+ABA_SWITCH_DIAGNOSTICO = "switch_diagnostico"
+ABA_SWITCH_EXECUCAO = "switch_execucao"
+TEMPLATE_RESULTADO_ESTRATEGIA = _cfg_get_required(["saidas", "template_arquivo_resultado_estrategia"])
+
+FALLBACK_BCB_URL = GOOGLE_DRIVE_DOWNLOAD_BASE.format(file_id=FALLBACK_BCB_FILE_ID) if FALLBACK_BCB_FILE_ID else None
+FALLBACK_PARAM_URL_5P = GOOGLE_DRIVE_DOWNLOAD_BASE.format(file_id=FALLBACK_PARAM_5P_FILE_ID) if FALLBACK_PARAM_5P_FILE_ID else None
+
+CDI_ANUAL = float(_cfg_get_required(["premissas_mercado", "cdi_anual_modelo"]))
+CONVENCAO_DIAS_ANO_CDI = int(_cfg_get_required(["execucao", "convencao_dias_ano", "cdi"]))
+TAXA_DIA_BASE = ((1 + CDI_ANUAL) ** (1 / CONVENCAO_DIAS_ANO_CDI)) - 1
+
+TAXA_BASE_DEFAULT = float(_cfg_get_required(["defaults_lote", "taxa_base_cdi"]))
+TAXA_BONUS_DEFAULT = float(_cfg_get_required(["defaults_lote", "taxa_bonus_cdi"]))
+DIAS_BONUS_DEFAULT = int(_cfg_get_required(["defaults_lote", "dias_bonus"]))
+PRODUTO_FALLBACK_NOME_RAW = str(_cfg_get_required_any([["defaults", "produto_fallback_nome"], ["defaults_lote", "produto_fallback_nome"]]))
+INVESTIMENTO_REFERENCIA_FUTURO_NOME = str(_cfg_get_any([["defaults", "investimento_referencia_futuro"]], "") or "").strip()
+INVESTIMENTO_REFERENCIA_FUTURO_MATCH_EXATO = bool(_cfg_get_any([["defaults", "investimento_referencia_futuro_match_exato"]], True))
+TAXA_BASE_REFERENCIA_FUTURA_DEFAULT = float(_cfg_get_any([["defaults_lote", "taxa_base_referencia_futura_default"], ["defaults", "taxa_base_referencia_futura_default"]], TAXA_BASE_DEFAULT))
+
+IOF_TABLE = np.array(_cfg_get_required(["iof", "tabela"]), dtype=np.float64)
+if IOF_TABLE.size == 29:
+    IOF_TABLE = np.concatenate(([1.0], IOF_TABLE))
+elif IOF_TABLE.size != 30:
+    raise RuntimeError(
+        f"config['iof']['tabela'] deve ter 29 ou 30 valores; recebido: {IOF_TABLE.size}."
+    )
+
+IR_FAIXAS = {}
+for faixa in _cfg_get_required(["ir", "faixas"]):
+    dias_max = faixa.get("dias_max")
+    chave = 9999 if dias_max is None else int(dias_max)
+    aliquota = float(faixa["aliquota"])
+    IR_FAIXAS[chave] = {"ir": aliquota, "proxima": aliquota, "delta": 0.0}
+
+if not IR_FAIXAS:
+    raise RuntimeError("config['ir']['faixas'] não pode estar vazio.")
+
+_ordenadas = sorted(IR_FAIXAS.keys())
+for i, chave in enumerate(_ordenadas):
+    prox = _ordenadas[i + 1] if i + 1 < len(_ordenadas) else chave
+    IR_FAIXAS[chave]["proxima"] = IR_FAIXAS[prox]["ir"]
+    IR_FAIXAS[chave]["delta"] = max(0.0, IR_FAIXAS[chave]["ir"] - IR_FAIXAS[prox]["ir"])
+
+IR_MARCOS_CLIFF = tuple(sorted(int(f["dias_max"]) for f in _cfg_get_required(["ir", "faixas"]) if f.get("dias_max") is not None))
+IR_MARCOS_CLIFF_NUMBA = np.array(IR_MARCOS_CLIFF, dtype=np.int64)
+DIAS_CLIFF_IR = int(_cfg_get_required(["pagamento", "dias_cliff_ir"]))
+LOTES_MONITORADOS_LIQUIDO = set(_cfg_get_required(["auditoria", "lotes_monitorados_liquido"]))
+TOLERANCIA_MONETARIA = float(_cfg_get_required(["replay", "tolerancia_monetaria"]))
+VALOR_MINIMO_LOTE_ATIVO = float(_cfg_get_required(["replay", "valor_minimo_lote_ativo"]))
+VALOR_MINIMO_RESGATE_BRUTO = float(_cfg_get_required(["pagamento", "valor_minimo_resgate_bruto"]))
+
+TREINAMENTO_PERFIS = _cfg_get_required(["treinamento", "perfis"])
+
+TREINAMENTO_TEMPO_ALVO_MINIMO_ABSOLUTO = int(_cfg_get_required(["treinamento", "modo_auto", "tempo_alvo_minimo_absoluto"]))
+TREINAMENTO_AUTO_TEMPO_ALVO_CURTO_MAX = int(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "tempo_alvo_curto_max"]))
+TREINAMENTO_AUTO_TEMPO_ALVO_LONGO_MIN = int(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "tempo_alvo_longo_min"]))
+TREINAMENTO_AUTO_CARGA_MEDIA_MIN = float(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "carga_media_min"]))
+TREINAMENTO_AUTO_CARGA_ALTA_MIN = float(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "carga_alta_min"]))
+TREINAMENTO_AUTO_CARGA_BAIXA_MAX = float(_cfg_get_required(["treinamento", "modo_auto", "thresholds", "carga_baixa_max"]))
+TREINAMENTO_MAX_CONTAS_PADRAO = int(_cfg_get_required(["treinamento", "reducao_contas", "max_contas_padrao"]))
+
+MODO_TREINAMENTO_PADRAO = str(_cfg_get_required(["execucao", "defaults_interativos", "modo_treinamento_padrao"]))
+PERFIL_TREINO_PADRAO = str(_cfg_get_required(["execucao", "defaults_interativos", "perfil_treino_padrao"]))
+PERFIL_TREINO_AUTO_OPCAO = str(_cfg_get_required(["execucao", "defaults_interativos", "perfil_treino_auto_opcao"]))
+TEMPO_ALVO_AUTO_PADRAO_MINUTOS = int(_cfg_get_required(["execucao", "defaults_interativos", "tempo_alvo_auto_padrao_minutos"]))
+
+HORIZONTE_PROJECAO_DIAS = int(_cfg_get_required(["simulacao", "horizonte_extra_dias"]))
+
+CFG_OPT_GEN = _cfg_get_required(["otimizacao", "genetica_profunda"])
+CFG_OPT_PEN = _cfg_get_required(["otimizacao", "penalidade_5p"])
+
+OPT_GEN_SEED = int(_cfg_get_required(["otimizacao", "genetica_profunda", "seed"]))
+OPT_GEN_STRATEGY = str(_cfg_get_required(["otimizacao", "genetica_profunda", "strategy"]))
+OPT_GEN_UPDATING = str(_cfg_get_required(["otimizacao", "genetica_profunda", "updating"]))
+OPT_GEN_INIT_SEM_POPULACAO_INICIAL = str(_cfg_get_required(["otimizacao", "genetica_profunda", "init_sem_populacao_inicial"]))
+OPT_GEN_WORKERS = int(_cfg_get_required(["otimizacao", "genetica_profunda", "workers"]))
+
+OPT_PEN_SEED = int(_cfg_get_required(["otimizacao", "penalidade_5p", "seed"]))
+OPT_PEN_STRATEGY = str(_cfg_get_required(["otimizacao", "penalidade_5p", "strategy"]))
+OPT_PEN_UPDATING = str(_cfg_get_required(["otimizacao", "penalidade_5p", "updating"]))
+OPT_PEN_INIT_SEM_POPULACAO_INICIAL = str(_cfg_get_required(["otimizacao", "penalidade_5p", "init_sem_populacao_inicial"]))
+OPT_PEN_WORKERS = int(_cfg_get_required(["otimizacao", "penalidade_5p", "workers"]))
+
+CFG_OPT_GEN_POP_INIT = CFG_OPT_GEN.get("populacao_inicial", {}) or {}
+OPT_GEN_DIVISOR_POPSIZE_CLONES = int(CFG_OPT_GEN_POP_INIT.get("divisor_popsize_clones", 3))
+OPT_GEN_MIN_CLONES = int(CFG_OPT_GEN_POP_INIT.get("min_clones", 1))
+OPT_GEN_RUIDO_GAUSSIANO_MEDIA = float(CFG_OPT_GEN_POP_INIT.get("ruido_gaussiano_media", 0.0))
+OPT_GEN_RUIDO_GAUSSIANO_DESVIO = float(CFG_OPT_GEN_POP_INIT.get("ruido_gaussiano_desvio", 0.1))
+if OPT_GEN_DIVISOR_POPSIZE_CLONES < 1:
+    raise ValueError("otimizacao/genetica_profunda/populacao_inicial/divisor_popsize_clones deve ser >= 1")
+if OPT_GEN_MIN_CLONES < 0:
+    raise ValueError("otimizacao/genetica_profunda/populacao_inicial/min_clones deve ser >= 0")
+if OPT_GEN_RUIDO_GAUSSIANO_DESVIO < 0:
+    raise ValueError("otimizacao/genetica_profunda/populacao_inicial/ruido_gaussiano_desvio deve ser >= 0")
+
+CFG_OPT_PEN_POP_INIT = CFG_OPT_PEN.get("populacao_inicial", {}) or {}
+OPT_PEN_DIVISOR_POPSIZE_CLONES = int(CFG_OPT_PEN_POP_INIT.get("divisor_popsize_clones", 3))
+OPT_PEN_MIN_CLONES = int(CFG_OPT_PEN_POP_INIT.get("min_clones", 1))
+OPT_PEN_RUIDO_GAUSSIANO_MEDIA = float(CFG_OPT_PEN_POP_INIT.get("ruido_gaussiano_media", 0.0))
+OPT_PEN_RUIDO_GAUSSIANO_DESVIO = float(CFG_OPT_PEN_POP_INIT.get("ruido_gaussiano_desvio", 0.1))
+if OPT_PEN_DIVISOR_POPSIZE_CLONES < 1:
+    raise ValueError("otimizacao/penalidade_5p/populacao_inicial/divisor_popsize_clones deve ser >= 1")
+if OPT_PEN_MIN_CLONES < 0:
+    raise ValueError("otimizacao/penalidade_5p/populacao_inicial/min_clones deve ser >= 0")
+if OPT_PEN_RUIDO_GAUSSIANO_DESVIO < 0:
+    raise ValueError("otimizacao/penalidade_5p/populacao_inicial/ruido_gaussiano_desvio deve ser >= 0")
+
+def _cfg_bounds_to_tuples(cfg_dict, *path, expected_dims=5):
+    cur = cfg_dict
+    for k in path:
+        if not isinstance(cur, dict) or k not in cur:
+            raise KeyError(f"Chave obrigatória ausente no config: {'/'.join(path)}")
+        cur = cur[k]
+    raw = cur
+    if not isinstance(raw, list):
+        raise TypeError(f"Bounds em {'/'.join(path)} devem ser uma lista.")
+    if len(raw) != expected_dims:
+        raise ValueError(f"Bounds em {'/'.join(path)} devem ter {expected_dims} dimensões, encontrado {len(raw)}.")
+    bounds = []
+    for i, item in enumerate(raw):
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            raise ValueError(f"Bound na posição {i} em {'/'.join(path)} deve ter exatamente 2 valores.")
+        lo, hi = float(item[0]), float(item[1])
+        if lo > hi:
+            raise ValueError(f"Bound inválido na posição {i} em {'/'.join(path)}: mínimo {lo} maior que máximo {hi}.")
+        bounds.append((lo, hi))
+    return bounds
+
+OPT_GEN_BOUNDS = _cfg_bounds_to_tuples(config, "otimizacao", "genetica_profunda", "bounds")
+OPT_PEN_BOUNDS = _cfg_bounds_to_tuples(config, "otimizacao", "penalidade_5p", "bounds")
+
+def obter_aliquota_ir(dias_vida):
+    dias_vida = int(dias_vida)
+    for threshold in sorted(IR_FAIXAS.keys()):
+        if dias_vida <= threshold:
+            return float(IR_FAIXAS[threshold]["ir"])
+    ultima = max(IR_FAIXAS.keys())
+    return float(IR_FAIXAS[ultima]["ir"])
+
+IR_THRESHOLDS_NUMBA = np.array(sorted(IR_FAIXAS.keys()), dtype=np.int64)
+IR_ALIQUOTAS_NUMBA = np.array([float(IR_FAIXAS[k]["ir"]) for k in sorted(IR_FAIXAS.keys())], dtype=np.float64)
+
+@njit(nogil=True, fastmath=True)
+def obter_aliquota_ir_numba(dias_vida, thresholds, aliquotas):
+    dias_vida = int(dias_vida)
+    for i in range(len(thresholds)):
+        if dias_vida <= thresholds[i]:
+            return aliquotas[i]
+    return aliquotas[len(aliquotas) - 1]
+
+
+def distancia_proximo_cliff_ir(dias_vida):
+    dias_vida = int(dias_vida)
+    for marco in IR_MARCOS_CLIFF:
+        if dias_vida < marco:
+            return marco - dias_vida
+    return 999
+
+@njit(nogil=True, fastmath=True)
+def distancia_proximo_cliff_ir_numba(dias_vida):
+    dias_vida = int(dias_vida)
+    for i in range(len(IR_MARCOS_CLIFF_NUMBA)):
+        marco = IR_MARCOS_CLIFF_NUMBA[i]
+        if dias_vida < marco:
+            return float(marco - dias_vida)
+    return 999.0
+
+cal = Brazil()

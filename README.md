@@ -1,68 +1,42 @@
 # payment-investment-allocation
 
-Repositório controlado para a unificação incremental de dois scripts financeiros:
+Repositório controlado para a unificação incremental de dois scripts
+financeiros: um de otimização de pagamentos e resgates, e outro de switching
+para lotes já investidos e lotes disponíveis.
 
-- um otimizador de pagamentos e resgates;
-- um motor de switching para lotes já investidos e lotes disponíveis.
+O objetivo de longo prazo é evoluir esta base para um projeto único, auditável
+ e modular de alocação conjunta de recebidos entre pagamentos, investimentos e
+ decisões de switching, maximizando o patrimônio líquido final com matemática
+financeira correta.
 
-O objetivo de longo prazo é evoluir esta baseline para um projeto único, auditável e modular de
-alocação conjunta de recebidos entre pagamentos, investimentos e decisões de switching,
-maximizando o patrimônio líquido final sob regras financeiramente corretas.
+## Estado atual do repositório
 
-## Estado Atual do Repositório
+**Versão atual da baseline:** V3
 
-Este repositório é a baseline oficial controlada do esforço de unificação modular.
+A V3 não representa ainda uma expansão funcional do projeto. Ela é uma
+**reconstrução controlada da baseline** para deixá-la coerente com a regra de
+trabalho adotada no projeto:
 
-**Versão atual da baseline:** V2 revisada
+> a estrutura física dos módulos dos scripts-base não é tratada como fronteira
+> semântica confiável; as decisões de migração e unificação devem seguir a
+> responsabilidade real das funções.
 
-Nesta etapa, o repositório contém:
+## O que mudou na V3
 
-- a planilha canônica e o arquivo de configuração em `data/`;
-- os primeiros módulos Python compartilhados extraídos dos dois scripts originais;
-- um ponto de entrada mínimo para inspeção da baseline;
-- diretórios de apoio para as próximas etapas controladas da modularização.
+A V2 revisada foi reavaliada e reconstruída para remover compromissos
+arquiteturais prematuros.
 
-## Entradas Canônicas
+As principais mudanças foram:
 
-A baseline atual utiliza como entradas principais:
+- simplificação da árvore do repositório para uma base mais neutra;
+- tradução do núcleo inicial para português;
+- remoção de diretórios futuros que ainda poderiam induzir modularização antes
+  da hora;
+- fortalecimento do carregamento do config com base no bloco já auditado do
+  Script 1;
+- manutenção do leitor de planilha em escopo estritamente estrutural.
 
-- `data/config_atualizado.json`
-- `data/dados_financeiros.xlsx`
-
-Esses arquivos permanecem como ponto de partida canônico para as primeiras etapas da migração estrutural.
-
-## O que foi adicionado na V2
-
-A V2 criou a primeira camada modular sem alterar ainda o núcleo financeiro profundo.
-
-### Módulos compartilhados iniciais
-
-- `core/ambiente.py`
-  - tratamento seletivo de avisos de rede;
-  - detecção do ambiente de execução;
-  - verificação e instalação opcional de dependências;
-  - contexto de timezone e bootstrap.
-
-- `core/config_loader.py`
-  - descoberta da raiz do repositório;
-  - resolução do caminho do config canônico;
-  - carregamento do JSON de configuração;
-  - acesso seguro a chaves aninhadas.
-
-- `core/io_planilha.py`
-  - resolução do caminho da planilha canônica;
-  - carregamento do workbook;
-  - leitura inicial das abas;
-  - canonização inicial de colunas com base nos aliases definidos no config.
-
-### Ponto de entrada mínimo
-
-- `app/main.py`
-
-Esse ponto de entrada apenas inspeciona a baseline e imprime um resumo estruturado do config e da planilha.
-Ele **ainda não** executa otimização de pagamentos, switching, simulação ou reconciliação financeira.
-
-## Estrutura Atual do Repositório
+## Estrutura atual do repositório
 
 ```text
 .
@@ -73,110 +47,127 @@ Ele **ainda não** executa otimização de pagamentos, switching, simulação ou
 ├── README.md
 ├── payment-investment-allocation.Rproj
 ├── requirements.txt
-├── app/
-│   └── main.py
-├── core/
+├── aplicacao/
+│   └── principal.py
+├── nucleo/
 │   ├── __init__.py
 │   ├── ambiente.py
-│   ├── config_loader.py
-│   └── io_planilha.py
-├── motores/
-│   └── __init__.py
-├── estrategias/
-│   └── __init__.py
-├── adapters/
-│   └── __init__.py
+│   ├── carregador_config.py
+│   └── leitor_planilha.py
 ├── scripts/
-│   └── inspecionar_baseline.py
-├── tests/
-│   └── .gitkeep
-├── data/
+│   └── inspecionar_base.py
+├── dados/
 │   ├── config_atualizado.json
 │   ├── dados_financeiros.xlsx
-│   ├── raw/
+│   ├── bruto/
 │   │   └── .gitkeep
-│   ├── interim/
+│   ├── intermediario/
 │   │   └── .gitkeep
-│   └── processed/
+│   └── processado/
 │       └── .gitkeep
-├── outputs/
+├── saidas/
 │   └── .gitkeep
-└── reports/
+├── relatorios/
+│   ├── .gitkeep
+│   └── AUDITORIA_ARQUITETURAL_V3.md
+└── testes/
     └── .gitkeep
 ```
 
-## Uso Mínimo
+## Entradas canônicas atuais
 
-Crie ou ative seu ambiente Python e instale as dependências atuais:
+A baseline atual utiliza como entradas principais:
+
+- `dados/config_atualizado.json`
+- `dados/dados_financeiros.xlsx`
+
+O carregamento foi mantido com compatibilidade para caminhos antigos quando
+necessário, mas a convenção oficial da baseline reconstruída passa a ser a
+pasta `dados/`.
+
+## Núcleo compartilhado inicial
+
+### `nucleo/ambiente.py`
+Responsável por:
+
+- detecção da raiz do repositório;
+- warnings seletivos de rede;
+- verificação e instalação opcional de dependências por import real;
+- contexto mínimo de timezone.
+
+### `nucleo/carregador_config.py`
+Responsável por:
+
+- descoberta do config canônico;
+- leitura do JSON de configuração;
+- suporte a lista ordenada de configs candidatos;
+- suporte a variável de ambiente;
+- helpers seguros para leitura de chaves aninhadas.
+
+### `nucleo/leitor_planilha.py`
+Responsável por:
+
+- descoberta da planilha canônica;
+- carregamento das abas;
+- leitura estrutural inicial;
+- canonização inicial de colunas com base nos aliases do config.
+
+## O que esta versão deliberadamente não implementa
+
+Esta versão ainda não implementa:
+
+- contratos finais de entidades de domínio;
+- motores de pagamento;
+- motores de switching;
+- adaptadores remotos;
+- reconstrução histórica de lotes;
+- regras profundas de IR/IOF;
+- avaliação conjunta de cenários.
+
+Essas camadas só devem ser abertas depois de novas auditorias comparativas dos
+scripts-base.
+
+## Uso mínimo
+
+Instale as dependências atuais:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Execute a inspeção da baseline a partir da raiz do repositório:
+Execute a inspeção mínima da baseline:
 
 ```bash
-python app/main.py
+python aplicacao/principal.py
 ```
 
 ou:
 
 ```bash
-python scripts/inspecionar_baseline.py
+python scripts/inspecionar_base.py
 ```
 
 O comando imprime:
 
 - raiz do repositório resolvida;
-- caminho do config resolvido;
-- caminho da planilha resolvido;
+- caminho do config;
+- caminho da planilha;
 - relatório de dependências;
-- nomes das abas da planilha;
-- resumo inicial da baseline.
+- nomes das abas;
+- resumo estrutural da planilha.
 
-## Princípios de Projeto Mantidos
-
-Este repositório continua seguindo a política de migração controlada:
+## Princípios mantidos nesta baseline
 
 - config canônico único;
 - interpretação canônica única da planilha;
 - modularização incremental;
-- auditabilidade futura em nível de lote;
-- nenhuma correção estrutural profunda antes que a unificação do núcleo esteja estável;
+- auditoria por responsabilidade real;
+- reauditoria da base antes de cada nova migração;
+- nenhuma correção estrutural profunda no núcleo financeiro antes da hora;
 - entrega do repositório completo em `.zip` a cada versão.
 
-## O que a V2 ainda não altera
+## Próximo passo recomendado
 
-A V2 deliberadamente **não** implementa nem reescreve:
-
-- cálculos do núcleo financeiro;
-- lógica tributária;
-- reconciliação de IOF e IR;
-- ranking de pagamento;
-- ranking de switching;
-- avaliação conjunta de cenários;
-- reconstrução histórica de lotes.
-
-Essas camadas deverão ser migradas em versões controladas posteriores.
-
-## Recomendação antes da V3
-
-Antes de expandir a base modular para contratos de entidades e validações mais profundas, a recomendação é auditar mais blocos equivalentes dos dois scripts-base. Isso reduz o risco de criar funções ou estruturas duplicadas que já existam nos scripts originais, preserva a identificação correta das responsabilidades e melhora a qualidade da unificação.
-
-A prioridade recomendada para os próximos blocos é:
-
-1. leitura do config e resolução de caminhos;
-2. carga da planilha e interpretação das abas;
-3. normalização/canonização de colunas;
-4. construção inicial das estruturas de lotes, despesas e produtos;
-5. validações operacionais mínimas;
-6. só depois disso, migração controlada do núcleo de pagamento e switching.
-
-## Próximo passo sugerido
-
-O próximo passo mais seguro é continuar a auditoria comparativa dos scripts-base antes de ampliar demais a V2. A V3 deve nascer apenas depois que os próximos blocos equivalentes forem comparados e classificados em:
-
-- manter;
-- unificar;
-- excluir;
-- reescrever posteriormente.
+O próximo passo mais seguro é continuar a auditoria comparativa dos scripts-base
+antes de criar entidades finais, validadores semânticos profundos ou módulos de
+negócio mais específicos.

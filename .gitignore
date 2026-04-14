@@ -73,10 +73,11 @@ Thumbs.db
 # ---------------------------------------------------------
 # Saídas geradas
 # ---------------------------------------------------------
-outputs/*
-reports/*
-!outputs/.gitkeep
-!reports/.gitkeep
+saidas/*
+relatorios/*
+!saidas/.gitkeep
+!relatorios/.gitkeep
+!relatorios/AUDITORIA_ARQUITETURAL_V3.md
 
 # ---------------------------------------------------------
 # Derivados de dados e caches
@@ -97,14 +98,14 @@ cache/
 *.csv
 *.xls
 *.xlsx
-!data/dados_financeiros.xlsx
+!dados/dados_financeiros.xlsx
 
 # ---------------------------------------------------------
-# Diretórios futuros específicos do projeto
+# Diretórios específicos do projeto
 # ---------------------------------------------------------
-data/raw/*
-data/interim/*
-data/processed/*
-!data/raw/.gitkeep
-!data/interim/.gitkeep
-!data/processed/.gitkeep
+dados/bruto/*
+dados/intermediario/*
+dados/processado/*
+!dados/bruto/.gitkeep
+!dados/intermediario/.gitkeep
+!dados/processado/.gitkeep

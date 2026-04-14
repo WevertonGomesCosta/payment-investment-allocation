@@ -1,6 +1,6 @@
+pandas
 numpy
 openpyxl
-pandas
 python-dateutil
 requests
 pulp
