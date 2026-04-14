@@ -16,6 +16,7 @@ from nucleo.calendario_financeiro import construir_calendario_financeiro, contar
 from nucleo.carregador_config import carregar_config
 from nucleo.carteira_canonica import carregar_carteira_canonica
 from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
+from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
 from nucleo.leitor_planilha import carregar_planilha, construir_resumo_planilha
 
 
@@ -81,6 +82,10 @@ def main() -> None:
         data_referencia=contexto.data_referencia,
         carteira_canonica=carteira_canonica,
     )
+    switching_shadow = carregar_switching_shadow_reconciliacao(
+        dados_operacionais,
+        carteira_canonica=carteira_canonica,
+    )
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
     resumo_por_aba = {item["nome_aba"]: item for item in resumo_planilha}
     abas_config = pacote_config.conteudo.get("abas", {}) if isinstance(pacote_config.conteudo.get("abas"), dict) else {}
@@ -124,10 +129,22 @@ def main() -> None:
         avisos=contexto.relatorio_dependencias.get("ausentes", []),
         condicao_ok=len(contexto.relatorio_dependencias.get("ausentes", [])) == 0,
     )
+    resumo_lotes_shadow = switching_shadow.auditoria_lotes_shadow or {}
+    auditoria_eventos_shadow = switching_shadow.auditoria_eventos_aporte or {}
+    reconciliacao_shadow = switching_shadow.reconciliacao_aportes or {}
+    severidade_lotes_shadow = _severidade(
+        erros=["lote_id_duplicado"] if resumo_lotes_shadow.get("qtd_ids_duplicados", 0) > 0 else None,
+        avisos=["existem_produtos_nao_reconhecidos_no_shadow"] if resumo_lotes_shadow.get("qtd_produto_nao_reconhecido", 0) > 0 else None,
+        condicao_ok=len(switching_shadow.lotes_shadow) > 0,
+    )
+    severidade_eventos_shadow = _severidade(
+        erros=["reconciliacao_aportes_divergente"] if not bool(reconciliacao_shadow.get("equivalentes_essenciais", False)) else None,
+        condicao_ok=len(switching_shadow.eventos_financeiros_ordenados) > 0,
+    )
 
     _imprimir_titulo("BASELINE")
     _imprimir_pares([
-        ("versão", "V14"),
+        ("versão", "V15"),
         ("raiz do repositório", pacote_config.raiz_repositorio),
         ("config carregado", pacote_config.caminho),
         ("planilha carregada", pacote_planilha.caminho),
@@ -194,6 +211,8 @@ def main() -> None:
     _imprimir_linha_status("Carteira canônica", severidade_carteira, f"{len(carteira_canonica.quadro_canonico)} produtos")
     _imprimir_linha_status("Inventário canônico", severidade_inventario, f"{len(dados_operacionais.inventario_canonico)} lotes")
     _imprimir_linha_status("Gastos canônicos", severidade_gastos, f"{len(dados_operacionais.gastos_canonicos)} despesas")
+    _imprimir_linha_status("Lotes shadow", severidade_lotes_shadow, f"{len(switching_shadow.lotes_shadow)} lotes técnicos")
+    _imprimir_linha_status("Trilha técnica de eventos", severidade_eventos_shadow, f"{len(switching_shadow.eventos_financeiros_ordenados)} eventos")
     _imprimir_pares([
         ("produtos canônicos", len(carteira_canonica.quadro_canonico)),
         ("produto_key únicos", len(carteira_canonica.mapa_produtos.get("by_key", {}))),
@@ -204,6 +223,10 @@ def main() -> None:
         ("despesas pagas até a data de referência", resumo_gastos.get("pagas_ate_data_referencia", 0)),
         ("despesas futuras ou pendentes", resumo_gastos.get("futuras_ou_pendentes", 0)),
         ("despesas com lote informado", resumo_gastos.get("com_lote_informado", 0)),
+        ("lotes shadow com produto reconhecido", resumo_lotes_shadow.get("qtd_produto_reconhecido", 0)),
+        ("lotes shadow caixa disponível", resumo_lotes_shadow.get("qtd_caixa_disponivel", 0)),
+        ("eventos técnicos de aporte", auditoria_eventos_shadow.get("qtd_eventos_aporte", 0)),
+        ("reconciliação aporte observado vs shadow", "equivalente" if reconciliacao_shadow.get("equivalentes_essenciais") else "divergente"),
     ])
 
     _imprimir_titulo("CARTEIRA CANÔNICA")
@@ -260,6 +283,45 @@ def main() -> None:
             print(f"  [OK] {chave}: {valor}")
     _imprimir_itens_severidade("erros de validação", validacao_gastos.get("erros"), "ERRO")
     _imprimir_itens_severidade("avisos de validação", validacao_gastos.get("avisos"), "AVISO")
+
+    _imprimir_titulo("SWITCHING SHADOW E RECONCILIAÇÃO")
+    _imprimir_linha_status("Normalização shadow dos lotes", severidade_lotes_shadow)
+    _imprimir_pares([
+        ("lotes shadow", len(switching_shadow.lotes_shadow)),
+        ("lote_id duplicado", resumo_lotes_shadow.get("qtd_ids_duplicados", 0)),
+        ("lote_tecnico_id duplicado", resumo_lotes_shadow.get("qtd_lote_tecnico_duplicado", 0)),
+        ("produto reconhecido", resumo_lotes_shadow.get("qtd_produto_reconhecido", 0)),
+        ("produto não reconhecido", resumo_lotes_shadow.get("qtd_produto_nao_reconhecido", 0)),
+        ("caixa disponível", resumo_lotes_shadow.get("qtd_caixa_disponivel", 0)),
+        ("caixa futuro", resumo_lotes_shadow.get("qtd_caixa_futuro", 0)),
+        ("caixa exaurido", resumo_lotes_shadow.get("qtd_caixa_exaurido", 0)),
+        ("data base fiscal inferida", resumo_lotes_shadow.get("qtd_data_base_fiscal_inferida", 0)),
+    ])
+    if resumo_lotes_shadow.get("resumo_tipos_lote"):
+        print("- tipos de lote shadow:")
+        for chave, valor in resumo_lotes_shadow.get("resumo_tipos_lote", {}).items():
+            print(f"  [OK] {chave}: {valor}")
+
+    _imprimir_linha_status("Eventos brutos de aporte", severidade_eventos_shadow)
+    _imprimir_pares([
+        ("eventos de aporte", auditoria_eventos_shadow.get("qtd_eventos_aporte", 0)),
+        ("soma eventos aporte", auditoria_eventos_shadow.get("soma_valores_aporte", 0.0)),
+        ("eventos financeiros brutos", len(switching_shadow.eventos_financeiros_brutos)),
+        ("eventos financeiros ordenados", len(switching_shadow.eventos_financeiros_ordenados)),
+        ("reconciliação equivalente", "sim" if reconciliacao_shadow.get("equivalentes_essenciais") else "não"),
+        ("ids somente legado", len(reconciliacao_shadow.get("lote_tecnico_id_somente_legado", []))),
+        ("ids somente shadow", len(reconciliacao_shadow.get("lote_tecnico_id_somente_shadow", []))),
+    ])
+    _imprimir_itens_severidade("ids somente legado", reconciliacao_shadow.get("lote_tecnico_id_somente_legado"), "ERRO")
+    _imprimir_itens_severidade("ids somente shadow", reconciliacao_shadow.get("lote_tecnico_id_somente_shadow"), "ERRO")
+    if reconciliacao_shadow.get("datas_diferentes"):
+        print("- datas divergentes:")
+        for lote_tecnico_id, data_a, data_b in reconciliacao_shadow.get("datas_diferentes", []):
+            print(f"  [ERRO] {lote_tecnico_id}: observado={data_a} shadow={data_b}")
+    if reconciliacao_shadow.get("valores_diferentes"):
+        print("- valores divergentes:")
+        for lote_tecnico_id, valor_a, valor_b in reconciliacao_shadow.get("valores_diferentes", []):
+            print(f"  [ERRO] {lote_tecnico_id}: observado={valor_a} shadow={valor_b}")
 
     _imprimir_titulo("RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS")
     for _, nome_aba in abas_primarias:

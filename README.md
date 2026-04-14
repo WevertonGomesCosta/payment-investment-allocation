@@ -11,16 +11,18 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V14
+**Versão atual da baseline:** V15
 
-A V14 preserva a baseline fixa da fase atual e acrescenta uma camada neutra compartilhada de **calendário financeiro, dias de rendimento e taxas/CDI base**, mantendo tudo o que já havia sido aberto até a V11:
+A V15 preserva a baseline fixa da fase atual e acrescenta a metade **canônica e reconciliatória** do bloco 06, mantendo o restante da baseline neutra:
 
+- carteira canônica e `produto_key`;
 - inventário canônico;
 - gastos canônicos;
-- classificação operacional mínima dos lotes;
-- separação estrutural entre passado pago e futuro/pendente;
-- calendário financeiro neutro;
-- cálculo da taxa diária base do CDI;
+- calendário financeiro neutro e taxas/CDI base;
+- lotes shadow normalizados;
+- eventos brutos de aporte histórico;
+- reconciliação observado vs shadow;
+- trilha técnica ordenada de eventos;
 - validação local da baseline.
 
 A regra de trabalho do projeto continua sendo:
@@ -48,7 +50,10 @@ A regra de trabalho do projeto continua sendo:
 │   ├── carregador_config.py
 │   ├── leitor_planilha.py
 │   ├── carteira_canonica.py
-│   └── dados_operacionais_canonicos.py
+│   ├── dados_operacionais_canonicos.py
+│   ├── calendario_financeiro.py
+│   ├── switching_shadow_reconciliacao.py
+│   └── utilitarios_neutros.py
 ├── scripts/
 │   └── inspecionar_base.py
 ├── dados/
@@ -65,7 +70,9 @@ A regra de trabalho do projeto continua sendo:
 ├── relatorios/
 │   ├── .gitkeep
 │   ├── AUDITORIA_ARQUITETURAL_V3.md
-│   └── CONTRATO_OPERACIONAL_PROJETO.md
+│   ├── CONTRATO_OPERACIONAL_PROJETO.md
+│   ├── BASELINE_FIXA_V15.md
+│   └── VALIDACAO_LOCAL_V15.md
 └── testes/
     └── .gitkeep
 ```
@@ -83,7 +90,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V14.md`
+- `relatorios/VALIDACAO_LOCAL_V15.md`
 
 ## Entradas canônicas atuais
 
@@ -177,7 +184,7 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V14, a execução local mínima foi
+validação incremental da baseline. Nesta V15, a execução local mínima foi
 realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;

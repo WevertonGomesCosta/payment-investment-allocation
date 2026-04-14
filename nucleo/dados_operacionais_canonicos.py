@@ -20,7 +20,7 @@ import pandas as pd
 
 from nucleo.carteira_canonica import PacoteCarteiraCanonica, normalizar_nome_produto
 from nucleo.leitor_planilha import PacotePlanilha, resolver_coluna
-from nucleo.utilitarios_neutros import limpar_texto, normalizar_identificador, para_bool, para_data, para_float_monetario
+from nucleo.utilitarios_neutros import limpar_texto, normalizar_identificador, para_bool, para_data, para_float_monetario, para_int
 
 
 @dataclass(slots=True)
@@ -187,14 +187,19 @@ def carregar_inventario_canonico(
         classificacao = _classificar_investimento(row.get(col_produto) if col_produto else None, data_aplicacao, data_referencia)
         produto_resolvido = _resolver_produto_canonico(classificacao["produto_informado"], carteira_canonica)
         data_base_fiscal = para_data(row.get(col_data_base_fiscal)) if col_data_base_fiscal else None
+        data_base_fiscal_inferida = data_base_fiscal is None
         if data_base_fiscal is None:
             data_base_fiscal = data_aplicacao
 
         registros.append({
             "lote_id": lote_id,
+            "lote_id_raw": limpar_texto(row.get(col_lote_id)),
+            "ordem_planilha_lote": para_int(idx, 0) + 1,
+            "origem_registro": "inventario_lotes",
             "data_aplicacao": data_aplicacao,
             "valor_original": valor_original,
             "data_base_fiscal": data_base_fiscal,
+            "data_base_fiscal_inferida": data_base_fiscal_inferida,
             "status_lote_informado": limpar_texto(row.get(col_status)) if col_status else "",
             **classificacao,
             **produto_resolvido,

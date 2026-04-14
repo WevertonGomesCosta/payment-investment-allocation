@@ -1758,10 +1758,6 @@ class Lote:
             )
             return [novo_lote]
 
-# =========================================================
-# 08. OTIMIZAÇÃO E VALIDAÇÃO
-# =========================================================
-
 SWITCH_MIN_UPGRADE_REL = 0.0   # 0.0 = exige apenas taxa_destino > taxa_origem
 
 SWITCH_MIN_HOLD_DIAS = 30
@@ -2721,6 +2717,10 @@ def _consolidar_plano_switches_final(plano_switches, planos_pool_switch):
             })
 
     return plano_switches_final
+
+# =========================================================
+# 08. OTIMIZAÇÃO E VALIDAÇÃO
+# =========================================================
 
 def _avaliar_switching_e_diagnosticos(lotes_passados, lotes_futuros, contas, produtos, bcb_map, hoje, estado_lotes_passado_snapshot=None, log_passado=None, data_referencia_snapshot=None, *, gerar_diagnosticos_switching=False, gerar_comparativo_validacao=False, verbose_switching=True):
     print("\n>>> Avaliando switching para lotes existentes...")

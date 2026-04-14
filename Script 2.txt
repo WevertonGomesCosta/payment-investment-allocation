@@ -1,344 +1,1204 @@
+
 # =========================================================
-# 06. SWITCHING SHADOW E RECONCILIAÇÃO
+# 07. NÚCLEO FINANCEIRO
 # =========================================================
 
-def _money_round_half_up(valor: float) -> float:
-    return float(Decimal(str(float(valor or 0.0))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-
-dinheiro_round = _money_round_half_up
-
-def obter_data_fiscal_liquido_relatorio(mapa_bcb, data_fiscal_relatorio, data_base_fiscal):
-    data_fiscal = max((d for d in (mapa_bcb or {}) if d <= data_fiscal_relatorio), default=data_fiscal_relatorio)
-    return max(data_base_fiscal, data_fiscal)
-
-def calcular_liquido_atual_relatorio(lote, saldo_bruto_atual, data_resgate_fiscal):
-    dias_vida = (data_resgate_fiscal - lote.data_base_fiscal).days + 1
-    if dias_vida < 0:
+def _taxa_ir(dias: int, isento: bool = False) -> float:
+    if isento:
         return 0.0
-    iof = float(IOF_TABLE[dias_vida]) if dias_vida < 30 else 0.0
-    ir = _taxa_ir(dias_vida, getattr(getattr(lote, 'produto', None), 'isento_ir', False))
-    principal_attr = float(getattr(lote, 'principal_remanescente', getattr(lote, 'valor_inicial', 0.0)) or 0.0)
-    principal_base = max(min(principal_attr, float(saldo_bruto_atual)), 0.0)
-    lucro = max(float(saldo_bruto_atual) - principal_base, 0.0)
-    iof_valor_round = dinheiro_round(lucro * iof)
-    base_ir = max(lucro - iof_valor_round, 0.0)
-    ir_valor_round = dinheiro_round(base_ir * ir)
-    imposto_total = dinheiro_round(iof_valor_round + ir_valor_round)
-    liquido = dinheiro_round(max(float(saldo_bruto_atual) - imposto_total, 0.0))
-    return liquido
+    if dias <= 180:
+        return 0.225
+    if dias <= 360:
+        return 0.20
+    if dias <= 720:
+        return 0.175
+    return 0.15
 
-def serializar_lote_remanescente(lote, data_final=None):
-    prod = getattr(lote, 'produto', None)
-    data_base_fiscal = getattr(lote, 'data_base_fiscal', getattr(lote, 'data_aplicacao', None))
-    data_efetiva_global = data_final or getattr(lote, 'data_aplicacao', None)
-    data_efetiva_lote = getattr(lote, 'data_efetiva_snapshot_lote', None)
+def _taxa_iof(dias: int) -> float:
+    if dias < 30:
+        return float(IOF_TABLE[dias])
+    return 0.0
+
+def _fator_liquido(fator_acumulado: float, dias_vida: int, isento: bool = False) -> float:
+    if fator_acumulado <= 1.0:
+        return 1.0
+    iof = _taxa_iof(dias_vida)
+    ir  = _taxa_ir(dias_vida, isento)
+    ratio_lucro  = 1.0 - (1.0 / fator_acumulado)
+    taxa_efetiva = iof + (1 - iof) * ir
+    return 1.0 - ratio_lucro * taxa_efetiva
+
+def criar_lote_de_aporte(dt, val, id_l, meta=None):
+    meta = meta or {}
+    produto_meta = meta.get('produto')
+    lote = Lote(
+        id_l, dt, val,
+        produto=produto_meta,
+        carencia_ate=meta.get('carencia_ate', None),
+        data_base_fiscal=meta.get('data_base_fiscal', dt),
+        fator_acumulado_inicial=meta.get('fator_acumulado_inicial', 1.0),
+        taxa_base_cdi=meta.get('taxa_base_cdi', TAXA_BASE_DEFAULT),
+        taxa_bonus_cdi=meta.get('taxa_bonus_cdi', TAXA_BONUS_DEFAULT),
+        dias_bonus=meta.get('dias_bonus', DIAS_BONUS_DEFAULT),
+        principal_remanescente_inicial=meta.get('principal_remanescente', meta.get('principal_remanescente_inicial', float(val))),
+    )
+    lote.investimento = str(meta.get('investimento', getattr(produto_meta, 'nome', '') or '') or '')
+    lote.nao_disponivel_para_aporte = bool(meta.get('nao_disponivel_para_aporte', False))
+    if getattr(lote, 'investimento', '') == '' and produto_meta is not None:
+        lote.investimento = str(getattr(produto_meta, 'nome', '') or '')
+    if meta.get('produto_isento_ir', None) is not None and produto_meta is None:
+        lote.produto_isento_ir = bool(meta.get('produto_isento_ir'))
+    return lote
+
+def atualizar_saldo_lotes_no_dia(lotes_ativos, data_atual, bcb_map=None, taxa_proj=None):
+    if taxa_proj is None:
+        taxa_proj = TAXA_DIA_BASE
+    if not lotes_ativos or not is_dia_rendimento(data_atual, bcb_map):
+        return
+    if bcb_map and data_atual in bcb_map:
+        fator_dia = float(bcb_map[data_atual])
+        taxa_dia = fator_dia - 1.0
+    else:
+        taxa_dia = float(taxa_proj)
+    for lote in lotes_ativos:
+        if getattr(lote, 'esgotado', False) or float(getattr(lote, 'saldo_bruto', 0.0) or 0.0) <= 0.0:
+            continue
+        lote.atualizar_juros(data_atual, taxa_dia)
+
+def executar_saque_lote(lote, valor_liquido_alvo, data_atual):
+    saldo_antes = float(lote.saldo_bruto)
+    fator = lote.get_fator_liquido(data_atual)
+    if fator <= 0:
+        return None
+
+    bruto_necessario = valor_liquido_alvo / fator
+    uso_bruto = min(bruto_necessario, lote.saldo_bruto)
+    efetivo = _money_round_half_up(lote.sacar(uso_bruto))
+    liquido = _money_round_half_up(efetivo * fator)
+    imposto = _money_round_half_up(efetivo - liquido)
+    lote.total_imposto_pago += imposto
+    lote.total_liquido_sacado += liquido
 
     return {
-        'Data Efetiva': data_efetiva_global,
-        'Data Efetiva do Snapshot do Lote': data_efetiva_lote,
-        'Saldo Bruto': dinheiro_round(float(getattr(lote, 'saldo_bruto', 0.0) or 0.0)),
-        'Lote ID': str(getattr(lote, 'id', '') or '').strip(),
-        'Data Aplicação': getattr(lote, 'data_aplicacao', None),
-        'Valor Inicial': dinheiro_round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0)),
-        'Saldo Após Passado': dinheiro_round(float(getattr(lote, 'saldo_bruto', 0.0) or 0.0)),
-        'Esgotado no Passado': bool(getattr(lote, 'esgotado', False) or float(getattr(lote, 'saldo_bruto', 0.0) or 0.0) <= 0.01),
-        'Data Base Fiscal': data_base_fiscal,
-        'Fator Acumulado': float(getattr(lote, 'fator_acumulado', 1.0) or 1.0),
-        'Taxa Base CDI': float(getattr(lote, 'taxa_base_cdi', getattr(prod, 'taxa_base', TAXA_BASE_DEFAULT)) or TAXA_BASE_DEFAULT),
-        'Taxa Bonus CDI': float(getattr(lote, 'taxa_bonus_cdi', getattr(prod, 'taxa_bonus', 0.0)) or 0.0),
-        'Dias Bonus': int(getattr(lote, 'dias_bonus', getattr(prod, 'dias_bonus', 0)) or 0),
-        'Principal Remanescente': dinheiro_round(float(getattr(lote, 'principal_remanescente', getattr(lote, 'valor_inicial', 0.0)) or 0.0)),
-        'Investimento': getattr(prod, 'nome', '-'),
-        'Nao Disponivel para Aporte': bool(getattr(lote, 'nao_disponivel_para_aporte', False)),
-        'meta': {
-            'carencia_ate': getattr(lote, 'carencia_ate', None),
-            'produto_isento_ir': bool(getattr(prod, 'isento_ir', False) if prod is not None else False),
-            'data_efetiva_snapshot_lote': data_efetiva_lote,
-            'nao_disponivel_para_aporte': bool(getattr(lote, 'nao_disponivel_para_aporte', False)),
-        }
+        'lote': lote,
+        'saldo_antes': saldo_antes,
+        'fator_liquido': float(fator),
+        'bruto': efetivo,
+        'liquido': liquido,
+        'imposto': imposto,
+        'saldo_remanescente': float(lote.saldo_bruto),
     }
 
-def obter_data_referencia_relatorio_local(mapa_bcb, data_referencia=None):
-    return data_hoje_referencia() if data_referencia is None else data_referencia
+class Lote:
+    def __init__(self, id_lote, data_aplicacao: date, valor_inicial: float,
+                 produto: Produto = None,
+                 carencia_ate: date = None, data_base_fiscal: date = None,
+                 fator_acumulado_inicial: float = 1.0, pendente_aporte: bool = False,
+                 principal_remanescente_inicial: float = None,
+                 taxa_base_cdi: float = None, taxa_bonus_cdi: float = None, dias_bonus: int = None):
 
-def listar_datas_economicas_relatorio(data_snapshot_lote, data_referencia_efetiva, bcb_map=None, data_aplicacao=None):
-    if data_snapshot_lote is None or data_referencia_efetiva is None:
-        return []
-    if data_snapshot_lote >= data_referencia_efetiva:
-        return []
-
-    datas = []
-    d = data_snapshot_lote + timedelta(days=1)
-    while d <= data_referencia_efetiva:
-        if (data_aplicacao is None or data_aplicacao <= d) and is_dia_rendimento(d, bcb_map or {}):
-            datas.append(d)
-        d += timedelta(days=1)
-    return datas
-
-def reconstruir_lote_para_relatorio(st, produtos_por_nome=None):
-    nome_label = str(st.get('Investimento', '-') or '-').strip()
-    data_aplic = st.get('Data Aplicação')
-    data_base_fiscal = st.get('Data Base Fiscal') or data_aplic
-    valor_inicial = float(st.get('Valor Inicial', 0.0) or 0.0)
-    fator_acum = float(st.get('Fator Acumulado', 1.0) or 1.0)
-    principal_rem = float(st.get('Principal Remanescente', valor_inicial) or valor_inicial)
-    carencia_ate = st.get('Carência Até')
-
-    taxa_base_snap = float(st.get('Taxa Base CDI', TAXA_BASE_DEFAULT) or TAXA_BASE_DEFAULT)
-    taxa_bonus_default = TAXA_BONUS_DEFAULT if TAXA_BONUS_DEFAULT > 0 else taxa_base_snap
-    taxa_bonus_snap = float(st.get('Taxa Bonus CDI', taxa_bonus_default) or taxa_bonus_default)
-    dias_bonus_snap = int(st.get('Dias Bonus', DIAS_BONUS_DEFAULT) or DIAS_BONUS_DEFAULT)
-    isento_ir_snap = bool(st.get('Produto Isento IR', False) or False)
-
-    produto_snapshot = None
-    if produtos_por_nome and nome_label in produtos_por_nome and produtos_por_nome.get(nome_label) is not None:
-        produto_snapshot = produtos_por_nome.get(nome_label)
-    else:
-        produto_snapshot = Produto(
-            nome=nome_label if nome_label else '-',
-            taxa_base=taxa_base_snap,
-            taxa_bonus=taxa_bonus_snap if taxa_bonus_snap > 0 else taxa_base_snap,
-            dias_bonus=dias_bonus_snap,
-            prazo_dias=0,
-            carencia_dias=0,
-            isento_ir=isento_ir_snap,
-            ativo=True,
+        self.id                 = str(id_lote).strip()
+        self.data_aplicacao     = data_aplicacao
+        self.data_base_fiscal   = data_base_fiscal or data_aplicacao
+        self.valor_inicial      = float(valor_inicial)
+        self.saldo_bruto        = float(valor_inicial)
+        self.fator_acumulado    = max(1.0, float(fator_acumulado_inicial))
+        self.principal_remanescente = float(
+            self.valor_inicial if principal_remanescente_inicial is None else principal_remanescente_inicial
         )
+        self.esgotado           = False
+        self.vezes_usado        = 0
+        self.total_bruto_sacado = 0.0
+        self.total_imposto_pago = 0.0
+        self.total_liquido_sacado = 0.0
+        self.produto            = produto
+        self.carencia_ate       = carencia_ate
+        self.historico_switches = []            # [(data, nome_produto, valor_liquido)]
+        self.switch_agendado    = None          # (data_switch: date, produto_alvo: Produto)
+        self.switch_plano       = None          # plano de split do switch: [(Produto|ComboProduto, valor_liquido)]
 
-    lote = criar_lote_de_aporte(
-        data_aplic,
-        valor_inicial,
-        st.get('Lote ID', ''),
-        {
-            'produto': produto_snapshot,
-            'investimento': nome_label if nome_label else '-',
-            'carencia_ate': carencia_ate,
-            'data_base_fiscal': data_base_fiscal,
-            'fator_acumulado_inicial': fator_acum,
-            'taxa_base_cdi': taxa_base_snap,
-            'taxa_bonus_cdi': taxa_bonus_snap,
-            'dias_bonus': dias_bonus_snap,
-            'principal_remanescente': principal_rem,
-            'produto_isento_ir': isento_ir_snap,
-        }
-    )
+        taxa_base_prod = float(getattr(produto, 'taxa_base', TAXA_BASE_DEFAULT) or TAXA_BASE_DEFAULT) if produto is not None else TAXA_BASE_DEFAULT
+        taxa_bonus_prod = float(getattr(produto, 'taxa_bonus', taxa_base_prod) or taxa_base_prod) if produto is not None else TAXA_BONUS_DEFAULT
+        dias_bonus_prod = int(getattr(produto, 'dias_bonus', DIAS_BONUS_DEFAULT) or DIAS_BONUS_DEFAULT) if produto is not None else DIAS_BONUS_DEFAULT
 
-    lote.saldo_bruto = float(st.get('Saldo Após Passado', 0.0) or 0.0)
-    lote.esgotado = bool(st.get('Esgotado no Passado', False) or lote.saldo_bruto <= 0.01)
+        self.taxa_base_cdi = float(taxa_base_cdi if taxa_base_cdi is not None else taxa_base_prod)
+        self.taxa_bonus_cdi = float(taxa_bonus_cdi if taxa_bonus_cdi is not None else taxa_bonus_prod)
+        self.dias_bonus = int(dias_bonus if dias_bonus is not None else dias_bonus_prod)
 
-    data_snapshot = pd.to_datetime(st.get('Data Efetiva do Snapshot do Lote', st.get('Data Efetiva')), errors='coerce')
-    lote.data_efetiva_snapshot_lote = None if pd.isna(data_snapshot) else data_snapshot.date()
+    def get_taxa_dia(self, data_atual: date) -> float:
+        idade = (data_atual - self.data_base_fiscal).days
+        if self.taxa_bonus_cdi > 0.0 and idade < self.dias_bonus:
+            return float(self.taxa_bonus_cdi)
+        return float(self.taxa_base_cdi)
 
-    return lote
+    def atualizar_juros(self, data_atual: date, taxa_diaria_decimal):
+        if self.esgotado or data_atual <= self.data_aplicacao:
+            return
+        idade = (data_atual - self.data_base_fiscal).days
+        if self.taxa_bonus_cdi > 0.0 and idade < self.dias_bonus:
+            mult = self.taxa_bonus_cdi
+        else:
+            mult = self.taxa_base_cdi
+        fator_dia = (1.0 + taxa_diaria_decimal) ** mult
+        self.saldo_bruto = _money_round_half_up(self.saldo_bruto * fator_dia)
+        self.fator_acumulado *= fator_dia
 
-def atualizar_lote_reconstruido_ate_data(lote, data_corte_passado, data_referencia_efetiva, bcb_map):
-    if lote is None or getattr(lote, 'esgotado', False):
-        return lote
+    def get_fator_liquido(self, data_resgate: date) -> float:
+        dias_vida = (data_resgate - self.data_base_fiscal).days
+        if dias_vida < 0:
+            return 0.0
+        if self.saldo_bruto <= 0:
+            return 0.0
+        isento = bool(self.produto.isento_ir) if self.produto else False
+        iof = _taxa_iof(dias_vida)
+        ir = _taxa_ir(dias_vida, isento)
+        principal_base = max(min(self.principal_remanescente, self.saldo_bruto), 0.0)
+        lucro = max(self.saldo_bruto - principal_base, 0.0)
+        taxa_total = iof + (1 - iof) * ir
+        imposto = lucro * taxa_total
+        return max(1.0 - (imposto / self.saldo_bruto), 0.0)
 
-    data_snapshot_lote = getattr(lote, 'data_efetiva_snapshot_lote', None)
-    if data_snapshot_lote is None:
-        data_snapshot_lote = data_corte_passado
-    if data_snapshot_lote is None or data_referencia_efetiva is None or data_snapshot_lote >= data_referencia_efetiva:
-        return lote
+    def valor_liquido_hoje(self, data_hoje: date) -> float:
+        return self.saldo_bruto * self.get_fator_liquido(data_hoje)
 
-    datas_rendimento = listar_datas_economicas_relatorio(
-        data_snapshot_lote=data_snapshot_lote,
-        data_referencia_efetiva=data_referencia_efetiva,
-        bcb_map=bcb_map,
-        data_aplicacao=getattr(lote, 'data_aplicacao', None),
-    )
-    for d in datas_rendimento:
-        atualizar_saldo_lotes_no_dia([lote], d, bcb_map, TAXA_DIA_BASE)
-    return lote
+    def sacar(self, valor_bruto: float) -> float:
+        if valor_bruto >= self.saldo_bruto - 0.01:
+            sacado = self.saldo_bruto
+            self.saldo_bruto = 0.0
+            self.principal_remanescente = 0.0
+            self.esgotado    = True
+            self.vezes_usado += 1
+            self.total_bruto_sacado += sacado
+            return sacado
+        if self.saldo_bruto <= 0:
+            return 0.0
+        valor_bruto       = _money_round_half_up(float(valor_bruto))
+        sacado            = valor_bruto
+        saldo_antes       = max(float(self.saldo_bruto), 0.0)
+        proporcao_sacada  = min(max((valor_bruto / saldo_antes), 0.0), 1.0) if saldo_antes > 0 else 1.0
+        principal_sacado  = round(float(getattr(self, 'principal_remanescente', self.valor_inicial)) * proporcao_sacada, 10)
+        self.principal_remanescente = max(
+            round(float(getattr(self, 'principal_remanescente', self.valor_inicial)) - principal_sacado, 10),
+            0.0
+        )
+        self.saldo_bruto  = _money_round_half_up(self.saldo_bruto - valor_bruto)
+        self.vezes_usado        += 1
+        self.total_bruto_sacado += sacado
+        return sacado
 
-ORACLE_SITUACAO_ATUAL_2026_03_23 = {
-    "Lote 4000 fev.": {"bruto_esperado": 0.00, "liquido_esperado": 0.00},
-    "Lote 6630,64 fev.": {"bruto_esperado": 3207.18, "liquido_esperado": 3192.61},
-    "Lote 4124,75 fev.": {"bruto_esperado": 0.00, "liquido_esperado": 0.00},
-    "Lote 5400 fev.": {"bruto_esperado": 0.00, "liquido_esperado": 0.00},
-    "Lote 10342 fev.": {"bruto_esperado": 0.00, "liquido_esperado": 0.00},
-    "Lote 2063,11 fev.": {"bruto_esperado": 0.00, "liquido_esperado": 0.00},
-    "Lote 3000 mar. V": {"bruto_esperado": 3053.53, "liquido_esperado": 3024.89},
-    "Lote 3000 mar. B": {"bruto_esperado": 3049.66, "liquido_esperado": 3021.94},
-    "Lote 1000 mar.": {"bruto_esperado": 0.00, "liquido_esperado": 0.00},
-    "Lote 900 mar.": {"bruto_esperado": 0.00, "liquido_esperado": 0.00},
-    "Lote 8500 mar.": {"bruto_esperado": 8641.61, "liquido_esperado": 8608.16},
+    def resgatar_total(self, data_resgate: date):
+        bruto = self.saldo_bruto
+        if bruto <= 0:
+            return 0.0, 0.0
+        fator   = self.get_fator_liquido(data_resgate)
+        liquido = bruto * fator
+        imposto = bruto - liquido
+        self.saldo_bruto            = 0.0
+        self.principal_remanescente = 0.0
+        self.esgotado               = True
+        self.vezes_usado           += 1
+        self.total_bruto_sacado    += bruto
+        self.total_imposto_pago    += imposto
+        self.total_liquido_sacado  += liquido
+        return liquido, imposto
+
+    def switch_para(self, novo_produto, data_switch: date) -> list:
+        liquido, imposto = self.resgatar_total(data_switch)
+        if liquido <= 0:
+            return []
+        self.historico_switches.append((data_switch, novo_produto.nome, liquido))
+
+        if isinstance(novo_produto, ComboProduto):
+            val_base, val_bonus = novo_produto.dividir_valor(liquido)
+            novos = []
+            if val_base > 0:
+                base_id = f"{self.id}_sw_base_{data_switch.strftime('%Y%m%d')}"
+                carencia_base = None
+                if novo_produto.produto_base.carencia_dias > 0:
+                    carencia_base = data_switch + timedelta(days=novo_produto.produto_base.carencia_dias)
+                l_base = Lote(base_id, data_switch, val_base, produto=novo_produto.produto_base,
+                              carencia_ate=carencia_base, data_base_fiscal=data_switch)
+                novos.append(l_base)
+            if val_bonus > 0:
+                bonus_id = f"{self.id}_sw_bonus_{data_switch.strftime('%Y%m%d')}"
+                carencia_bonus = None
+                if novo_produto.produto_bonus.carencia_dias > 0:
+                    carencia_bonus = data_switch + timedelta(days=novo_produto.produto_bonus.carencia_dias)
+                l_bonus = Lote(bonus_id, data_switch, val_bonus, produto=novo_produto.produto_bonus,
+                               carencia_ate=carencia_bonus, data_base_fiscal=data_switch)
+                novos.append(l_bonus)
+            return novos
+        else:
+            novo_id = f"{self.id}_sw_{data_switch.strftime('%Y%m%d')}"
+            carencia_ate = None
+            if novo_produto.carencia_dias > 0:
+                carencia_ate = data_switch + timedelta(days=novo_produto.carencia_dias)
+            novo_lote = Lote(
+                id_lote          = novo_id,
+                data_aplicacao   = data_switch,
+                valor_inicial    = liquido,
+                produto          = novo_produto,
+                carencia_ate     = carencia_ate,
+                data_base_fiscal = data_switch,
+            )
+            return [novo_lote]
+
+SWITCH_MIN_UPGRADE_REL = 0.0   # 0.0 = exige apenas taxa_destino > taxa_origem
+
+SWITCH_MIN_HOLD_DIAS = 30
+
+def _datas_candidatas_switch(lote: Lote, contas_fut: list, data_hoje: date) -> list:
+    dias_iof_fim = max(0, 30 - (data_hoje - lote.data_base_fiscal).days)
+    janela = max(SWITCH_BUSCA_DIAS, dias_iof_fim)
+    data_min_sw = data_hoje
+    nome_atual = (lote.produto.nome.lower() if lote.produto else "")
+    if (not PERMITIR_SWITCH_ANTES_30_DIAS) and ("turbinado" in nome_atual or "padr" in nome_atual):
+        data_min_sw = max(data_hoje, lote.data_base_fiscal + timedelta(days=30))
+    datas_diarias = {data_min_sw + timedelta(days=i) for i in range(0, janela + 1)}
+    datas_contas = {c[0] for c in contas_fut if c[0] >= data_min_sw}
+    datas_cliff = set()
+    for k in (30, 180, 360, 720):
+        d = lote.data_base_fiscal + timedelta(days=k)
+        if d >= data_hoje:
+            datas_cliff.add(d)
+    datas_cliff = {d for d in datas_cliff if d >= data_min_sw}
+    return sorted(datas_contas | datas_diarias | datas_cliff)
+
+def _estado_lote_ate_switch(lote: Lote, contas_fut: list, bcb_map: dict, data_hoje: date, data_sw: date):
+    contas_ate = [c for c in contas_fut if c[0] <= data_sw]
+    contas_depois = [c for c in contas_fut if c[0] > data_sw]
+
+    saldo = lote.saldo_bruto
+    data_cur = data_hoje
+    fa = lote.fator_acumulado
+    total_pago_ate = 0.0
+
+    for conta_item in contas_ate:
+        data_c, valor_c = conta_item[0], conta_item[1]
+        d = data_cur
+        while d < data_c:
+            if is_dia_rendimento(d, bcb_map):
+                idade = (d - lote.data_base_fiscal).days
+                mult = lote.produto.taxa_dia(idade)
+                if mult > 0:
+                    f_dia = (1.0 + TAXA_DIA_BASE) ** float(mult)
+                    saldo = round(saldo * f_dia, 2)
+                    fa *= f_dia
+            d += timedelta(days=1)
+        data_cur = data_c
+
+        fl = _fator_liquido(fa, (data_c - lote.data_base_fiscal).days, lote.produto.isento_ir)
+        if fl <= 0:
+            return None
+        bruto_nec = valor_c / fl
+        if bruto_nec > saldo + 0.01:
+            return None
+        saldo -= bruto_nec
+        total_pago_ate += valor_c
+
+    d = data_cur
+    while d < data_sw:
+        if is_dia_rendimento(d, bcb_map):
+            idade = (d - lote.data_base_fiscal).days
+            mult = lote.produto.taxa_dia(idade)
+            if mult > 0:
+                f_dia = (1.0 + TAXA_DIA_BASE) ** float(mult)
+                saldo = round(saldo * f_dia, 2)
+                fa *= f_dia
+        d += timedelta(days=1)
+
+    dias_sw = (data_sw - lote.data_base_fiscal).days
+    fl_sw = _fator_liquido(fa, dias_sw, lote.produto.isento_ir)
+    if fl_sw <= 0:
+        return None
+    liquido_sw = saldo * fl_sw
+    return (liquido_sw, total_pago_ate, contas_depois)
+
+def avaliar_switch_lote(lote: Lote, contas: list, produtos: list,
+                         bcb_map: dict, data_hoje: date, preferred_datas: set = None,
+                         top_k: int = 3):
+    if lote.produto is None:
+        return []
+
+    contas_fut = sorted([c for c in contas if c[0] >= data_hoje], key=lambda x: x[0])
+    datas_teste = _datas_candidatas_switch(lote, contas_fut, data_hoje)
+
+    pref_set = set(preferred_datas) if preferred_datas else set()
+    if pref_set:
+        try:
+            datas_teste = sorted(set(datas_teste) | pref_set)
+        except Exception:
+            pass
+
+    try:
+        v_base = simular_valor_final_produto(
+            lote.produto, data_hoje, float(lote.saldo_bruto),
+            data_hoje + timedelta(days=365), bcb_map, produtos_rolagem=produtos
+        )
+    except Exception:
+        v_base = float(lote.saldo_bruto)
+
+    cands = []
+
+    for data_sw in datas_teste:
+        try:
+            base_hold = lote.data_aplicacao
+            try:
+                base_fiscal = getattr(lote, "data_base_fiscal", None)
+                if base_fiscal:
+                    base_hold = max(base_hold, base_fiscal)
+            except Exception:
+                pass
+            if base_hold and (data_sw - base_hold).days < int(SWITCH_MIN_HOLD_DIAS):
+                continue
+        except Exception:
+            pass
+        estado = _estado_lote_ate_switch(lote, contas_fut, bcb_map, data_hoje, data_sw)
+        if estado is None:
+            continue
+        liquido_sw, total_pago_ate, _contas_depois = estado
+
+        if liquido_sw <= 0.01:
+            continue
+
+        aloc, _, _ = alocar_lote_por_otimizacao(
+            data_hoje, data_sw, liquido_sw, produtos, bcb_map, contas_fut,
+            foco_rendimento=True, max_produtos=3
+        )
+        if not aloc:
+            continue
+
+        v_fut = 0.0
+        for pp, vv in aloc:
+            try:
+                vpp = simular_valor_final_produto(
+                    pp, data_sw, float(vv),
+                    data_sw + timedelta(days=365), bcb_map, produtos_rolagem=produtos
+                )
+            except Exception:
+                vpp = float(vv)
+            v_fut += float(vpp)
+
+        score = float(total_pago_ate) + float(v_fut)
+
+        aloc_sorted = sorted(aloc, key=lambda x: float(x[1]), reverse=True)
+        prod_repr = aloc_sorted[0][0]
+
+        try:
+            taxa_origem = taxa_base_efetiva(lote.produto)
+            taxa_dest = taxa_base_efetiva(prod_repr)
+            if not (taxa_dest > taxa_origem * (1.0 + float(SWITCH_MIN_UPGRADE_REL))):
+                continue
+        except Exception:
+            pass
+
+        if (score > float(v_base) * (1 + SWITCHING_LIMIAR_GANHO)) or (data_sw in pref_set):
+            cands.append((score, data_sw, prod_repr))
+
+    if not cands:
+        return []
+
+    cands.sort(key=lambda x: float(x[0]), reverse=True)
+    seen = set()
+    out = []
+    for sc, dd, pp in cands:
+        key = (dd, getattr(pp, "nome", str(pp)))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((float(sc), dd, pp))
+        if len(out) >= max(1, int(top_k)):
+            break
+    return out
+
+def gerar_diagnostico_switches_portfolio(lotes_base: list, contas: list, produtos: list, bcb_map: dict, hoje: date,
+                                        janela_datas: int = 7, top_k: int = 5):
+    lotes_ref = copy.deepcopy(lotes_base)
+    _, met_ref = simular_futuro(lotes_ref, contas, bcb_map, data_inicio=hoje, produtos=produtos, verbose=False)
+    riqueza_ref = float(met_ref.get('riqueza', 0.0))
+
+    lotes_switch = [l for l in lotes_base if (not l.esgotado and getattr(l, 'switch_agendado', None))]
+    diag_datas = []
+    diag_planos = []
+
+    for l0 in lotes_switch:
+        lid = l0.id
+        data_sw, prod_alvo = l0.switch_agendado
+        datas_cand = []
+        for k in range(-janela_datas, janela_datas + 1):
+            d = data_sw + timedelta(days=k)
+            if d < hoje:
+                continue
+            if not PERMITIR_SWITCH_ANTES_30_DIAS and (d - l0.data_aplicacao).days < 30:
+                continue
+            datas_cand.append(d)
+
+        resultados_data = []
+        for d in datas_cand:
+            lotes_cen = copy.deepcopy(lotes_base)
+            mapa = {x.id: x for x in lotes_cen}
+            if lid not in mapa:
+                continue
+            mapa[lid].switch_agendado = (d, prod_alvo)
+            liq_est = max(0.0, estimar_liquido_lote_sem_pagamentos(mapa[lid], d, bcb_map))
+            contas_fut = [c for c in contas if c[0] >= d]
+            mapa[lid].switch_plano = gerar_top_planos_alocacao(d, liq_est, produtos, bcb_map, contas_fut, top_k=1)[0] if liq_est > 0.01 else None
+
+            _, met = simular_futuro(lotes_cen, contas, bcb_map, data_inicio=hoje, produtos=produtos, verbose=False)
+            riqueza = float(met.get('riqueza', 0.0))
+            resultados_data.append((riqueza, d))
+
+        resultados_data.sort(key=lambda x: x[0], reverse=True)
+        for rank, (riqueza, d) in enumerate(resultados_data[:top_k], 1):
+            diag_datas.append({
+                'Lote ID': lid,
+                'Produto Alvo': prod_alvo.nome if prod_alvo else '',
+                'Data Avaliada': d,
+                'Rank (Data)': rank,
+                'Riqueza Cenário': riqueza,
+                'Delta vs Escolhida': riqueza - riqueza_ref,
+                'Data Escolhida': data_sw,
+                'Riqueza Escolhida': riqueza_ref,
+            })
+
+        liq_est0 = max(0.0, estimar_liquido_lote_sem_pagamentos(l0, data_sw, bcb_map))
+        contas_fut0 = [c for c in contas if c[0] >= data_sw]
+        planos_top = gerar_top_planos_alocacao(data_sw, liq_est0, produtos, bcb_map, contas_fut0, top_k=top_k)
+
+        resultados_plano = []
+        for pl in planos_top:
+            lotes_cen = copy.deepcopy(lotes_base)
+            mapa = {x.id: x for x in lotes_cen}
+            if lid not in mapa:
+                continue
+            mapa[lid].switch_agendado = (data_sw, prod_alvo)
+            mapa[lid].switch_plano = pl
+            _, met = simular_futuro(lotes_cen, contas, bcb_map, data_inicio=hoje, produtos=produtos, verbose=False)
+            riqueza = float(met.get('riqueza', 0.0))
+            resultados_plano.append((riqueza, pl))
+
+        resultados_plano.sort(key=lambda x: x[0], reverse=True)
+        for rank, (riqueza, pl) in enumerate(resultados_plano[:top_k], 1):
+            diag_planos.append({
+                'Lote ID': lid,
+                'Data Switch': data_sw,
+                'Rank (Plano)': rank,
+                'Riqueza Cenário': riqueza,
+                'Delta vs Escolhida': riqueza - riqueza_ref,
+                'Plano (Produto=Valor)': "; ".join([f"{pp.nome if hasattr(pp,'nome') else str(pp)}={float(vv):,.2f}" for pp, vv in pl]),
+                'Riqueza Escolhida': riqueza_ref,
+            })
+
+    return diag_datas, diag_planos, riqueza_ref
+
+def simular_valor_final_produto(produto, data_inicio: date, valor_inicial: float,
+                              data_fim: date, bcb_map: dict, produtos_rolagem: list = None) -> float:
+    if data_fim <= data_inicio:
+        if isinstance(produto, ComboProduto):
+            vb, vx = produto.dividir_valor(valor_inicial)
+            if vb <= 0 and vx <= 0:
+                return -1e18
+            l1 = Lote("V_BASE", data_inicio, vb, produto=produto.produto_base, data_base_fiscal=data_inicio,
+                      carencia_ate=(data_inicio + timedelta(days=produto.produto_base.carencia_dias)) if produto.produto_base.carencia_dias > 0 else None)
+            l2 = Lote("V_BONUS", data_inicio, vx, produto=produto.produto_bonus, data_base_fiscal=data_inicio,
+                      carencia_ate=(data_inicio + timedelta(days=produto.produto_bonus.carencia_dias)) if produto.produto_bonus.carencia_dias > 0 else None)
+            total = 0.0
+            for l in (l1, l2):
+                if l.saldo_bruto <= 0.01:
+                    continue
+                if l.carencia_ate and data_inicio < l.carencia_ate:
+                    return -1e18
+                total += l.saldo_bruto * l.get_fator_liquido(data_inicio)
+            return total
+        else:
+            l = Lote("V", data_inicio, valor_inicial, produto=produto, data_base_fiscal=data_inicio,
+                     carencia_ate=(data_inicio + timedelta(days=produto.carencia_dias)) if produto.carencia_dias > 0 else None)
+            if l.carencia_ate and data_inicio < l.carencia_ate:
+                return -1e18
+            return l.saldo_bruto * l.get_fator_liquido(data_inicio)
+
+    lotes = []
+    if isinstance(produto, ComboProduto):
+        vb, vx = produto.dividir_valor(valor_inicial)
+        if vb <= 0 and vx <= 0:
+            return -1e18
+        lotes = [
+            Lote("V_BASE", data_inicio, vb, produto=produto.produto_base, data_base_fiscal=data_inicio,
+                 carencia_ate=(data_inicio + timedelta(days=produto.produto_base.carencia_dias)) if produto.produto_base.carencia_dias > 0 else None),
+            Lote("V_BONUS", data_inicio, vx, produto=produto.produto_bonus, data_base_fiscal=data_inicio,
+                 carencia_ate=(data_inicio + timedelta(days=produto.produto_bonus.carencia_dias)) if produto.produto_bonus.carencia_dias > 0 else None),
+        ]
+    else:
+        lotes = [
+            Lote("V", data_inicio, valor_inicial, produto=produto, data_base_fiscal=data_inicio,
+                 carencia_ate=(data_inicio + timedelta(days=produto.carencia_dias)) if produto.carencia_dias > 0 else None)
+        ]
+
+    def _escolher_produto_rolagem(valor_liquido: float, data_ref: date):
+        if not produtos_rolagem:
+            return None
+        candidatos = []
+        for p in produtos_rolagem:
+            if isinstance(p, ComboProduto):
+                continue
+            if not getattr(p, 'ativo', True) or getattr(p, 'somente_combo', False):
+                continue
+            if not p.aceita_aporte(valor_liquido):
+                continue
+            if p.carencia_dias > 0 and (data_ref + timedelta(days=p.carencia_dias)) > data_fim:
+                continue
+            candidatos.append(p)
+        if not candidatos:
+            return None
+        candidatos.sort(key=lambda pp: float(getattr(pp, 'taxa_base', 1.0) or 1.0), reverse=True)
+        return candidatos[0]
+
+    d = data_inicio
+    while d < data_fim:
+        if is_dia_rendimento(d, bcb_map):
+            atualizar_saldo_lotes_no_dia(lotes, d, bcb_map, TAXA_DIA_BASE)
+            for l in lotes:
+                if not l.esgotado and l.saldo_bruto > 0.01 and l.data_aplicacao <= d:
+                    prod = l.produto
+                    idade = (d - l.data_base_fiscal).days
+                    if getattr(prod, 'prazo_dias', 0) > 0 and idade >= int(getattr(prod, 'prazo_dias', 0) or 0):
+                        fator_liq = l.get_fator_liquido(d)
+                        valor_liq = max(0.0, l.saldo_bruto * fator_liq)
+                        p_novo = _escolher_produto_rolagem(valor_liq, d)
+                        if p_novo is not None and valor_liq > 0.01:
+                            l.saldo_bruto = valor_liq
+                            l.valor_inicial = valor_liq
+                            l.produto = p_novo
+                            l.fator_acumulado = 1.0
+                            l.data_base_fiscal = d
+                            l.carencia_ate = (d + timedelta(days=p_novo.carencia_dias)) if p_novo.carencia_dias > 0 else None
+        d += timedelta(days=1)
+
+    total_liq = 0.0
+    for l in lotes:
+        if l.esgotado or l.saldo_bruto <= 0.01:
+            continue
+        if l.carencia_ate and data_fim < l.carencia_ate:
+            return -1e18
+        total_liq += l.saldo_bruto * l.get_fator_liquido(data_fim)
+    return total_liq
+
+def _normalizar_plano(plano):
+    out = []
+    for pp, vv in (plano or []):
+        try:
+            nome = pp.nome
+        except Exception:
+            nome = str(pp)
+        out.append((nome, round(float(vv), 2)))
+    out.sort(key=lambda x: x[0])
+    return tuple(out)
+
+def gerar_top_planos_alocacao(data_ref: date, total_liq: float, produtos: list, bcb_map: dict, contas_fut: list, top_k: int = 6):
+    total_liq = float(total_liq)
+    if total_liq <= 0.01:
+        return []
+
+    candidatos = []
+    for p in produtos:
+        if not getattr(p, 'ativo', True):
+            continue
+        if getattr(p, 'somente_combo', False):
+            continue
+        candidatos.append(p)
+
+    if not candidatos:
+        return []
+
+    score_map = {}
+    for p in candidatos:
+        sc = simular_valor_final_produto(p, data_ref, 1000.0, data_ref + timedelta(days=365), bcb_map, produtos_rolagem=produtos)
+        if sc <= -1e17:
+            sc = 0.0
+        score_map[p] = max(0.0, sc / 1000.0)
+
+    candidatos.sort(key=lambda p: score_map[p], reverse=True)
+
+    def _score_plano(pl):
+        return sum(simular_valor_final_produto(pp, data_ref, vv, data_ref + timedelta(days=365), bcb_map, produtos_rolagem=produtos)
+                   for pp, vv in pl if vv > 0.01)
+
+    planos = []
+
+    pl_best, _, _ = alocar_lote_por_otimizacao(data_ref, data_ref, total_liq, produtos, bcb_map, contas_fut, foco_rendimento=True, max_produtos=3)
+    if pl_best:
+        planos.append(pl_best)
+
+    for p in candidatos[:10]:
+        if p.aceita_aporte(total_liq):
+            planos.append([(p, total_liq)])
+
+    top = candidatos[:12]
+    for p in top:
+        vmax = float(getattr(p, 'valor_max', 1e18) or 1e18)
+        vmin = float(getattr(p, 'valor_min', 0.0) or 0.0)
+        aplicar = min(total_liq, vmax)
+        if aplicar <= 0.01:
+            continue
+        if aplicar + 0.01 < vmin:
+            continue
+        resto = total_liq - aplicar
+        if resto <= 0.01:
+            planos.append([(p, aplicar)])
+            continue
+        for q in top:
+            if q is p:
+                continue
+            if q.aceita_aporte(resto):
+                planos.append([(p, aplicar), (q, resto)])
+                break
+
+    uniq = {}
+    for pl in planos:
+        key = _normalizar_plano(pl)
+        if key not in uniq:
+            uniq[key] = pl
+
+    ranked = []
+    for key, pl in uniq.items():
+        try:
+            sc = _score_plano(pl)
+        except Exception:
+            sc = -1e18
+        ranked.append((sc, pl))
+
+    ranked.sort(key=lambda x: x[0], reverse=True)
+    return [pl for _, pl in ranked[:top_k]]
+
+def estimar_liquido_lote_sem_pagamentos(lote, data_ref, bcb_map=None):
+    try:
+        saldo_bruto = float(getattr(lote, "saldo_bruto", 0.0) or 0.0)
+        if saldo_bruto <= 0.0:
+            return 0.0
+
+        fator_liquido = float(lote.get_fator_liquido(data_ref))
+        if fator_liquido <= 0.0:
+            return 0.0
+
+        return max(0.0, saldo_bruto * fator_liquido)
+    except Exception:
+        return max(0.0, float(getattr(lote, "saldo_bruto", 0.0) or 0.0))
+
+IR_FAIXAS = {
+    180:  {'delta': 0.025},
+    360:  {'delta': 0.025},
+    720:  {'delta': 0.025},
+    9999: {'delta': 0.000},
 }
 
-VALOR_MINIMO_LOTE_ATIVO = globals().get('VALOR_MINIMO_LOTE_ATIVO', 0.01)
-VALOR_MINIMO_RESGATE_BRUTO = globals().get('VALOR_MINIMO_RESGATE_BRUTO', 0.01)
+def get_score_economico(lote: Lote, data_hoje: date, dias_cliff: int = 10) -> float:
+    dias = (data_hoje - lote.data_aplicacao).days
+    if dias < 30:
+        return 1e9 + (30 - dias)
 
-def acumular_saques_por_lote(log_passado):
-    total_sacado_bruto = {}
-    total_sacado_liquido = {}
-    for x in (log_passado or []):
-        if not isinstance(x, dict):
+    fator = lote.get_fator_liquido(data_hoje)
+    if fator <= 0.001:
+        return 1e9
+
+    custo_fiscal     = 1.0 / fator
+    penalidade_cliff = 0.0
+    for threshold, info in sorted(IR_FAIXAS.items()):
+        if dias < threshold:
+            dias_ate = threshold - dias
+            if dias_ate <= dias_cliff:
+                ratio_lucro = max(0.0, 1.0 - (1.0 / lote.fator_acumulado)) if lote.fator_acumulado > 1 else 0.0
+                urgencia    = (dias_cliff - dias_ate + 1) / dias_cliff
+                penalidade_cliff = ratio_lucro * info['delta'] * urgencia * 20.0
+            break
+
+    return custo_fiscal + penalidade_cliff
+
+def alocar_lote_por_otimizacao(data_hoje, data_aporte, valor, produtos, bcb_map, contas_futuras, foco_rendimento: bool = False, max_produtos: int = None):
+    valor = float(valor)
+
+    contas_relevantes = sorted([c for c in contas_futuras if c[0] >= data_aporte], key=lambda x: x[0])
+    data_h_exibicao = data_aporte + timedelta(days=365)
+
+    candidatos = []
+    for p in produtos:
+        if not getattr(p, 'ativo', True):
             continue
-        lote_id = str(x.get('Lote') or x.get('Lote ID') or '').strip()
+        if getattr(p, 'somente_combo', False):
+            continue
+        candidatos.append(p)
+
+    if not candidatos:
+        return [], "", data_h_exibicao
+
+    score_map = {}
+    for p in candidatos:
+        score = simular_valor_final_produto(p, data_aporte, 1000.0, data_aporte + timedelta(days=365), bcb_map, produtos_rolagem=produtos)
+        if score <= -1e17:
+            score = 0.0
+        score_map[p] = max(0.0, score / 1000.0)
+
+    candidatos.sort(key=lambda p: score_map[p], reverse=True)
+    top_txt = ", ".join([f"{p.nome}: w{score_map[p]:.6f}" for p in candidatos[:3]])
+
+    def _score_aloc(aloc_local):
+        if not aloc_local:
+            return -1e18
+        total = 0.0
+        for pp, vv in aloc_local:
+            if vv <= 0.01:
+                continue
+            if not pp.aceita_aporte(vv):
+                return -1e18
+            v = simular_valor_final_produto(pp, data_aporte, vv, data_aporte + timedelta(days=365), bcb_map, produtos_rolagem=produtos)
+            if v <= -1e17:
+                return -1e18
+            total += v
+        return total
+
+    def _aloc_taxa_alta():
+        candidatos_taxa = sorted(candidatos, key=lambda x: (float(score_map.get(x, 0.0) or 0.0), float(getattr(x, 'taxa_base', 1.0) or 1.0)), reverse=True)
+        melhores = []
+
+        for pp in candidatos_taxa:
+            if pp.aceita_aporte(valor):
+                melhores.append([(pp, valor)])
+
+        for pp in candidatos_taxa:
+            vmax = float(getattr(pp, 'valor_max', 1e18) or 1e18)
+            vmin = float(getattr(pp, 'valor_min', 0.0) or 0.0)
+            aplicar = min(valor, vmax)
+            if aplicar + 0.01 < vmin or aplicar <= 0.01:
+                continue
+            resto = valor - aplicar
+            if resto <= 0.01:
+                melhores.append([(pp, aplicar)])
+                continue
+            for qq in candidatos_taxa:
+                if qq is pp:
+                    continue
+                if qq.aceita_aporte(resto):
+                    melhores.append([(pp, aplicar), (qq, resto)])
+                    break
+
+        if not melhores:
+            return []
+        melhores.sort(key=lambda al: _score_aloc(al), reverse=True)
+        return melhores[0]
+
+    if PERMITIR_SPLIT_LOTE and valor >= 10000:
+        aloc_pref = _aloc_taxa_alta()
+    else:
+        aloc_pref = []
+
+    if not PERMITIR_SPLIT_LOTE:
+        for p in candidatos:
+            if p.capacidade_aporte(valor) >= valor:
+                return [(p, valor)], top_txt, data_h_exibicao
+        return [], top_txt, data_h_exibicao
+
+    restante = valor
+    aloc = []
+    alocado_por_prod = {}
+
+    limite_prod = (max_produtos if max_produtos is not None else TOP_N_ALOCACAO)
+    while restante > 0.01 and len(aloc) < limite_prod:
+        melhor_p = None
+        melhor_score = -1.0
+        melhor_aplicar = 0.0
+
+        for p in candidatos:
+            vmax = float(getattr(p, 'valor_max', 1e18) or 1e18)
+            vmin = float(getattr(p, 'valor_min', 0.0) or 0.0)
+            ja = alocado_por_prod.get(p.nome, 0.0)
+            capacidade = max(0.0, vmax - ja)
+            if capacidade <= 0.01:
+                continue
+
+            aplicar = min(restante, capacidade)
+            if ja <= 0.01 and aplicar < vmin:
+                continue
+
+            conc = (ja / max(valor, 1.0))
+            taxa_pref = float(getattr(p, 'taxa_base', 1.0) or 1.0)
+            bonus_cap = 0.00005 * max(0.0, taxa_pref - 1.0)
+            score_eff = (score_map[p] * (1.0 - 0.35 * conc)) + bonus_cap
+            if score_eff > melhor_score:
+                melhor_score = score_eff
+                melhor_p = p
+                melhor_aplicar = aplicar
+
+        if melhor_p is None or melhor_aplicar <= 0.01:
+            break
+
+        achou = False
+        for i, (p_exist, v_exist) in enumerate(aloc):
+            if p_exist.nome == melhor_p.nome:
+                aloc[i] = (p_exist, v_exist + melhor_aplicar)
+                achou = True
+                break
+        if not achou:
+            aloc.append((melhor_p, melhor_aplicar))
+
+        alocado_por_prod[melhor_p.nome] = alocado_por_prod.get(melhor_p.nome, 0.0) + melhor_aplicar
+        restante -= melhor_aplicar
+
+    if restante > 0.01 and aloc:
+        p, v = aloc[0]
+        vmax = float(getattr(p, 'valor_max', 1e18) or 1e18)
+        extra = min(restante, max(0.0, vmax - v))
+        if extra > 0.01:
+            aloc[0] = (p, v + extra)
+            restante -= extra
+
+    if aloc_pref:
+        score_pref = _score_aloc(aloc_pref)
+        score_greedy = _score_aloc(aloc)
+        limiar = 0.995 if foco_rendimento else 1.0001
+        if score_pref > score_greedy * limiar:
+            aloc = aloc_pref
+
+    return aloc, top_txt, data_h_exibicao
+
+def _gerar_artefatos_diagnostico_switching(base_lotes_cenarios, contas, produtos, bcb_map, hoje,
+                                           planos_pool_switch, *, gerar_diagnosticos_switching=False,
+                                           gerar_comparativo_validacao=False):
+    diag_datas, diag_planos = [], []
+    df_comparativo_validacao = pd.DataFrame()
+
+    precisa_base_diag = bool(gerar_diagnosticos_switching or gerar_comparativo_validacao)
+    if precisa_base_diag:
+        try:
+            diag_datas, diag_planos, _ = gerar_diagnostico_switches_portfolio(
+                base_lotes_cenarios, contas, produtos, bcb_map, hoje, janela_datas=7, top_k=5
+            )
+            if gerar_diagnosticos_switching and (diag_datas or diag_planos):
+                print("\n>>> Diagnóstico de switches gerado (veja abas Diagnostico_*)")
+                df_dd = pd.DataFrame(diag_datas)
+                if not df_dd.empty:
+                    top_escolha = df_dd[df_dd['Data Avaliada'] == df_dd['Data Escolhida']].copy()
+                    if not top_escolha.empty:
+                        top_escolha.sort_values(['Lote ID', 'Rank (Data)'], inplace=True)
+                        for _, r in top_escolha.head(5).iterrows():
+                            print(f"   [DIAG-DATA] {r['Lote ID']} | escolhida {r['Data Escolhida']} | rank {int(r['Rank (Data)'])} | Δ R$ {float(r['Delta vs Escolhida']):,.2f}")
+        except Exception as e:
+            print(f"   [WARN] Falha ao gerar diagnóstico de switches: {e}")
+            diag_datas, diag_planos = [], []
+
+    if gerar_comparativo_validacao:
+        try:
+            df_comparativo_validacao = _gerar_comparativo_validacao_switching(
+                base_lotes_cenarios, contas, produtos, bcb_map, hoje, planos_pool_switch, diag_datas, diag_planos
+            )
+            if not df_comparativo_validacao.empty:
+                print("\n>>> Comparativo de validação gerado (aba Comparativo_Validacao)")
+                top = df_comparativo_validacao.sort_values('Riqueza Final', ascending=False).head(3)
+                for _, r in top.iterrows():
+                    print(f"   [VALID] {r['Cenário']}: riqueza R$ {r['Riqueza Final']:,.2f} | Δ vs atual R$ {r.get('Δ vs Plano Atual', 0.0):,.2f}")
+        except Exception as e:
+            print(f"   [WARN] Falha ao gerar comparativo de validação: {e}")
+            df_comparativo_validacao = pd.DataFrame()
+
+    return diag_datas, diag_planos, df_comparativo_validacao
+
+def _ajustar_decisoes_switch_para_pooling(decisoes_sw, lotes_por_id, produtos, contas, bcb_map, hoje):
+    grupos_sw = {}
+    for lid, (d_sw, _p_sw, _ganho) in list(decisoes_sw.items()):
+        grupos_sw.setdefault(d_sw, []).append(lid)
+    for d_sw, ids in grupos_sw.items():
+        if len(ids) < 2:
+            continue
+        total_sw = sum(max(0.0, lotes_por_id[i].saldo_bruto) for i in ids if i in lotes_por_id)
+        if total_sw <= 0.01:
+            continue
+        aloc_sw, _, _ = alocar_lote_por_otimizacao(
+            hoje, d_sw, total_sw, produtos, bcb_map, contas, foco_rendimento=True, max_produtos=2
+        )
+        if not aloc_sw:
+            continue
+        orig_prod_set = {decisoes_sw[i][1].nome for i in ids if i in decisoes_sw}
+        pool_prod_set = {p_alvo.nome for p_alvo, _ in aloc_sw}
+        max_taxa_orig = max(float(getattr(decisoes_sw[i][1], 'taxa_base', 1.0) or 1.0) for i in ids if i in decisoes_sw)
+        max_taxa_pool = max(float(getattr(p_alvo, 'taxa_base', 1.0) or 1.0) for p_alvo, _ in aloc_sw)
+        if len(pool_prod_set) == 1 and len(orig_prod_set) > 1 and max_taxa_pool + 1e-9 < max_taxa_orig:
+            continue
+        bucket = [[p_alvo, float(v_alvo)] for p_alvo, v_alvo in aloc_sw]
+        for lid in sorted(ids, key=lambda x: lotes_por_id[x].saldo_bruto if x in lotes_por_id else 0.0, reverse=True):
+            lobj = lotes_por_id.get(lid)
+            if lobj is None:
+                continue
+            val = lobj.saldo_bruto
+            escolha = next((k for k, (p_alvo, disp) in enumerate(bucket) if disp + 0.01 >= val and p_alvo.aceita_aporte(val)), None)
+            if escolha is None:
+                candidatos_ok = [b for b in bucket if b[0].aceita_aporte(val)]
+                if candidatos_ok:
+                    decisoes_sw[lid] = (d_sw, max(candidatos_ok, key=lambda b: float(getattr(b[0], 'taxa_base', 1.0) or 1.0))[0], decisoes_sw[lid][2])
+                continue
+            p_alvo, disp = bucket[escolha]
+            bucket[escolha][1] = max(0.0, disp - val)
+            decisoes_sw[lid] = (d_sw, p_alvo, decisoes_sw[lid][2])
+    return decisoes_sw
+
+def _alinhar_decisoes_switch_para_data_pool(decisoes_sw, analise_switch, produtos, hoje):
+    validacao_pool = []
+    datas_futuras = [d for (_lid, (d, _p, _g)) in decisoes_sw.items() if d != hoje]
+    data_pool_ref = None
+    if datas_futuras:
+        cont = {}
+        for d in datas_futuras:
+            cont[d] = cont.get(d, 0) + 1
+        data_pool_ref = max(cont, key=cont.get)
+
+    if data_pool_ref is None:
+        return decisoes_sw, validacao_pool
+
+    analise_por_lote_data = {}
+    for a in analise_switch:
+        lid = a.get('Lote ID')
+        dsw = a.get('Data Switch')
+        if lid and dsw:
+            analise_por_lote_data[(lid, dsw)] = a
+
+    for lid, (d_sw, p_sw, g_sw) in list(decisoes_sw.items()):
+        if d_sw != hoje:
+            continue
+        cand = analise_por_lote_data.get((lid, data_pool_ref))
+        if not cand:
+            continue
+        ganho_pool = float(cand.get('Ganho Estimado', 0.0) or 0.0)
+        prod_pool = cand.get('Produto Candidato')
+        if ganho_pool >= 0.90 * float(g_sw):
+            p_obj = next((pp for pp in produtos if pp.nome == prod_pool), None)
+            if p_obj is not None and p_obj.ativo:
+                decisoes_sw[lid] = (data_pool_ref, p_obj, ganho_pool)
+                validacao_pool.append({
+                    'Lote ID': lid,
+                    'Data Original': d_sw,
+                    'Produto Original': p_sw.nome if hasattr(p_sw, 'nome') else str(p_sw),
+                    'Ganho Original': round(float(g_sw), 2),
+                    'Data Ajustada': data_pool_ref,
+                    'Produto Ajustado': p_obj.nome,
+                    'Ganho Ajustado': round(float(ganho_pool), 2),
+                    'Motivo': 'Alinhamento para pooling',
+                })
+    return decisoes_sw, validacao_pool
+
+def _calcular_metricas_switch_relatorio(lote, data_sw, produtos, bcb_map, hoje, contas, liquido_sw=None):
+    horizonte_fim = hoje + timedelta(days=365)
+    try:
+        valor_terminal_sem_switch = float(simular_valor_final_produto(
+            lote.produto, hoje, float(lote.saldo_bruto), horizonte_fim, bcb_map, produtos_rolagem=produtos
+        ))
+    except Exception:
+        valor_terminal_sem_switch = float(lote.saldo_bruto)
+
+    if liquido_sw is None:
+        try:
+            liquido_sw = float(max(0.0, estimar_liquido_lote_sem_pagamentos(lote, data_sw, bcb_map)))
+        except Exception:
+            liquido_sw = 0.0
+
+    valor_terminal_com_switch = 0.0
+    plano_top = None
+    if liquido_sw > 0.01:
+        try:
+            contas_fut_sw = [c for c in contas if c[0] >= data_sw]
+            planos_top = gerar_top_planos_alocacao(data_sw, liquido_sw, produtos, bcb_map, contas_fut_sw, top_k=1)
+            plano_top = planos_top[0] if planos_top else None
+        except Exception:
+            plano_top = None
+
+    if plano_top:
+        for pp, vv in plano_top:
+            try:
+                valor_terminal_com_switch += float(simular_valor_final_produto(
+                    pp, data_sw, float(vv), horizonte_fim, bcb_map, produtos_rolagem=produtos
+                ))
+            except Exception:
+                valor_terminal_com_switch += float(vv)
+    else:
+        valor_terminal_com_switch = float(liquido_sw)
+
+    return {
+        'liquido_estimado_switch': float(liquido_sw),
+        'valor_terminal_sem_switch': float(valor_terminal_sem_switch),
+        'valor_terminal_com_switch': float(valor_terminal_com_switch),
+        'ganho_financeiro_puro_lote': float(valor_terminal_com_switch - valor_terminal_sem_switch),
+        'plano_top': plano_top,
+    }
+def _montar_eventos_e_plano_switching(df_switch_view, decisoes_sw, melhores_por_lote, lotes_por_id, contas, produtos, bcb_map, hoje):
+    console_linhas = []
+    plano_switches = []
+    switches_agendados = 0
+    switches_hoje_exec = 0
+    lotes_novos_hoje = []
+
+    for _, row_atual in df_switch_view.iterrows():
+        lote_id = str(row_atual.get('Lote ID', '')).strip()
         if not lote_id:
             continue
-        bruto = x.get('Bruto Sacado', x.get('Bruto', 0.0)) or 0.0
-        liquido = x.get('Liquido Sacado', x.get('Liquido', 0.0)) or 0.0
-        total_sacado_bruto[lote_id] = float(total_sacado_bruto.get(lote_id, 0.0)) + float(bruto)
-        total_sacado_liquido[lote_id] = float(total_sacado_liquido.get(lote_id, 0.0)) + float(liquido)
-    return total_sacado_bruto, total_sacado_liquido
-
-def gerar_relatorio_situacao_atual(
-    lotes_hoje,
-    estado_lotes_passado,
-    log_passado,
-    valores_originais,
-    mapa_bcb,
-    data_referencia=None,
-):
-    if data_referencia is None:
-        data_referencia = data_hoje_referencia()
-
-    data_referencia_efetiva = obter_data_referencia_relatorio_local(mapa_bcb, data_referencia)
-
-    estado_rows = (
-        estado_lotes_passado.to_dict('records')
-        if isinstance(estado_lotes_passado, pd.DataFrame)
-        else list(estado_lotes_passado or [])
-    )
-    if not estado_rows:
-        return pd.DataFrame()
-
-    total_sacado_bruto_passado, total_sacado_liquido_passado = acumular_saques_por_lote(log_passado or [])
-    data_corte_passado = max(
-        (x.get('Data') for x in (log_passado or []) if isinstance(x, dict) and x.get('Data') is not None),
-        default=None
-    )
-    if data_corte_passado is None:
-        data_corte_passado = min(
-            pd.to_datetime(st.get('Data Base Fiscal', st.get('Data Aplicação')), errors='coerce').date()
-            for st in estado_rows
-            if not pd.isna(pd.to_datetime(st.get('Data Base Fiscal', st.get('Data Aplicação')), errors='coerce'))
+        carteira_nome = str(row_atual.get('Carteira', '-') or '-')
+        saldo_bruto_atual = float(row_atual.get('Saldo Bruto Atual (R$)', 0.0) or 0.0)
+        saldo_liquido_atual = float(row_atual.get('Saldo Líquido Atual (R$)', 0.0) or 0.0)
+        linha_base = (
+            f"    - Lote {lote_id}: {carteira_nome} | "
+            f"bruto atual R$ {saldo_bruto_atual:,.2f} | "
+            f"líquido atual R$ {saldo_liquido_atual:,.2f} | "
         )
-
-    produtos_por_nome = {}
-    for p in globals().get('PRODUTOS_GLOBAIS_SIMULACAO', []) or []:
-        nome = str(getattr(p, 'nome', '') or '').strip()
-        if nome:
-            produtos_por_nome[nome] = p
-    for l in lotes_hoje or []:
-        prod = getattr(l, 'produto', None)
-        nome = str(getattr(prod, 'nome', '') or '').strip()
-        if prod is not None and nome:
-            produtos_por_nome[nome] = prod
-
-    relatorio = []
-    for st in estado_rows:
-        lote_id = str(st.get('Lote ID', '')).strip()
-        if not lote_id:
+        ocultar_lote_nao_aportado = (
+            carteira_nome.strip() == '-' and abs(saldo_bruto_atual) < 0.005 and abs(saldo_liquido_atual) < 0.005
+        )
+        if ocultar_lote_nao_aportado and lote_id not in decisoes_sw:
+            continue
+        if lote_id not in decisoes_sw:
+            info = melhores_por_lote.get(lote_id)
+            if info:
+                delta_cart = float(info.get('Delta Riqueza Carteira', 0.0) or 0.0)
+                ganho_puro = info.get('Ganho Financeiro Puro Lote')
+                ganho_puro_txt = f" | ganho puro lote R$ {float(ganho_puro):,.2f}" if ganho_puro is not None else ""
+                console_linhas.append(
+                    linha_base
+                    + f"manter. melhor candidato seria {info['Produto Candidato']} em {info['Data Switch']} "
+                    + f"(Δ carteira R$ {delta_cart:,.2f}{ganho_puro_txt})"
+                )
+            else:
+                console_linhas.append(linha_base + "manter. (sem candidato viável)")
             continue
 
-        dt_apl = pd.to_datetime(st.get('Data Aplicação', st.get('Data Base Fiscal')), errors='coerce')
-        dt_base = pd.to_datetime(st.get('Data Base Fiscal', st.get('Data Aplicação')), errors='coerce')
-        if pd.isna(dt_apl) or pd.isna(dt_base):
+        data_sw, prod_alvo, ganho = decisoes_sw[lote_id]
+        lobj = lotes_por_id.get(lote_id)
+        liq_est = saldo_liquido_atual
+        ganho_puro_lote = None
+        if lobj is not None:
+            try:
+                liq_est = float(estimar_liquido_lote_sem_pagamentos(lobj, data_sw, bcb_map))
+            except Exception:
+                liq_est = max(0.0, saldo_liquido_atual)
+            try:
+                met_sw = _calcular_metricas_switch_relatorio(lobj, data_sw, produtos, bcb_map, hoje, contas, liquido_sw=liq_est)
+                ganho_puro_lote = float(met_sw.get('ganho_financeiro_puro_lote', 0.0) or 0.0)
+            except Exception:
+                ganho_puro_lote = None
+        valor_aplicar = saldo_liquido_atual if data_sw == hoje else liq_est
+        ganho_puro_txt = f" | ganho puro lote R$ {float(ganho_puro_lote):,.2f}" if ganho_puro_lote is not None else ""
+
+        if data_sw == hoje:
+            console_linhas.append(
+                linha_base
+                + f"SWITCH HOJE -> {prod_alvo.nome} | aplicar ~R$ {valor_aplicar:,.2f} | Δ carteira R$ {ganho:,.2f}{ganho_puro_txt}"
+            )
+            plano_switches.append({
+                'Data': hoje,
+                'Origem': lote_id,
+                'Produto': prod_alvo.nome,
+                'Valor': round(valor_aplicar, 2),
+                'Delta_Riqueza_Carteira': round(float(ganho), 2),
+                'Ganho_Financeiro_Puro_Lote': round(float(ganho_puro_lote), 2) if ganho_puro_lote is not None else None,
+                'Tipo': 'Switch',
+            })
+            if lobj is None or not prod_alvo.ativo:
+                if lobj is None:
+                    console_linhas.append("      (lote não ativo no motor de switching, sem execução real)")
+                elif not prod_alvo.ativo:
+                    console_linhas.append("      (produto inativo, ignorado)")
+                continue
+            novos = lobj.switch_para(prod_alvo, hoje)
+            lotes_novos_hoje.extend(novos)
+            switches_hoje_exec += 1
             continue
 
-        data_aplicacao_original = dt_apl.date()
-        data_base_fiscal = dt_base.date()
-
-        lotex = reconstruir_lote_para_relatorio(st, produtos_por_nome)
-        if lotex is None:
-            continue
-
-        lotex = atualizar_lote_reconstruido_ate_data(
-            lotex,
-            data_corte_passado,
-            data_referencia_efetiva,
-            mapa_bcb or {}
+        console_linhas.append(
+            linha_base
+            + f"AGENDAR {data_sw} -> {prod_alvo.nome} | aplicar ~R$ {valor_aplicar:,.2f} | Δ carteira R$ {ganho:,.2f}{ganho_puro_txt}"
         )
-
-        saldo_bruto_atual = dinheiro_round(float(max(getattr(lotex, 'saldo_bruto', 0.0) or 0.0, 0.0)))
-
-        data_fiscal_relatorio = data_referencia_efetiva
-        if data_corte_passado is not None and data_corte_passado > data_fiscal_relatorio:
-            data_fiscal_relatorio = data_corte_passado
-
-        data_fiscal_para_liquido = obter_data_fiscal_liquido_relatorio(
-            mapa_bcb,
-            data_fiscal_relatorio,
-            data_base_fiscal
-        )
-
-        saldo_liquido_atual = dinheiro_round(
-            float(calcular_liquido_atual_relatorio(lotex, saldo_bruto_atual, data_fiscal_para_liquido) or 0.0)
-        )
-
-        val_orig = float(valores_originais.get(lote_id, st.get('Valor Inicial', 0.0) or 0.0))
-        total_sacado_bruto = float(total_sacado_bruto_passado.get(lote_id, 0.0) or 0.0)
-        total_sacado_liquido = float(total_sacado_liquido_passado.get(lote_id, 0.0) or 0.0)
-
-        dias_hoje = (data_fiscal_relatorio - data_base_fiscal).days
-        dias_uteis_hoje = contar_dias_rendimento(data_base_fiscal, data_fiscal_relatorio, mapa_bcb)
-        patrimonio_liquido_ate_hoje = dinheiro_round(saldo_liquido_atual + total_sacado_liquido)
-        saldo_se_dinheiro_ficasse_parado = max(val_orig - total_sacado_liquido, 0.0)
-        ganho_otimizacao_vs_dinheiro_parado = dinheiro_round(saldo_liquido_atual - saldo_se_dinheiro_ficasse_parado)
-        rent_bruta = ((saldo_bruto_atual + total_sacado_bruto) / val_orig - 1) * 100 if val_orig > 0 else 0.0
-        rent_liquida = (patrimonio_liquido_ate_hoje / val_orig - 1) * 100 if val_orig > 0 else 0.0
-
-        relatorio.append({
-            "Lote ID": lote_id,
-            "Carteira": str(getattr(lotex, 'investimento', st.get('Investimento', '-')) or '-'),
-            "Data Aplicação": data_aplicacao_original,
-            "Data Base Fiscal": data_base_fiscal,
-            "Dias Corridos até Hoje": dias_hoje,
-            "Dias Úteis até Hoje": dias_uteis_hoje,
-            "Valor Original (R$)": dinheiro_round(val_orig),
-            "Total Bruto Sacado (R$)": dinheiro_round(total_sacado_bruto),
-            "Total Líquido Sacado (R$)": dinheiro_round(total_sacado_liquido),
-            "Saldo Bruto Atual (R$)": saldo_bruto_atual,
-            "Saldo Líquido Atual (R$)": saldo_liquido_atual,
-            "Patrimônio Líquido até Hoje (R$)": patrimonio_liquido_ate_hoje,
-            "Ganho da Otimização vs Dinheiro Parado (R$)": ganho_otimizacao_vs_dinheiro_parado,
-            "Rendimento Bruto Acumulado (%)": round(rent_bruta, 2),
-            "Rendimento Líquido Acumulado (%)": round(rent_liquida, 2),
-            "_obj_lote_relatorio": lotex,
+        plano_switches.append({
+            'Data': data_sw,
+            'Origem': lote_id,
+            'Produto': prod_alvo.nome,
+            'Valor': round(valor_aplicar, 2),
+            'Ganho_Estimado': round(ganho, 2),
+            'Delta_Riqueza_Carteira': round(float(ganho), 2),
+            'Ganho_Financeiro_Puro_Lote': round(float(ganho_puro_lote), 2) if ganho_puro_lote is not None else None,
+            'Tipo': 'Switch',
         })
+        if lobj is not None:
+            lobj.switch_agendado = (data_sw, prod_alvo)
+            if liq_est > 0.01:
+                contas_fut_sw = [c for c in contas if c[0] >= data_sw]
+                planos_top = gerar_top_planos_alocacao(data_sw, liq_est, produtos, bcb_map, contas_fut_sw, top_k=1)
+                lobj.switch_plano = planos_top[0] if planos_top else None
+        switches_agendados += 1
 
-    df_relatorio_atual = pd.DataFrame(relatorio)
-    if df_relatorio_atual.empty:
-        return df_relatorio_atual
-
-    total_row = {
-        "Lote ID": "TOTAL",
-        "Carteira": np.nan,
-        "Data Aplicação": np.nan,
-        "Data Base Fiscal": np.nan,
-        "Dias Corridos até Hoje": np.nan,
-        "Dias Úteis até Hoje": np.nan,
-        "Valor Original (R$)": dinheiro_round(df_relatorio_atual["Valor Original (R$)"].sum()),
-        "Total Bruto Sacado (R$)": dinheiro_round(df_relatorio_atual["Total Bruto Sacado (R$)"].sum()),
-        "Total Líquido Sacado (R$)": dinheiro_round(df_relatorio_atual["Total Líquido Sacado (R$)"].sum()),
-        "Saldo Bruto Atual (R$)": dinheiro_round(df_relatorio_atual["Saldo Bruto Atual (R$)"].sum()),
-        "Saldo Líquido Atual (R$)": dinheiro_round(df_relatorio_atual["Saldo Líquido Atual (R$)"].sum()),
-        "Patrimônio Líquido até Hoje (R$)": dinheiro_round(df_relatorio_atual["Patrimônio Líquido até Hoje (R$)"].sum()),
-        "Ganho da Otimização vs Dinheiro Parado (R$)": dinheiro_round(df_relatorio_atual["Ganho da Otimização vs Dinheiro Parado (R$)"].sum()),
-        "Rendimento Bruto Acumulado (%)": np.nan,
-        "Rendimento Líquido Acumulado (%)": np.nan,
-        "_obj_lote_relatorio": None,
+    return {
+        'console_linhas': console_linhas,
+        'plano_switches': plano_switches,
+        'switches_agendados': switches_agendados,
+        'switches_hoje_exec': switches_hoje_exec,
+        'lotes_novos_hoje': lotes_novos_hoje,
     }
 
-    df_relatorio_atual = pd.concat([df_relatorio_atual, pd.DataFrame([total_row])], ignore_index=True)
-    return df_relatorio_atual
+def _montar_planos_pool_switch(lotes_passados, contas, produtos, bcb_map, hoje):
+    planos_pool_switch = {}
+    console_pool = []
 
-def _resumo_lotes_df(lotes, data_ref):
-    rows = []
-    for l in lotes:
-        try:
-            fl = l.get_fator_liquido(data_ref) if getattr(l, 'saldo_bruto', 0.0) > 0 else 0.0
-        except Exception:
-            fl = 0.0
-        rows.append({
-            'Lote ID': getattr(l, 'id', ''),
-            'Data Aplicação': getattr(l, 'data_aplicacao', None),
-            'Produto': getattr(getattr(l, 'produto', None), 'nome', 'Padrão') if getattr(l, 'produto', None) else 'Padrão',
-            'Saldo Bruto': round(float(getattr(l, 'saldo_bruto', 0.0) or 0.0), 2),
-            'Saldo Líquido': round(float((getattr(l, 'saldo_bruto', 0.0) or 0.0) * fl), 2),
-            'Esgotado': bool(getattr(l, 'esgotado', False)),
-            'Pendente Aporte': bool(getattr(l, 'pendente_aporte', False)),
-        })
-    return pd.DataFrame(rows)
+    grupos_agendados = {}
+    for lote in lotes_passados:
+        if not lote.esgotado and lote.switch_agendado is not None:
+            d_sw, _ = lote.switch_agendado
+            grupos_agendados.setdefault(d_sw, []).append(lote)
+
+    for d_sw, lotes_d in sorted(grupos_agendados.items(), key=lambda x: x[0]):
+        if len(lotes_d) < 2:
+            continue
+        total_liq = sum(
+            max(0.0, estimar_liquido_lote_sem_pagamentos(lx, d_sw, bcb_map))
+            for lx in lotes_d
+        )
+        if total_liq <= 0.01:
+            continue
+        contas_fut_d = [c for c in contas if c[0] >= d_sw]
+        aloc_pool, top_pool, _ = alocar_lote_por_otimizacao(
+            hoje, d_sw, total_liq, produtos, bcb_map, contas_fut_d, foco_rendimento=True, max_produtos=3
+        )
+        if not aloc_pool:
+            continue
+
+        planos_pool_switch[d_sw] = (float(total_liq), list(aloc_pool))
+        console_pool.append(f"\n  [POOL SWITCH {d_sw}] {len(lotes_d)} lote(s) | líquido consolidado R$ {total_liq:,.2f}")
+        for i, (pp, vv) in enumerate(aloc_pool, 1):
+            if isinstance(pp, ComboProduto):
+                vb, vx = pp.dividir_valor(vv)
+                console_pool.append(
+                    f"     {i:>2}. Combo {pp.nome:<24} total R$ {vv:>10,.2f} | base R$ {vb:>9,.2f} | bônus R$ {vx:>9,.2f}"
+                )
+            else:
+                taxa = float(getattr(pp, 'taxa_base', 1.0) or 1.0) * 100.0
+                console_pool.append(
+                    f"     {i:>2}. {pp.nome:<30} R$ {vv:>10,.2f} | taxa {taxa:>6.2f}% CDI"
+                )
+        if top_pool:
+            console_pool.append(f"       TOP pool: {top_pool}")
+
+    return planos_pool_switch, console_pool
+
+def _consolidar_plano_switches_final(plano_switches, planos_pool_switch):
+    plano_switches_final = []
+    datas_pool = set(planos_pool_switch.keys())
+
+    for item in plano_switches:
+        if item.get('Data') not in datas_pool:
+            plano_switches_final.append(item)
+
+    for d_sw, pool_info in sorted(planos_pool_switch.items(), key=lambda x: x[0]):
+        _total_liquido_pool, aloc = pool_info
+        for prod_sw, val_sw in aloc:
+            nome_sw = prod_sw.nome if hasattr(prod_sw, 'nome') else str(prod_sw)
+            plano_switches_final.append({
+                'Data': d_sw,
+                'Origem': 'POOL',
+                'Produto': nome_sw,
+                'Valor': round(float(val_sw), 2),
+                'Ganho_Estimado': None,
+                'Tipo': 'Switch-POOL',
+            })
+
+    return plano_switches_final
