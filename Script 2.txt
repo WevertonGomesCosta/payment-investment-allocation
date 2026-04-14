@@ -1,374 +1,138 @@
 # =========================================================
-# 03. PRODUTOS E CARTEIRA
+# 04. CDI E CALENDÁRIO
 # =========================================================
 
-def normalizar_modo_execucao_futuro(valor):
-    txt = str(valor or '').strip().lower()
-    aliases = {
-        'dinamico': 'dinamico',
-        'dynamic': 'dinamico',
-        'rigido_plano_externo': 'rigido_plano_externo',
-        'plano_externo_rigido': 'rigido_plano_externo',
-        'rigido': 'rigido_plano_externo',
-        'rigido_melhor_data': 'rigido_melhor_data',
-        'melhor_data': 'rigido_melhor_data',
-        'rigido_com_melhor_data': 'rigido_melhor_data',
-    }
-    return aliases.get(txt, 'rigido_plano_externo')
-
-MODO_EXECUCAO_FUTURO = normalizar_modo_execucao_futuro(MODO_EXECUCAO_FUTURO)
-
-ABA_GASTOS            = nome_aba("despesas", "Todos os Gastos")
-ABA_INVENTARIO        = nome_aba("lotes", "Inventário de Lotes")
-ABA_CARTEIRA          = nome_aba("carteira", "Carteira")
-ABA_APORTES           = nome_aba("aportes", "Aportes")
-
-CDI_ANUAL             = float(_cfg_get_any([
-    ["premissas_mercado", "cdi_anual_modelo"],
-    ["simulation", "cdi_anual"],
-], default=0.1490))
-PRODUTO_PADRAO = None  # inicializado após carregar a Carteira
-TAXA_DIA_BASE         = ((1 + CDI_ANUAL) ** (1 / 252)) - 1
-IOF_TABLE             = np.array([
-    1.00, 0.96, 0.93, 0.90, 0.86, 0.83, 0.80, 0.76, 0.73, 0.70,
-    0.66, 0.63, 0.60, 0.56, 0.53, 0.50, 0.46, 0.43, 0.40,
-    0.36, 0.33, 0.30, 0.26, 0.23, 0.20, 0.16, 0.13, 0.10, 0.06, 0.03,
-])
-
-TAXA_ALTA             = 1.30    # multiplicador para primeiros 30 dias (produto padrão)
-TAXA_BAIXA            = 1.03    # multiplicador após 30 dias (produto padrão)
-TAXA_BASE_DEFAULT     = float(_cfg_get_any([["defaults_lote", "taxa_base_cdi"]], default=TAXA_BAIXA))
-TAXA_BONUS_DEFAULT    = float(_cfg_get_any([["defaults_lote", "taxa_bonus_cdi"]], default=0.0))
-DIAS_BONUS_DEFAULT    = int(_cfg_get_any([["defaults_lote", "dias_bonus"]], default=0))
-
-SWITCHING_LIMIAR_GANHO = float(SWITCH_CFG.get('limiar_ganho_pct', 0.0001))
-
-EXCLUIR_PRODUTOS_REGEX = [r"\bitau\b.*\b100%\b", r"cdb\s*itau\s*100"]
-MIN_TAXA_BASE_PARA_SWITCH = float(SWITCH_CFG.get('min_taxa_base_para_switch', 1.01))
-HORIZONTE_EXTRA_DIAS   = int(SIM_CFG.get('horizonte_extra_dias', 365))
-
-HORIZONTE_ALOCACAO_DIAS = int(SIM_CFG.get('horizonte_alocacao_dias', 180))
-HORIZONTE_MINIMO_DIAS = int(SIM_CFG.get('horizonte_minimo_dias', 30))
-SWITCH_BUSCA_DIAS = 45  # busca diária por melhor data de switch
-PERMITIR_SWITCH_ANTES_30_DIAS = False
-REOTIMIZAR_POOL_SWITCH_NO_FUTURO = True
-PERMITIR_SPLIT_LOTE = True  # permite dividir um lote em múltiplos produtos respeitando limites
-TOP_N_ALOCACAO = 4  # quantos produtos no máximo por lote (quando split ativo)
-MOSTRAR_TOP_SWITCH_CONSOLE = 2  # quantidade de alternativas exibidas por lote no console
-EXIBIR_ALERTAS_FALTA_CAIXA = False  # reduz ruído de contas não cobertas no console
-
-ORDEM_PROCESSAMENTO_SENTINELA = int(_cfg_get(["execucao", "ordem_processamento_sentinela"], 10**12))
-
-def _normalizar_conta_processamento(conta):
-    data = conta[0]
-    valor = float(conta[1]) if len(conta) > 1 else 0.0
-    desc = str(conta[2]) if len(conta) > 2 else ""
-    lote1 = str(conta[3]).strip() if len(conta) > 3 and conta[3] is not None else ""
-    lote2 = str(conta[4]).strip() if len(conta) > 4 and conta[4] is not None else ""
-    ordem = int(conta[5]) if len(conta) > 5 and conta[5] is not None else ORDEM_PROCESSAMENTO_SENTINELA
-    return data, valor, desc, lote1, lote2, ordem
-
-def ordenar_contas_processamento(contas):
-    def _key(c):
-        data = c[0]
-        valor = float(c[1]) if len(c) > 1 else 0.0
-        desc = str(c[2]) if len(c) > 2 else ""
-        if len(c) >= 6:
-            ordem = int(c[5]) if c[5] is not None else ORDEM_PROCESSAMENTO_SENTINELA
-        elif len(c) == 4 and not isinstance(c[3], str):
-            ordem = int(c[3]) if c[3] is not None else ORDEM_PROCESSAMENTO_SENTINELA
-        else:
-            ordem = ORDEM_PROCESSAMENTO_SENTINELA
-        return (data, ordem, desc, valor)
-    return sorted(contas, key=_key)
-
-class Produto:
-    def capacidade_aporte(self, valor: float) -> float:
+def obter_historico_bcb(data_inicial_str='01/01/2025'):
+    print(">>> Obtendo histórico CDI do BCB...")
+    if Path(CACHE_BCB_FILE).exists():
         try:
-            v=float(valor)
-        except Exception:
-            return 0.0
-        vmin=float(getattr(self,'valor_min',0.0) or 0.0)
-        vmax=float(getattr(self,'valor_max',1e18) or 1e18)
-        if v < vmin:
-            return 0.0
-        return max(0.0, min(v, vmax))
+            with open(CACHE_BCB_FILE, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+            mapa = {
+                datetime.strptime(k, '%Y-%m-%d').date(): v
+                for k, v in cache['mapa'].items()
+            }
+            ultima_data_cache = max(mapa.keys())
+            hoje = data_hoje_referencia()
+            if (hoje - ultima_data_cache).days <= 2:
+                print(f"    Cache válido: {len(mapa)} dias (até {ultima_data_cache})")
+                return mapa, cache.get('ultima', TAXA_DIA_BASE)
+            else:
+                print(f"    Cache desatualizado (última: {ultima_data_cache})")
+        except Exception as e:
+            print(f"    Cache inválido: {e}")
 
-    def aceita_aporte(self, valor: float) -> bool:
-        return self.capacidade_aporte(valor) >= float(valor or 0.0) - 1e-9
+    try:
+        import requests
+        hoje = data_hoje_referencia()
+        url = (
+            "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados"
+            f"?formato=json&dataInicial={data_inicial_str}&dataFinal={hoje.strftime('%d/%m/%Y')}"
+        )
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers, timeout=15, verify=False)
+        r.raise_for_status()
+        dados = r.json()
+        if not dados:
+            print("    API retornou lista vazia. Tentando fallback...")
+            raise ValueError("No data")
+        mapa = {}
+        ultima = TAXA_DIA_BASE
+        for item in dados:
+            dt = datetime.strptime(item['data'], '%d/%m/%Y').date()
+            taxa = float(item['valor']) / 100.0
+            mapa[dt] = 1.0 + taxa
+            ultima = taxa
+        cache = {
+            'mapa': {k.strftime('%Y-%m-%d'): v for k, v in mapa.items()},
+            'ultima': ultima,
+            'data_atualizacao': hoje.strftime('%Y-%m-%d'),
+        }
+        with open(CACHE_BCB_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, indent=2)
+        print(f"    BCB OK: {len(mapa)} dias carregados.")
+        return mapa, ultima
+    except Exception as e:
+        print(f"    API BCB falhou: {e}")
 
-    """Produto simples (CDB, LCI, LCA, etc.)"""
-    def __init__(self, nome: str, taxa_base: float, taxa_bonus: float = None,
-                 dias_bonus: int = 0, prazo_dias: int = 0, carencia_dias: int = 0,
-                 isento_ir: bool = False, valor_min: float = 0, valor_max: float = 1e12,
-                 ativo: bool = True, somente_combo: bool = False):
-        self.nome         = nome
-        self.taxa_base    = taxa_base          # multiplicador do CDI (ex: 1.5)
-        self.taxa_bonus   = taxa_bonus if taxa_bonus is not None else taxa_base
-        self.dias_bonus   = dias_bonus
-        self.prazo_dias   = prazo_dias         # 0 = sem prazo (perpétuo)
-        self.carencia_dias= carencia_dias
-        self.isento_ir    = isento_ir
-        self.valor_min    = valor_min
-        self.valor_max    = valor_max
-        self.ativo        = ativo               # Se ainda pode ser usado para novas aplicações
-
-    def taxa_dia(self, idade: int) -> float:
-        mult = self.taxa_bonus if idade < self.dias_bonus else self.taxa_base
-        return float(mult)
-
-class ComboProduto:
-    def __init__(self, nome: str, produto_base: Produto, produto_bonus: Produto,
-                 razao_base: float = 2.0, razao_bonus: float = 1.0, ativo: bool = True, somente_combo: bool = False):
-        self.nome          = nome
-        self.produto_base  = produto_base
-        self.produto_bonus = produto_bonus
-        self.razao_base    = razao_base
-        self.razao_bonus   = razao_bonus
-        self.valor_min     = produto_base.valor_min + produto_bonus.valor_min
-        self.valor_max     = min(produto_base.valor_max, produto_bonus.valor_max) * (razao_base + razao_bonus) / razao_base
-        self.ativo         = ativo
-
+    print("    Tentando fallback do Drive...")
+    fallback_file = 'cdi_fallback.xlsx'
+    if baixar_arquivo_drive(FALLBACK_BCB_URL, fallback_file):
         try:
-            w_sum = float(self.razao_base + self.razao_bonus)
-            self.taxa_base = (float(self.produto_base.taxa_base) * self.razao_base + float(self.produto_bonus.taxa_base) * self.razao_bonus) / w_sum
-            tb_base = float(getattr(self.produto_base, 'taxa_bonus', self.produto_base.taxa_base) or self.produto_base.taxa_base)
-            tb_bon  = float(getattr(self.produto_bonus,'taxa_bonus', self.produto_bonus.taxa_base) or self.produto_bonus.taxa_base)
-            self.taxa_bonus = (tb_base * self.razao_base + tb_bon * self.razao_bonus) / w_sum
-        except Exception:
-            self.taxa_base = 1.0
-            self.taxa_bonus = 1.0
-    def aceita_aporte(self, valor: float) -> bool:
-        vb, vx = self.dividir_valor(float(valor or 0.0))
-        if vb <= 0 and vx <= 0:
-            return False
-        return (self.produto_base.aceita_aporte(vb) if vb > 0 else True) and (self.produto_bonus.aceita_aporte(vx) if vx > 0 else True)
+            df = pd.read_excel(fallback_file)
+            if 'data' not in df.columns or 'valor' not in df.columns:
+                print("    Fallback: colunas 'data' e 'valor' não encontradas. Usando CDI fixo.")
+                return {}, TAXA_DIA_BASE
+            mapa = {}
+            ultima = TAXA_DIA_BASE
+            for _, row in df.iterrows():
+                try:
+                    dt = pd.to_datetime(row['data']).date()
+                    taxa = float(row['valor']) / 100.0
+                    mapa[dt] = 1.0 + taxa
+                    ultima = taxa
+                except:
+                    continue
+            if mapa:
+                data_atual = min(mapa.keys())
+                data_final = data_hoje_referencia()
+                while data_atual <= data_final:
+                    if data_atual not in mapa:
+                        mapa[data_atual] = 1.0 + TAXA_DIA_BASE
+                    data_atual += timedelta(days=1)
+                print(f"    Fallback OK: {len(mapa)} dias.")
+                return mapa, ultima
+            else:
+                print("    Fallback não contém dados válidos.")
+        except Exception as e:
+            print(f"    Erro ao processar fallback: {e}")
 
-    def dividir_valor(self, total: float):
-        if total < self.valor_min:
-            return 0.0, 0.0
-        ideal_base = total * self.razao_base / (self.razao_base + self.razao_bonus)
-        ideal_bonus = total * self.razao_bonus / (self.razao_base + self.razao_bonus)
-        if ideal_base < self.produto_base.valor_min:
-            ideal_base = self.produto_base.valor_min
-            ideal_bonus = total - ideal_base
-        elif ideal_bonus < self.produto_bonus.valor_min:
-            ideal_bonus = self.produto_bonus.valor_min
-            ideal_base = total - ideal_bonus
-        if ideal_base > self.produto_base.valor_max:
-            ideal_base = self.produto_base.valor_max
-            ideal_bonus = total - ideal_base
-        if ideal_bonus > self.produto_bonus.valor_max:
-            ideal_bonus = self.produto_bonus.valor_max
-            ideal_base = total - ideal_bonus
-        ideal_base = max(float(ideal_base), 0.0)
-        ideal_bonus = max(float(ideal_bonus), 0.0)
+    print("    Usando CDI fixo para todos os dias.")
+    return {}, TAXA_DIA_BASE
 
-        total = round(float(total), 2)
-        ideal_base = round(float(ideal_base), 2)
-        ideal_bonus = round(total - ideal_base, 2)
+cal = Brazil()
 
-        if ideal_bonus < 0:
-            ideal_bonus = 0.0
-            ideal_base = round(total, 2)
+def _calcular_pascoa(ano):
+    a = ano % 19
+    b = ano // 100
+    c = ano % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    mes = (h + l - 7 * m + 114) // 31
+    dia = ((h + l - 7 * m + 114) % 31) + 1
+    return date(ano, mes, dia)
 
-        return ideal_base, ideal_bonus
+def gerar_dias_sem_rendimento_bancario(ano_ini=2015, ano_fim=2035):
+    dias = set()
+    for ano in range(ano_ini, ano_fim + 1):
+        pascoa = _calcular_pascoa(ano)
+        terca_carnaval = pascoa - timedelta(days=47)
+        dias.add(terca_carnaval)
+    return dias
 
-def taxa_base_efetiva(prod) -> float:
-    if prod is None:
-        return 1.0
-    try:
-        if isinstance(prod, ComboProduto):
-            rb = float(getattr(prod, 'razao_base', 2.0) or 2.0)
-            rx = float(getattr(prod, 'razao_bonus', 1.0) or 1.0)
-            tb = float(getattr(getattr(prod, 'produto_base', None), 'taxa_base', 1.0) or 1.0)
-            tx = float(getattr(getattr(prod, 'produto_bonus', None), 'taxa_base', 1.0) or 1.0)
-            den = (rb + rx) if (rb + rx) > 0 else 1.0
-            return (rb * tb + rx * tx) / den
-    except Exception:
-        pass
-    try:
-        return float(getattr(prod, 'taxa_base', 1.0) or 1.0)
-    except Exception:
-        return 1.0
+DIAS_SEM_RENDIMENTO_BANCARIO = gerar_dias_sem_rendimento_bancario()
 
-def _to_float_br(valor, default=0.0):
-    if valor is None or (isinstance(valor, float) and np.isnan(valor)):
-        return default
-    if isinstance(valor, (int, float, np.integer, np.floating)):
-        return float(valor)
-    txt = str(valor).strip()
-    if not txt:
-        return default
-    txt = txt.replace('R$', '').replace(' ', '')
-    if ',' in txt and '.' in txt:
-        txt = txt.replace('.', '').replace(',', '.')
-    elif ',' in txt:
-        txt = txt.replace(',', '.')
-    try:
-        return float(txt)
-    except Exception:
-        return default
-
-def _normalizar_nome_texto(valor: str) -> str:
-    txt = str(valor or "").strip().lower()
-    txt = unicodedata.normalize("NFKD", txt)
-    txt = "".join(ch for ch in txt if not unicodedata.combining(ch))
-    return re.sub(r"\s+", " ", txt)
-
-def _resolver_colunas_carteira(df: pd.DataFrame) -> dict:
-    cols = {
-        'nome': resolver_coluna(df, 'carteira', 'nome'),
-        'taxa_base': resolver_coluna(df, 'carteira', 'taxa_base'),
-        'taxa_bonus': resolver_coluna(df, 'carteira', 'taxa_bonus', required=False),
-        'dias_bonus': resolver_coluna(df, 'carteira', 'dias_bonus', required=False),
-        'prazo_dias': resolver_coluna(df, 'carteira', 'prazo_dias', required=False),
-        'carencia_dias': resolver_coluna(df, 'carteira', 'carencia_dias', required=False),
-        'liquidez_dias': resolver_coluna(df, 'carteira', 'liquidez_dias', required=False),
-        'isento_ir': resolver_coluna(df, 'carteira', 'isento_ir', required=False),
-        'aplicacao_minima': resolver_coluna(df, 'carteira', 'aplicacao_minima', required=False),
-        'aplicacao_maxima': resolver_coluna(df, 'carteira', 'aplicacao_maxima', required=False),
-        'ativo': resolver_coluna(df, 'carteira', 'ativo', required=False),
-        'tipo': resolver_coluna(df, 'carteira', 'tipo', required=False),
-        'indexador': resolver_coluna(df, 'carteira', 'indexador', required=False),
-        'fgc': resolver_coluna(df, 'carteira', 'fgc', required=False),
-        'observacoes': resolver_coluna(df, 'carteira', 'observacoes', required=False),
-        'banco_emissor': resolver_coluna(df, 'carteira', 'banco_emissor', required=False),
-        'risco_real': resolver_coluna(df, 'carteira', 'risco_real', required=False),
-        'max_usos': resolver_coluna(df, 'carteira', 'max_usos', required=False),
-        'somente_combo': resolver_coluna(df, 'carteira', 'somente_combo', required=False),
-        'produto_base': resolver_coluna(df, 'carteira', 'produto_base', required=False),
-        'produto_bonus': resolver_coluna(df, 'carteira', 'produto_bonus', required=False),
-        'ratio_base': resolver_coluna(df, 'carteira', 'ratio_base', required=False),
-        'ratio_bonus': resolver_coluna(df, 'carteira', 'ratio_bonus', required=False),
-        'produto_id': resolver_coluna(df, 'carteira', 'produto_id', required=False),
-    }
-
-    cols['prazo'] = cols['prazo_dias']
-    cols['carencia'] = cols['carencia_dias']
-    cols['valor_min'] = cols['aplicacao_minima']
-    cols['valor_max'] = cols['aplicacao_maxima']
-    cols['obs'] = cols['observacoes']
-    cols['banco'] = cols['banco_emissor']
-    cols['risco'] = cols['risco_real']
-
-    cols['isento'] = cols['isento_ir']
-    cols['minimo'] = cols['aplicacao_minima']
-    cols['maximo'] = cols['aplicacao_maxima']
-    cols['base'] = cols['produto_base']
-    cols['bonus'] = cols['produto_bonus']
-
-    if not cols['minimo']:
-        raise ValueError("Coluna obrigatória de aplicação mínima não encontrada na aba Carteira.")
-
-    return cols
-
-def _parse_bool_planilha(valor, verdadeiros=('SIM', 'S', 'TRUE', '1', 'ATIVO', 'ISENTO')):
-    if pd.isna(valor):
+def is_dia_rendimento(data_atual: date, bcb_map: dict = None) -> bool:
+    if data_atual in DIAS_SEM_RENDIMENTO_BANCARIO:
         return False
-    return str(valor).upper().strip() in verdadeiros
+    if bcb_map and data_atual in bcb_map:
+        return True
+    return cal.is_working_day(data_atual)
 
-def _parse_prazo_dias(valor):
-    if pd.isna(valor):
+def contar_dias_rendimento(data_inicio: date, data_fim: date, bcb_map: dict = None) -> int:
+    if data_fim <= data_inicio:
         return 0
-    txt = str(valor).strip()
-    match = re.search(r'(\d+)', txt)
-    if match:
-        return int(match.group(1))
-    match = re.search(r'(\d+\.?\d*)', txt)
-    if match and 'ano' in txt.lower():
-        return int(float(match.group(1)) * 365)
-    return 0
-
-def _criar_produto_simples(row, cols):
-    nome = str(row[cols['nome']]).strip()
-    taxa_base_val = _to_float_br(str(row[cols['taxa_base']]).replace('%', ''), default=0.0)
-    taxa_base = taxa_base_val / 100.0
-    taxa_bonus = taxa_base
-    dias_bonus = 0
-    if cols['taxa_bonus'] and pd.notna(row.get(cols['taxa_bonus'])):
-        taxa_bonus_val = _to_float_br(str(row[cols['taxa_bonus']]).replace('%', ''), default=taxa_base_val)
-        taxa_bonus = taxa_bonus_val / 100.0
-    if cols['dias_bonus'] and pd.notna(row.get(cols['dias_bonus'])):
-        dias_bonus = int(row[cols['dias_bonus']])
-    prazo_dias = _parse_prazo_dias(row.get(cols['prazo'])) if cols['prazo'] else 0
-    carencia_dias = _parse_prazo_dias(row.get(cols['carencia'])) if cols['carencia'] else 0
-    isento = _parse_bool_planilha(row.get(cols['isento']), verdadeiros=('SIM', 'S', 'TRUE', '1', 'ISENTO')) if cols['isento'] else False
-    valor_min = _to_float_br(row[cols['minimo']], default=0.0)
-    valor_max = _to_float_br(row.get(cols['maximo']), default=1e12) if cols['maximo'] else 1e12
-    ativo = _parse_bool_planilha(row.get(cols['ativo'])) if cols['ativo'] else True
-    for _rx in EXCLUIR_PRODUTOS_REGEX:
-        if re.search(_rx, nome, flags=re.IGNORECASE):
-            ativo = False
-            break
-    return Produto(
-        nome=nome, taxa_base=taxa_base, taxa_bonus=taxa_bonus, dias_bonus=dias_bonus,
-        prazo_dias=prazo_dias, carencia_dias=carencia_dias, isento_ir=isento,
-        valor_min=valor_min, valor_max=valor_max, ativo=ativo,
-    )
-
-def _resolver_combo_por_nome(nome_combo: str, produtos_simples: dict):
-    nome_norm = _normalizar_nome_texto(nome_combo)
-
-    def _find_produto_by_pred(pred):
-        for nm, produto in produtos_simples.items():
-            if isinstance(produto, Produto) and pred(_normalizar_nome_texto(nm), produto):
-                return produto
-        return None
-
-    if 'combo' in nome_norm and 'picpay' in nome_norm and '100-115' in nome_norm:
-        base = _find_produto_by_pred(lambda nm, p: 'picpay' in nm and '100' in nm and 'combo' not in nm)
-        bonus = _find_produto_by_pred(lambda nm, p: 'picpay' in nm and '115' in nm and 'combo' not in nm)
-        return base, bonus
-    if 'combo' in nome_norm and 'picpay' in nome_norm and '100-120' in nome_norm and ('6 meses' in nome_norm or '6meses' in nome_norm or '180' in nome_norm):
-        base = _find_produto_by_pred(lambda nm, p: ('6 meses' in nm or '6meses' in nm) and '100' in nm and 'cdi' in nm and 'combo' not in nm)
-        bonus = _find_produto_by_pred(lambda nm, p: ('6 meses' in nm or '6meses' in nm) and '120' in nm and 'picpay' in nm and 'combo' not in nm)
-        return base, bonus
-    if 'combo' in nome_norm and 'picpay' in nome_norm and '100-120' in nome_norm and ('3 meses' in nome_norm or '3meses' in nome_norm or '90' in nome_norm):
-        base = _find_produto_by_pred(lambda nm, p: ('3 meses' in nm or '3meses' in nm) and '100' in nm and 'cdi' in nm and 'combo' not in nm)
-        bonus = _find_produto_by_pred(lambda nm, p: ('3 meses' in nm or '3meses' in nm) and '120' in nm and 'picpay' in nm and 'combo' not in nm)
-        return base, bonus
-    return None, None
-
-def _carregar_produtos_da_carteira(df, cols):
-    produtos_simples = {}
-    combos = []
-    for _, row in df.iterrows():
-        nome = str(row[cols['nome']]).strip()
-        if not nome:
-            continue
-        eh_combo = (cols['tipo'] and pd.notna(row.get(cols['tipo'])) and 'combo' in str(row[cols['tipo']]).lower()) or 'combo' in nome.lower()
-        if eh_combo:
-            combos.append(row)
-            continue
-        produto = _criar_produto_simples(row, cols)
-        if nome in produtos_simples:
-            print(f"   Aviso: Produto com nome '{nome}' já existe. O último será sobrescrito. Considere usar nomes únicos.")
-        produtos_simples[nome] = produto
-    return produtos_simples, combos
-
-def _carregar_combos_da_carteira(combos, cols, produtos_simples):
-    for row in combos:
-        nome = str(row[cols['nome']]).strip()
-        ativo = _parse_bool_planilha(row.get(cols['ativo'])) if cols['ativo'] else True
-        base_prod = bonus_prod = None
-        if cols['base'] and cols['bonus'] and row.get(cols['base']) and row.get(cols['bonus']):
-            base_prod = produtos_simples.get(str(row[cols['base']]).strip())
-            bonus_prod = produtos_simples.get(str(row[cols['bonus']]).strip())
-        if base_prod is None or bonus_prod is None:
-            base_prod, bonus_prod = _resolver_combo_por_nome(nome, produtos_simples)
-        if isinstance(base_prod, Produto) and isinstance(bonus_prod, Produto):
-            produtos_simples[nome] = ComboProduto(nome, base_prod, bonus_prod, ativo=ativo)
-        else:
-            print(f"   Aviso: Combo '{nome}' não pôde ser resolvido de forma exata. Verifique se os produtos base/bônus existem na Carteira com nomes consistentes.")
-    return produtos_simples
-
-def carregar_carteira() -> list:
-    aba_carteira = nome_aba('carteira', ABA_CARTEIRA)
-    df = ler_aba_excel(aba_carteira)
-    print(f"[CHECK] Aba '{aba_carteira}': linhas={len(df)} | colunas={list(df.columns)}")
-    df.columns = [str(c).strip() for c in df.columns]
-    cols = _resolver_colunas_carteira(df)
-    produtos_simples, combos = _carregar_produtos_da_carteira(df, cols)
-    produtos_simples = _carregar_combos_da_carteira(combos, cols, produtos_simples)
-    return list(produtos_simples.values())
+    dias = 0
+    d = data_inicio + timedelta(days=1)
+    while d <= data_fim:
+        if is_dia_rendimento(d, bcb_map):
+            dias += 1
+        d += timedelta(days=1)
+    return dias

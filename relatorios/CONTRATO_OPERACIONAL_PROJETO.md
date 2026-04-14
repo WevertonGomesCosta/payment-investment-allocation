@@ -10,7 +10,7 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 2. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial (`v1`, `v2`, `v3`, ...).
 3. O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas do repositório diretamente na raiz.
 4. Todo o projeto deve permanecer em português.
-5. A baseline atual é a V8.
+5. A baseline atual é a V9.
 
 ## 2. Objetivo central do sistema
 
@@ -122,6 +122,14 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 51. Informações relevantes de comportamento de produto não devem ser interpretadas a partir de texto livre em `Observações` como regra principal do motor; quando forem materialmente importantes, devem ser formalizadas em colunas estruturadas na aba `Carteira` e/ou no `config`, ficando `Observações` apenas como apoio humano/documental.
 52. Cada etapa do projeto deve ser acompanhada de instruções claras de execução local e de uma validação mínima observável no console e/ou nos artefatos gerados, permitindo teste incremental na máquina do usuário.
 53. Auditorias intermediárias podem ser mantidas, resumidas ou desativadas conforme continuem úteis, mas deve existir sempre um caminho explícito para validar a etapa implementada.
+
+## 20. Artefatos proibidos no pacote final
+
+**20.1. Regra principal**  
+O repositório entregue em cada versão não deve incluir artefatos de execução local ou temporários, como `__pycache__`, arquivos `.pyc`, logs brutos auxiliares, caches efêmeros e arquivos de validação não oficiais.
+
+**20.2. Regra de empacotamento**  
+O pacote final deve conter apenas artefatos documentais e operacionais oficiais da versão.
 
 ## 20. Regras de arquitetura e evolução da baseline
 

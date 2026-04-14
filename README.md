@@ -11,9 +11,9 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V8
+**Versão atual da baseline:** V9
 
-A V8 preserva a baseline fixa da V7 e aplica apenas ajustes neutros derivados da auditoria do bloco 02, sem abrir domínio financeiro, fiscal ou de otimização:
+A V9 preserva a baseline fixa da V7 e aplica apenas ajustes neutros derivados da auditoria do bloco 02, sem abrir domínio financeiro, fiscal ou de otimização:
 
 - função central de data de referência;
 - resolução semântica de colunas por alias configurado;
@@ -78,7 +78,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V8.md`
+- `relatorios/VALIDACAO_LOCAL_V9.md`
 
 ## Entradas canônicas atuais
 
@@ -148,7 +148,7 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V8, a execução local mínima foi
+validação incremental da baseline. Nesta V9, a execução local mínima foi
 realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;
