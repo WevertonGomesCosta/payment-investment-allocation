@@ -124,3 +124,5 @@ relatorios/_log_validacao_v8_*.txt
 relatorios/_log_validacao_*.txt
 !relatorios/BASELINE_FIXA_V9.md
 !relatorios/VALIDACAO_LOCAL_V9.md
+!relatorios/BASELINE_FIXA_V10.md
+!relatorios/VALIDACAO_LOCAL_V10.md

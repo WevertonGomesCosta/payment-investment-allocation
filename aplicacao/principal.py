@@ -13,6 +13,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 from nucleo.ambiente import bootstrap_ambiente
 from nucleo.carregador_config import carregar_config
 from nucleo.leitor_planilha import carregar_planilha, construir_resumo_planilha
+from nucleo.carteira_canonica import carregar_carteira_canonica
 
 
 def _imprimir_titulo(texto: str) -> None:
@@ -36,6 +37,7 @@ def main() -> None:
         raiz_repositorio=pacote_config.raiz_repositorio,
     )
 
+    carteira_canonica = carregar_carteira_canonica(pacote_planilha, pacote_config.conteudo)
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
     resumo_por_aba = {item["nome_aba"]: item for item in resumo_planilha}
     abas_config = pacote_config.conteudo.get("abas", {}) if isinstance(pacote_config.conteudo.get("abas"), dict) else {}
@@ -48,7 +50,7 @@ def main() -> None:
 
     _imprimir_titulo("BASELINE")
     _imprimir_pares([
-        ("versão", "V8"),
+        ("versão", "V10"),
         ("raiz do repositório", pacote_config.raiz_repositorio),
         ("config carregado", pacote_config.caminho),
         ("planilha carregada", pacote_planilha.caminho),
@@ -94,6 +96,33 @@ def main() -> None:
             linhas = info["n_linhas"] if info else "-"
             colunas = info["n_colunas"] if info else "-"
             print(f"- {nome_aba}: {linhas} linhas, {colunas} colunas")
+
+    _imprimir_titulo("CARTEIRA CANÔNICA")
+    _imprimir_pares([
+        ("aba", carteira_canonica.nome_aba),
+        ("produtos canônicos", len(carteira_canonica.quadro_canonico)),
+        ("produto_key únicos", len(carteira_canonica.mapa_produtos.get("by_key", {}))),
+        ("nomes normalizados únicos", len(carteira_canonica.mapa_produtos.get("by_nome_norm", {}))),
+        ("linhas sem produto_id explícito", carteira_canonica.auditoria.get("sem_produto_id", 0)),
+        ("validação estrutural", "ok" if carteira_canonica.validacao.get("ok") else "com pendências"),
+    ])
+
+    colunas_resolvidas = carteira_canonica.auditoria.get("colunas_resolvidas", {})
+    print("- colunas resolvidas:")
+    for chave, valor in colunas_resolvidas.items():
+        if valor:
+            print(f"  - {chave}: {valor}")
+
+    erros = carteira_canonica.validacao.get("erros", [])
+    avisos = carteira_canonica.validacao.get("avisos", [])
+    if erros:
+        print("- erros de validação:")
+        for erro in erros:
+            print(f"  - {erro}")
+    if avisos:
+        print("- avisos de validação:")
+        for aviso in avisos:
+            print(f"  - {aviso}")
 
     _imprimir_titulo("RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS")
     for _, nome_aba in abas_primarias:

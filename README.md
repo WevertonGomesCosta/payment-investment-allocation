@@ -11,14 +11,15 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V9
+**Versão atual da baseline:** V10
 
-A V9 preserva a baseline fixa da V7 e aplica apenas ajustes neutros derivados da auditoria do bloco 02, sem abrir domínio financeiro, fiscal ou de otimização:
+A V10 preserva a baseline fixa da fase atual e abre de forma restrita o bloco 03 apenas na parte estrutural da aba `Carteira`, sem abrir domínio financeiro, fiscal, combos ou switching:
 
-- função central de data de referência;
-- resolução semântica de colunas por alias configurado;
-- endurecimento do contrato de chaves obrigatórias do config;
-- correção documental da versão exibida e nova validação local.
+- carteira canônica inicial;
+- geração de `produto_key`;
+- mapa canônico simples de produtos;
+- validação estrutural da aba `Carteira`;
+- nova validação local da baseline.
 
 A regra de trabalho do projeto continua sendo:
 
@@ -43,7 +44,8 @@ A regra de trabalho do projeto continua sendo:
 │   ├── __init__.py
 │   ├── ambiente.py
 │   ├── carregador_config.py
-│   └── leitor_planilha.py
+│   ├── leitor_planilha.py
+│   └── carteira_canonica.py
 ├── scripts/
 │   └── inspecionar_base.py
 ├── dados/
@@ -78,7 +80,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V9.md`
+- `relatorios/VALIDACAO_LOCAL_V10.md`
 
 ## Entradas canônicas atuais
 
@@ -112,6 +114,14 @@ Responsável por:
 - carregamento estrutural das abas;
 - leitura inicial da planilha;
 - canonização inicial de colunas com base nos aliases do config.
+
+### `nucleo/carteira_canonica.py`
+Responsável por:
+- leitura restrita da aba `Carteira` no contexto atual;
+- construção da carteira canônica inicial;
+- geração de `produto_key`;
+- mapa canônico simples de produtos;
+- validação estrutural da aba `Carteira`.
 
 ## O que esta baseline ainda não implementa
 
@@ -148,7 +158,7 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V9, a execução local mínima foi
+validação incremental da baseline. Nesta V10, a execução local mínima foi
 realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;
