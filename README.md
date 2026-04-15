@@ -11,9 +11,9 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V21
+**Versão atual da baseline:** V22
 
-A V21 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
+A V22 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
 
 - carteira canônica e `produto_key`;
 - inventário canônico;
@@ -75,9 +75,9 @@ A regra de trabalho do projeto continua sendo:
 │   ├── AUDITORIA_ARQUITETURAL_V3.md
 │   ├── CONTRATO_OPERACIONAL_PROJETO.md
 │   ├── BASELINE_FIXA_V18.md
-│   ├── BASELINE_FIXA_V21.md
+│   ├── BASELINE_FIXA_V22.md
 │   ├── VALIDACAO_LOCAL_V18.md
-│   └── VALIDACAO_LOCAL_V21.md
+│   └── VALIDACAO_LOCAL_V22.md
 └── testes/
     └── .gitkeep
 ```
@@ -96,7 +96,7 @@ Esse documento deve ser tratado como a referência principal para:
 
 A validação local executada antes desta entrega está registrada em:
 - `relatorios/VALIDACAO_LOCAL_V18.md`
-- `relatorios/VALIDACAO_LOCAL_V21.md`
+- `relatorios/VALIDACAO_LOCAL_V22.md`
 
 ## Entradas canônicas atuais
 
@@ -216,7 +216,7 @@ scripts-base antes da criação de entidades finais, validadores semânticos
 profundos ou módulos de negócio mais específicos.
 
 
-## Atualização V21
+## Atualização V22
 
 - a aba `Carteira` passa a ser tratada como universo único de produtos da baseline;
 - a planilha canônica do repositório foi atualizada com a nova base fixa enviada;

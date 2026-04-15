@@ -181,6 +181,7 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         'elegivel_switch_in',
         'elegivel_reconciliacao_historica',
     ]
+    campos_sem_coluna = [campo for campo in metadados_transitorios if not campos.get(campo)]
     auditoria = {
         'colunas_resolvidas': dict(campos),
         'linhas_descartadas': [],
@@ -190,7 +191,11 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         'metadados_derivados_transitorios': list(metadados_transitorios),
         'observacao_metadados_derivados': 'Campos derivados em código funcionam como ponte transitória até maior estruturação da aba Carteira.',
         'campos_estruturais_recomendados': list(metadados_transitorios),
-        'campos_estruturais_sem_coluna_resolvida': [campo for campo in metadados_transitorios if not campos.get(campo)],
+        'campos_estruturais_sem_coluna_resolvida': list(campos_sem_coluna),
+        'qtd_campos_estruturais_sem_coluna_resolvida': len(campos_sem_coluna),
+        'resumo_fontes_metadados': {},
+        'resumo_cobertura_metadados_planilha': {},
+        'resumo_cobertura_metadados_derivados': {},
     }
     registros: list[dict[str, Any]] = []
 
@@ -235,10 +240,19 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         elegivel_switch_in = para_bool(row[campos['elegivel_switch_in']], ativo) if campos['elegivel_switch_in'] else bool(ativo)
         elegivel_reconciliacao_historica = para_bool(row[campos['elegivel_reconciliacao_historica']], True) if campos['elegivel_reconciliacao_historica'] else True
 
-        familia_produto = (limpar_texto(row[campos['familia_produto']]) if campos['familia_produto'] else '') or _derivar_familia_produto(tipo, indexador, permite_combo=permite_combo, produto_base=produto_base, produto_bonus=produto_bonus)
-        regime_taxa = (limpar_texto(row[campos['regime_taxa']]) if campos['regime_taxa'] else '') or _derivar_regime_taxa(indexador, taxa_base_cdi, taxa_bonus_cdi, dias_bonus, permite_combo=permite_combo, produto_base=produto_base, produto_bonus=produto_bonus)
-        regime_liquidez = (limpar_texto(row[campos['regime_liquidez']]) if campos['regime_liquidez'] else '') or _derivar_regime_liquidez(carencia_dias, liquidez_dias, prazo_dias, permite_combo=permite_combo)
-        papel_produto = (limpar_texto(row[campos['papel_produto']]) if campos['papel_produto'] else '') or _derivar_papel_produto(ativo, elegivel_motor)
+        familia_produto_raw = limpar_texto(row[campos['familia_produto']]) if campos['familia_produto'] else ''
+        regime_taxa_raw = limpar_texto(row[campos['regime_taxa']]) if campos['regime_taxa'] else ''
+        regime_liquidez_raw = limpar_texto(row[campos['regime_liquidez']]) if campos['regime_liquidez'] else ''
+        papel_produto_raw = limpar_texto(row[campos['papel_produto']]) if campos['papel_produto'] else ''
+        elegivel_motor_raw = row[campos['elegivel_motor']] if campos['elegivel_motor'] else None
+        elegivel_aporte_novo_raw = row[campos['elegivel_aporte_novo']] if campos['elegivel_aporte_novo'] else None
+        elegivel_switch_in_raw = row[campos['elegivel_switch_in']] if campos['elegivel_switch_in'] else None
+        elegivel_reconciliacao_raw = row[campos['elegivel_reconciliacao_historica']] if campos['elegivel_reconciliacao_historica'] else None
+
+        familia_produto = familia_produto_raw or _derivar_familia_produto(tipo, indexador, permite_combo=permite_combo, produto_base=produto_base, produto_bonus=produto_bonus)
+        regime_taxa = regime_taxa_raw or _derivar_regime_taxa(indexador, taxa_base_cdi, taxa_bonus_cdi, dias_bonus, permite_combo=permite_combo, produto_base=produto_base, produto_bonus=produto_bonus)
+        regime_liquidez = regime_liquidez_raw or _derivar_regime_liquidez(carencia_dias, liquidez_dias, prazo_dias, permite_combo=permite_combo)
+        papel_produto = papel_produto_raw or _derivar_papel_produto(ativo, elegivel_motor)
 
         registros.append({
             'produto_key': produto_key,
@@ -274,13 +288,21 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
             'campos_pendentes': campos_pendentes,
             'score_banco': score_banco,
             'familia_produto': familia_produto,
+            'familia_produto_fonte': _fonte_campo_estruturado(familia_produto_raw),
             'regime_taxa': regime_taxa,
+            'regime_taxa_fonte': _fonte_campo_estruturado(regime_taxa_raw),
             'regime_liquidez': regime_liquidez,
+            'regime_liquidez_fonte': _fonte_campo_estruturado(regime_liquidez_raw),
             'papel_produto': papel_produto,
+            'papel_produto_fonte': _fonte_campo_estruturado(papel_produto_raw),
             'elegivel_motor': elegivel_motor,
+            'elegivel_motor_fonte': _fonte_campo_estruturado(elegivel_motor_raw),
             'elegivel_aporte_novo': elegivel_aporte_novo,
+            'elegivel_aporte_novo_fonte': _fonte_campo_estruturado(elegivel_aporte_novo_raw),
             'elegivel_switch_in': elegivel_switch_in,
+            'elegivel_switch_in_fonte': _fonte_campo_estruturado(elegivel_switch_in_raw),
             'elegivel_reconciliacao_historica': elegivel_reconciliacao_historica,
+            'elegivel_reconciliacao_historica_fonte': _fonte_campo_estruturado(elegivel_reconciliacao_raw),
         })
 
     quadro_canonico = pd.DataFrame(registros)
@@ -289,6 +311,13 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         auditoria['resumo_familia_produto'] = {str(ch): int(v) for ch, v in quadro_canonico['familia_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
         auditoria['resumo_regime_taxa'] = {str(ch): int(v) for ch, v in quadro_canonico['regime_taxa'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
         auditoria['resumo_papel_produto'] = {str(ch): int(v) for ch, v in quadro_canonico['papel_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
+        for campo in metadados_transitorios:
+            fonte_col = f'{campo}_fonte'
+            if fonte_col in quadro_canonico.columns:
+                resumo = {str(ch): int(v) for ch, v in quadro_canonico[fonte_col].fillna('desconhecido').value_counts(dropna=False).to_dict().items()}
+                auditoria['resumo_fontes_metadados'][campo] = resumo
+                auditoria['resumo_cobertura_metadados_planilha'][campo] = int(resumo.get('planilha', 0))
+                auditoria['resumo_cobertura_metadados_derivados'][campo] = int(resumo.get('derivado', 0))
     return quadro_canonico, auditoria
 
 

@@ -282,7 +282,24 @@ def carregar_triagem_motor(
         & ((df['rank_global'] <= top_k_global) | (df['rank_familia'] <= top_k_familia) | df['produto_padrao'].fillna(False))
     )
 
+    qtd_elegiveis = int(df['elegivel_bruto'].sum())
+    qtd_selecionados = int(df['selecionado_motor_v1'].sum())
+    fracao_selecionada = (float(qtd_selecionados) / max(qtd_elegiveis, 1)) if qtd_elegiveis > 0 else 0.0
+    alvo_fracao_minima = float(_cfg(config, 'triagem_motor', 'fracao_minima_elegiveis_selecionados', padrao=0.45) or 0.45)
+    teto_cauteloso = int(_cfg(config, 'triagem_motor', 'teto_cauteloso_selecao', padrao=max(top_k_global, 72)) or max(top_k_global, 72))
+    expansao_cautelosa_aplicada = False
+    if qtd_elegiveis > 0 and fracao_selecionada < alvo_fracao_minima:
+        faltantes = int(max(0, round(alvo_fracao_minima * qtd_elegiveis) - qtd_selecionados))
+        faltantes = min(faltantes, max(0, teto_cauteloso - qtd_selecionados))
+        if faltantes > 0:
+            adicionais = df[df['elegivel_bruto'] & ~df['selecionado_motor_v1']].sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable').head(faltantes).index.tolist()
+            if adicionais:
+                df.loc[adicionais, 'selecionado_motor_v1'] = True
+                expansao_cautelosa_aplicada = True
+
     candidatos = df[df['selecionado_motor_v1']].copy().reset_index(drop=True)
+    qtd_selecionados = int(df['selecionado_motor_v1'].sum())
+    fracao_selecionada = (float(qtd_selecionados) / max(qtd_elegiveis, 1)) if qtd_elegiveis > 0 else 0.0
 
     auditoria = {
         'qtd_total_produtos': int(len(df)),
@@ -296,6 +313,9 @@ def carregar_triagem_motor(
         'top_k_por_familia': top_k_familia,
         'score_minimo_selecao': score_minimo,
         'observacao': 'Score v1 usado apenas como triagem preliminar proxy; nao e decisao final do motor. Criterios de corte permanecem deliberadamente cautelosos e transitorios nesta fase.',
+        'fracao_minima_elegiveis_selecionados': alvo_fracao_minima,
+        'expansao_cautelosa_aplicada': expansao_cautelosa_aplicada,
+        'teto_cauteloso_selecao': teto_cauteloso,
         'contexto': contexto,
         'resumo_familia_produto': {str(k): int(v) for k, v in df['familia_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()},
         'resumo_regime_taxa': {str(k): int(v) for k, v in df['regime_taxa'].fillna('vazio').value_counts(dropna=False).to_dict().items()},
