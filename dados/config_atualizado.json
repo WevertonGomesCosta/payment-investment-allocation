@@ -704,9 +704,9 @@
     "peso_liquidez": 0.3,
     "peso_viabilidade": 0.2,
     "peso_risco": 0.15,
-    "top_k_global": 24,
-    "top_k_por_familia": 4,
-    "score_minimo_selecao": 35.0,
+    "top_k_global": 36,
+    "top_k_por_familia": 6,
+    "score_minimo_selecao": 25.0,
     "janelas_pagamento_dias": [
       30,
       60,
@@ -714,6 +714,7 @@
     ],
     "considerar_confiabilidade_operacional_no_score": false,
     "cap_anual_variavel": 1.0,
-    "cap_anual_cdi_multiplicador": 1.5
+    "cap_anual_cdi_multiplicador": 1.5,
+    "modo_calibracao": "conservadora"
   }
 }

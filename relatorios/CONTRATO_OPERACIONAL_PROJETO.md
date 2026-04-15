@@ -10,7 +10,7 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 2. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial (`v1`, `v2`, `v3`, ...).
 3. O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas do repositório diretamente na raiz.
 4. Todo o projeto deve permanecer em português.
-5. A baseline atual é a V19.
+5. A baseline atual é a V20.
 
 ## 2. Objetivo central do sistema
 
@@ -143,7 +143,7 @@ O pacote final deve conter apenas artefatos documentais e operacionais oficiais 
 Este contrato pode evoluir futuramente, mas qualquer alteração deve ser validada de forma organizada antes de ser incorporada ao projeto.
 
 
-## Atualização metodológica da V19
+## Atualização metodológica da V20
 
 - a aba `Carteira` passa a ser o **universo único** de produtos do projeto;
 - a filtragem de candidatos deve ser feita **programaticamente no script**, servindo apenas ao motor;

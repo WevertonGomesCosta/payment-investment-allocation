@@ -11,9 +11,9 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V19
+**Versão atual da baseline:** V20
 
-A V19 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
+A V20 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
 
 - carteira canônica e `produto_key`;
 - inventário canônico;
@@ -75,9 +75,9 @@ A regra de trabalho do projeto continua sendo:
 │   ├── AUDITORIA_ARQUITETURAL_V3.md
 │   ├── CONTRATO_OPERACIONAL_PROJETO.md
 │   ├── BASELINE_FIXA_V18.md
-│   ├── BASELINE_FIXA_V19.md
+│   ├── BASELINE_FIXA_V20.md
 │   ├── VALIDACAO_LOCAL_V18.md
-│   └── VALIDACAO_LOCAL_V19.md
+│   └── VALIDACAO_LOCAL_V20.md
 └── testes/
     └── .gitkeep
 ```
@@ -96,7 +96,7 @@ Esse documento deve ser tratado como a referência principal para:
 
 A validação local executada antes desta entrega está registrada em:
 - `relatorios/VALIDACAO_LOCAL_V18.md`
-- `relatorios/VALIDACAO_LOCAL_V19.md`
+- `relatorios/VALIDACAO_LOCAL_V20.md`
 
 ## Entradas canônicas atuais
 
@@ -216,9 +216,15 @@ scripts-base antes da criação de entidades finais, validadores semânticos
 profundos ou módulos de negócio mais específicos.
 
 
-## Atualização V19
+## Atualização V20
 
 - a aba `Carteira` passa a ser tratada como universo único de produtos da baseline;
 - a planilha canônica do repositório foi atualizada com a nova base fixa enviada;
 - a filtragem do motor passou a ser feita programaticamente por um **score v1** multicritério e auditável;
 - a triagem continua sem abrir replay, núcleo financeiro completo, switching econômico ou otimização profunda.
+
+
+## Observações da baseline
+
+- Parte dos metadados estruturais da aba `Carteira` ainda é derivada em código como **ponte transitória** até maior estruturação da planilha.
+- A triagem do motor permanece **preliminar proxy** e com **calibração conservadora** nesta fase.

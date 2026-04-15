@@ -4,6 +4,10 @@ Este módulo mantém a aba `Carteira` como universo único de produtos do projet
 Ele resolve colunas, constrói o cadastro canônico de produtos, deriva metadados
 estruturais neutros (família, regimes e elegibilidade básica) e valida a
 consistência mínima antes que o motor faça a triagem contextual.
+
+Importante: parte desses metadados ainda é derivada em código como **ponte
+transitória** até que a planilha carregue esses campos de forma mais
+estruturada.
 """
 
 from __future__ import annotations
@@ -119,6 +123,11 @@ def _derivar_papel_produto(ativo: bool, elegivel_motor: bool) -> str:
     return 'historico_observado'
 
 
+def _fonte_campo_estruturado(valor_original: Any) -> str:
+    texto = limpar_texto(valor_original)
+    return 'planilha' if texto else 'derivado'
+
+
 def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, Any]) -> tuple[pd.DataFrame, dict[str, Any]]:
     campos = {
         'produto_id': resolver_coluna(df_carteira, config, 'carteira', 'produto_id', obrigatoria=False),
@@ -168,6 +177,8 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         'sem_produto_id': 0,
         'produtos_total': 0,
         'limite_percentual_vs_multiplicador': limite,
+        'metadados_derivados_transitorios': ['familia_produto', 'regime_taxa', 'regime_liquidez', 'papel_produto', 'elegivel_motor', 'elegivel_aporte_novo', 'elegivel_switch_in', 'elegivel_reconciliacao_historica'],
+        'observacao_metadados_derivados': 'Campos derivados em código funcionam como ponte transitória até maior estruturação da aba Carteira.',
     }
     registros: list[dict[str, Any]] = []
 
