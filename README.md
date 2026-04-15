@@ -11,7 +11,7 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V28
+**Versão atual da baseline:** V29
 
 A V21 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
 
@@ -250,3 +250,8 @@ A V24 reforça o replay controlado do passado para materializar corretamente os 
 ## Atualização V28
 
 A V28 corrige o modelo base em três frentes antes de qualquer nova camada econômica: reduz o arredondamento interno diário do saldo dos lotes, melhora a exaustão do lote no saque quando o alvo líquido praticamente consome todo o valor disponível e implementa a camada de cache diário do CDI do BCB, com janela iniciando no primeiro dia do mês do primeiro pagamento/recebido até a data de referência. Quando a série do BCB não estiver disponível, a baseline faz fallback controlado para a taxa de modelo.
+
+
+## Atualização V29
+
+A V29 mantém a baseline funcional da V28 e adiciona duas melhorias de auditoria: (1) uma tabela comparativa no console para os lotes críticos auditados contra os valores observados nos apps e (2) uma tabela de inconsistências do replay controlado mostrando explicitamente a despesa, valor e lote(s) informados quando houver aviso de cobertura parcial ou não cobertura.

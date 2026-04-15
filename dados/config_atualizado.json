@@ -528,7 +528,27 @@
       "Lote 3000 mar. V",
       "Lote 3000 mar. B"
     ],
-    "auditar_coluna_escolhida": true
+    "auditar_coluna_escolhida": true,
+    "referencias_app_lotes": [
+      {
+        "lote_id": "Lote 6630,64 fev.",
+        "saldo_bruto_app": 2984.03,
+        "saldo_liquido_app": 2964.89,
+        "observacao": "app 14/04/2026"
+      },
+      {
+        "lote_id": "Lote 3000 mar. V",
+        "saldo_bruto_app": 3111.24,
+        "saldo_liquido_app": 3086.21,
+        "observacao": "app 14/04/2026"
+      },
+      {
+        "lote_id": "Lote 8500 mar.",
+        "saldo_bruto_app": 8715.83,
+        "saldo_liquido_app": 8686.85,
+        "observacao": "app 14/04/2026"
+      }
+    ]
   },
   "saidas": {
     "exportar_excel_final": true,

@@ -167,6 +167,18 @@ def _resolver_alias_lote_historico_nao_aportado(lote_id_faltante: str, candidato
     return melhor
 
 
+def _contexto_inconsistencia(conta: dict[str, Any], restante: Optional[float] = None) -> dict[str, Any]:
+    lotes_informados = [x for x in [limpar_texto(conta.get('lote_usado_1')), limpar_texto(conta.get('lote_usado_2'))] if x]
+    return {
+        'despesa_id': conta.get('despesa_id'),
+        'data': conta.get('data'),
+        'descricao': conta.get('descricao'),
+        'valor_conta': arredondar_monetario(float(conta.get('valor') or 0.0)),
+        'lotes_informados': ' | '.join(lotes_informados),
+        **({'valor_restante': arredondar_monetario(restante)} if restante is not None else {}),
+    }
+
+
 def _materializar_lotes_historicos_exauridos(dados_operacionais: PacoteDadosOperacionaisCanonicos) -> tuple[list[Lote], dict[str, Lote], dict[str, Any]]:
     inventario = dados_operacionais.inventario_canonico.copy()
     exauridos = inventario[inventario.get('situacao_investimento').eq('nao_aportado_exaurido')].copy() if len(inventario) else inventario
@@ -269,7 +281,7 @@ def carregar_replay_passado_controlado(
             lotes_informados = [x for x in [limpar_texto(conta.get('lote_usado_1')), limpar_texto(conta.get('lote_usado_2'))] if x]
             if not lotes_informados:
                 qtd_sem_lote += 1
-                inconsistencias.append({'despesa_id': conta.get('despesa_id'), 'motivo': 'conta_historica_sem_lote_informado'})
+                inconsistencias.append({**_contexto_inconsistencia(conta), 'motivo': 'conta_historica_sem_lote_informado'})
                 qtd_nao += 1
                 continue
 
@@ -298,16 +310,16 @@ def carregar_replay_passado_controlado(
                                 })
                     if lote is None:
                         qtd_nao_encontrado += 1
-                        inconsistencias.append({'despesa_id': conta.get('despesa_id'), 'lote_id': lote_id_informado, 'motivo': 'lote_informado_nao_encontrado'})
+                        inconsistencias.append({**_contexto_inconsistencia(conta), 'lote_id': lote_id_informado, 'motivo': 'lote_informado_nao_encontrado'})
                         continue
                 if lote.esgotado or float(lote.saldo_bruto) <= valor_min_lote_ativo:
-                    inconsistencias.append({'despesa_id': conta.get('despesa_id'), 'lote_id': lote_id_resolvido, 'motivo': 'lote_esgotado_ou_sem_saldo'})
+                    inconsistencias.append({**_contexto_inconsistencia(conta), 'lote_id': lote_id_resolvido, 'motivo': 'lote_esgotado_ou_sem_saldo'})
                     continue
                 if lote.data_aplicacao > data_atual:
-                    inconsistencias.append({'despesa_id': conta.get('despesa_id'), 'lote_id': lote_id_resolvido, 'motivo': 'lote_ainda_nao_recebido_na_data'})
+                    inconsistencias.append({**_contexto_inconsistencia(conta), 'lote_id': lote_id_resolvido, 'motivo': 'lote_ainda_nao_recebido_na_data'})
                     continue
                 if lote.carencia_ate and data_atual < lote.carencia_ate:
-                    inconsistencias.append({'despesa_id': conta.get('despesa_id'), 'lote_id': lote_id_resolvido, 'motivo': 'lote_em_carencia'})
+                    inconsistencias.append({**_contexto_inconsistencia(conta), 'lote_id': lote_id_resolvido, 'motivo': 'lote_em_carencia'})
                     continue
                 valor_liquido_alvo = min(restante, float(lote.valor_liquido_hoje(data_atual, tabela_iof=tabela_iof, faixas_ir=faixas_ir)))
                 if valor_liquido_alvo <= tolerancia:
@@ -321,7 +333,7 @@ def carregar_replay_passado_controlado(
                     tolerancia_monetaria=tolerancia,
                 )
                 if movimento is None:
-                    inconsistencias.append({'despesa_id': conta.get('despesa_id'), 'lote_id': lote_id_resolvido, 'motivo': 'movimento_nulo'})
+                    inconsistencias.append({**_contexto_inconsistencia(conta), 'lote_id': lote_id_resolvido, 'motivo': 'movimento_nulo'})
                     continue
                 liquido = float(movimento['liquido'])
                 restante = max(restante - liquido, 0.0)
@@ -351,10 +363,10 @@ def carregar_replay_passado_controlado(
                 qtd_integral += 1
             elif consumiu_algo:
                 qtd_parcial += 1
-                inconsistencias.append({'despesa_id': conta.get('despesa_id'), 'motivo': 'conta_parcialmente_coberta', 'valor_restante': arredondar_monetario(restante)})
+                inconsistencias.append({**_contexto_inconsistencia(conta, restante), 'motivo': 'conta_parcialmente_coberta'})
             else:
                 qtd_nao += 1
-                inconsistencias.append({'despesa_id': conta.get('despesa_id'), 'motivo': 'conta_nao_coberta', 'valor_restante': arredondar_monetario(restante)})
+                inconsistencias.append({**_contexto_inconsistencia(conta, restante), 'motivo': 'conta_nao_coberta'})
         data_atual += timedelta(days=1)
 
     estado = pd.DataFrame([_serializar_estado_lote(l) for l in lotes_base])

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 RAIZ_REPOSITORIO = Path(__file__).resolve().parents[1]
 if str(RAIZ_REPOSITORIO) not in sys.path:
@@ -61,6 +61,75 @@ def _imprimir_itens_severidade(rotulo: str, itens: Iterable[object] | None, seve
     print(f"- {rotulo}:")
     for item in itens_norm:
         print(f"  [{severidade}] {item}")
+
+
+def _formatar_valor_tabela(valor: object) -> str:
+    if valor is None:
+        return ''
+    if isinstance(valor, float):
+        return f"{valor:.2f}"
+    return str(valor)
+
+
+def _imprimir_tabela(colunas: Sequence[str], linhas: Sequence[dict[str, object]], *, limite: int | None = None) -> None:
+    linhas_use = list(linhas[:limite] if limite is not None else linhas)
+    if not linhas_use:
+        print('  [OK] sem linhas para exibir')
+        return
+    larguras = {}
+    for col in colunas:
+        larguras[col] = len(col)
+        for linha in linhas_use:
+            larguras[col] = max(larguras[col], len(_formatar_valor_tabela(linha.get(col))))
+    cab = ' | '.join(col.ljust(larguras[col]) for col in colunas)
+    sep = '-+-'.join('-' * larguras[col] for col in colunas)
+    print(cab)
+    print(sep)
+    for linha in linhas_use:
+        print(' | '.join(_formatar_valor_tabela(linha.get(col)).ljust(larguras[col]) for col in colunas))
+
+
+def _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, config, data_referencia):
+    from nucleo.nucleo_financeiro_minimo import construir_tabela_iof, construir_faixas_ir
+    refs = (((config.get('auditoria') or {}).get('referencias_app_lotes')) or [])
+    if not refs:
+        return []
+    tabela_iof = construir_tabela_iof(config)
+    faixas_ir = construir_faixas_ir(config)
+    lotes_por_id = {l.id: l for l in replay_passado.lotes_apos_replay}
+    linhas = []
+    for item in refs:
+        lote_id = str(item.get('lote_id') or '').strip()
+        lote = lotes_por_id.get(lote_id)
+        if lote is None:
+            linhas.append({
+                'Lote': lote_id,
+                'Bruto modelo': None,
+                'Bruto app': item.get('saldo_bruto_app'),
+                'Δ bruto': None,
+                'Líquido modelo': None,
+                'Líquido app': item.get('saldo_liquido_app'),
+                'Δ líquido': None,
+                'Dias úteis': None,
+                'Obs.': 'lote não encontrado no replay',
+            })
+            continue
+        bruto = round(float(lote.saldo_bruto or 0.0), 2)
+        liquido = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+        bruto_app = float(item.get('saldo_bruto_app') or 0.0)
+        liquido_app = float(item.get('saldo_liquido_app') or 0.0)
+        linhas.append({
+            'Lote': lote.id,
+            'Bruto modelo': bruto,
+            'Bruto app': bruto_app,
+            'Δ bruto': round(bruto - bruto_app, 2),
+            'Líquido modelo': liquido,
+            'Líquido app': liquido_app,
+            'Δ líquido': round(liquido - liquido_app, 2),
+            'Dias úteis': contar_dias_rendimento(lote.data_base_fiscal, data_referencia, calendario_financeiro),
+            'Obs.': item.get('observacao') or '',
+        })
+    return linhas
 
 
 def main() -> None:
@@ -140,6 +209,7 @@ def main() -> None:
     validacao_cache_cdi = cache_cdi.validacao or {}
     auditoria_replay = replay_passado.auditoria or {}
     validacao_replay = replay_passado.validacao or {}
+    auditoria_lotes_vs_app = _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia)
 
     severidade_carteira = _severidade(erros=validacao_carteira.get('erros'), avisos=validacao_carteira.get('avisos'), condicao_ok=bool(validacao_carteira.get('ok', True)))
     severidade_inventario = _severidade(erros=validacao_inventario.get('erros'), avisos=validacao_inventario.get('avisos'), condicao_ok=bool(validacao_inventario.get('ok', True)))
@@ -155,7 +225,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V26'),
+        ('versão', 'V29'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -384,11 +454,35 @@ def main() -> None:
             print(f"  [OK] informado={item.get('lote_informado')} | resolvido={item.get('lote_resolvido')} | despesa={item.get('despesa_id')} | data={item.get('data_conta')}")
     amostra_inconsistencias_replay = auditoria_replay.get('amostra_inconsistencias') or []
     if amostra_inconsistencias_replay:
-        print('- amostras de inconsistencias do replay controlado:')
-        for item in amostra_inconsistencias_replay[:5]:
-            print(f"  [AVISO] {item}")
+        print('- tabela de inconsistências do replay controlado (despesas com aviso):')
+        colunas_inc = ['Data', 'Despesa', 'Despesa ID', 'Valor', 'Lotes informados', 'Motivo', 'Valor restante']
+        linhas_inc = []
+        for item in amostra_inconsistencias_replay[:10]:
+            data = item.get('data')
+            if hasattr(data, 'isoformat'):
+                data = data.isoformat()
+            linhas_inc.append({
+                'Data': data,
+                'Despesa': item.get('descricao') or '',
+                'Despesa ID': item.get('despesa_id') or '',
+                'Valor': item.get('valor_conta'),
+                'Lotes informados': item.get('lotes_informados') or item.get('lote_id') or '',
+                'Motivo': item.get('motivo') or '',
+                'Valor restante': item.get('valor_restante'),
+            })
+        _imprimir_tabela(colunas_inc, linhas_inc)
     _imprimir_itens_severidade('erros de validação', validacao_replay.get('erros'), 'ERRO')
     _imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
+
+    _imprimir_titulo('AUDITORIA COMPARATIVA DOS LOTES VS APP')
+    _imprimir_linha_status('Comparação entre posição do modelo e valores observados nos apps', 'AVISO' if auditoria_lotes_vs_app else 'OK', 'auditoria comparativa de referência para os lotes críticos')
+    if auditoria_lotes_vs_app:
+        _imprimir_tabela(
+            ['Lote', 'Bruto modelo', 'Bruto app', 'Δ bruto', 'Líquido modelo', 'Líquido app', 'Δ líquido', 'Dias úteis', 'Obs.'],
+            auditoria_lotes_vs_app,
+        )
+    else:
+        print('  [OK] sem referências de app configuradas para auditoria comparativa')
 
     _imprimir_titulo('TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1')
     _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase')
