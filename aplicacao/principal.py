@@ -114,7 +114,13 @@ def main() -> None:
         ('lotes', abas_cfg.get('lotes', 'Inventário de Lotes')),
         ('despesas', abas_cfg.get('despesas', 'Todos os Gastos')),
     ]
-    abas_auxiliares = [nome for nome in pacote_planilha.nomes_abas if nome not in {aba for _, aba in abas_primarias}]
+    nome_aba_carteira_real = getattr(carteira_canonica, 'nome_aba', abas_cfg.get('carteira', 'Carteira'))
+    abas_primarias_reais = [
+        ('carteira', nome_aba_carteira_real),
+        ('lotes', abas_cfg.get('lotes', 'Inventário de Lotes')),
+        ('despesas', abas_cfg.get('despesas', 'Todos os Gastos')),
+    ]
+    abas_auxiliares = [nome for nome in pacote_planilha.nomes_abas if nome not in {aba for _, aba in abas_primarias_reais}]
     exemplo_inicio = contexto.data_referencia.replace(day=1)
     dias_rendimento_mes = contar_dias_rendimento(exemplo_inicio - timedelta(days=1), contexto.data_referencia, calendario_financeiro)
 
@@ -138,7 +144,7 @@ def main() -> None:
     severidade_carteira = _severidade(erros=validacao_carteira.get('erros'), avisos=validacao_carteira.get('avisos'), condicao_ok=bool(validacao_carteira.get('ok', True)))
     severidade_inventario = _severidade(erros=validacao_inventario.get('erros'), avisos=validacao_inventario.get('avisos'), condicao_ok=bool(validacao_inventario.get('ok', True)))
     severidade_gastos = _severidade(erros=validacao_gastos.get('erros'), avisos=validacao_gastos.get('avisos'), condicao_ok=bool(validacao_gastos.get('ok', True)))
-    severidade_abas = _severidade(condicao_ok=all(nome_aba in pacote_planilha.nomes_abas for _, nome_aba in abas_primarias))
+    severidade_abas = _severidade(condicao_ok=all(nome_aba in pacote_planilha.nomes_abas for _, nome_aba in abas_primarias_reais))
     severidade_dependencias = _severidade(avisos=contexto.relatorio_dependencias.get('ausentes', []), condicao_ok=len(contexto.relatorio_dependencias.get('ausentes', [])) == 0)
     severidade_lotes_shadow = _severidade(erros=['lote_id_duplicado'] if resumo_lotes_shadow.get('qtd_ids_duplicados', 0) > 0 else None, avisos=['existem_produtos_nao_reconhecidos_no_shadow'] if resumo_lotes_shadow.get('qtd_produto_nao_reconhecido', 0) > 0 else None, condicao_ok=len(switching_shadow.lotes_shadow) > 0)
     severidade_eventos_shadow = _severidade(erros=['reconciliacao_aportes_divergente'] if not bool(reconciliacao_shadow.get('equivalentes_essenciais', False)) else None, condicao_ok=len(switching_shadow.eventos_financeiros_ordenados) > 0)
@@ -199,8 +205,8 @@ def main() -> None:
         print(f"- [{indice}] {nome_aba}")
 
     _imprimir_titulo('ABAS PRIMÁRIAS DO CONTRATO')
-    _imprimir_linha_status('Abas primárias do contrato', severidade_abas, f"{len(abas_primarias)} blocos esperados")
-    for chave, nome_aba in abas_primarias:
+    _imprimir_linha_status('Abas primárias do contrato', severidade_abas, f"{len(abas_primarias_reais)} blocos esperados")
+    for chave, nome_aba in abas_primarias_reais:
         presente = nome_aba in pacote_planilha.nomes_abas
         info = resumo_por_aba.get(nome_aba)
         linhas = info['n_linhas'] if info else '-'
@@ -411,7 +417,7 @@ def main() -> None:
             print(f"  [OK] {item.get('nome')} | score={item.get('score_final'):.2f} | família={item.get('familia_produto')} | regime={item.get('regime_taxa')}")
 
     _imprimir_titulo('RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS')
-    for _, nome_aba in abas_primarias:
+    for _, nome_aba in abas_primarias_reais:
         info = resumo_por_aba.get(nome_aba)
         if not info:
             _imprimir_linha_status(nome_aba, 'ERRO', 'aba ausente')

@@ -354,9 +354,25 @@ def validar_carteira_canonica(quadro_canonico: pd.DataFrame) -> dict[str, Any]:
 
 def carregar_carteira_canonica(pacote_planilha: PacotePlanilha, config: Mapping[str, Any]) -> PacoteCarteiraCanonica:
     abas_cfg = config.get('abas', {}) if isinstance(config.get('abas'), Mapping) else {}
-    nome_aba = str(abas_cfg.get('carteira', 'Carteira'))
-    if nome_aba not in pacote_planilha.quadros_brutos:
-        raise KeyError(f'Aba de carteira não encontrada no pacote da planilha: {nome_aba}')
+    nome_cfg = abas_cfg.get('carteira', 'Carteira')
+
+    candidatos: list[str] = []
+    if isinstance(nome_cfg, list):
+        candidatos.extend([str(x) for x in nome_cfg if str(x).strip()])
+    else:
+        candidatos.append(str(nome_cfg))
+
+    for nome_padrao in ('Carteira', 'Carteiras'):
+        if nome_padrao not in candidatos:
+            candidatos.append(nome_padrao)
+
+    nome_aba = next((nome for nome in candidatos if nome in pacote_planilha.quadros_brutos), None)
+    if nome_aba is None:
+        raise KeyError(
+            f"Aba de carteira não encontrada. Tentadas: {candidatos}. "
+            f"Disponíveis: {list(pacote_planilha.quadros_brutos.keys())}"
+        )
+
     quadro_bruto = pacote_planilha.quadros_brutos[nome_aba]
     quadro_canonico, auditoria = normalizar_carteira_bruta(quadro_bruto, config)
     mapa_produtos = construir_mapa_produtos(quadro_canonico)
