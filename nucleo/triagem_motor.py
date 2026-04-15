@@ -267,32 +267,20 @@ def carregar_triagem_motor(
         for rank, idx in enumerate(sub.sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable').index.tolist(), start=1):
             df.at[idx, 'rank_familia'] = rank
 
-    top_k_global = int(_cfg(config, 'triagem_motor', 'top_k_global', padrao=60) or 48)
-    top_k_familia = int(_cfg(config, 'triagem_motor', 'top_k_por_familia', padrao=10) or 8)
-    score_minimo = float(_cfg(config, 'triagem_motor', 'score_minimo_selecao', padrao=15.0) or 20.0)
+    top_k_global = int(_cfg(config, 'triagem_motor', 'top_k_global', padrao=60) or 60)
+    top_k_familia = int(_cfg(config, 'triagem_motor', 'top_k_por_familia', padrao=10) or 10)
+    score_minimo = float(_cfg(config, 'triagem_motor', 'score_minimo_selecao', padrao=15.0) or 15.0)
 
     df['selecionado_motor_v1'] = (
         df['elegivel_bruto']
         & (df['rank_global'] > 0)
         & (
             (df['score_final'] >= score_minimo)
-            | (df['rank_global'] <= max(20, top_k_familia))
+            | (df['rank_global'] <= max(20, top_k_familia + 2))
             | df['produto_padrao'].fillna(False)
         )
         & ((df['rank_global'] <= top_k_global) | (df['rank_familia'] <= top_k_familia) | df['produto_padrao'].fillna(False))
     )
-
-    elegiveis_df = df[df['elegivel_bruto']].copy()
-    fracao_minima = float(_cfg(config, 'triagem_motor', 'fracao_minima_elegiveis_selecionados', padrao=0.35) or 0.35)
-    minimo_absoluto = int(_cfg(config, 'triagem_motor', 'minimo_absoluto_selecionados', padrao=24) or 24)
-    minimo_alvo = min(len(elegiveis_df), max(minimo_absoluto, int(round(len(elegiveis_df) * fracao_minima)))) if len(elegiveis_df) > 0 else 0
-    selecionados_atuais = int(df['selecionado_motor_v1'].sum())
-    if minimo_alvo > 0 and selecionados_atuais < minimo_alvo:
-        candidatos_extra = elegiveis_df[~elegiveis_df['selecionado_motor_v1']].sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')
-        faltantes = minimo_alvo - selecionados_atuais
-        idx_extra = candidatos_extra.head(faltantes).index.tolist()
-        if idx_extra:
-            df.loc[idx_extra, 'selecionado_motor_v1'] = True
 
     candidatos = df[df['selecionado_motor_v1']].copy().reset_index(drop=True)
 
@@ -307,11 +295,7 @@ def carregar_triagem_motor(
         'top_k_global': top_k_global,
         'top_k_por_familia': top_k_familia,
         'score_minimo_selecao': score_minimo,
-        'observacao': 'Score v1 usado apenas como triagem preliminar proxy; nao e decisao final do motor. Criterios de corte permanecem deliberadamente cautelosos e transitorios nesta fase.',
-        'fracao_minima_elegiveis_selecionados': fracao_minima,
-        'minimo_absoluto_selecionados': minimo_absoluto,
-        'triagem_transitoria': True,
-        'observacao_calibracao': 'A triagem mantém retenção mínima de elegíveis para evitar exclusão precoce antes do núcleo financeiro.',
+        'observacao': 'Score v1 usado apenas como triagem preliminar proxy; nao e decisao final do motor. Criterios de corte permanecem deliberadamente cautelosos, amplos e transitorios nesta fase, para evitar exclusoes prematuras antes do nucleo financeiro.',
         'contexto': contexto,
         'resumo_familia_produto': {str(k): int(v) for k, v in df['familia_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()},
         'resumo_regime_taxa': {str(k): int(v) for k, v in df['regime_taxa'].fillna('vazio').value_counts(dropna=False).to_dict().items()},
@@ -320,5 +304,7 @@ def carregar_triagem_motor(
         'qtd_elegiveis_nao_selecionados': int((df['elegivel_bruto'] & ~df['selecionado_motor_v1']).sum()),
         'fracao_elegiveis_selecionados': round(float(df['selecionado_motor_v1'].sum()) / max(int(df['elegivel_bruto'].sum()), 1), 4) if int(df['elegivel_bruto'].sum()) > 0 else 0.0,
         'corte_rigido_ativo': False,
+        'fracao_total_selecionada': round(float(df['selecionado_motor_v1'].sum()) / max(len(df), 1), 4),
+        'cautela_calibragem': 'alta',
     }
     return PacoteTriagemMotor(contexto=contexto, quadro_triagem=df, quadro_candidatos=candidatos, auditoria=auditoria)

@@ -74,8 +74,6 @@ def normalizar_lotes_shadow(
         "resumo_tipos_lote": {},
         "resumo_tipos_match_produto": {},
         "amostras_produto_nao_reconhecido": [],
-        "fracao_produto_reconhecido": 0.0,
-        "fracao_produto_nao_reconhecido": 0.0,
     }
 
     if inventario_canonico is None or len(inventario_canonico) == 0:
@@ -163,12 +161,11 @@ def normalizar_lotes_shadow(
             str(chave): int(valor)
             for chave, valor in quadro["tipo_match_produto"].fillna("vazio").value_counts(dropna=False).to_dict().items()
         }
+        auditoria["fracao_produto_reconhecido"] = round(float(auditoria.get('qtd_produto_reconhecido', 0)) / max(len(quadro), 1), 4)
+        auditoria["fracao_produto_nao_reconhecido"] = round(float(auditoria.get('qtd_produto_nao_reconhecido', 0)) / max(len(quadro), 1), 4)
+        auditoria["fracao_caixa_disponivel"] = round(float(auditoria.get('qtd_caixa_disponivel', 0)) / max(len(quadro), 1), 4)
         nao_rec = quadro[quadro["tipo_lote"] == "produto_nao_reconhecido"][["lote_id", "investimento_bruto", "produto_nome", "tipo_match_produto"]].head(10)
         auditoria["amostras_produto_nao_reconhecido"] = nao_rec.to_dict("records") if len(nao_rec) > 0 else []
-        total_produto_obs = int(auditoria['qtd_produto_reconhecido'] + auditoria['qtd_produto_nao_reconhecido'])
-        if total_produto_obs > 0:
-            auditoria['fracao_produto_reconhecido'] = round(auditoria['qtd_produto_reconhecido'] / total_produto_obs, 4)
-            auditoria['fracao_produto_nao_reconhecido'] = round(auditoria['qtd_produto_nao_reconhecido'] / total_produto_obs, 4)
     return quadro, auditoria
 
 
@@ -279,21 +276,21 @@ def comparar_aportes_legado_vs_shadow(df_lotes_shadow: pd.DataFrame, df_eventos_
         and len(valores_diferentes) == 0
         and abs(soma_legado - soma_shadow) <= 1e-9
     )
-    ids_somente_observado = sorted(list(ids_legado - ids_shadow))
+    qtd_legado = len(legado)
+    qtd_shadow = len(shadow)
+    ids_somente_legado = sorted(list(ids_legado - ids_shadow))
     ids_somente_shadow = sorted(list(ids_shadow - ids_legado))
     return {
-        "qtd_legado": len(legado),
-        "qtd_shadow": len(shadow),
+        "qtd_legado": qtd_legado,
+        "qtd_shadow": qtd_shadow,
         "soma_legado": arredondar_monetario(soma_legado),
         "soma_shadow": arredondar_monetario(soma_shadow),
         "delta_qtd": len(shadow) - len(legado),
         "delta_soma": arredondar_monetario(soma_shadow - soma_legado),
-        "lote_tecnico_id_somente_legado": ids_somente_observado,
+        "lote_tecnico_id_somente_legado": ids_somente_legado,
         "lote_tecnico_id_somente_shadow": ids_somente_shadow,
-        "ids_somente_observado": ids_somente_observado,
-        "ids_somente_shadow": ids_somente_shadow,
-        "fracao_ids_observado_cobertos": round((len(ids_legado & ids_shadow) / max(len(ids_legado), 1)), 4) if len(ids_legado) > 0 else 1.0,
-        "fracao_ids_shadow_cobertos": round((len(ids_legado & ids_shadow) / max(len(ids_shadow), 1)), 4) if len(ids_shadow) > 0 else 1.0,
+        "fracao_ids_observado_cobertos": round(float(qtd_legado - len(ids_somente_legado)) / max(qtd_legado, 1), 4) if qtd_legado > 0 else 1.0,
+        "fracao_ids_shadow_cobertos": round(float(qtd_shadow - len(ids_somente_shadow)) / max(qtd_shadow, 1), 4) if qtd_shadow > 0 else 1.0,
         "datas_diferentes": datas_diferentes,
         "valores_diferentes": valores_diferentes,
         "equivalentes_essenciais": equivalentes_essenciais,

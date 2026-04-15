@@ -1,3 +1,3 @@
 # Baseline fixa V22
 
-Derivação curta da V21 com refinamentos de transição estrutural da `Carteira`, calibração ainda mais cautelosa da triagem v1 e auditoria reforçada de matching/shadow.
+V22: ajustes finos sobre a V20/V21 para explicitar metadados transitórios da aba Carteira, calibrar com cautela a triagem v1 e reforçar a auditoria de matching/shadow, sem abrir domínio financeiro novo.

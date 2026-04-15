@@ -128,34 +128,6 @@ def _fonte_campo_estruturado(valor_original: Any) -> str:
     return 'planilha' if texto else 'derivado'
 
 
-def _resumir_fontes_metadados(quadro_canonico: pd.DataFrame, campos: list[str]) -> tuple[dict[str, str], dict[str, int], dict[str, int]]:
-    resumo: dict[str, str] = {}
-    cobertura_planilha: dict[str, int] = {}
-    cobertura_derivados: dict[str, int] = {}
-    if quadro_canonico is None or len(quadro_canonico) == 0:
-        return resumo, cobertura_planilha, cobertura_derivados
-    total = len(quadro_canonico)
-    for campo in campos:
-        fonte_col = f"{campo}_fonte"
-        if fonte_col not in quadro_canonico.columns:
-            resumo[campo] = 'nao_mapeado'
-            cobertura_planilha[campo] = 0
-            cobertura_derivados[campo] = 0
-            continue
-        serie = quadro_canonico[fonte_col].fillna('derivado').astype(str).str.strip().str.lower()
-        qtd_planilha = int((serie == 'planilha').sum())
-        qtd_derivado = int((serie != 'planilha').sum())
-        cobertura_planilha[campo] = qtd_planilha
-        cobertura_derivados[campo] = qtd_derivado
-        if qtd_planilha == total:
-            resumo[campo] = 'planilha'
-        elif qtd_planilha == 0:
-            resumo[campo] = 'derivado'
-        else:
-            resumo[campo] = 'misto'
-    return resumo, cobertura_planilha, cobertura_derivados
-
-
 def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, Any]) -> tuple[pd.DataFrame, dict[str, Any]]:
     campos = {
         'produto_id': resolver_coluna(df_carteira, config, 'carteira', 'produto_id', obrigatoria=False),
@@ -217,17 +189,11 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         'limite_percentual_vs_multiplicador': limite,
         'metadados_derivados_transitorios': list(metadados_transitorios),
         'observacao_metadados_derivados': 'Campos derivados em código funcionam como ponte transitória até maior estruturação da aba Carteira.',
+        'status_estruturacao_planilha': 'transicao_estrutural',
+        'qtd_campos_metadados_transitorios': len(metadados_transitorios),
         'campos_estruturais_recomendados': list(metadados_transitorios),
         'campos_estruturais_sem_coluna_resolvida': [campo for campo in metadados_transitorios if not campos.get(campo)],
-        'qtd_campos_estruturais_sem_coluna_resolvida': 0,
-        'resumo_fontes_metadados': {},
-        'resumo_cobertura_metadados_planilha': {},
-        'resumo_cobertura_metadados_derivados': {},
-        'fracao_campos_estruturais_explicitos': 0.0,
-        'maturidade_estrutura_carteira': 'transitoria',
-        'observacao_maturidade_estrutura': 'A estrutura da aba Carteira evolui gradualmente; inferências em código ainda complementam campos estruturais ausentes na planilha.',
     }
-    auditoria['qtd_campos_estruturais_sem_coluna_resolvida'] = len(auditoria['campos_estruturais_sem_coluna_resolvida'])
     registros: list[dict[str, Any]] = []
 
     for idx, row in df_carteira.iterrows():
@@ -325,13 +291,10 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         auditoria['resumo_familia_produto'] = {str(ch): int(v) for ch, v in quadro_canonico['familia_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
         auditoria['resumo_regime_taxa'] = {str(ch): int(v) for ch, v in quadro_canonico['regime_taxa'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
         auditoria['resumo_papel_produto'] = {str(ch): int(v) for ch, v in quadro_canonico['papel_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
-        resumo_fontes, cobertura_planilha, cobertura_derivados = _resumir_fontes_metadados(quadro_canonico, metadados_transitorios)
-        auditoria['resumo_fontes_metadados'] = resumo_fontes
-        auditoria['resumo_cobertura_metadados_planilha'] = cobertura_planilha
-        auditoria['resumo_cobertura_metadados_derivados'] = cobertura_derivados
-        qtd_explicitos = sum(1 for campo in metadados_transitorios if campos.get(campo))
-        auditoria['fracao_campos_estruturais_explicitos'] = round(qtd_explicitos / max(len(metadados_transitorios), 1), 4)
-        auditoria['maturidade_estrutura_carteira'] = 'hibrida_transitoria' if qtd_explicitos > 0 else 'derivada_transitoria'
+        auditoria['resumo_cobertura_metadados_planilha'] = {campo: int((quadro_canonico.get(f'{campo}_fonte') == 'planilha').sum()) for campo in metadados_transitorios if f'{campo}_fonte' in quadro_canonico.columns}
+        auditoria['resumo_cobertura_metadados_derivados'] = {campo: int((quadro_canonico.get(f'{campo}_fonte') == 'derivado').sum()) for campo in metadados_transitorios if f'{campo}_fonte' in quadro_canonico.columns}
+        auditoria['fracao_metadados_planilha'] = {campo: round(auditoria['resumo_cobertura_metadados_planilha'].get(campo, 0) / max(len(quadro_canonico), 1), 4) for campo in metadados_transitorios}
+        auditoria['fracao_metadados_derivados'] = {campo: round(auditoria['resumo_cobertura_metadados_derivados'].get(campo, 0) / max(len(quadro_canonico), 1), 4) for campo in metadados_transitorios}
     return quadro_canonico, auditoria
 
 
