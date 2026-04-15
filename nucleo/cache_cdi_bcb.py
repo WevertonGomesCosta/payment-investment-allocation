@@ -83,6 +83,20 @@ def _ler_cache(caminho_cache: Path, convencao_dias_ano: int) -> dict[date, float
     except Exception:
         return {}
     serie: dict[date, float] = {}
+
+    # Formato legado/fornecido pelo usuário:
+    # {"mapa": {"YYYY-MM-DD": 1.0005...}, "taxa_projecao": ..., "data_atualizacao": ...}
+    if isinstance(dados, Mapping) and isinstance(dados.get('mapa'), Mapping):
+        for chave, valor in dados.get('mapa', {}).items():
+            dt = para_data(chave)
+            try:
+                fator = float(valor)
+            except Exception:
+                continue
+            if dt is not None and fator > 1.0:
+                serie[dt] = fator
+        return dict(sorted(serie.items(), key=lambda kv: kv[0]))
+
     registros = dados.get('registros', dados if isinstance(dados, list) else [])
     if not isinstance(registros, list):
         return {}
@@ -106,6 +120,9 @@ def _ler_cache(caminho_cache: Path, convencao_dias_ano: int) -> dict[date, float
 
 def _salvar_cache(caminho_cache: Path, serie: dict[date, float], meta: Mapping[str, Any]) -> None:
     payload = {
+        'mapa': {d.isoformat(): float(f) for d, f in sorted(serie.items(), key=lambda kv: kv[0])},
+        'taxa_projecao': float(meta.get('taxa_projecao', 0.0) or 0.0),
+        'data_atualizacao': str(meta.get('data_atualizacao') or datetime.now().date().isoformat()),
         'meta': dict(meta),
         'registros': [
             {'data': d.isoformat(), 'fator_dia': float(f)}
@@ -171,7 +188,13 @@ def carregar_cache_cdi_diario(
             fonte = 'bcb_online'
             fetch_status = 'ok'
             try:
-                _salvar_cache(caminho_cache, serie, {'fonte': fonte, 'data_inicial': data_ini.isoformat(), 'data_final': data_fim.isoformat()})
+                _salvar_cache(caminho_cache, serie, {
+                    'fonte': fonte,
+                    'data_inicial': data_ini.isoformat(),
+                    'data_final': data_fim.isoformat(),
+                    'taxa_projecao': _cfg_get(config, 'premissas_mercado', 'cdi_diario_projecao', padrao=0.0),
+                    'data_atualizacao': datetime.now().date().isoformat(),
+                })
             except Exception:
                 pass
         else:

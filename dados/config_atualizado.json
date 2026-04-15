@@ -6,7 +6,7 @@
   },
   "arquivos": {
     "planilha": "dados_financeiros.xlsx",
-    "cache_bcb": "cache_bcb.json",
+    "cache_bcb": "dados/cache_bcb.json",
     "workbook_saida": "sistema_unificado_resultado.xlsx",
     "config_atualizado": "config_atualizado.json",
     "parametros_5p": "melhores_parametros_5p.json",

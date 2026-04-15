@@ -11,7 +11,7 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V25
+**Versão atual da baseline:** V26
 
 A V21 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
 
@@ -247,6 +247,6 @@ A V23 abre o **replay controlado do passado** sobre o núcleo financeiro mínimo
 A V24 reforça o replay controlado do passado para materializar corretamente os lotes históricos não aportados marcados com `Investimento='-'` e também resolver aliases históricos auditáveis como `Lote 7800 abr.` -> `Lote 8000 abr.` quando houver correspondência estrutural suficiente.
 
 
-## Atualização V25
+## Atualização V26
 
-A V25 corrige o modelo base em três frentes antes de qualquer nova camada econômica: reduz o arredondamento interno diário do saldo dos lotes, melhora a exaustão do lote no saque quando o alvo líquido praticamente consome todo o valor disponível e implementa a camada de cache diário do CDI do BCB, com janela iniciando no primeiro dia do mês do primeiro pagamento/recebido até a data de referência. Quando a série do BCB não estiver disponível, a baseline faz fallback controlado para a taxa de modelo.
+A V26 corrige o modelo base em três frentes antes de qualquer nova camada econômica: reduz o arredondamento interno diário do saldo dos lotes, melhora a exaustão do lote no saque quando o alvo líquido praticamente consome todo o valor disponível e implementa a camada de cache diário do CDI do BCB, com janela iniciando no primeiro dia do mês do primeiro pagamento/recebido até a data de referência. Quando a série do BCB não estiver disponível, a baseline faz fallback controlado para a taxa de modelo.

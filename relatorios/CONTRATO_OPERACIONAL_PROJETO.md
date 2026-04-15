@@ -167,6 +167,6 @@ A V23 abre o replay controlado do passado sobre o núcleo financeiro mínimo já
 A V24 reforça o replay controlado do passado para consumir explicitamente lotes históricos não aportados marcados com `-` na coluna `Investimento`, além de permitir resolução auditável de aliases históricos quando o lote informado na despesa divergir do identificador presente no inventário, desde que a correspondência estrutural seja suficientemente forte.
 
 
-## Atualização operacional V25
+## Atualização operacional V26
 
 A baseline passa a suportar cache diário do CDI do BCB para auditoria e replay, com janela iniciando no primeiro dia do mês do primeiro pagamento/recebido até a data de referência. Na indisponibilidade da série diária, o sistema deve fazer fallback controlado para a taxa de modelo, sem interromper a execução local.
