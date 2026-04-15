@@ -11,7 +11,7 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V21
+**Versão atual da baseline:** V22
 
 A V21 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
 
@@ -76,8 +76,10 @@ A regra de trabalho do projeto continua sendo:
 │   ├── CONTRATO_OPERACIONAL_PROJETO.md
 │   ├── BASELINE_FIXA_V18.md
 │   ├── BASELINE_FIXA_V21.md
+│   ├── BASELINE_FIXA_V22.md
 │   ├── VALIDACAO_LOCAL_V18.md
 │   └── VALIDACAO_LOCAL_V21.md
+│   └── VALIDACAO_LOCAL_V22.md
 └── testes/
     └── .gitkeep
 ```
@@ -228,3 +230,8 @@ profundos ou módulos de negócio mais específicos.
 
 - Parte dos metadados estruturais da aba `Carteira` ainda é derivada em código como **ponte transitória** até maior estruturação da planilha.
 - A triagem do motor permanece **preliminar proxy** e com **calibração conservadora** nesta fase.
+
+
+## Atualização V22
+
+A V22 abre apenas o **núcleo financeiro mínimo** do bloco 07, incluindo helpers fiscais/liquidez de baixo nível, classe `Lote`, criação de lote, atualização de saldo por dia de rendimento, fator líquido e execução de saque, sem abrir solver, replay, switching econômico ou relatório financeiro atual.

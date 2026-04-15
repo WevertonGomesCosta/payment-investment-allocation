@@ -19,6 +19,7 @@ from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_cano
 from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
 from nucleo.triagem_motor import carregar_triagem_motor
 from nucleo.leitor_planilha import carregar_planilha, construir_resumo_planilha
+from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo
 
 
 def _imprimir_titulo(texto: str) -> None:
@@ -80,6 +81,13 @@ def main() -> None:
         pacote_config.conteudo,
         data_referencia=contexto.data_referencia,
     )
+    nucleo_financeiro = carregar_nucleo_financeiro_minimo(
+        dados_operacionais,
+        carteira_canonica,
+        calendario_financeiro,
+        pacote_config.conteudo,
+        data_referencia=contexto.data_referencia,
+    )
 
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
     resumo_por_aba = {item['nome_aba']: item for item in resumo_planilha}
@@ -103,6 +111,8 @@ def main() -> None:
     reconciliacao_shadow = switching_shadow.reconciliacao_aportes or {}
     auditoria_triagem = triagem_motor.auditoria or {}
     contexto_triagem = auditoria_triagem.get('contexto', {})
+    auditoria_nucleo = nucleo_financeiro.auditoria or {}
+    validacao_nucleo = nucleo_financeiro.validacao or {}
 
     severidade_carteira = _severidade(erros=validacao_carteira.get('erros'), avisos=validacao_carteira.get('avisos'), condicao_ok=bool(validacao_carteira.get('ok', True)))
     severidade_inventario = _severidade(erros=validacao_inventario.get('erros'), avisos=validacao_inventario.get('avisos'), condicao_ok=bool(validacao_inventario.get('ok', True)))
@@ -112,10 +122,11 @@ def main() -> None:
     severidade_lotes_shadow = _severidade(erros=['lote_id_duplicado'] if resumo_lotes_shadow.get('qtd_ids_duplicados', 0) > 0 else None, avisos=['existem_produtos_nao_reconhecidos_no_shadow'] if resumo_lotes_shadow.get('qtd_produto_nao_reconhecido', 0) > 0 else None, condicao_ok=len(switching_shadow.lotes_shadow) > 0)
     severidade_eventos_shadow = _severidade(erros=['reconciliacao_aportes_divergente'] if not bool(reconciliacao_shadow.get('equivalentes_essenciais', False)) else None, condicao_ok=len(switching_shadow.eventos_financeiros_ordenados) > 0)
     severidade_triagem = _severidade(avisos=['existem_produtos_ativos_fora_da_selecao_v1'] if auditoria_triagem.get('qtd_candidatos_motor_v1', 0) < auditoria_triagem.get('qtd_elegiveis_brutos', 0) else None, condicao_ok=auditoria_triagem.get('qtd_candidatos_motor_v1', 0) > 0)
+    severidade_nucleo = _severidade(erros=validacao_nucleo.get('erros'), avisos=validacao_nucleo.get('avisos'), condicao_ok=bool(validacao_nucleo.get('ok', True)))
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V20'),
+        ('versão', 'V22'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -181,6 +192,7 @@ def main() -> None:
     _imprimir_linha_status('Lotes shadow', severidade_lotes_shadow, f"{len(switching_shadow.lotes_shadow)} lotes técnicos")
     _imprimir_linha_status('Trilha técnica de eventos', severidade_eventos_shadow, f"{len(switching_shadow.eventos_financeiros_ordenados)} eventos ordenados")
     _imprimir_linha_status('Triagem programática do motor', severidade_triagem, f"{auditoria_triagem.get('qtd_candidatos_motor_v1', 0)} candidatos")
+    _imprimir_linha_status('Núcleo financeiro mínimo', severidade_nucleo, f"{auditoria_nucleo.get('qtd_lotes_financeiros', 0)} lotes financeiros")
 
     _imprimir_titulo('CARTEIRA CANÔNICA')
     _imprimir_linha_status('Validação estrutural da carteira', severidade_carteira)
@@ -277,6 +289,29 @@ def main() -> None:
         print('- amostras de lotes shadow sem match canônico:')
         for item in amostras_sem_match[:5]:
             print(f"  [AVISO] lote={item.get('lote_id')} | investimento={item.get('investimento_bruto')} | match={item.get('tipo_match_produto')}")
+
+    _imprimir_titulo('NÚCLEO FINANCEIRO MÍNIMO')
+    _imprimir_linha_status('Primitivas financeiras irreduzíveis do lote', severidade_nucleo, 'sem solver, sem replay, sem switching econômico e sem relatório financeiro atual')
+    _imprimir_pares([
+        ('lotes financeiros', auditoria_nucleo.get('qtd_lotes_financeiros', 0)),
+        ('lotes aportados', auditoria_nucleo.get('qtd_lotes_aportados', 0)),
+        ('caixa disponível', auditoria_nucleo.get('qtd_caixa_disponivel', 0)),
+        ('recebidos futuros', auditoria_nucleo.get('qtd_recebidos_futuros', 0)),
+        ('lotes não disponíveis para aporte', auditoria_nucleo.get('qtd_lotes_nao_disponiveis_para_aporte', 0)),
+        ('lotes com produto mapeado', auditoria_nucleo.get('qtd_lotes_produto_mapeado', 0)),
+        ('lotes sem produto', auditoria_nucleo.get('qtd_lotes_sem_produto', 0)),
+        ('lotes com taxa default', auditoria_nucleo.get('qtd_lotes_com_taxa_default', 0)),
+        ('lotes com carência', auditoria_nucleo.get('qtd_lotes_com_carencia', 0)),
+        ('lotes exauridos ignorados', auditoria_nucleo.get('qtd_lotes_ignorados_exauridos', 0)),
+        ('saldo bruto ref. sem replay', auditoria_nucleo.get('saldo_bruto_total_referencia_sem_replay', 0.0)),
+        ('saldo líquido ref. sem replay', auditoria_nucleo.get('saldo_liquido_total_referencia_sem_replay', 0.0)),
+    ])
+    amostra_saque = auditoria_nucleo.get('amostra_movimento_saque') or {}
+    if amostra_saque:
+        print('- amostra de saque no núcleo mínimo (auditoria técnica):')
+        print(f"  [OK] lote={amostra_saque.get('lote_id')} | bruto={amostra_saque.get('bruto')} | liquido={amostra_saque.get('liquido')} | imposto={amostra_saque.get('imposto')} | saldo_remanescente={amostra_saque.get('saldo_remanescente')}")
+    _imprimir_itens_severidade('erros de validação', validacao_nucleo.get('erros'), 'ERRO')
+    _imprimir_itens_severidade('avisos de validação', validacao_nucleo.get('avisos'), 'AVISO')
 
     _imprimir_titulo('TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1')
     _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase')
