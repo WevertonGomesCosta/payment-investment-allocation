@@ -110,8 +110,6 @@ def _resolver_produto_canonico(valor_produto: str, carteira: Optional[PacoteCart
 
     by_key = carteira.mapa_produtos.get("by_key", {})
     by_nome = carteira.mapa_produtos.get("by_nome_norm", {})
-    defaults_cfg = (config or {}).get("defaults", {}) if isinstance(config, Mapping) else {}
-
     valor_txt = limpar_texto(valor_produto)
     valor_norm = normalizar_nome_produto(valor_txt)
 
@@ -139,36 +137,6 @@ def _resolver_produto_canonico(valor_produto: str, carteira: Optional[PacoteCart
             "score_match_produto": 1.0,
             "referencia_match_produto": info.get("nome") or valor_txt,
         }
-
-    fallback_nome = limpar_texto(defaults_cfg.get("produto_fallback_nome"))
-    ref_futuro = limpar_texto(defaults_cfg.get("investimento_referencia_futuro"))
-    if valor_txt and fallback_nome and normalizar_texto(valor_txt) == normalizar_texto(fallback_nome) and ref_futuro:
-        ref_norm = normalizar_nome_produto(ref_futuro)
-        if ref_norm in by_nome:
-            produto_key = by_nome[ref_norm]
-            info = by_key.get(produto_key, {})
-            return {
-                "produto_key": info.get("produto_key"),
-                "produto_nome_canonico": info.get("nome"),
-                "produto_nome_norm": info.get("nome_norm"),
-                "produto_encontrado": True,
-                "tipo_match_produto": "fallback_config_referencia_futura",
-                "score_match_produto": 0.95,
-                "referencia_match_produto": info.get("nome") or ref_futuro,
-            }
-
-        produto_key_match_ref, meta_match_ref = escolher_melhor_correspondencia_textual(ref_futuro, [(k, limpar_texto(v.get("nome") or k)) for k, v in by_key.items()], minimo_score=0.55)
-        if produto_key_match_ref:
-            info = by_key.get(produto_key_match_ref, {})
-            return {
-                "produto_key": info.get("produto_key"),
-                "produto_nome_canonico": info.get("nome"),
-                "produto_nome_norm": info.get("nome_norm"),
-                "produto_encontrado": True,
-                "tipo_match_produto": "fallback_config_referencia_futura_textual",
-                "score_match_produto": max(0.90, float(meta_match_ref.get("score", 0.0) or 0.0)),
-                "referencia_match_produto": meta_match_ref.get("referencia") or info.get("nome") or ref_futuro,
-            }
 
     opcoes = []
     for produto_key, info in by_key.items():

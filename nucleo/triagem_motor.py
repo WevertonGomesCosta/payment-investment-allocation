@@ -1,8 +1,9 @@
 """Triagem programática v1 do motor.
 
 Esta camada reduz o universo completo da aba `Carteira` para um subconjunto
-promissor e auditável por cenário, sem ainda abrir replay, núcleo financeiro,
-switching econômico ou otimização profunda.
+promissor e auditável por cenário, funcionando apenas como **triagem preliminar
+proxy** do motor. Ela não representa decisão econômica final e não substitui
+o motor conjunto futuro.
 """
 
 from __future__ import annotations
@@ -277,12 +278,14 @@ def carregar_triagem_motor(
     auditoria = {
         'qtd_total_produtos': int(len(df)),
         'qtd_elegiveis_brutos': int(df['elegivel_bruto'].sum()),
+        'natureza_triagem': 'proxy_preliminar',
         'qtd_candidatos_motor_v1': int(df['selecionado_motor_v1'].sum()),
         'qtd_produtos_padrao': int(df['produto_padrao'].sum()),
         'pesos_score_v1': {'retorno': w_ret, 'liquidez': w_liq, 'viabilidade': w_via, 'risco': w_ris},
         'top_k_global': top_k_global,
         'top_k_por_familia': top_k_familia,
         'score_minimo_selecao': score_minimo,
+        'observacao': 'Score v1 usado apenas como triagem preliminar proxy; nao e decisao final do motor.',
         'contexto': contexto,
         'resumo_familia_produto': {str(k): int(v) for k, v in df['familia_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()},
         'resumo_regime_taxa': {str(k): int(v) for k, v in df['regime_taxa'].fillna('vazio').value_counts(dropna=False).to_dict().items()},

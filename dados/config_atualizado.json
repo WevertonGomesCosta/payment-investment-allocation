@@ -518,11 +518,7 @@
     "switch": "cliff"
   },
   "defaults": {
-    "produto_fallback_id": "SOFISA_105",
-    "ignorar_lote_invalido": false,
-    "investimento_referencia_futuro": "CDB Sofisa 105%",
-    "produto_fallback_nome": "CDB Turbinado",
-    "investimento_referencia_futuro_match_exato": true
+    "ignorar_lote_invalido": false
   },
   "auditoria": {
     "salvar_eventos": true,
@@ -584,7 +580,6 @@
     "taxa_base_cdi": 1.0,
     "taxa_bonus_cdi": 0.0,
     "dias_bonus": 0,
-    "produto_fallback_nome": "CDB Turbinado",
     "taxa_base_referencia_futura_default": 1.05
   },
   "treinamento": {

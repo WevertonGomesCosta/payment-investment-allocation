@@ -255,8 +255,8 @@ def main() -> None:
         ('reconciliação equivalente', 'sim' if reconciliacao_shadow.get('equivalentes_essenciais') else 'não'),
     ])
 
-    _imprimir_titulo('TRIAGEM PROGRAMÁTICA DO MOTOR — SCORE V1')
-    _imprimir_linha_status('Seleção contextual de candidatos', severidade_triagem, 'sem replay, sem núcleo financeiro e sem switching econômico')
+    _imprimir_titulo('TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1')
+    _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico')
     _imprimir_pares([
         ('produtos totais no universo', auditoria_triagem.get('qtd_total_produtos', 0)),
         ('elegíveis brutos', auditoria_triagem.get('qtd_elegiveis_brutos', 0)),
@@ -274,7 +274,7 @@ def main() -> None:
         for chave, valor in auditoria_triagem.get('resumo_familia_produto', {}).items():
             print(f"  [OK] {chave}: {valor}")
     if auditoria_triagem.get('amostra_top_produtos'):
-        print('- top produtos selecionados no score v1:')
+        print('- top produtos selecionados no score v1 (triagem preliminar proxy):')
         for item in auditoria_triagem.get('amostra_top_produtos', []):
             print(f"  [OK] {item.get('nome')} | score={item.get('score_final'):.2f} | família={item.get('familia_produto')} | regime={item.get('regime_taxa')}")
 

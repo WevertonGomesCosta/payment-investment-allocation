@@ -20,7 +20,7 @@ python scripts/inspecionar_base.py
 - a aba `Carteira` passou a carregar o universo completo de produtos;
 - a aba auxiliar `Todas as Carteiras` deixou de ser necessária no arquivo canônico da baseline;
 - o matching de produtos aportados no inventário ficou completo no universo canônico atual;
-- a triagem programática v1 do motor foi executada sem abrir replay, núcleo financeiro completo, switching econômico ou otimização profunda;
+- a triagem programática v1 do motor (triagem preliminar proxy) foi executada sem abrir replay, núcleo financeiro completo, switching econômico ou otimização profunda;
 - a baseline preservou as camadas já abertas: carteira canônica, dados operacionais canônicos, calendário financeiro/taxas base e reconciliação shadow.
 
 ## Sinais relevantes da triagem v1
