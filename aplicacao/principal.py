@@ -20,6 +20,7 @@ from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reco
 from nucleo.triagem_motor import carregar_triagem_motor
 from nucleo.leitor_planilha import carregar_planilha, construir_resumo_planilha
 from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo
+from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 
 
 def _imprimir_titulo(texto: str) -> None:
@@ -88,6 +89,13 @@ def main() -> None:
         pacote_config.conteudo,
         data_referencia=contexto.data_referencia,
     )
+    replay_passado = carregar_replay_passado_controlado(
+        dados_operacionais,
+        nucleo_financeiro,
+        calendario_financeiro,
+        pacote_config.conteudo,
+        data_referencia=contexto.data_referencia,
+    )
 
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
     resumo_por_aba = {item['nome_aba']: item for item in resumo_planilha}
@@ -113,6 +121,8 @@ def main() -> None:
     contexto_triagem = auditoria_triagem.get('contexto', {})
     auditoria_nucleo = nucleo_financeiro.auditoria or {}
     validacao_nucleo = nucleo_financeiro.validacao or {}
+    auditoria_replay = replay_passado.auditoria or {}
+    validacao_replay = replay_passado.validacao or {}
 
     severidade_carteira = _severidade(erros=validacao_carteira.get('erros'), avisos=validacao_carteira.get('avisos'), condicao_ok=bool(validacao_carteira.get('ok', True)))
     severidade_inventario = _severidade(erros=validacao_inventario.get('erros'), avisos=validacao_inventario.get('avisos'), condicao_ok=bool(validacao_inventario.get('ok', True)))
@@ -123,10 +133,11 @@ def main() -> None:
     severidade_eventos_shadow = _severidade(erros=['reconciliacao_aportes_divergente'] if not bool(reconciliacao_shadow.get('equivalentes_essenciais', False)) else None, condicao_ok=len(switching_shadow.eventos_financeiros_ordenados) > 0)
     severidade_triagem = _severidade(avisos=['existem_produtos_ativos_fora_da_selecao_v1'] if auditoria_triagem.get('qtd_candidatos_motor_v1', 0) < auditoria_triagem.get('qtd_elegiveis_brutos', 0) else None, condicao_ok=auditoria_triagem.get('qtd_candidatos_motor_v1', 0) > 0)
     severidade_nucleo = _severidade(erros=validacao_nucleo.get('erros'), avisos=validacao_nucleo.get('avisos'), condicao_ok=bool(validacao_nucleo.get('ok', True)))
+    severidade_replay = _severidade(erros=validacao_replay.get('erros'), avisos=validacao_replay.get('avisos'), condicao_ok=bool(validacao_replay.get('ok', True)))
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V22'),
+        ('versão', 'V23'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -312,6 +323,35 @@ def main() -> None:
         print(f"  [OK] lote={amostra_saque.get('lote_id')} | bruto={amostra_saque.get('bruto')} | liquido={amostra_saque.get('liquido')} | imposto={amostra_saque.get('imposto')} | saldo_remanescente={amostra_saque.get('saldo_remanescente')}")
     _imprimir_itens_severidade('erros de validação', validacao_nucleo.get('erros'), 'ERRO')
     _imprimir_itens_severidade('avisos de validação', validacao_nucleo.get('avisos'), 'AVISO')
+
+    _imprimir_titulo('REPLAY CONTROLADO DO PASSADO')
+    _imprimir_linha_status('Reconciliacao de pagamentos historicos com lotes informados', severidade_replay, 'consome o nucleo financeiro minimo sem abrir switching economico, score final, solver ou relatorio financeiro atual')
+    _imprimir_pares([
+        ('contas historicas', auditoria_replay.get('qtd_contas_historicas', 0)),
+        ('contas com lote informado', auditoria_replay.get('qtd_contas_com_lote_informado', 0)),
+        ('contas processadas', auditoria_replay.get('qtd_contas_processadas', 0)),
+        ('cobertas integralmente', auditoria_replay.get('qtd_contas_cobertas_integralmente', 0)),
+        ('parcialmente cobertas', auditoria_replay.get('qtd_contas_parcialmente_cobertas', 0)),
+        ('nao cobertas', auditoria_replay.get('qtd_contas_nao_cobertas', 0)),
+        ('contas sem lote informado', auditoria_replay.get('qtd_contas_sem_lote_informado', 0)),
+        ('movimentos no log', auditoria_replay.get('qtd_movimentos_log', 0)),
+        ('lotes remanescentes ativos', auditoria_replay.get('qtd_lotes_remanescentes_ativos', 0)),
+        ('valor contas historicas', auditoria_replay.get('total_valor_contas_historicas', 0.0)),
+        ('liquido coberto', auditoria_replay.get('total_liquido_coberto', 0.0)),
+        ('saldo bruto pos replay', auditoria_replay.get('saldo_bruto_total_pos_replay', 0.0)),
+        ('saldo liquido pos replay', auditoria_replay.get('saldo_liquido_total_pos_replay', 0.0)),
+    ])
+    amostra_replay = auditoria_replay.get('amostra_log_passado') or {}
+    if amostra_replay:
+        print('- amostra do log de replay do passado:')
+        print(f"  [OK] data={amostra_replay.get('Data')} | lote={amostra_replay.get('Lote')} | conta={amostra_replay.get('Conta')} | bruto={amostra_replay.get('Bruto')} | liquido={amostra_replay.get('Liquido')} | saldo_remanescente={amostra_replay.get('Saldo Remanescente')}")
+    amostra_inconsistencias_replay = auditoria_replay.get('amostra_inconsistencias') or []
+    if amostra_inconsistencias_replay:
+        print('- amostras de inconsistencias do replay controlado:')
+        for item in amostra_inconsistencias_replay[:5]:
+            print(f"  [AVISO] {item}")
+    _imprimir_itens_severidade('erros de validação', validacao_replay.get('erros'), 'ERRO')
+    _imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
 
     _imprimir_titulo('TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1')
     _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase')
