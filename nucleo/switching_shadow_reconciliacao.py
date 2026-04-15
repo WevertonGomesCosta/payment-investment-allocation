@@ -72,6 +72,8 @@ def normalizar_lotes_shadow(
         "qtd_lote_tecnico_duplicado": 0,
         "linhas_descartadas": [],
         "resumo_tipos_lote": {},
+        "resumo_tipos_match_produto": {},
+        "amostras_produto_nao_reconhecido": [],
     }
 
     if inventario_canonico is None or len(inventario_canonico) == 0:
@@ -155,6 +157,12 @@ def normalizar_lotes_shadow(
             str(chave): int(valor)
             for chave, valor in quadro["tipo_lote"].value_counts(dropna=False).to_dict().items()
         }
+        auditoria["resumo_tipos_match_produto"] = {
+            str(chave): int(valor)
+            for chave, valor in quadro["tipo_match_produto"].fillna("vazio").value_counts(dropna=False).to_dict().items()
+        }
+        nao_rec = quadro[quadro["tipo_lote"] == "produto_nao_reconhecido"][["lote_id", "investimento_bruto", "produto_nome", "tipo_match_produto"]].head(10)
+        auditoria["amostras_produto_nao_reconhecido"] = nao_rec.to_dict("records") if len(nao_rec) > 0 else []
     return quadro, auditoria
 
 
@@ -270,6 +278,8 @@ def comparar_aportes_legado_vs_shadow(df_lotes_shadow: pd.DataFrame, df_eventos_
         "qtd_shadow": len(shadow),
         "soma_legado": arredondar_monetario(soma_legado),
         "soma_shadow": arredondar_monetario(soma_shadow),
+        "delta_qtd": len(shadow) - len(legado),
+        "delta_soma": arredondar_monetario(soma_shadow - soma_legado),
         "lote_tecnico_id_somente_legado": sorted(list(ids_legado - ids_shadow)),
         "lote_tecnico_id_somente_shadow": sorted(list(ids_shadow - ids_legado)),
         "datas_diferentes": datas_diferentes,

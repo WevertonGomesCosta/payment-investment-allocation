@@ -11,9 +11,9 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V15
+**Versão atual da baseline:** V16
 
-A V15 preserva a baseline fixa da fase atual e acrescenta a metade **canônica e reconciliatória** do bloco 06, mantendo o restante da baseline neutra:
+A V16 preserva a baseline fixa da fase atual e acrescenta a metade **canônica e reconciliatória** do bloco 06, mantendo o restante da baseline neutra:
 
 - carteira canônica e `produto_key`;
 - inventário canônico;
@@ -23,6 +23,8 @@ A V15 preserva a baseline fixa da fase atual e acrescenta a metade **canônica e
 - eventos brutos de aporte histórico;
 - reconciliação observado vs shadow;
 - trilha técnica ordenada de eventos;
+- matching canônico reforçado dos produtos aportados;
+- resumo shadow mais consolidado no console;
 - validação local da baseline.
 
 A regra de trabalho do projeto continua sendo:
@@ -71,8 +73,8 @@ A regra de trabalho do projeto continua sendo:
 │   ├── .gitkeep
 │   ├── AUDITORIA_ARQUITETURAL_V3.md
 │   ├── CONTRATO_OPERACIONAL_PROJETO.md
-│   ├── BASELINE_FIXA_V15.md
-│   └── VALIDACAO_LOCAL_V15.md
+│   ├── BASELINE_FIXA_V16.md
+│   └── VALIDACAO_LOCAL_V16.md
 └── testes/
     └── .gitkeep
 ```
@@ -90,7 +92,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V15.md`
+- `relatorios/VALIDACAO_LOCAL_V16.md`
 
 ## Entradas canônicas atuais
 
@@ -184,7 +186,7 @@ python scripts/inspecionar_base.py
 ```
 
 A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V15, a execução local mínima foi
+validação incremental da baseline. Nesta V16, a execução local mínima foi
 realizada antes da entrega. Ela deve mostrar, no mínimo:
 - caminhos principais resolvidos;
 - contexto de ambiente;

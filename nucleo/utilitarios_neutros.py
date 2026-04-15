@@ -130,3 +130,72 @@ def para_float_monetario(valor: Any, default: float = 0.0) -> float:
 def arredondar_monetario(valor: Any, casas: int = 2) -> float:
     quant = '1.' + ('0' * casas)
     return float(Decimal(str(valor)).quantize(Decimal(quant), rounding=ROUND_HALF_UP))
+
+
+def tokenizar_texto_normalizado(valor: Any) -> list[str]:
+    texto = normalizar_texto(valor)
+    return [parte for parte in texto.split() if parte]
+
+
+def escolher_melhor_correspondencia_textual(
+    valor: Any,
+    opcoes: Iterable[tuple[str, str]],
+    *,
+    minimo_score: float = 0.55,
+) -> tuple[Optional[str], dict[str, Any]]:
+    """Escolhe a melhor correspondência textual neutra entre um valor e opções."""
+    texto = normalizar_texto(valor)
+    if not texto:
+        return None, {"score": 0.0, "motivo": "texto_vazio"}
+
+    tokens_alvo = set(tokenizar_texto_normalizado(texto))
+    melhor_chave = None
+    melhor_score = 0.0
+    melhor_referencia = ""
+
+    for chave, referencia in opcoes:
+        referencia_norm = normalizar_texto(referencia)
+        if not referencia_norm:
+            continue
+        if referencia_norm == texto:
+            return chave, {"score": 1.0, "motivo": "texto_exato", "referencia": referencia}
+
+        tokens_ref = set(tokenizar_texto_normalizado(referencia_norm))
+        if not tokens_ref:
+            continue
+
+        inter = len(tokens_alvo & tokens_ref)
+        if inter == 0:
+            continue
+
+        cobertura_alvo = inter / max(len(tokens_alvo), 1)
+        cobertura_ref = inter / max(len(tokens_ref), 1)
+        score = (0.65 * cobertura_alvo) + (0.35 * cobertura_ref)
+
+        numeros_alvo = {t for t in tokens_alvo if any(ch.isdigit() for ch in t)}
+        numeros_ref = {t for t in tokens_ref if any(ch.isdigit() for ch in t)}
+        if numeros_alvo and numeros_ref and numeros_alvo == numeros_ref:
+            score += 0.15
+        elif numeros_alvo and numeros_ref and numeros_alvo & numeros_ref:
+            score += 0.08
+
+        if texto in referencia_norm or referencia_norm in texto:
+            score += 0.05
+
+        if score > melhor_score:
+            melhor_score = score
+            melhor_chave = chave
+            melhor_referencia = referencia
+
+    if melhor_chave is None or melhor_score < minimo_score:
+        return None, {
+            "score": melhor_score,
+            "motivo": "sem_correspondencia_suficiente",
+            "referencia": melhor_referencia,
+        }
+
+    return melhor_chave, {
+        "score": melhor_score,
+        "motivo": "melhor_correspondencia_textual",
+        "referencia": melhor_referencia,
+    }

@@ -144,7 +144,7 @@ def main() -> None:
 
     _imprimir_titulo("BASELINE")
     _imprimir_pares([
-        ("versão", "V15"),
+        ("versão", "V16"),
         ("raiz do repositório", pacote_config.raiz_repositorio),
         ("config carregado", pacote_config.caminho),
         ("planilha carregada", pacote_planilha.caminho),
@@ -217,6 +217,8 @@ def main() -> None:
         ("produtos canônicos", len(carteira_canonica.quadro_canonico)),
         ("produto_key únicos", len(carteira_canonica.mapa_produtos.get("by_key", {}))),
         ("lotes aportados", resumo_inventario.get("aportados", 0)),
+        ("lotes aportados com match", resumo_inventario.get("aportados_com_match", 0)),
+        ("lotes aportados sem match", resumo_inventario.get("aportados_sem_match", 0)),
         ("lotes não aportados disponíveis", resumo_inventario.get("nao_aportados_disponiveis", 0)),
         ("lotes não aportados exauridos", resumo_inventario.get("nao_aportados_exauridos", 0)),
         ("recebidos futuros não disponíveis hoje", resumo_inventario.get("recebidos_futuros", 0)),
@@ -265,6 +267,11 @@ def main() -> None:
             print(f"  [OK] {chave}: {valor}")
     _imprimir_itens_severidade("erros de validação", validacao_inventario.get("erros"), "ERRO")
     _imprimir_itens_severidade("avisos de validação", validacao_inventario.get("avisos"), "AVISO")
+    if resumo_inventario.get("tipos_match_produto"):
+        print("- tipos de match de produto no inventário:")
+        for chave, valor in resumo_inventario.get("tipos_match_produto", {}).items():
+            sev = "OK" if chave not in {"nao_encontrado"} else "AVISO"
+            print(f"  [{sev}] {chave}: {valor}")
 
     _imprimir_titulo("GASTOS CANÔNICOS")
     _imprimir_linha_status("Validação estrutural dos gastos", severidade_gastos)
@@ -296,11 +303,25 @@ def main() -> None:
         ("caixa futuro", resumo_lotes_shadow.get("qtd_caixa_futuro", 0)),
         ("caixa exaurido", resumo_lotes_shadow.get("qtd_caixa_exaurido", 0)),
         ("data base fiscal inferida", resumo_lotes_shadow.get("qtd_data_base_fiscal_inferida", 0)),
+        ("delta qtd aportes shadow", reconciliacao_shadow.get("delta_qtd", 0)),
+        ("delta soma aportes shadow", reconciliacao_shadow.get("delta_soma", 0.0)),
     ])
     if resumo_lotes_shadow.get("resumo_tipos_lote"):
         print("- tipos de lote shadow:")
         for chave, valor in resumo_lotes_shadow.get("resumo_tipos_lote", {}).items():
             print(f"  [OK] {chave}: {valor}")
+    if resumo_lotes_shadow.get("resumo_tipos_match_produto"):
+        print("- tipos de match de produto no shadow:")
+        for chave, valor in resumo_lotes_shadow.get("resumo_tipos_match_produto", {}).items():
+            sev = "OK" if chave not in {"nao_encontrado"} else "AVISO"
+            print(f"  [{sev}] {chave}: {valor}")
+    if resumo_lotes_shadow.get("amostras_produto_nao_reconhecido"):
+        print("- amostras de produtos aportados sem match canônico:")
+        for item in resumo_lotes_shadow.get("amostras_produto_nao_reconhecido", []):
+            print(
+                f"  [AVISO] lote={item.get('lote_id')} investimento_bruto={item.get('investimento_bruto')} "
+                f"produto_nome={item.get('produto_nome')} tipo_match={item.get('tipo_match_produto')}"
+            )
 
     _imprimir_linha_status("Eventos brutos de aporte", severidade_eventos_shadow)
     _imprimir_pares([

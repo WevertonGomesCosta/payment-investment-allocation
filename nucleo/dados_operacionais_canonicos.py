@@ -20,7 +20,16 @@ import pandas as pd
 
 from nucleo.carteira_canonica import PacoteCarteiraCanonica, normalizar_nome_produto
 from nucleo.leitor_planilha import PacotePlanilha, resolver_coluna
-from nucleo.utilitarios_neutros import limpar_texto, normalizar_identificador, para_bool, para_data, para_float_monetario, para_int
+from nucleo.utilitarios_neutros import (
+    escolher_melhor_correspondencia_textual,
+    limpar_texto,
+    normalizar_identificador,
+    normalizar_texto,
+    para_bool,
+    para_data,
+    para_float_monetario,
+    para_int,
+)
 
 
 @dataclass(slots=True)
@@ -76,13 +85,15 @@ def _classificar_investimento(valor_investimento: Any, data_aplicacao: Optional[
     }
 
 
-def _resolver_produto_canonico(valor_produto: str, carteira: Optional[PacoteCarteiraCanonica]) -> dict[str, Any]:
+def _resolver_produto_canonico(valor_produto: str, carteira: Optional[PacoteCarteiraCanonica], config: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
     vazio = {
         "produto_key": None,
         "produto_nome_canonico": None,
         "produto_nome_norm": None,
         "produto_encontrado": False,
         "tipo_match_produto": "vazio",
+        "score_match_produto": 0.0,
+        "referencia_match_produto": "",
     }
     if not valor_produto:
         return vazio
@@ -93,40 +104,98 @@ def _resolver_produto_canonico(valor_produto: str, carteira: Optional[PacoteCart
             "produto_nome_norm": None,
             "produto_encontrado": False,
             "tipo_match_produto": "sem_carteira_canonica",
+            "score_match_produto": 0.0,
+            "referencia_match_produto": "",
         }
 
     by_key = carteira.mapa_produtos.get("by_key", {})
     by_nome = carteira.mapa_produtos.get("by_nome_norm", {})
+    defaults_cfg = (config or {}).get("defaults", {}) if isinstance(config, Mapping) else {}
 
-    if valor_produto in by_key:
-        info = by_key[valor_produto]
+    valor_txt = limpar_texto(valor_produto)
+    valor_norm = normalizar_nome_produto(valor_txt)
+
+    if valor_txt in by_key:
+        info = by_key[valor_txt]
         return {
             "produto_key": info.get("produto_key"),
             "produto_nome_canonico": info.get("nome"),
             "produto_nome_norm": info.get("nome_norm"),
             "produto_encontrado": True,
             "tipo_match_produto": "produto_key_exato",
+            "score_match_produto": 1.0,
+            "referencia_match_produto": info.get("nome") or valor_txt,
         }
 
-    nome_norm = normalizar_nome_produto(valor_produto)
-    # usar mesma normalização básica já presente no mapa da carteira via nome_norm armazenado
-    for chave_nome_norm, produto_key in by_nome.items():
-        if chave_nome_norm == nome_norm:
+    if valor_norm in by_nome:
+        produto_key = by_nome[valor_norm]
+        info = by_key.get(produto_key, {})
+        return {
+            "produto_key": info.get("produto_key"),
+            "produto_nome_canonico": info.get("nome"),
+            "produto_nome_norm": info.get("nome_norm"),
+            "produto_encontrado": True,
+            "tipo_match_produto": "nome_norm",
+            "score_match_produto": 1.0,
+            "referencia_match_produto": info.get("nome") or valor_txt,
+        }
+
+    fallback_nome = limpar_texto(defaults_cfg.get("produto_fallback_nome"))
+    ref_futuro = limpar_texto(defaults_cfg.get("investimento_referencia_futuro"))
+    if valor_txt and fallback_nome and normalizar_texto(valor_txt) == normalizar_texto(fallback_nome) and ref_futuro:
+        ref_norm = normalizar_nome_produto(ref_futuro)
+        if ref_norm in by_nome:
+            produto_key = by_nome[ref_norm]
             info = by_key.get(produto_key, {})
             return {
                 "produto_key": info.get("produto_key"),
                 "produto_nome_canonico": info.get("nome"),
                 "produto_nome_norm": info.get("nome_norm"),
                 "produto_encontrado": True,
-                "tipo_match_produto": "nome_norm",
+                "tipo_match_produto": "fallback_config_referencia_futura",
+                "score_match_produto": 0.95,
+                "referencia_match_produto": info.get("nome") or ref_futuro,
             }
+
+        produto_key_match_ref, meta_match_ref = escolher_melhor_correspondencia_textual(ref_futuro, [(k, limpar_texto(v.get("nome") or k)) for k, v in by_key.items()], minimo_score=0.55)
+        if produto_key_match_ref:
+            info = by_key.get(produto_key_match_ref, {})
+            return {
+                "produto_key": info.get("produto_key"),
+                "produto_nome_canonico": info.get("nome"),
+                "produto_nome_norm": info.get("nome_norm"),
+                "produto_encontrado": True,
+                "tipo_match_produto": "fallback_config_referencia_futura_textual",
+                "score_match_produto": max(0.90, float(meta_match_ref.get("score", 0.0) or 0.0)),
+                "referencia_match_produto": meta_match_ref.get("referencia") or info.get("nome") or ref_futuro,
+            }
+
+    opcoes = []
+    for produto_key, info in by_key.items():
+        nome_ref = limpar_texto(info.get("nome") or produto_key)
+        opcoes.append((produto_key, nome_ref))
+
+    produto_key_match, meta_match = escolher_melhor_correspondencia_textual(valor_txt, opcoes, minimo_score=0.60)
+    if produto_key_match:
+        info = by_key.get(produto_key_match, {})
+        return {
+            "produto_key": info.get("produto_key"),
+            "produto_nome_canonico": info.get("nome"),
+            "produto_nome_norm": info.get("nome_norm"),
+            "produto_encontrado": True,
+            "tipo_match_produto": "correspondencia_textual",
+            "score_match_produto": float(meta_match.get("score", 0.0) or 0.0),
+            "referencia_match_produto": meta_match.get("referencia") or info.get("nome") or valor_txt,
+        }
 
     return {
         "produto_key": None,
-        "produto_nome_canonico": valor_produto,
-        "produto_nome_norm": nome_norm,
+        "produto_nome_canonico": valor_txt,
+        "produto_nome_norm": valor_norm,
         "produto_encontrado": False,
         "tipo_match_produto": "nao_encontrado",
+        "score_match_produto": float(meta_match.get("score", 0.0) if 'meta_match' in locals() else 0.0),
+        "referencia_match_produto": (meta_match.get("referencia") if 'meta_match' in locals() else "") or "",
     }
 
 
@@ -185,7 +254,7 @@ def carregar_inventario_canonico(
             continue
 
         classificacao = _classificar_investimento(row.get(col_produto) if col_produto else None, data_aplicacao, data_referencia)
-        produto_resolvido = _resolver_produto_canonico(classificacao["produto_informado"], carteira_canonica)
+        produto_resolvido = _resolver_produto_canonico(classificacao["produto_informado"], carteira_canonica, config)
         data_base_fiscal = para_data(row.get(col_data_base_fiscal)) if col_data_base_fiscal else None
         data_base_fiscal_inferida = data_base_fiscal is None
         if data_base_fiscal is None:
@@ -229,12 +298,18 @@ def carregar_inventario_canonico(
         validacao["avisos"].append("existem_lotes_nao_aportados_exauridos")
 
     auditoria["validacao"] = validacao
+    quadro_aportado = quadro[quadro["aportado"]].copy()
     auditoria["resumo"] = {
         "total_lotes": int(len(quadro)),
         "aportados": int(quadro["aportado"].sum()),
         "nao_aportados_disponiveis": int(quadro["nao_aportado_disponivel"].sum()),
         "nao_aportados_exauridos": int(quadro["nao_aportado_exaurido"].sum()),
         "recebidos_futuros": int(quadro["recebido_futuro_nao_disponivel"].sum()),
+        "aportados_com_match": int((quadro_aportado["produto_encontrado"] == True).sum()) if len(quadro_aportado) > 0 else 0,
+        "aportados_sem_match": int((quadro_aportado["produto_encontrado"] == False).sum()) if len(quadro_aportado) > 0 else 0,
+        "tipos_match_produto": {
+            str(ch): int(v) for ch, v in quadro["tipo_match_produto"].fillna("vazio").value_counts(dropna=False).to_dict().items()
+        },
     }
     return nome_aba, quadro, auditoria
 
