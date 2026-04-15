@@ -145,6 +145,8 @@ Este contrato pode evoluir futuramente, mas qualquer alteração deve ser valida
 
 ## Atualização metodológica da V22
 
+A V22 reforça o caráter transitório dos metadados ainda derivados da aba `Carteira`, mantém a triagem v1 como proxy preliminar conservador e amplia a auditabilidade de matching canônico e shadow.
+
 - a aba `Carteira` passa a ser o **universo único** de produtos do projeto;
 - a filtragem de candidatos deve ser feita **programaticamente no script**, servindo apenas ao motor;
 - a triagem do motor passa a usar um **score v1 multicritério**, contextual ao cenário, apenas como triagem preliminar proxy;

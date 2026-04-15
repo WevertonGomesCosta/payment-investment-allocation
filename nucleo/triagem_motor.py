@@ -267,45 +267,40 @@ def carregar_triagem_motor(
         for rank, idx in enumerate(sub.sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable').index.tolist(), start=1):
             df.at[idx, 'rank_familia'] = rank
 
-    top_k_global = int(_cfg(config, 'triagem_motor', 'top_k_global', padrao=48) or 48)
-    top_k_familia = int(_cfg(config, 'triagem_motor', 'top_k_por_familia', padrao=8) or 8)
-    score_minimo = float(_cfg(config, 'triagem_motor', 'score_minimo_selecao', padrao=20.0) or 20.0)
+    top_k_global = int(_cfg(config, 'triagem_motor', 'top_k_global', padrao=60) or 48)
+    top_k_familia = int(_cfg(config, 'triagem_motor', 'top_k_por_familia', padrao=10) or 8)
+    score_minimo = float(_cfg(config, 'triagem_motor', 'score_minimo_selecao', padrao=15.0) or 20.0)
 
     df['selecionado_motor_v1'] = (
         df['elegivel_bruto']
         & (df['rank_global'] > 0)
         & (
             (df['score_final'] >= score_minimo)
-            | (df['rank_global'] <= max(16, top_k_familia))
+            | (df['rank_global'] <= max(20, top_k_familia))
             | df['produto_padrao'].fillna(False)
         )
         & ((df['rank_global'] <= top_k_global) | (df['rank_familia'] <= top_k_familia) | df['produto_padrao'].fillna(False))
     )
 
-    qtd_elegiveis = int(df['elegivel_bruto'].sum())
-    qtd_selecionados = int(df['selecionado_motor_v1'].sum())
-    fracao_selecionada = (float(qtd_selecionados) / max(qtd_elegiveis, 1)) if qtd_elegiveis > 0 else 0.0
-    alvo_fracao_minima = float(_cfg(config, 'triagem_motor', 'fracao_minima_elegiveis_selecionados', padrao=0.45) or 0.45)
-    teto_cauteloso = int(_cfg(config, 'triagem_motor', 'teto_cauteloso_selecao', padrao=max(top_k_global, 72)) or max(top_k_global, 72))
-    expansao_cautelosa_aplicada = False
-    if qtd_elegiveis > 0 and fracao_selecionada < alvo_fracao_minima:
-        faltantes = int(max(0, round(alvo_fracao_minima * qtd_elegiveis) - qtd_selecionados))
-        faltantes = min(faltantes, max(0, teto_cauteloso - qtd_selecionados))
-        if faltantes > 0:
-            adicionais = df[df['elegivel_bruto'] & ~df['selecionado_motor_v1']].sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable').head(faltantes).index.tolist()
-            if adicionais:
-                df.loc[adicionais, 'selecionado_motor_v1'] = True
-                expansao_cautelosa_aplicada = True
+    elegiveis_df = df[df['elegivel_bruto']].copy()
+    fracao_minima = float(_cfg(config, 'triagem_motor', 'fracao_minima_elegiveis_selecionados', padrao=0.35) or 0.35)
+    minimo_absoluto = int(_cfg(config, 'triagem_motor', 'minimo_absoluto_selecionados', padrao=24) or 24)
+    minimo_alvo = min(len(elegiveis_df), max(minimo_absoluto, int(round(len(elegiveis_df) * fracao_minima)))) if len(elegiveis_df) > 0 else 0
+    selecionados_atuais = int(df['selecionado_motor_v1'].sum())
+    if minimo_alvo > 0 and selecionados_atuais < minimo_alvo:
+        candidatos_extra = elegiveis_df[~elegiveis_df['selecionado_motor_v1']].sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')
+        faltantes = minimo_alvo - selecionados_atuais
+        idx_extra = candidatos_extra.head(faltantes).index.tolist()
+        if idx_extra:
+            df.loc[idx_extra, 'selecionado_motor_v1'] = True
 
     candidatos = df[df['selecionado_motor_v1']].copy().reset_index(drop=True)
-    qtd_selecionados = int(df['selecionado_motor_v1'].sum())
-    fracao_selecionada = (float(qtd_selecionados) / max(qtd_elegiveis, 1)) if qtd_elegiveis > 0 else 0.0
 
     auditoria = {
         'qtd_total_produtos': int(len(df)),
         'qtd_elegiveis_brutos': int(df['elegivel_bruto'].sum()),
         'natureza_triagem': 'proxy_preliminar',
-        'modo_calibracao': str(_cfg(config, 'triagem_motor', 'modo_calibracao', padrao='conservadora_transitoria') or 'conservadora_transitoria'),
+        'modo_calibracao': str(_cfg(config, 'triagem_motor', 'modo_calibracao', padrao='conservadora_transitoria_v2') or 'conservadora_transitoria_v2'),
         'qtd_candidatos_motor_v1': int(df['selecionado_motor_v1'].sum()),
         'qtd_produtos_padrao': int(df['produto_padrao'].sum()),
         'pesos_score_v1': {'retorno': w_ret, 'liquidez': w_liq, 'viabilidade': w_via, 'risco': w_ris},
@@ -313,9 +308,10 @@ def carregar_triagem_motor(
         'top_k_por_familia': top_k_familia,
         'score_minimo_selecao': score_minimo,
         'observacao': 'Score v1 usado apenas como triagem preliminar proxy; nao e decisao final do motor. Criterios de corte permanecem deliberadamente cautelosos e transitorios nesta fase.',
-        'fracao_minima_elegiveis_selecionados': alvo_fracao_minima,
-        'expansao_cautelosa_aplicada': expansao_cautelosa_aplicada,
-        'teto_cauteloso_selecao': teto_cauteloso,
+        'fracao_minima_elegiveis_selecionados': fracao_minima,
+        'minimo_absoluto_selecionados': minimo_absoluto,
+        'triagem_transitoria': True,
+        'observacao_calibracao': 'A triagem mantém retenção mínima de elegíveis para evitar exclusão precoce antes do núcleo financeiro.',
         'contexto': contexto,
         'resumo_familia_produto': {str(k): int(v) for k, v in df['familia_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()},
         'resumo_regime_taxa': {str(k): int(v) for k, v in df['regime_taxa'].fillna('vazio').value_counts(dropna=False).to_dict().items()},

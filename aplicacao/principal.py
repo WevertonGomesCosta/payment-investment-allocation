@@ -201,6 +201,8 @@ def main() -> None:
         if valor:
             print(f"  [OK] {chave}: {valor}")
     print('- observação estrutural: metadados derivados da carteira atuam como ponte transitória até maior estruturação explícita da planilha.')
+    print(f"- maturidade estrutural da carteira: {carteira_canonica.auditoria.get('maturidade_estrutura_carteira', 'transitoria')}")
+    print(f"- fração de campos estruturais explícitos: {carteira_canonica.auditoria.get('fracao_campos_estruturais_explicitos', 0.0)}")
     print(f"- campos estruturais ainda sem coluna resolvida: {carteira_canonica.auditoria.get('qtd_campos_estruturais_sem_coluna_resolvida', 0)}")
     if carteira_canonica.auditoria.get('campos_estruturais_sem_coluna_resolvida'):
         print(f"  [AVISO] pendentes na planilha: {', '.join(carteira_canonica.auditoria.get('campos_estruturais_sem_coluna_resolvida', []))}")
@@ -288,6 +290,8 @@ def main() -> None:
         ('top_k por família', auditoria_triagem.get('top_k_por_familia', 0)),
         ('score mínimo seleção', auditoria_triagem.get('score_minimo_selecao', 0.0)),
         ('modo de calibração', auditoria_triagem.get('modo_calibracao', 'nao informado')),
+        ('retenção mínima elegíveis', auditoria_triagem.get('fracao_minima_elegiveis_selecionados', 0.0)),
+        ('mínimo absoluto selecionados', auditoria_triagem.get('minimo_absoluto_selecionados', 0)),
         ('fração elegíveis selecionados', auditoria_triagem.get('fracao_elegiveis_selecionados', 0.0)),
         ('elegíveis não selecionados', auditoria_triagem.get('qtd_elegiveis_nao_selecionados', 0)),
         ('recursos disponíveis para aporte', contexto_triagem.get('recursos_disponiveis_para_aporte', 0.0)),

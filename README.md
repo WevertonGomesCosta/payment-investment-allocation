@@ -13,7 +13,7 @@ financeira correta.
 
 **Versão atual da baseline:** V22
 
-A V22 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
+A V22 preserva a baseline fixa da fase atual e reforça três pontos: metadados derivados da `Carteira` como ponte transitória, triagem v1 ainda mais cautelosa e auditoria mais explícita de matching/shadow:
 
 - carteira canônica e `produto_key`;
 - inventário canônico;
