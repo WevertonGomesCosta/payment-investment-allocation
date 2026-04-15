@@ -171,14 +171,26 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
     }
 
     limite = para_float_monetario((((config.get('politicas_taxa') or {}).get('limite_percentual_vs_multiplicador')) if isinstance(config, Mapping) else None), 10.0)
+    metadados_transitorios = [
+        'familia_produto',
+        'regime_taxa',
+        'regime_liquidez',
+        'papel_produto',
+        'elegivel_motor',
+        'elegivel_aporte_novo',
+        'elegivel_switch_in',
+        'elegivel_reconciliacao_historica',
+    ]
     auditoria = {
         'colunas_resolvidas': dict(campos),
         'linhas_descartadas': [],
         'sem_produto_id': 0,
         'produtos_total': 0,
         'limite_percentual_vs_multiplicador': limite,
-        'metadados_derivados_transitorios': ['familia_produto', 'regime_taxa', 'regime_liquidez', 'papel_produto', 'elegivel_motor', 'elegivel_aporte_novo', 'elegivel_switch_in', 'elegivel_reconciliacao_historica'],
+        'metadados_derivados_transitorios': list(metadados_transitorios),
         'observacao_metadados_derivados': 'Campos derivados em código funcionam como ponte transitória até maior estruturação da aba Carteira.',
+        'campos_estruturais_recomendados': list(metadados_transitorios),
+        'campos_estruturais_sem_coluna_resolvida': [campo for campo in metadados_transitorios if not campos.get(campo)],
     }
     registros: list[dict[str, Any]] = []
 

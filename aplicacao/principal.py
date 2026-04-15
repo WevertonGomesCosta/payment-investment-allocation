@@ -201,9 +201,14 @@ def main() -> None:
         if valor:
             print(f"  [OK] {chave}: {valor}")
     print('- observação estrutural: metadados derivados da carteira atuam como ponte transitória até maior estruturação explícita da planilha.')
+    print(f"- campos estruturais ainda sem coluna resolvida: {carteira_canonica.auditoria.get('qtd_campos_estruturais_sem_coluna_resolvida', 0)}")
+    if carteira_canonica.auditoria.get('campos_estruturais_sem_coluna_resolvida'):
+        print(f"  [AVISO] pendentes na planilha: {', '.join(carteira_canonica.auditoria.get('campos_estruturais_sem_coluna_resolvida', []))}")
     print('- fontes dos metadados estruturais:')
     for campo, resumo in carteira_canonica.auditoria.get('resumo_fontes_metadados', {}).items():
-        print(f"  [OK] {campo}: {resumo}")
+        cobertura_planilha = carteira_canonica.auditoria.get('resumo_cobertura_metadados_planilha', {}).get(campo, 0)
+        cobertura_derivada = carteira_canonica.auditoria.get('resumo_cobertura_metadados_derivados', {}).get(campo, 0)
+        print(f"  [OK] {campo}: {resumo} | planilha={cobertura_planilha} | derivado={cobertura_derivada}")
     _imprimir_itens_severidade('erros de validação', validacao_carteira.get('erros'), 'ERRO')
     _imprimir_itens_severidade('avisos de validação', validacao_carteira.get('avisos'), 'AVISO')
 
@@ -252,6 +257,7 @@ def main() -> None:
         ('lotes shadow', len(switching_shadow.lotes_shadow)),
         ('produto reconhecido', resumo_lotes_shadow.get('qtd_produto_reconhecido', 0)),
         ('produto não reconhecido', resumo_lotes_shadow.get('qtd_produto_nao_reconhecido', 0)),
+        ('fração produto reconhecido', resumo_lotes_shadow.get('fracao_produto_reconhecido', 0.0)),
         ('caixa disponível', resumo_lotes_shadow.get('qtd_caixa_disponivel', 0)),
         ('caixa futuro', resumo_lotes_shadow.get('qtd_caixa_futuro', 0)),
         ('caixa exaurido', resumo_lotes_shadow.get('qtd_caixa_exaurido', 0)),
@@ -259,6 +265,8 @@ def main() -> None:
         ('reconciliação equivalente', 'sim' if reconciliacao_shadow.get('equivalentes_essenciais') else 'não'),
         ('ids somente shadow', len(reconciliacao_shadow.get('ids_somente_shadow', []))),
         ('ids somente observado', len(reconciliacao_shadow.get('ids_somente_observado', []))),
+        ('cobertura ids observado', reconciliacao_shadow.get('fracao_ids_observado_cobertos', 0.0)),
+        ('cobertura ids shadow', reconciliacao_shadow.get('fracao_ids_shadow_cobertos', 0.0)),
     ])
     if resumo_lotes_shadow.get('resumo_tipos_match_produto'):
         print('- tipos de match de produto no shadow:')
@@ -280,6 +288,7 @@ def main() -> None:
         ('top_k por família', auditoria_triagem.get('top_k_por_familia', 0)),
         ('score mínimo seleção', auditoria_triagem.get('score_minimo_selecao', 0.0)),
         ('modo de calibração', auditoria_triagem.get('modo_calibracao', 'nao informado')),
+        ('fração elegíveis selecionados', auditoria_triagem.get('fracao_elegiveis_selecionados', 0.0)),
         ('elegíveis não selecionados', auditoria_triagem.get('qtd_elegiveis_nao_selecionados', 0)),
         ('recursos disponíveis para aporte', contexto_triagem.get('recursos_disponiveis_para_aporte', 0.0)),
         ('recursos aportados observados', contexto_triagem.get('recursos_aportados_observados', 0.0)),
