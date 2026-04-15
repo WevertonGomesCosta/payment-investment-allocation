@@ -92,7 +92,9 @@ class Lote:
         if mult <= 0.0:
             return
         fator_dia = (1.0 + float(taxa_diaria_decimal)) ** mult
-        self.saldo_bruto = arredondar_monetario(self.saldo_bruto * fator_dia)
+        # Mantém precisão interna ao longo do tempo; arredondamento monetário
+        # fica restrito à exibição e aos movimentos financeiros.
+        self.saldo_bruto = float(self.saldo_bruto) * fator_dia
         self.fator_acumulado *= fator_dia
 
     def get_fator_liquido(self, data_resgate: date, *, tabela_iof: Optional[list[float]] = None, faixas_ir: Optional[list[dict[str, Any]]] = None) -> float:
@@ -120,7 +122,11 @@ class Lote:
         proporcao_sacada = min(max((valor_bruto / saldo_antes), 0.0), 1.0) if saldo_antes > 0.0 else 1.0
         principal_sacado = round(self.principal_remanescente * proporcao_sacada, 10)
         self.principal_remanescente = max(round(self.principal_remanescente - principal_sacado, 10), 0.0)
-        self.saldo_bruto = arredondar_monetario(self.saldo_bruto - valor_bruto)
+        self.saldo_bruto = float(self.saldo_bruto) - float(valor_bruto)
+        if self.saldo_bruto <= float(tolerancia_monetaria):
+            self.saldo_bruto = 0.0
+            self.principal_remanescente = 0.0
+            self.esgotado = True
         self.vezes_usado += 1
         self.total_bruto_sacado += valor_bruto
         return valor_bruto
@@ -269,8 +275,12 @@ def executar_saque_lote(
     fator = lote.get_fator_liquido(data_atual, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
     if fator <= 0.0:
         return None
-    bruto_necessario = float(valor_liquido_alvo) / fator
-    uso_bruto = min(bruto_necessario, lote.saldo_bruto)
+    liquido_total_disponivel = float(lote.valor_liquido_hoje(data_atual, tabela_iof=tabela_iof, faixas_ir=faixas_ir))
+    if float(valor_liquido_alvo) >= max(liquido_total_disponivel - float(tolerancia_monetaria), 0.0):
+        uso_bruto = float(lote.saldo_bruto)
+    else:
+        bruto_necessario = float(valor_liquido_alvo) / fator
+        uso_bruto = min(bruto_necessario, float(lote.saldo_bruto))
     efetivo = _money_round_half_up(lote.sacar(uso_bruto, tolerancia_monetaria=tolerancia_monetaria))
     liquido = _money_round_half_up(efetivo * fator)
     imposto = _money_round_half_up(efetivo - liquido)
@@ -300,6 +310,7 @@ def carregar_nucleo_financeiro_minimo(
     config: Mapping[str, Any],
     *,
     data_referencia: date,
+    serie_cdi: Optional[Mapping[date, Any]] = None,
 ) -> PacoteNucleoFinanceiroMinimo:
     tabela_iof = construir_tabela_iof(config)
     faixas_ir = construir_faixas_ir(config)
@@ -373,7 +384,7 @@ def carregar_nucleo_financeiro_minimo(
     data_inicial = min((l.data_aplicacao for l in lotes_preview), default=data_referencia)
     data_atual = data_inicial
     while data_atual <= data_referencia:
-        atualizar_saldo_lotes_no_dia(lotes_preview, data_atual, calendario_financeiro, taxa_proj=calendario_financeiro.taxa_dia_base)
+        atualizar_saldo_lotes_no_dia(lotes_preview, data_atual, calendario_financeiro, serie_cdi=serie_cdi, taxa_proj=calendario_financeiro.taxa_dia_base)
         data_atual += timedelta(days=1)
 
     saldo_bruto_total_referencia = sum(float(l.saldo_bruto) for l in lotes_preview if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)
@@ -399,6 +410,8 @@ def carregar_nucleo_financeiro_minimo(
         'qtd_linhas_ignoradas': len(linhas_ignoradas),
         'saldo_bruto_total_referencia_sem_replay': arredondar_monetario(saldo_bruto_total_referencia),
         'saldo_liquido_total_referencia_sem_replay': arredondar_monetario(saldo_liquido_total_referencia),
+        'fonte_rendimento_referencia': 'serie_cdi_bcb' if serie_cdi else 'taxa_modelo',
+        'qtd_datas_serie_cdi': int(len(serie_cdi or {})),
         'amostra_movimento_saque': None if amostra_movimento is None else {
             'lote_id': amostra_movimento['lote'].id,
             'bruto': amostra_movimento['bruto'],

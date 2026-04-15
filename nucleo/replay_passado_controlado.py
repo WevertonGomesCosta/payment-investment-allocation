@@ -191,6 +191,7 @@ def carregar_replay_passado_controlado(
     config: dict[str, Any],
     *,
     data_referencia: date,
+    serie_cdi: Optional[dict[date, float]] = None,
 ) -> PacoteReplayPassadoControlado:
     tabela_iof = construir_tabela_iof(config)
     faixas_ir = construir_faixas_ir(config)
@@ -259,7 +260,7 @@ def carregar_replay_passado_controlado(
     qtd_alias_resolvido = 0
 
     while data_atual <= data_final:
-        atualizar_saldo_lotes_no_dia(lotes_base, data_atual, calendario_financeiro, taxa_proj=calendario_financeiro.taxa_dia_base)
+        atualizar_saldo_lotes_no_dia(lotes_base, data_atual, calendario_financeiro, serie_cdi=serie_cdi, taxa_proj=calendario_financeiro.taxa_dia_base)
         for conta in contas_por_data.get(data_atual, []):
             qtd_contas_processadas += 1
             valor = float(conta.get('valor') or 0.0)
@@ -379,6 +380,8 @@ def carregar_replay_passado_controlado(
         'total_liquido_coberto': arredondar_monetario(total_coberto),
         'saldo_bruto_total_pos_replay': arredondar_monetario(saldo_bruto_pos),
         'saldo_liquido_total_pos_replay': arredondar_monetario(saldo_liquido_pos),
+        'fonte_rendimento_replay': 'serie_cdi_bcb' if serie_cdi else 'taxa_modelo',
+        'qtd_datas_serie_cdi': int(len(serie_cdi or {})),
         'amostra_log_passado': None if len(log_registros) == 0 else log_registros[0],
         'qtd_inconsistencias': int(len(inconsistencias)),
         'amostra_inconsistencias': inconsistencias[:5],

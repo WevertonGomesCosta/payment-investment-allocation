@@ -14,6 +14,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 from nucleo.ambiente import bootstrap_ambiente
 from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento
 from nucleo.carregador_config import carregar_config
+from nucleo.cache_cdi_bcb import carregar_cache_cdi_diario
 from nucleo.carteira_canonica import carregar_carteira_canonica
 from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
 from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
@@ -74,6 +75,12 @@ def main() -> None:
         data_referencia=contexto.data_referencia,
         carteira_canonica=carteira_canonica,
     )
+    cache_cdi = carregar_cache_cdi_diario(
+        dados_operacionais,
+        pacote_config.conteudo,
+        data_referencia=contexto.data_referencia,
+        raiz_repositorio=pacote_config.raiz_repositorio,
+    )
     switching_shadow = carregar_switching_shadow_reconciliacao(dados_operacionais, carteira_canonica=carteira_canonica)
     triagem_motor = carregar_triagem_motor(
         carteira_canonica,
@@ -88,6 +95,7 @@ def main() -> None:
         calendario_financeiro,
         pacote_config.conteudo,
         data_referencia=contexto.data_referencia,
+        serie_cdi=cache_cdi.serie_cdi,
     )
     replay_passado = carregar_replay_passado_controlado(
         dados_operacionais,
@@ -95,6 +103,7 @@ def main() -> None:
         calendario_financeiro,
         pacote_config.conteudo,
         data_referencia=contexto.data_referencia,
+        serie_cdi=cache_cdi.serie_cdi,
     )
 
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
@@ -121,6 +130,8 @@ def main() -> None:
     contexto_triagem = auditoria_triagem.get('contexto', {})
     auditoria_nucleo = nucleo_financeiro.auditoria or {}
     validacao_nucleo = nucleo_financeiro.validacao or {}
+    auditoria_cache_cdi = cache_cdi.auditoria or {}
+    validacao_cache_cdi = cache_cdi.validacao or {}
     auditoria_replay = replay_passado.auditoria or {}
     validacao_replay = replay_passado.validacao or {}
 
@@ -133,11 +144,12 @@ def main() -> None:
     severidade_eventos_shadow = _severidade(erros=['reconciliacao_aportes_divergente'] if not bool(reconciliacao_shadow.get('equivalentes_essenciais', False)) else None, condicao_ok=len(switching_shadow.eventos_financeiros_ordenados) > 0)
     severidade_triagem = _severidade(avisos=['existem_produtos_ativos_fora_da_selecao_v1'] if auditoria_triagem.get('qtd_candidatos_motor_v1', 0) < auditoria_triagem.get('qtd_elegiveis_brutos', 0) else None, condicao_ok=auditoria_triagem.get('qtd_candidatos_motor_v1', 0) > 0)
     severidade_nucleo = _severidade(erros=validacao_nucleo.get('erros'), avisos=validacao_nucleo.get('avisos'), condicao_ok=bool(validacao_nucleo.get('ok', True)))
+    severidade_cache_cdi = _severidade(erros=validacao_cache_cdi.get('erros'), avisos=validacao_cache_cdi.get('avisos'), condicao_ok=bool(validacao_cache_cdi.get('ok', True)))
     severidade_replay = _severidade(erros=validacao_replay.get('erros'), avisos=validacao_replay.get('avisos'), condicao_ok=bool(validacao_replay.get('ok', True)))
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V24'),
+        ('versão', 'V25'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -170,6 +182,17 @@ def main() -> None:
         ('calendário Brasil disponível', 'sim' if calendario_financeiro.calendario_brasil_disponivel else 'não'),
         ('dias de rendimento no mês até a data de referência', dias_rendimento_mes),
     ])
+
+    _imprimir_titulo('CACHE CDI DIÁRIO (BCB)')
+    _imprimir_linha_status('Cache diário de CDI para auditoria e replay', severidade_cache_cdi, f"{auditoria_cache_cdi.get('qtd_datas_serie_cdi', 0)} datas")
+    _imprimir_pares([
+        ('data inicial da consulta', auditoria_cache_cdi.get('data_inicial_consulta')),
+        ('data final da consulta', auditoria_cache_cdi.get('data_final_consulta')),
+        ('fonte da série', auditoria_cache_cdi.get('fonte_serie_cdi')),
+        ('status do fetch', auditoria_cache_cdi.get('fetch_status')),
+        ('caminho do cache', auditoria_cache_cdi.get('caminho_cache')),
+    ])
+    _imprimir_itens_severidade('avisos do cache CDI', validacao_cache_cdi.get('avisos'), 'AVISO')
 
     _imprimir_titulo('ABAS ENCONTRADAS')
     for indice, nome_aba in enumerate(pacote_planilha.nomes_abas, start=1):

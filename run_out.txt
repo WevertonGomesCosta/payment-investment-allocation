@@ -1,0 +1,279 @@
+
+=== BASELINE ===
+- versão: V25
+- raiz do repositório: /tmp/v24repo
+- config carregado: /tmp/v24repo/dados/config_atualizado.json
+- planilha carregada: /tmp/v24repo/dados/dados_financeiros.xlsx
+
+=== AMBIENTE ===
+- timezone: America/Sao_Paulo
+- data de referência: 2026-04-15
+- colab: não
+- warnings de rede configurados: sim
+
+=== DEPENDÊNCIAS ===
+[AVISO] Dependências essenciais da baseline — baseline mínima e auditoria estrutural
+- instaladas: numpy, openpyxl, pandas, python-dateutil, requests
+- ausentes: pulp, workalendar
+
+=== CALENDÁRIO FINANCEIRO E TAXAS BASE ===
+[OK] Camada neutra de calendário e taxas base — sem fetch do BCB e sem aplicação econômica aos lotes
+- CDI anual do modelo: 0.149000
+- convenção dias/ano CDI: 252
+- taxa diária base: 0.000551310642
+- anos dias sem rendimento: 2025-2035
+- dias sem rendimento mapeados: 11
+- workalendar disponível: não
+- calendário Brasil disponível: não
+- dias de rendimento no mês até a data de referência: 11
+
+=== CACHE CDI DIÁRIO (BCB) ===
+[AVISO] Cache diário de CDI para auditoria e replay — 0 datas
+- data inicial da consulta: 2026-02-01
+- data final da consulta: 2026-04-15
+- fonte da série: sem_cache
+- status do fetch: falha_fetch_bcb:ConnectionError
+- caminho do cache: /tmp/v24repo/cache_bcb.json
+- avisos do cache CDI:
+  [AVISO] serie_cdi_bcb_indisponivel_usando_taxa_modelo
+
+=== ABAS ENCONTRADAS ===
+- [1] Todos os Gastos
+- [2] Inventário de Lotes
+- [3] Resumo Mensal
+- [4] Carteira
+
+=== ABAS PRIMÁRIAS DO CONTRATO ===
+[OK] Abas primárias do contrato — 3 blocos esperados
+[OK] Bloco carteira — Carteira
+- presente: sim
+- linhas: 178
+- colunas: 26
+
+[OK] Bloco lotes — Inventário de Lotes
+- presente: sim
+- linhas: 39
+- colunas: 4
+
+[OK] Bloco despesas — Todos os Gastos
+- presente: sim
+- linhas: 212
+- colunas: 5
+
+
+=== ABAS AUXILIARES / NÃO OPERACIONAIS ===
+[OK] Abas auxiliares identificadas — 1 abas fora do contrato operacional
+- Resumo Mensal: 11 linhas, 13 colunas
+
+=== RESUMO CONSOLIDADO DAS CAMADAS CANÔNICAS ===
+[AVISO] Carteira canônica — 178 produtos
+[AVISO] Inventário canônico — 39 lotes
+[AVISO] Gastos canônicos — 212 despesas
+[OK] Lotes shadow — 39 lotes técnicos
+[OK] Trilha técnica de eventos — 39 eventos ordenados
+[AVISO] Triagem programática do motor — 97 candidatos
+[AVISO] Núcleo financeiro mínimo — 34 lotes financeiros
+
+=== CARTEIRA CANÔNICA ===
+[AVISO] Validação estrutural da carteira
+- aba: Carteira
+- produtos canônicos: 178
+- produto_key únicos: 178
+- nomes normalizados únicos: 178
+- famílias de produto: 17
+- regimes de taxa: 8
+- papéis de produto: 2
+- linhas sem produto_id explícito: 178
+- erros de validação: 0
+- avisos de validação: 1
+- colunas resolvidas:
+  [OK] nome: Nome
+  [OK] tipo: Tipo
+  [OK] indexador: Indexador
+  [OK] taxa_base: Taxa_Base_CDI
+  [OK] taxa_bonus: Taxa_Bonus_CDI
+  [OK] dias_bonus: Dias_Bonus
+  [OK] prazo_dias: Prazo_Dias
+  [OK] carencia_dias: Carência_Dias
+  [OK] isento_ir: Isento_IR
+  [OK] aplicacao_minima: Aplicação_Mínima
+  [OK] aplicacao_maxima: Aplicação_Máxima
+  [OK] ativo: Ativo
+  [OK] fgc: FGC
+  [OK] banco_emissor: Banco_Emissor
+  [OK] risco_real: Risco_Real
+  [OK] somente_combo: Somente_Combo
+  [OK] produto_base: Produto_Base
+  [OK] produto_bonus: Produto_Bonus
+  [OK] ratio_base: Ratio_Base
+  [OK] ratio_bonus: Ratio_Bonus
+  [OK] max_usos: Max_Usos
+  [OK] observacoes: Observações
+  [OK] camada: Camada
+  [OK] status_confirmacao: Status_Confirmação
+  [OK] campos_pendentes: Campos_Pendentes
+  [OK] score_banco: Score_Banco
+- observação estrutural: metadados derivados da carteira atuam como ponte transitória até maior estruturação explícita da planilha.
+- campos estruturais ainda sem coluna resolvida: 0
+  [AVISO] pendentes na planilha: familia_produto, regime_taxa, regime_liquidez, papel_produto, elegivel_motor, elegivel_aporte_novo, elegivel_switch_in, elegivel_reconciliacao_historica
+- fontes dos metadados estruturais:
+- avisos de validação:
+  [AVISO] nenhum_produto_padrao_marcado
+
+=== INVENTÁRIO CANÔNICO ===
+[AVISO] Validação estrutural do inventário
+- aba: Inventário de Lotes
+- lotes canônicos: 39
+- aportados: 9
+- não aportados disponíveis: 1
+- não aportados exauridos: 5
+- recebidos futuros: 24
+- aportados com match: 9
+- aportados sem match: 0
+- erros de validação: 0
+- avisos de validação: 2
+- colunas resolvidas:
+  [OK] lote_id: Lote (ID)
+  [OK] data_aplicacao: Data Aplicação
+  [OK] valor_original: Valor Original
+  [OK] produto_id: Investimento
+- avisos de validação:
+  [AVISO] existem_recebidos_futuros_nao_disponiveis_hoje
+  [AVISO] existem_lotes_nao_aportados_exauridos
+
+=== GASTOS CANÔNICOS ===
+[AVISO] Validação estrutural dos gastos
+- aba: Todos os Gastos
+- despesas canônicas: 212
+- pagas até data de referência: 59
+- futuras ou pendentes: 153
+- com lote informado: 59
+- erros de validação: 0
+- avisos de validação: 2
+- colunas resolvidas:
+  [OK] data: Data
+  [OK] descricao: Descrição
+  [OK] valor: Valor
+  [OK] pago: Pago
+  [OK] lote_usado_1: Lote usado
+- avisos de validação:
+  [AVISO] existem_despesas_pagamento_historico
+  [AVISO] existem_despesas_futuras_ou_pendentes
+
+=== SWITCHING SHADOW E RECONCILIAÇÃO ===
+[OK] Normalização shadow dos lotes
+- lotes shadow: 39
+- produto reconhecido: 9
+- produto não reconhecido: 0
+- fração produto reconhecido: 0.0
+- caixa disponível: 1
+- caixa futuro: 24
+- caixa exaurido: 5
+- eventos aporte shadow: 39
+- reconciliação equivalente: sim
+- ids somente shadow: 0
+- ids somente observado: 0
+- cobertura ids observado: 0.0
+- cobertura ids shadow: 0.0
+- tipos de match de produto no shadow:
+  [OK] vazio: 30
+  [OK] nome_norm: 9
+
+=== NÚCLEO FINANCEIRO MÍNIMO ===
+[AVISO] Primitivas financeiras irreduzíveis do lote — sem solver, sem replay, sem switching econômico e sem relatório financeiro atual
+- lotes financeiros: 34
+- lotes aportados: 9
+- caixa disponível: 1
+- recebidos futuros: 24
+- lotes não disponíveis para aporte: 24
+- lotes com produto mapeado: 9
+- lotes sem produto: 25
+- lotes com taxa default: 0
+- lotes com carência: 0
+- lotes exauridos ignorados: 5
+- saldo bruto ref. sem replay: 200910.14
+- saldo líquido ref. sem replay: 53903.33
+- amostra de saque no núcleo mínimo (auditoria técnica):
+  [OK] lote=Lote 4000 fev. | bruto=100.69 | liquido=100.0 | imposto=0.69 | saldo_remanescente=4024.3990157211615
+- avisos de validação:
+  [AVISO] existem_lotes_financeiros_sem_produto_associado
+
+=== REPLAY CONTROLADO DO PASSADO ===
+[OK] Reconciliacao de pagamentos historicos com lotes informados — consome o nucleo financeiro minimo sem abrir switching economico, score final, solver ou relatorio financeiro atual
+- contas historicas: 59
+- contas com lote informado: 59
+- contas processadas: 59
+- cobertas integralmente: 59
+- parcialmente cobertas: 0
+- nao cobertas: 0
+- contas sem lote informado: 0
+- lotes historicos nao aportados materializados: 5
+- aliases historicos resolvidos: 9
+- lotes informados nao encontrados: 0
+- movimentos no log: 59
+- lotes remanescentes ativos: 36
+- valor contas historicas: 44167.61
+- liquido coberto: 44167.61
+- saldo bruto pos replay: 169617.73
+- saldo liquido pos replay: 22823.67
+- amostra do log de replay do passado:
+  [OK] data=2026-02-09 | lote=Lote 2063,11 fev. | conta=Cartão Azul | bruto=2064.55 | liquido=2063.23 | saldo_remanescente=0.04
+- amostras de aliases historicos resolvidos no replay:
+  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00041 | data=2026-04-02
+  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00042 | data=2026-04-02
+  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00043 | data=2026-04-02
+  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00044 | data=2026-04-02
+  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00045 | data=2026-04-02
+
+=== TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1 ===
+[AVISO] Seleção contextual preliminar de candidatos — proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase
+- produtos totais no universo: 178
+- elegíveis brutos: 167
+- candidatos motor v1: 97
+- top_k global: 48
+- top_k por família: 8
+- score mínimo seleção: 20.0
+- modo de calibração: conservadora_transitoria
+- fração elegíveis selecionados: 0.5808
+- elegíveis não selecionados: 70
+- recursos disponíveis para aporte: 5680.0
+- recursos aportados observados: 47147.5
+- despesas futuras 30 dias: 13295.489999999998
+- cobertura caixa 30 dias: 0.4272
+- famílias no universo único da carteira:
+  [OK] cdb_cdi: 49
+  [OK] fundo_renda_fixa: 22
+  [OK] lca_cdi: 16
+  [OK] cdb_ipca: 15
+  [OK] tesouro: 14
+  [OK] cdb_prefixado: 12
+  [OK] combo: 9
+  [OK] lca: 9
+  [OK] renda_fixa: 7
+  [OK] cdb: 5
+  [OK] compromissada: 5
+  [OK] fundo_variavel: 4
+  [OK] fundo_prev: 4
+  [OK] cdb_cdi_escalonado: 2
+  [OK] lci: 2
+  [OK] lci_cdi: 2
+  [OK] cdb_selic: 1
+- top produtos selecionados no score v1 (triagem preliminar proxy):
+  [OK] Tesouro Educa+ 2027 | score=92.56 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2028 | score=92.41 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2029 | score=92.29 | família=tesouro | regime=ipca
+  [OK] Tesouro IPCA+ 2032 | score=92.18 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2030 | score=92.14 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2031 | score=91.90 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2032 | score=91.67 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2033 | score=91.44 | família=tesouro | regime=ipca
+  [OK] Tesouro IPCA+ com Juros Semestrais 2037 | score=91.29 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2034 | score=91.17 | família=tesouro | regime=ipca
+
+=== RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS ===
+[OK] Carteira — 178 linhas, 26 colunas
+  colunas (primeiras 8): Nome, Taxa_Base_CDI, Taxa_Bonus_CDI, Dias_Bonus, Prazo_Dias, Carência_Dias, Isento_IR, Aplicação_Mínima
+[OK] Inventário de Lotes — 39 linhas, 4 colunas
+  colunas (primeiras 8): Lote (ID), Data Aplicação, Valor Original, Investimento
+[OK] Todos os Gastos — 212 linhas, 5 colunas
+  colunas (primeiras 8): Data, Descrição, Valor, Pago, Lote usado
