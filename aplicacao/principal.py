@@ -115,7 +115,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V22'),
+        ('versão', 'V20'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -201,8 +201,6 @@ def main() -> None:
         if valor:
             print(f"  [OK] {chave}: {valor}")
     print('- observação estrutural: metadados derivados da carteira atuam como ponte transitória até maior estruturação explícita da planilha.')
-    print(f"- status de estruturação: {carteira_canonica.auditoria.get('status_estruturacao_planilha', 'nao_informado')}")
-    print(f"- metadados transitórios monitorados: {carteira_canonica.auditoria.get('qtd_campos_metadados_transitorios', 0)}")
     print(f"- campos estruturais ainda sem coluna resolvida: {carteira_canonica.auditoria.get('qtd_campos_estruturais_sem_coluna_resolvida', 0)}")
     if carteira_canonica.auditoria.get('campos_estruturais_sem_coluna_resolvida'):
         print(f"  [AVISO] pendentes na planilha: {', '.join(carteira_canonica.auditoria.get('campos_estruturais_sem_coluna_resolvida', []))}")
@@ -260,9 +258,7 @@ def main() -> None:
         ('produto reconhecido', resumo_lotes_shadow.get('qtd_produto_reconhecido', 0)),
         ('produto não reconhecido', resumo_lotes_shadow.get('qtd_produto_nao_reconhecido', 0)),
         ('fração produto reconhecido', resumo_lotes_shadow.get('fracao_produto_reconhecido', 0.0)),
-        ('fração produto não reconhecido', resumo_lotes_shadow.get('fracao_produto_nao_reconhecido', 0.0)),
         ('caixa disponível', resumo_lotes_shadow.get('qtd_caixa_disponivel', 0)),
-        ('fração caixa disponível', resumo_lotes_shadow.get('fracao_caixa_disponivel', 0.0)),
         ('caixa futuro', resumo_lotes_shadow.get('qtd_caixa_futuro', 0)),
         ('caixa exaurido', resumo_lotes_shadow.get('qtd_caixa_exaurido', 0)),
         ('eventos aporte shadow', auditoria_eventos_shadow.get('qtd_eventos_aporte', 0)),
@@ -283,7 +279,7 @@ def main() -> None:
             print(f"  [AVISO] lote={item.get('lote_id')} | investimento={item.get('investimento_bruto')} | match={item.get('tipo_match_produto')}")
 
     _imprimir_titulo('TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1')
-    _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora e transitoria nesta fase')
+    _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase')
     _imprimir_pares([
         ('produtos totais no universo', auditoria_triagem.get('qtd_total_produtos', 0)),
         ('elegíveis brutos', auditoria_triagem.get('qtd_elegiveis_brutos', 0)),
@@ -291,8 +287,6 @@ def main() -> None:
         ('top_k global', auditoria_triagem.get('top_k_global', 0)),
         ('top_k por família', auditoria_triagem.get('top_k_por_familia', 0)),
         ('score mínimo seleção', auditoria_triagem.get('score_minimo_selecao', 0.0)),
-        ('fração total selecionada', auditoria_triagem.get('fracao_total_selecionada', 0.0)),
-        ('cautela de calibragem', auditoria_triagem.get('cautela_calibragem', 'nao_informada')),
         ('modo de calibração', auditoria_triagem.get('modo_calibracao', 'nao informado')),
         ('fração elegíveis selecionados', auditoria_triagem.get('fracao_elegiveis_selecionados', 0.0)),
         ('elegíveis não selecionados', auditoria_triagem.get('qtd_elegiveis_nao_selecionados', 0)),

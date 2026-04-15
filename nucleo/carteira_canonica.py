@@ -189,8 +189,6 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         'limite_percentual_vs_multiplicador': limite,
         'metadados_derivados_transitorios': list(metadados_transitorios),
         'observacao_metadados_derivados': 'Campos derivados em código funcionam como ponte transitória até maior estruturação da aba Carteira.',
-        'status_estruturacao_planilha': 'transicao_estrutural',
-        'qtd_campos_metadados_transitorios': len(metadados_transitorios),
         'campos_estruturais_recomendados': list(metadados_transitorios),
         'campos_estruturais_sem_coluna_resolvida': [campo for campo in metadados_transitorios if not campos.get(campo)],
     }
@@ -291,10 +289,6 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         auditoria['resumo_familia_produto'] = {str(ch): int(v) for ch, v in quadro_canonico['familia_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
         auditoria['resumo_regime_taxa'] = {str(ch): int(v) for ch, v in quadro_canonico['regime_taxa'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
         auditoria['resumo_papel_produto'] = {str(ch): int(v) for ch, v in quadro_canonico['papel_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
-        auditoria['resumo_cobertura_metadados_planilha'] = {campo: int((quadro_canonico.get(f'{campo}_fonte') == 'planilha').sum()) for campo in metadados_transitorios if f'{campo}_fonte' in quadro_canonico.columns}
-        auditoria['resumo_cobertura_metadados_derivados'] = {campo: int((quadro_canonico.get(f'{campo}_fonte') == 'derivado').sum()) for campo in metadados_transitorios if f'{campo}_fonte' in quadro_canonico.columns}
-        auditoria['fracao_metadados_planilha'] = {campo: round(auditoria['resumo_cobertura_metadados_planilha'].get(campo, 0) / max(len(quadro_canonico), 1), 4) for campo in metadados_transitorios}
-        auditoria['fracao_metadados_derivados'] = {campo: round(auditoria['resumo_cobertura_metadados_derivados'].get(campo, 0) / max(len(quadro_canonico), 1), 4) for campo in metadados_transitorios}
     return quadro_canonico, auditoria
 
 
