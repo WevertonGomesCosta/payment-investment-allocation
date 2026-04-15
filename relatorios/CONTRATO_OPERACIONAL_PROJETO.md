@@ -10,7 +10,7 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 2. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial (`v1`, `v2`, `v3`, ...).
 3. O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas do repositório diretamente na raiz.
 4. Todo o projeto deve permanecer em português.
-5. A baseline atual é a V23.
+5. A baseline atual é a V24.
 
 ## 2. Objetivo central do sistema
 
@@ -160,3 +160,8 @@ A V22 abre apenas o núcleo financeiro mínimo do bloco 07, preservando a separa
 ## Atualização metodológica da V23
 
 A V23 abre o replay controlado do passado sobre o núcleo financeiro mínimo já implementado, reconciliando pagamentos históricos apenas com lotes explicitamente informados, sem abrir switching econômico, score econômico final, solver ou relatório financeiro atual.
+
+
+## Atualização metodológica da V24
+
+A V24 reforça o replay controlado do passado para consumir explicitamente lotes históricos não aportados marcados com `-` na coluna `Investimento`, além de permitir resolução auditável de aliases históricos quando o lote informado na despesa divergir do identificador presente no inventário, desde que a correspondência estrutural seja suficientemente forte.

@@ -137,7 +137,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V23'),
+        ('versão', 'V24'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -334,6 +334,9 @@ def main() -> None:
         ('parcialmente cobertas', auditoria_replay.get('qtd_contas_parcialmente_cobertas', 0)),
         ('nao cobertas', auditoria_replay.get('qtd_contas_nao_cobertas', 0)),
         ('contas sem lote informado', auditoria_replay.get('qtd_contas_sem_lote_informado', 0)),
+        ('lotes historicos nao aportados materializados', auditoria_replay.get('qtd_lotes_historicos_nao_aportados_materializados', 0)),
+        ('aliases historicos resolvidos', auditoria_replay.get('qtd_lotes_historicos_alias_resolvidos', 0)),
+        ('lotes informados nao encontrados', auditoria_replay.get('qtd_lotes_informados_nao_encontrados', 0)),
         ('movimentos no log', auditoria_replay.get('qtd_movimentos_log', 0)),
         ('lotes remanescentes ativos', auditoria_replay.get('qtd_lotes_remanescentes_ativos', 0)),
         ('valor contas historicas', auditoria_replay.get('total_valor_contas_historicas', 0.0)),
@@ -345,6 +348,11 @@ def main() -> None:
     if amostra_replay:
         print('- amostra do log de replay do passado:')
         print(f"  [OK] data={amostra_replay.get('Data')} | lote={amostra_replay.get('Lote')} | conta={amostra_replay.get('Conta')} | bruto={amostra_replay.get('Bruto')} | liquido={amostra_replay.get('Liquido')} | saldo_remanescente={amostra_replay.get('Saldo Remanescente')}")
+    amostras_alias_replay = auditoria_replay.get('amostra_alias_historicos_resolvidos') or []
+    if amostras_alias_replay:
+        print('- amostras de aliases historicos resolvidos no replay:')
+        for item in amostras_alias_replay[:5]:
+            print(f"  [OK] informado={item.get('lote_informado')} | resolvido={item.get('lote_resolvido')} | despesa={item.get('despesa_id')} | data={item.get('data_conta')}")
     amostra_inconsistencias_replay = auditoria_replay.get('amostra_inconsistencias') or []
     if amostra_inconsistencias_replay:
         print('- amostras de inconsistencias do replay controlado:')

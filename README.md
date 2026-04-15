@@ -11,7 +11,7 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V23
+**Versão atual da baseline:** V24
 
 A V21 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
 
@@ -76,10 +76,10 @@ A regra de trabalho do projeto continua sendo:
 │   ├── CONTRATO_OPERACIONAL_PROJETO.md
 │   ├── BASELINE_FIXA_V18.md
 │   ├── BASELINE_FIXA_V21.md
-│   ├── BASELINE_FIXA_V23.md
+│   ├── BASELINE_FIXA_V24.md
 │   ├── VALIDACAO_LOCAL_V18.md
 │   └── VALIDACAO_LOCAL_V21.md
-│   └── VALIDACAO_LOCAL_V23.md
+│   └── VALIDACAO_LOCAL_V24.md
 └── testes/
     └── .gitkeep
 ```
@@ -240,3 +240,8 @@ A V23 abre o **replay controlado do passado** sobre o núcleo financeiro mínimo
 ## Atualização V23
 
 A V23 abre o **replay controlado do passado** sobre o núcleo financeiro mínimo já implementado, reconciliando pagamentos históricos com lotes explicitamente informados, sem abrir switching econômico, score econômico final, solver ou relatório financeiro atual.
+
+
+## Atualização V24
+
+A V24 reforça o replay controlado do passado para materializar corretamente os lotes históricos não aportados marcados com `Investimento='-'` e também resolver aliases históricos auditáveis como `Lote 7800 abr.` -> `Lote 8000 abr.` quando houver correspondência estrutural suficiente.
