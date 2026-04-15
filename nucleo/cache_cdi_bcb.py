@@ -63,15 +63,30 @@ def _datas_relevantes(dados_operacionais: PacoteDadosOperacionaisCanonicos, data
     return _primeiro_dia_do_mes(data_min), data_referencia
 
 
+def _parse_data_bcb_estrita(valor: Any) -> Optional[date]:
+    if valor is None:
+        return None
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    texto = str(valor).strip()
+    if not texto:
+        return None
+    try:
+        return datetime.strptime(texto, '%d/%m/%Y').date()
+    except Exception:
+        pass
+    return para_data(texto)
+
+
 def _converter_taxa_bcb_para_fator(valor: Any, convencao_dias_ano: int) -> Optional[float]:
     taxa = float(para_float_monetario(valor, 0.0) or 0.0)
     if taxa <= 0.0:
         return None
-    # Série 12 do SGS é tratada aqui como taxa anualizada em % a.a. base 252.
+    # O retorno diário do SGS deve ser tratado diretamente como taxa diária em %.
     taxa_decimal = taxa / 100.0
-    if convencao_dias_ano <= 0:
-        convencao_dias_ano = 252
-    fator = (1.0 + taxa_decimal) ** (1.0 / float(convencao_dias_ano))
+    fator = 1.0 + taxa_decimal
     return float(fator)
 
 
@@ -103,7 +118,7 @@ def _ler_cache(caminho_cache: Path, convencao_dias_ano: int) -> dict[date, float
     for item in registros:
         if not isinstance(item, Mapping):
             continue
-        dt = para_data(item.get('data') or item.get('Data'))
+        dt = _parse_data_bcb_estrita(item.get('data') or item.get('Data'))
         fator = item.get('fator_dia')
         if dt is None:
             continue
@@ -160,10 +175,13 @@ def _buscar_bcb(config: Mapping[str, Any], data_inicial: date, data_final: date,
     for item in dados:
         if not isinstance(item, Mapping):
             continue
-        dt = para_data(item.get('data') or item.get('Data'))
+        dt = _parse_data_bcb_estrita(item.get('data') or item.get('Data'))
         fator = _converter_taxa_bcb_para_fator(item.get('valor') or item.get('Valor'), convencao_dias_ano)
-        if dt is not None and fator is not None and fator > 1.0:
-            serie[dt] = fator
+        if dt is None or fator is None or fator <= 1.0:
+            continue
+        if not (data_inicial <= dt <= data_final):
+            continue
+        serie[dt] = fator
     return dict(sorted(serie.items(), key=lambda kv: kv[0])), None
 
 
@@ -179,6 +197,9 @@ def carregar_cache_cdi_diario(
     convencao = int(_cfg_get(config, 'execucao', 'convencao_dias_ano', 'cdi', padrao=252) or 252)
 
     serie = _ler_cache(caminho_cache, convencao)
+    if serie:
+        serie = {dt: fator for dt, fator in serie.items() if data_ini <= dt <= data_fim}
+        serie = dict(sorted(serie.items(), key=lambda kv: kv[0]))
     fonte = 'cache_local' if serie else 'sem_cache'
     fetch_status = None
     if not serie or min(serie.keys(), default=data_ini) > data_ini or max(serie.keys(), default=data_ini) < data_fim:
