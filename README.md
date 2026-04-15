@@ -11,9 +11,9 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V16
+**Versão atual da baseline:** V18
 
-A V16 preserva a baseline fixa da fase atual e acrescenta a metade **canônica e reconciliatória** do bloco 06, mantendo o restante da baseline neutra:
+A V18 preserva a baseline fixa da fase atual e ajusta a baseline ao contrato da aba única `Carteira`, acrescentando a triagem programática v1 do motor sem abrir replay, núcleo financeiro completo, switching econômico ou otimização profunda:
 
 - carteira canônica e `produto_key`;
 - inventário canônico;
@@ -55,6 +55,7 @@ A regra de trabalho do projeto continua sendo:
 │   ├── dados_operacionais_canonicos.py
 │   ├── calendario_financeiro.py
 │   ├── switching_shadow_reconciliacao.py
+│   ├── triagem_motor.py
 │   └── utilitarios_neutros.py
 ├── scripts/
 │   └── inspecionar_base.py
@@ -73,8 +74,8 @@ A regra de trabalho do projeto continua sendo:
 │   ├── .gitkeep
 │   ├── AUDITORIA_ARQUITETURAL_V3.md
 │   ├── CONTRATO_OPERACIONAL_PROJETO.md
-│   ├── BASELINE_FIXA_V16.md
-│   └── VALIDACAO_LOCAL_V16.md
+│   ├── BASELINE_FIXA_V18.md
+│   └── VALIDACAO_LOCAL_V18.md
 └── testes/
     └── .gitkeep
 ```
@@ -92,7 +93,7 @@ Esse documento deve ser tratado como a referência principal para:
 - futuras alterações organizadas do projeto.
 
 A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V16.md`
+- `relatorios/VALIDACAO_LOCAL_V18.md`
 
 ## Entradas canônicas atuais
 
@@ -210,3 +211,11 @@ realizada antes da entrega. Ela deve mostrar, no mínimo:
 O próximo passo mais seguro continua sendo a auditoria comparativa dos
 scripts-base antes da criação de entidades finais, validadores semânticos
 profundos ou módulos de negócio mais específicos.
+
+
+## Atualização V18
+
+- a aba `Carteira` passa a ser tratada como universo único de produtos da baseline;
+- a planilha canônica do repositório foi atualizada com a nova base fixa enviada;
+- a filtragem do motor passou a ser feita programaticamente por um **score v1** multicritério e auditável;
+- a triagem continua sem abrir replay, núcleo financeiro completo, switching econômico ou otimização profunda.

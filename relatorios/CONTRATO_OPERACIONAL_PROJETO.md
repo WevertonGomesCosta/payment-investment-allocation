@@ -10,7 +10,7 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 2. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial (`v1`, `v2`, `v3`, ...).
 3. O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas do repositório diretamente na raiz.
 4. Todo o projeto deve permanecer em português.
-5. A baseline atual é a V16.
+5. A baseline atual é a V18.
 
 ## 2. Objetivo central do sistema
 
@@ -141,3 +141,12 @@ O pacote final deve conter apenas artefatos documentais e operacionais oficiais 
 ## Observação final
 
 Este contrato pode evoluir futuramente, mas qualquer alteração deve ser validada de forma organizada antes de ser incorporada ao projeto.
+
+
+## Atualização metodológica da V18
+
+- a aba `Carteira` passa a ser o **universo único** de produtos do projeto;
+- a filtragem de candidatos deve ser feita **programaticamente no script**, servindo apenas ao motor;
+- a triagem do motor passa a usar um **score v1 multicritério**, contextual ao cenário;
+- aplicação mínima, carência e liquidez devem ser avaliadas contextualmente ao cenário;
+- confiabilidade operacional permanece fora do score principal nesta fase.

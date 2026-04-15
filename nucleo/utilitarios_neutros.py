@@ -199,3 +199,23 @@ def escolher_melhor_correspondencia_textual(
         "motivo": "melhor_correspondencia_textual",
         "referencia": melhor_referencia,
     }
+
+
+
+def limitar_intervalo(valor: Any, minimo: float = 0.0, maximo: float = 100.0) -> float:
+    try:
+        valor_num = float(valor)
+    except Exception:
+        valor_num = float(minimo)
+    return max(float(minimo), min(float(maximo), valor_num))
+
+
+def percentual_lista(valores: Iterable[float], valor: float) -> float:
+    lista = [float(v) for v in valores if v is not None]
+    if not lista:
+        return 0.0
+    menor = min(lista)
+    maior = max(lista)
+    if abs(maior - menor) <= 1e-12:
+        return 100.0
+    return limitar_intervalo(((float(valor) - menor) / (maior - menor)) * 100.0)

@@ -35,8 +35,8 @@
   },
   "abas": {
     "carteira": "Carteira",
-    "lotes": "Inventário de Lotes",
-    "despesas": "Todos os Gastos"
+    "despesas": "Todos os Gastos",
+    "lotes": "Inventário de Lotes"
   },
   "colunas": {
     "carteira": {
@@ -161,6 +161,61 @@
         "padrao",
         "padrão",
         "default"
+      ],
+      "camada": [
+        "camada",
+        "Camada"
+      ],
+      "status_confirmacao": [
+        "status_confirmacao",
+        "status_confirmação",
+        "Status_Confirmação",
+        "Status_Confirmacao"
+      ],
+      "campos_pendentes": [
+        "campos_pendentes",
+        "Campos_Pendentes"
+      ],
+      "score_banco": [
+        "score_banco",
+        "Score_Banco"
+      ],
+      "familia_produto": [
+        "familia_produto",
+        "Família_Produto",
+        "Familia_Produto"
+      ],
+      "regime_taxa": [
+        "regime_taxa",
+        "Regime_Taxa"
+      ],
+      "regime_liquidez": [
+        "regime_liquidez",
+        "Regime_Liquidez"
+      ],
+      "papel_produto": [
+        "papel_produto",
+        "Papel_Produto"
+      ],
+      "elegivel_motor": [
+        "elegivel_motor",
+        "Elegivel_Motor"
+      ],
+      "elegivel_aporte_novo": [
+        "elegivel_aporte_novo",
+        "Elegivel_Aporte_Novo"
+      ],
+      "elegivel_switch_in": [
+        "elegivel_switch_in",
+        "Elegivel_Switch_In"
+      ],
+      "elegivel_reconciliacao_historica": [
+        "elegivel_reconciliacao_historica",
+        "Elegivel_Reconciliacao_Historica"
+      ],
+      "permite_combo": [
+        "permite_combo",
+        "Permite_Combo"
       ]
     },
     "lotes": {
@@ -648,5 +703,22 @@
     "situacao_atual": {
       "modo_data_fiscal_liquido": "data_referencia"
     }
+  },
+  "triagem_motor": {
+    "peso_retorno": 0.35,
+    "peso_liquidez": 0.3,
+    "peso_viabilidade": 0.2,
+    "peso_risco": 0.15,
+    "top_k_global": 24,
+    "top_k_por_familia": 4,
+    "score_minimo_selecao": 35.0,
+    "janelas_pagamento_dias": [
+      30,
+      60,
+      90
+    ],
+    "considerar_confiabilidade_operacional_no_score": false,
+    "cap_anual_variavel": 1.0,
+    "cap_anual_cdi_multiplicador": 1.5
   }
 }

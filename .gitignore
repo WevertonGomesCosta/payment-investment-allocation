@@ -136,3 +136,6 @@ relatorios/_log_validacao_*.txt
 !relatorios/VALIDACAO_LOCAL_V14.md
 !relatorios/BASELINE_FIXA_V15.md
 !relatorios/VALIDACAO_LOCAL_V15.md
+!relatorios/BASELINE_FIXA_V18.md
+!relatorios/VALIDACAO_LOCAL_V18.md
+relatorios/_log_validacao_v18_*.txt
