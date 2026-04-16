@@ -390,6 +390,33 @@ def _comparar_auditoria_lotes(auditoria_atual, auditoria_menos_1_dia, replay_pas
     return linhas
 
 
+def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config, data_referencia, *, serie_cdi=None):
+    tabela_iof = construir_tabela_iof(config)
+    faixas_ir = construir_faixas_ir(config)
+    limiar = _obter_limiar_residuo_resolvido(config)
+    linhas = []
+    for lote in sorted(replay_passado.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
+        saldo_bruto = round(float(lote.saldo_bruto or 0.0), 2)
+        if lote.esgotado or saldo_bruto <= limiar:
+            continue
+        saldo_liquido = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+        saldo_rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
+        dias_corridos = max((data_referencia - lote.data_recebimento).days, 0)
+        dias_uteis = 0 if data_referencia < lote.data_aplicacao else contar_dias_rendimento(lote.data_base_fiscal, data_referencia, calendario_financeiro, serie_cdi=serie_cdi, data_fechamento_referencia=data_referencia)
+        linhas.append({
+            'Recebimento': lote.data_recebimento.isoformat() if hasattr(lote.data_recebimento, 'isoformat') else str(lote.data_recebimento),
+            'Aplicação': lote.data_aplicacao.isoformat() if hasattr(lote.data_aplicacao, 'isoformat') else str(lote.data_aplicacao),
+            'Produto': lote.investimento,
+            'Dias corridos': dias_corridos,
+            'Dias úteis': dias_uteis,
+            'Bruto': saldo_bruto,
+            'Líquido': saldo_liquido,
+            'Saldo rem': saldo_rem,
+            'Lote': lote.id,
+        })
+    return linhas
+
+
 def main() -> None:
     pacote_config = carregar_config(raiz_repositorio=RAIZ_REPOSITORIO)
     contexto = bootstrap_ambiente(pacote_config.conteudo, grupos_extras=['financeiro'], instalar_automaticamente=False)
@@ -521,7 +548,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V35'),
+        ('versão', 'V40'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -570,6 +597,17 @@ def main() -> None:
     _imprimir_titulo('ABAS ENCONTRADAS')
     for indice, nome_aba in enumerate(pacote_planilha.nomes_abas, start=1):
         print(f"- [{indice}] {nome_aba}")
+
+    _imprimir_titulo('RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS')
+    for _, nome_aba in abas_primarias_reais:
+        info = resumo_por_aba.get(nome_aba)
+        if not info:
+            _imprimir_linha_status(nome_aba, 'ERRO', 'aba ausente')
+            continue
+        _imprimir_linha_status(nome_aba, 'OK', f"{info['n_linhas']} linhas, {info['n_colunas']} colunas")
+        colunas = info.get('colunas', [])
+        if colunas:
+            print(f"  colunas (primeiras 8): {', '.join(colunas[:8])}")
 
     _imprimir_titulo('ABAS PRIMÁRIAS DO CONTRATO')
     _imprimir_linha_status('Abas primárias do contrato', severidade_abas, f"{len(abas_primarias_reais)} blocos esperados")
@@ -762,9 +800,9 @@ def main() -> None:
         print('- amostras de aliases historicos resolvidos no replay:')
         for item in amostras_alias_replay[:5]:
             print(f"  [OK] informado={item.get('lote_informado')} | resolvido={item.get('lote_resolvido')} | despesa={item.get('despesa_id')} | data={item.get('data_conta')}")
-    amostra_inconsistencias_replay = auditoria_replay.get('amostra_inconsistencias') or []
+    amostra_inconsistencias_replay = auditoria_replay.get('amostra_inconsistencias_materiais') or []
     if amostra_inconsistencias_replay:
-        print('- tabela de inconsistências do replay controlado (despesas com aviso):')
+        print(f"- tabela de inconsistências materiais do replay controlado (> limiar {auditoria_replay.get('limiar_materialidade_replay', limiar_residuo_resolvido):.2f}):")
         colunas_inc = ['Data', 'Despesa', 'Despesa ID', 'Valor', 'Lotes informados', 'Motivo', 'Valor restante']
         linhas_inc = []
         for item in amostra_inconsistencias_replay[:10]:
@@ -783,45 +821,6 @@ def main() -> None:
         _imprimir_tabela(colunas_inc, linhas_inc)
     _imprimir_itens_severidade('erros de validação', validacao_replay.get('erros'), 'ERRO')
     _imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
-
-    _imprimir_titulo('AUDITORIA COMPARATIVA DOS LOTES VS APP')
-    _imprimir_linha_status('Comparação entre posição do modelo e valores observados nos apps', 'AVISO' if auditoria_lotes_vs_app else 'OK', 'auditoria comparativa de referência para os lotes críticos')
-    if auditoria_lotes_vs_app:
-        _imprimir_pares(resumo_deltas_lotes_vs_app)
-        _imprimir_tabela(
-            ['Lote', 'Bruto modelo', 'Bruto app', 'Δ bruto', 'Líquido modelo', 'Líquido app', 'Δ líquido', 'Dias úteis', 'Obs.'],
-            auditoria_lotes_vs_app,
-        )
-    else:
-        print('  [OK] sem referências de app configuradas para auditoria comparativa')
-
-    _imprimir_titulo('REAUDITORIA DOS LOTES RESIDUAIS')
-    _imprimir_linha_status('Classificação dos resíduos após aplicar o limiar operacional aprovado', 'AVISO' if auditoria_residual_lotes_pendentes else 'OK', f"limiar={limiar_residuo_resolvido:.2f}; itens até o limiar ficam resolvidos nesta auditoria")
-    _imprimir_pares([
-        ('limiar operacional de resolução', limiar_residuo_resolvido),
-        ('resíduos resolvidos por limiar', len(auditoria_residual_lotes_resolvidos)),
-        ('resíduos pendentes > limiar', len(auditoria_residual_lotes_pendentes)),
-    ])
-    if auditoria_residual_lotes_pendentes:
-        print('- itens pendentes para validação (> limiar):')
-        _imprimir_tabela(['Tipo', 'Referência', 'Data', 'Conta', 'Lote', 'Valor', 'Classe provável', 'Leitura'], auditoria_residual_lotes_pendentes, limite=12)
-    else:
-        print('  [OK] sem resíduos pendentes acima do limiar nesta execução')
-
-    _imprimir_titulo('AUDITORIA ATIVA — RECEBIMENTO VS APLICAÇÃO')
-    _imprimir_linha_status('Rastreamento dos lotes recebidos antes da aplicação', 'AVISO' if auditoria_recebimento_aplicacao else 'OK', 'expõe uso em caixa pré-aplicação e eventos após a aplicação')
-    if auditoria_recebimento_aplicacao:
-        _imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Data evento', 'Conta', 'Fase', 'Bruto', 'Líquido', 'Saldo rem.', 'Leitura'], auditoria_recebimento_aplicacao, limite=20)
-    else:
-        print('  [OK] sem lotes com janela entre recebimento e aplicação nesta execução')
-
-    if bool(((pacote_config.conteudo.get('auditoria') or {}).get('mostrar_teste_menos_1_dia', False))):
-        _imprimir_titulo('TESTE DE -1 DIA DE RENDIMENTO')
-        _imprimir_linha_status('Comparação da posição crítica entre a referência completa e a referência menos 1 dia', 'OK', f"ref={contexto.data_referencia.isoformat()} vs ref-1d={data_referencia_menos_1_dia.isoformat()}")
-        _imprimir_tabela(
-            ['Lote', 'Bruto ref', 'Bruto ref-1d', 'Δ 1d bruto', 'Líquido ref', 'Líquido ref-1d', 'Δ 1d líquido', 'Obs.'],
-            comparativo_menos_1_dia,
-        )
 
     _imprimir_titulo('TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1')
     _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase')
@@ -844,22 +843,37 @@ def main() -> None:
         print('- famílias no universo único da carteira:')
         for chave, valor in auditoria_triagem.get('resumo_familia_produto', {}).items():
             print(f"  [OK] {chave}: {valor}")
+
+    _imprimir_titulo('TOP PRODUTOS SELECIONADOS — SCORE V1')
     if auditoria_triagem.get('amostra_top_produtos'):
-        print('- top produtos selecionados no score v1 (triagem preliminar proxy):')
-        for item in auditoria_triagem.get('amostra_top_produtos', []):
-            print(f"  [OK] {item.get('nome')} | score={item.get('score_final'):.2f} | família={item.get('familia_produto')} | regime={item.get('regime_taxa')}")
+        linhas_top = []
+        for idx, item in enumerate(auditoria_triagem.get('amostra_top_produtos', []), start=1):
+            linhas_top.append({
+                'Rank': idx,
+                'Produto': item.get('nome'),
+                'Score': round(float(item.get('score_final') or 0.0), 2),
+                'Família': item.get('familia_produto'),
+                'Regime': item.get('regime_taxa'),
+            })
+        _imprimir_tabela(['Rank', 'Produto', 'Score', 'Família', 'Regime'], linhas_top, limite=10)
+    else:
+        print('  [OK] sem produtos selecionados nesta execução')
 
-    _imprimir_titulo('RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS')
-    for _, nome_aba in abas_primarias_reais:
-        info = resumo_por_aba.get(nome_aba)
-        if not info:
-            _imprimir_linha_status(nome_aba, 'ERRO', 'aba ausente')
-            continue
-        _imprimir_linha_status(nome_aba, 'OK', f"{info['n_linhas']} linhas, {info['n_colunas']} colunas")
-        colunas = info.get('colunas', [])
-        if colunas:
-            print(f"  colunas (primeiras 8): {', '.join(colunas[:8])}")
+    if bool(((pacote_config.conteudo.get('auditoria') or {}).get('mostrar_teste_menos_1_dia', False))):
+        _imprimir_titulo('TESTE DE -1 DIA DE RENDIMENTO')
+        _imprimir_linha_status('Comparação da posição crítica entre a referência completa e a referência menos 1 dia', 'OK', f"ref={contexto.data_referencia.isoformat()} vs ref-1d={data_referencia_menos_1_dia.isoformat()}")
+        _imprimir_tabela(
+            ['Lote', 'Bruto ref', 'Bruto ref-1d', 'Δ 1d bruto', 'Líquido ref', 'Líquido ref-1d', 'Δ 1d líquido', 'Obs.'],
+            comparativo_menos_1_dia,
+        )
 
+    lotes_ativos = _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
+
+    _imprimir_titulo('SITUAÇÃO ATUAL — LOTES ATIVOS')
+    if lotes_ativos:
+        _imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos)
+    else:
+        print('  [OK] sem lotes ativos acima do limiar nesta execução')
 
 
 

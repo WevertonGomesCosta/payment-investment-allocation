@@ -170,6 +170,28 @@ def _resolver_alias_lote_historico_nao_aportado(lote_id_faltante: str, candidato
     return melhor
 
 
+def _obter_limiar_materialidade_replay(config: dict[str, Any]) -> float:
+    auditoria_cfg = config.get('auditoria') if isinstance(config.get('auditoria'), dict) else {}
+    replay_cfg = config.get('replay') if isinstance(config.get('replay'), dict) else {}
+    valor = auditoria_cfg.get('limiar_residuo_resolvido')
+    if valor is None:
+        valor = replay_cfg.get('valor_minimo_lote_ativo', 0.01)
+    try:
+        return float(valor)
+    except Exception:
+        return 0.01
+
+
+def _inconsistencia_e_material(item: dict[str, Any], limiar: float) -> bool:
+    valor_restante = item.get('valor_restante')
+    if valor_restante is None:
+        return True
+    try:
+        return float(valor_restante) > float(limiar)
+    except Exception:
+        return True
+
+
 def _contexto_inconsistencia(conta: dict[str, Any], restante: Optional[float] = None) -> dict[str, Any]:
     lotes_informados = [x for x in [limpar_texto(conta.get('lote_usado_1')), limpar_texto(conta.get('lote_usado_2'))] if x]
     return {
@@ -212,6 +234,7 @@ def carregar_replay_passado_controlado(
     faixas_ir = construir_faixas_ir(config)
     tolerancia = float(((config.get('replay') or {}).get('tolerancia_monetaria', 0.01)) or 0.01)
     valor_min_lote_ativo = float(((config.get('replay') or {}).get('valor_minimo_lote_ativo', 0.01)) or 0.01)
+    limiar_materialidade = _obter_limiar_materialidade_replay(config)
 
     gastos = dados_operacionais.gastos_canonicos.copy()
     if len(gastos) == 0:
@@ -396,6 +419,10 @@ def carregar_replay_passado_controlado(
     saldo_bruto_pos = sum(float(l.saldo_bruto) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)
     saldo_liquido_pos = sum(float(l.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir)) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)
 
+    inconsistencias_materiais = [item for item in inconsistencias if _inconsistencia_e_material(item, limiar_materialidade)]
+    qtd_parcial_material = sum(1 for item in inconsistencias_materiais if item.get('motivo') == 'conta_parcialmente_coberta')
+    qtd_nao_material = sum(1 for item in inconsistencias_materiais if item.get('motivo') == 'conta_nao_coberta')
+
     auditoria = {
         'qtd_contas_historicas': int(len(contas_pagas)),
         'qtd_contas_com_lote_informado': int((contas_pagas['qtd_lotes_informados'] > 0).sum()),
@@ -423,13 +450,16 @@ def carregar_replay_passado_controlado(
         'amostra_log_passado': None if len(log_registros) == 0 else log_registros[0],
         'qtd_inconsistencias': int(len(inconsistencias)),
         'amostra_inconsistencias': inconsistencias[:5],
+        'qtd_inconsistencias_materiais': int(len(inconsistencias_materiais)),
+        'amostra_inconsistencias_materiais': inconsistencias_materiais[:10],
+        'limiar_materialidade_replay': float(limiar_materialidade),
     }
     avisos = []
     if qtd_sem_lote > 0:
         avisos.append('existem_contas_historicas_sem_lote_informado_no_replay_controlado')
-    if qtd_parcial > 0:
+    if qtd_parcial_material > 0:
         avisos.append('existem_contas_historicas_parcialmente_cobertas_no_replay_controlado')
-    if qtd_nao > 0:
+    if qtd_nao_material > 0:
         avisos.append('existem_contas_historicas_nao_cobertas_no_replay_controlado')
     if qtd_nao_encontrado > 0:
         avisos.append('existem_lotes_historicos_informados_nao_encontrados_apos_materializacao')

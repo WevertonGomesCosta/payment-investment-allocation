@@ -1,8 +1,8 @@
 # Índice de relatórios
 ## Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/BASELINE_FIXA_V39.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V39.md`
+- `relatorios/atuais/BASELINE_FIXA_V40.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V40.md`
 
 ## Trilhas históricas
 - `relatorios/historico/baselines/` — baselines fixas anteriores.
@@ -40,6 +40,7 @@
 - `relatorios/historico/baselines/BASELINE_FIXA_V36.md`
 - `relatorios/historico/baselines/BASELINE_FIXA_V37.md`
 - `relatorios/historico/baselines/BASELINE_FIXA_V38.md`
+- `relatorios/historico/baselines/BASELINE_FIXA_V39.md`
 
 ### Validações históricas disponíveis
 - `relatorios/historico/validacoes/VALIDACAO_LOCAL_V6.md`
@@ -74,6 +75,7 @@
 - `relatorios/historico/validacoes/VALIDACAO_LOCAL_V36.md`
 - `relatorios/historico/validacoes/VALIDACAO_LOCAL_V37.md`
 - `relatorios/historico/validacoes/VALIDACAO_LOCAL_V38.md`
+- `relatorios/historico/validacoes/VALIDACAO_LOCAL_V39.md`
 
 ### Auditorias específicas históricas disponíveis
 - `relatorios/historico/auditorias_especificas/AUDITORIA_ARQUITETURAL_V3.md`

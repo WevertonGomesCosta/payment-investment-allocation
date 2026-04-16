@@ -6,16 +6,16 @@ O objetivo de longo prazo é evoluir esta base para um projeto único, auditáve
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V39
+**Versão atual da baseline:** V40
 
 A baseline atual já consolidou:
 
 - leitura canônica das abas `Carteira`, `Inventário de Lotes` e `Todos os Gastos`;
 - cache diário de CDI com fallback controlado;
 - núcleo financeiro mínimo e replay controlado do passado;
-- auditoria comparativa contra app para os lotes críticos;
 - regra geral de transição entre `Data Recebimento` e `Data Aplicação`;
-- limpeza documental ampla com separação entre documentação vigente e histórica.
+- limpeza documental ampla com separação entre documentação vigente e histórica;
+- saída operacional simplificada com tabela final de lotes ativos e planilha operacional consolidada.
 
 ## Regra canônica ativa da baseline
 
@@ -30,8 +30,8 @@ A regra de trabalho do projeto continua sendo:
 Documentos vigentes da baseline atual:
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/BASELINE_FIXA_V39.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V39.md`
+- `relatorios/atuais/BASELINE_FIXA_V40.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V40.md`
 
 Mapa completo da documentação:
 
