@@ -24,7 +24,7 @@ from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Mapping, Optional
 
-from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro, is_dia_rendimento
+from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro, obter_taxa_dia_rendimento
 from nucleo.carteira_canonica import PacoteCarteiraCanonica
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
 from nucleo.utilitarios_neutros import arredondar_monetario, limpar_texto, para_bool, para_float_monetario, para_int
@@ -246,20 +246,37 @@ def atualizar_saldo_lotes_no_dia(
     *,
     serie_cdi: Optional[Mapping[date, Any]] = None,
     taxa_proj: Optional[float] = None,
-) -> None:
-    if not lotes_ativos or not is_dia_rendimento(data_atual, pacote_calendario, serie_cdi=serie_cdi):
-        return
+    data_fechamento_referencia: Optional[date] = None,
+) -> dict[str, Any]:
+    if not lotes_ativos:
+        return {'aplicado': False, 'fonte': 'sem_lotes', 'fallback': False, 'qtd_lotes_atualizados': 0}
+
     if taxa_proj is None:
         taxa_proj = float(pacote_calendario.taxa_dia_base)
-    if serie_cdi and data_atual in serie_cdi:
-        fator_dia = float(serie_cdi[data_atual])
-        taxa_dia = fator_dia - 1.0
-    else:
-        taxa_dia = float(taxa_proj)
+
+    aplicar, taxa_dia, meta = obter_taxa_dia_rendimento(
+        data_atual,
+        pacote_calendario,
+        serie_cdi=serie_cdi,
+        taxa_proj=taxa_proj,
+        data_fechamento_referencia=data_fechamento_referencia,
+    )
+    if not aplicar or taxa_dia is None:
+        return {'aplicado': False, 'qtd_lotes_atualizados': 0, **meta}
+
+    qtd_lotes_atualizados = 0
     for lote in lotes_ativos:
         if lote.esgotado or float(lote.saldo_bruto or 0.0) <= 0.0:
             continue
         lote.atualizar_juros(data_atual, taxa_dia)
+        qtd_lotes_atualizados += 1
+
+    return {
+        'aplicado': True,
+        'taxa_dia_decimal': float(taxa_dia),
+        'qtd_lotes_atualizados': int(qtd_lotes_atualizados),
+        **meta,
+    }
 
 
 def executar_saque_lote(
@@ -383,8 +400,25 @@ def carregar_nucleo_financeiro_minimo(
     # Atualização apenas para auditoria do núcleo mínimo, sem replay.
     data_inicial = min((l.data_aplicacao for l in lotes_preview), default=data_referencia)
     data_atual = data_inicial
+    auditoria_fechamento_referencia: list[dict[str, Any]] = []
+    qtd_fechamentos_referencia_com_fallback = 0
     while data_atual <= data_referencia:
-        atualizar_saldo_lotes_no_dia(lotes_preview, data_atual, calendario_financeiro, serie_cdi=serie_cdi, taxa_proj=calendario_financeiro.taxa_dia_base)
+        info_capitalizacao = atualizar_saldo_lotes_no_dia(
+            lotes_preview,
+            data_atual,
+            calendario_financeiro,
+            serie_cdi=serie_cdi,
+            taxa_proj=calendario_financeiro.taxa_dia_base,
+            data_fechamento_referencia=data_referencia,
+        )
+        if info_capitalizacao.get('fallback'):
+            qtd_fechamentos_referencia_com_fallback += 1
+            auditoria_fechamento_referencia.append({
+                'data_valuation': data_atual,
+                'data_fator_utilizado': info_capitalizacao.get('data_fator'),
+                'fonte': info_capitalizacao.get('fonte'),
+                'qtd_lotes_atualizados': info_capitalizacao.get('qtd_lotes_atualizados'),
+            })
         data_atual += timedelta(days=1)
 
     saldo_bruto_total_referencia = sum(float(l.saldo_bruto) for l in lotes_preview if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)
@@ -412,6 +446,9 @@ def carregar_nucleo_financeiro_minimo(
         'saldo_liquido_total_referencia_sem_replay': arredondar_monetario(saldo_liquido_total_referencia),
         'fonte_rendimento_referencia': 'serie_cdi_bcb' if serie_cdi else 'taxa_modelo',
         'qtd_datas_serie_cdi': int(len(serie_cdi or {})),
+        'data_final_valuation_referencia': data_referencia,
+        'qtd_fechamentos_referencia_com_fallback_cdi': int(qtd_fechamentos_referencia_com_fallback),
+        'amostra_fechamento_referencia': auditoria_fechamento_referencia[0] if auditoria_fechamento_referencia else None,
         'amostra_movimento_saque': None if amostra_movimento is None else {
             'lote_id': amostra_movimento['lote'].id,
             'bruto': amostra_movimento['bruto'],

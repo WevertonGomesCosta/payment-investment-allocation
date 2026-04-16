@@ -1,9 +1,9 @@
 
 === BASELINE ===
-- versão: V25
-- raiz do repositório: /tmp/v24repo
-- config carregado: /tmp/v24repo/dados/config_atualizado.json
-- planilha carregada: /tmp/v24repo/dados/dados_financeiros.xlsx
+- versão: V31
+- raiz do repositório: /mnt/data/workrepo
+- config carregado: /mnt/data/workrepo/dados/config_atualizado.json
+- planilha carregada: /mnt/data/workrepo/dados/dados_financeiros.xlsx
 
 === AMBIENTE ===
 - timezone: America/Sao_Paulo
@@ -25,17 +25,16 @@
 - dias sem rendimento mapeados: 11
 - workalendar disponível: não
 - calendário Brasil disponível: não
-- dias de rendimento no mês até a data de referência: 11
+- dias de rendimento no mês até a data de referência: 10
 
 === CACHE CDI DIÁRIO (BCB) ===
-[AVISO] Cache diário de CDI para auditoria e replay — 0 datas
+[OK] Cache diário de CDI para auditoria e replay — 49 datas
 - data inicial da consulta: 2026-02-01
 - data final da consulta: 2026-04-15
-- fonte da série: sem_cache
+- última data com fator no cache: 2026-04-14
+- fonte da série: cache_local
 - status do fetch: falha_fetch_bcb:ConnectionError
-- caminho do cache: /tmp/v24repo/cache_bcb.json
-- avisos do cache CDI:
-  [AVISO] serie_cdi_bcb_indisponivel_usando_taxa_modelo
+- caminho do cache: /mnt/data/workrepo/dados/cache_bcb.json
 
 === ABAS ENCONTRADAS ===
 - [1] Todos os Gastos
@@ -47,7 +46,7 @@
 [OK] Abas primárias do contrato — 3 blocos esperados
 [OK] Bloco carteira — Carteira
 - presente: sim
-- linhas: 178
+- linhas: 160
 - colunas: 26
 
 [OK] Bloco lotes — Inventário de Lotes
@@ -57,35 +56,35 @@
 
 [OK] Bloco despesas — Todos os Gastos
 - presente: sim
-- linhas: 212
+- linhas: 214
 - colunas: 5
 
 
 === ABAS AUXILIARES / NÃO OPERACIONAIS ===
 [OK] Abas auxiliares identificadas — 1 abas fora do contrato operacional
-- Resumo Mensal: 11 linhas, 13 colunas
+- Resumo Mensal: 16 linhas, 13 colunas
 
 === RESUMO CONSOLIDADO DAS CAMADAS CANÔNICAS ===
-[AVISO] Carteira canônica — 178 produtos
+[AVISO] Carteira canônica — 160 produtos
 [AVISO] Inventário canônico — 39 lotes
-[AVISO] Gastos canônicos — 212 despesas
+[AVISO] Gastos canônicos — 214 despesas
 [OK] Lotes shadow — 39 lotes técnicos
 [OK] Trilha técnica de eventos — 39 eventos ordenados
-[AVISO] Triagem programática do motor — 97 candidatos
+[AVISO] Triagem programática do motor — 98 candidatos
 [AVISO] Núcleo financeiro mínimo — 34 lotes financeiros
 
 === CARTEIRA CANÔNICA ===
 [AVISO] Validação estrutural da carteira
 - aba: Carteira
-- produtos canônicos: 178
-- produto_key únicos: 178
-- nomes normalizados únicos: 178
+- produtos canônicos: 160
+- produto_key únicos: 160
+- nomes normalizados únicos: 160
 - famílias de produto: 17
 - regimes de taxa: 8
 - papéis de produto: 2
-- linhas sem produto_id explícito: 178
+- linhas sem produto_id explícito: 160
 - erros de validação: 0
-- avisos de validação: 1
+- avisos de validação: 2
 - colunas resolvidas:
   [OK] nome: Nome
   [OK] tipo: Tipo
@@ -118,6 +117,7 @@
   [AVISO] pendentes na planilha: familia_produto, regime_taxa, regime_liquidez, papel_produto, elegivel_motor, elegivel_aporte_novo, elegivel_switch_in, elegivel_reconciliacao_historica
 - fontes dos metadados estruturais:
 - avisos de validação:
+  [AVISO] existem_taxas_base_nao_positivas
   [AVISO] nenhum_produto_padrao_marcado
 
 === INVENTÁRIO CANÔNICO ===
@@ -144,10 +144,10 @@
 === GASTOS CANÔNICOS ===
 [AVISO] Validação estrutural dos gastos
 - aba: Todos os Gastos
-- despesas canônicas: 212
-- pagas até data de referência: 59
-- futuras ou pendentes: 153
-- com lote informado: 59
+- despesas canônicas: 214
+- pagas até data de referência: 62
+- futuras ou pendentes: 152
+- com lote informado: 62
 - erros de validação: 0
 - avisos de validação: 2
 - colunas resolvidas:
@@ -191,89 +191,134 @@
 - lotes com taxa default: 0
 - lotes com carência: 0
 - lotes exauridos ignorados: 5
-- saldo bruto ref. sem replay: 200910.14
-- saldo líquido ref. sem replay: 53903.33
+- data final valuation ref. completa: 2026-04-15
+- fechamentos da referência com fallback CDI: 1
+- saldo bruto ref. sem replay: 199044.24
+- saldo líquido ref. sem replay: 53852.41
 - amostra de saque no núcleo mínimo (auditoria técnica):
-  [OK] lote=Lote 4000 fev. | bruto=100.69 | liquido=100.0 | imposto=0.69 | saldo_remanescente=4024.3990157211615
+  [OK] lote=Lote 4000 fev. | bruto=100.65 | liquido=100.0 | imposto=0.65 | saldo_remanescente=4018.447874995443
+- amostra de fechamento da referência no núcleo mínimo:
+  [OK] data_valuation=2026-04-15 | data_fator_utilizado=2026-04-14 | fonte=fallback_ultimo_fator_cdi | lotes_atualizados=34
 - avisos de validação:
   [AVISO] existem_lotes_financeiros_sem_produto_associado
 
 === REPLAY CONTROLADO DO PASSADO ===
-[OK] Reconciliacao de pagamentos historicos com lotes informados — consome o nucleo financeiro minimo sem abrir switching economico, score final, solver ou relatorio financeiro atual
-- contas historicas: 59
-- contas com lote informado: 59
-- contas processadas: 59
-- cobertas integralmente: 59
-- parcialmente cobertas: 0
+[AVISO] Reconciliacao de pagamentos historicos com lotes informados — consome o nucleo financeiro minimo sem abrir switching economico, score final, solver ou relatorio financeiro atual
+- contas historicas: 62
+- contas com lote informado: 62
+- contas processadas: 62
+- cobertas integralmente: 60
+- parcialmente cobertas: 2
 - nao cobertas: 0
 - contas sem lote informado: 0
 - lotes historicos nao aportados materializados: 5
-- aliases historicos resolvidos: 9
+- aliases historicos resolvidos: 0
 - lotes informados nao encontrados: 0
-- movimentos no log: 59
-- lotes remanescentes ativos: 36
-- valor contas historicas: 44167.61
-- liquido coberto: 44167.61
-- saldo bruto pos replay: 169617.73
-- saldo liquido pos replay: 22823.67
+- movimentos no log: 62
+- lotes remanescentes ativos: 34
+- data final histórica do replay: 2026-04-15
+- data final valuation ref. completa: 2026-04-15
+- fechamentos da referência com fallback CDI: 1
+- valor contas historicas: 44363.76
+- liquido coberto: 44362.37
+- saldo bruto pos replay: 167455.24
+- saldo liquido pos replay: 22462.36
 - amostra do log de replay do passado:
-  [OK] data=2026-02-09 | lote=Lote 2063,11 fev. | conta=Cartão Azul | bruto=2064.55 | liquido=2063.23 | saldo_remanescente=0.04
-- amostras de aliases historicos resolvidos no replay:
-  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00041 | data=2026-04-02
-  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00042 | data=2026-04-02
-  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00043 | data=2026-04-02
-  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00044 | data=2026-04-02
-  [OK] informado=Lote 7800 abr. | resolvido=Lote 8000 abr. | despesa=despesa_auto_00045 | data=2026-04-02
+  [OK] data=2026-02-09 | lote=Lote 10342 fev. | conta=Cartão Azul | bruto=6021.54 | liquido=6014.05 | saldo_remanescente=4335.29
+- amostra de fechamento da referência no replay:
+  [OK] data_valuation=2026-04-15 | data_fator_utilizado=2026-04-14 | fonte=fallback_ultimo_fator_cdi | lotes_atualizados=34
+- tabela de inconsistências do replay controlado (despesas com aviso):
+Data       | Despesa     | Despesa ID         | Valor   | Lotes informados | Motivo                     | Valor restante
+-----------+-------------+--------------------+---------+------------------+----------------------------+---------------
+2026-03-13 | Escola      | despesa_auto_00014 | 1368.12 | Lote 10342 fev.  | conta_parcialmente_coberta | 0.68          
+2026-03-20 | Cartão Azul | despesa_auto_00037 | 4540.55 | Lote 5400 fev.   | conta_parcialmente_coberta | 0.71          
+- avisos de validação:
+  [AVISO] existem_contas_historicas_parcialmente_cobertas_no_replay_controlado
+
+=== AUDITORIA COMPARATIVA DOS LOTES VS APP ===
+[AVISO] Comparação entre posição do modelo e valores observados nos apps — auditoria comparativa de referência para os lotes críticos
+- lotes críticos auditados: 4
+- maior |Δ bruto|: 0.11
+- maior |Δ líquido|: 0.21
+- soma |Δ bruto|: 0.29
+- soma |Δ líquido|: 0.34
+Lote              | Bruto modelo | Bruto app | Δ bruto | Líquido modelo | Líquido app | Δ líquido | Dias úteis | Obs.          
+------------------+--------------+-----------+---------+----------------+-------------+-----------+------------+---------------
+Lote 6630,64 fev. | 2852.53      | 2852.42   | 0.11    | 2833.98        | 2833.77     | 0.21      | 47         | app 15/04/2026
+Lote 3000 mar. V  | 3115.11      | 3115.13   | -0.02   | 3089.21        | 3089.22     | -0.01     | 30         | app 15/04/2026
+Lote 3000 mar. B  | 3111.16      | 3111.24   | -0.08   | 3086.15        | 3086.21     | -0.06     | 29         | app 15/04/2026
+Lote 8500 mar.    | 8720.72      | 8720.80   | -0.08   | 8690.64        | 8690.70     | -0.06     | 27         | app 15/04/2026
+
+=== REAUDITORIA DOS LOTES RESIDUAIS ===
+[AVISO] Separação entre efeito de convenção temporal e resíduo de saque/arredondamento — resíduos pequenos remanescentes após corrigir a data de referência completa
+Tipo          | Referência         | Valor | Classe provável                 | Leitura                                                
+--------------+--------------------+-------+---------------------------------+--------------------------------------------------------
+conta parcial | despesa_auto_00037 | 0.71  | resíduo de saque/arredondamento | data=2026-03-20 | lotes=Lote 5400 fev.                 
+conta parcial | despesa_auto_00014 | 0.68  | resíduo de saque/arredondamento | data=2026-03-13 | lotes=Lote 10342 fev.                
+micro-saldo   | Lote 3600 abr.     | 3.19  | resíduo de saque/arredondamento | vezes usado=4; saldo final pequeno em lote remanescente
+micro-saldo   | Lote 4000 fev.     | 0.49  | resíduo de saque/arredondamento | vezes usado=9; saldo final pequeno em lote remanescente
+micro-saldo   | Lote 4124,75 fev.  | 0.38  | resíduo de saque/arredondamento | vezes usado=5; saldo final pequeno em lote remanescente
+micro-saldo   | Lote 7800 abr.     | 0.09  | resíduo de saque/arredondamento | vezes usado=9; saldo final pequeno em lote remanescente
+micro-saldo   | Lote 2063,11 fev.  | 0.04  | resíduo de saque/arredondamento | vezes usado=1; saldo final pequeno em lote remanescente
+
+=== TESTE DE -1 DIA DE RENDIMENTO ===
+[OK] Comparação da posição crítica entre a referência completa e a referência menos 1 dia — ref=2026-04-15 vs ref-1d=2026-04-14
+Lote              | Bruto ref | Bruto ref-1d | Δ 1d bruto | Líquido ref | Líquido ref-1d | Δ 1d líquido | Obs.                                                                
+------------------+-----------+--------------+------------+-------------+----------------+--------------+---------------------------------------------------------------------
+Lote 6630,64 fev. | 2852.53   | 2984.13      |            | 2833.98     | 2965.09        |              | houve saque na data de referência; teste -1d não isola só rendimento
+Lote 3000 mar. V  | 3115.11   | 3111.23      | 3.88       | 3089.21     | 3086.20        | 3.01         |                                                                     
+Lote 3000 mar. B  | 3111.16   | 3107.28      | 3.88       | 3086.15     | 3083.14        | 3.01         |                                                                     
+Lote 8500 mar.    | 8720.72   | 8715.76      | 4.96       | 8690.64     | 8686.79        | 3.85         |                                                                     
 
 === TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1 ===
 [AVISO] Seleção contextual preliminar de candidatos — proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase
-- produtos totais no universo: 178
-- elegíveis brutos: 167
-- candidatos motor v1: 97
+- produtos totais no universo: 160
+- elegíveis brutos: 154
+- candidatos motor v1: 98
 - top_k global: 48
 - top_k por família: 8
 - score mínimo seleção: 20.0
 - modo de calibração: conservadora_transitoria
-- fração elegíveis selecionados: 0.5808
-- elegíveis não selecionados: 70
+- fração elegíveis selecionados: 0.6364
+- elegíveis não selecionados: 56
 - recursos disponíveis para aporte: 5680.0
 - recursos aportados observados: 47147.5
-- despesas futuras 30 dias: 13295.489999999998
-- cobertura caixa 30 dias: 0.4272
+- despesas futuras 30 dias: 14013.099999999999
+- cobertura caixa 30 dias: 0.4053
 - famílias no universo único da carteira:
-  [OK] cdb_cdi: 49
-  [OK] fundo_renda_fixa: 22
-  [OK] lca_cdi: 16
+  [OK] cdb_cdi: 45
+  [OK] fundo_renda_fixa: 17
   [OK] cdb_ipca: 15
   [OK] tesouro: 14
-  [OK] cdb_prefixado: 12
-  [OK] combo: 9
+  [OK] cdb_prefixado: 11
+  [OK] lca_cdi: 10
   [OK] lca: 9
+  [OK] combo: 7
   [OK] renda_fixa: 7
   [OK] cdb: 5
   [OK] compromissada: 5
-  [OK] fundo_variavel: 4
   [OK] fundo_prev: 4
-  [OK] cdb_cdi_escalonado: 2
+  [OK] fundo_variavel: 4
   [OK] lci: 2
+  [OK] cdb_cdi_escalonado: 2
   [OK] lci_cdi: 2
   [OK] cdb_selic: 1
 - top produtos selecionados no score v1 (triagem preliminar proxy):
-  [OK] Tesouro Educa+ 2027 | score=92.56 | família=tesouro | regime=ipca
-  [OK] Tesouro Educa+ 2028 | score=92.41 | família=tesouro | regime=ipca
-  [OK] Tesouro Educa+ 2029 | score=92.29 | família=tesouro | regime=ipca
-  [OK] Tesouro IPCA+ 2032 | score=92.18 | família=tesouro | regime=ipca
-  [OK] Tesouro Educa+ 2030 | score=92.14 | família=tesouro | regime=ipca
-  [OK] Tesouro Educa+ 2031 | score=91.90 | família=tesouro | regime=ipca
-  [OK] Tesouro Educa+ 2032 | score=91.67 | família=tesouro | regime=ipca
-  [OK] Tesouro Educa+ 2033 | score=91.44 | família=tesouro | regime=ipca
-  [OK] Tesouro IPCA+ com Juros Semestrais 2037 | score=91.29 | família=tesouro | regime=ipca
-  [OK] Tesouro Educa+ 2034 | score=91.17 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2027 | score=93.66 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2028 | score=93.50 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2029 | score=93.38 | família=tesouro | regime=ipca
+  [OK] Tesouro IPCA+ 2032 | score=93.26 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2030 | score=93.22 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2031 | score=92.98 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2032 | score=92.74 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2033 | score=92.50 | família=tesouro | regime=ipca
+  [OK] Tesouro IPCA+ com Juros Semestrais 2037 | score=92.34 | família=tesouro | regime=ipca
+  [OK] Tesouro Educa+ 2034 | score=92.22 | família=tesouro | regime=ipca
 
 === RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS ===
-[OK] Carteira — 178 linhas, 26 colunas
+[OK] Carteira — 160 linhas, 26 colunas
   colunas (primeiras 8): Nome, Taxa_Base_CDI, Taxa_Bonus_CDI, Dias_Bonus, Prazo_Dias, Carência_Dias, Isento_IR, Aplicação_Mínima
 [OK] Inventário de Lotes — 39 linhas, 4 colunas
   colunas (primeiras 8): Lote (ID), Data Aplicação, Valor Original, Investimento
-[OK] Todos os Gastos — 212 linhas, 5 colunas
+[OK] Todos os Gastos — 214 linhas, 5 colunas
   colunas (primeiras 8): Data, Descrição, Valor, Pago, Lote usado

@@ -252,7 +252,8 @@ def carregar_replay_passado_controlado(
         return PacoteReplayPassadoControlado(lotes_base, pd.DataFrame(), estado, auditoria, validacao)
 
     data_inicial = min(l.data_aplicacao for l in lotes_base)
-    data_final = max(contas_pagas['data'])
+    data_final_historico = max(contas_pagas['data'])
+    data_final = max(data_final_historico, data_referencia)
     log_registros: list[dict[str, Any]] = []
     inconsistencias: list[dict[str, Any]] = []
     contas_por_data: dict[date, list[dict[str, Any]]] = {}
@@ -270,9 +271,26 @@ def carregar_replay_passado_controlado(
     qtd_sem_lote = 0
     qtd_nao_encontrado = 0
     qtd_alias_resolvido = 0
+    qtd_fechamentos_referencia_com_fallback = 0
+    auditoria_fechamento_referencia: list[dict[str, Any]] = []
 
     while data_atual <= data_final:
-        atualizar_saldo_lotes_no_dia(lotes_base, data_atual, calendario_financeiro, serie_cdi=serie_cdi, taxa_proj=calendario_financeiro.taxa_dia_base)
+        info_capitalizacao = atualizar_saldo_lotes_no_dia(
+            lotes_base,
+            data_atual,
+            calendario_financeiro,
+            serie_cdi=serie_cdi,
+            taxa_proj=calendario_financeiro.taxa_dia_base,
+            data_fechamento_referencia=data_referencia,
+        )
+        if info_capitalizacao.get('fallback'):
+            qtd_fechamentos_referencia_com_fallback += 1
+            auditoria_fechamento_referencia.append({
+                'data_valuation': data_atual,
+                'data_fator_utilizado': info_capitalizacao.get('data_fator'),
+                'fonte': info_capitalizacao.get('fonte'),
+                'qtd_lotes_atualizados': info_capitalizacao.get('qtd_lotes_atualizados'),
+            })
         for conta in contas_por_data.get(data_atual, []):
             qtd_contas_processadas += 1
             valor = float(conta.get('valor') or 0.0)
@@ -388,6 +406,10 @@ def carregar_replay_passado_controlado(
         'qtd_lotes_informados_nao_encontrados': int(qtd_nao_encontrado),
         'qtd_movimentos_log': int(len(log_df)),
         'qtd_lotes_remanescentes_ativos': int(sum(1 for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)),
+        'data_final_historico_replay': data_final_historico,
+        'data_final_valuation_referencia': data_final,
+        'qtd_fechamentos_referencia_com_fallback_cdi': int(qtd_fechamentos_referencia_com_fallback),
+        'amostra_fechamento_referencia': auditoria_fechamento_referencia[0] if auditoria_fechamento_referencia else None,
         'total_valor_contas_historicas': arredondar_monetario(total_valor),
         'total_liquido_coberto': arredondar_monetario(total_coberto),
         'saldo_bruto_total_pos_replay': arredondar_monetario(saldo_bruto_pos),

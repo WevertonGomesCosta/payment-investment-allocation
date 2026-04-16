@@ -215,12 +215,61 @@ def eh_dia_util_bancario(data_atual: date, pacote: PacoteCalendarioFinanceiro) -
     return data_atual.weekday() < 5
 
 
-def is_dia_rendimento(data_atual: date, pacote: PacoteCalendarioFinanceiro, serie_cdi: Optional[Mapping[date, Any]] = None) -> bool:
+def obter_taxa_dia_rendimento(
+    data_atual: date,
+    pacote: PacoteCalendarioFinanceiro,
+    *,
+    serie_cdi: Optional[Mapping[date, Any]] = None,
+    taxa_proj: Optional[float] = None,
+    data_fechamento_referencia: Optional[date] = None,
+) -> tuple[bool, Optional[float], dict[str, Any]]:
     if data_atual in pacote.dias_sem_rendimento_bancario:
-        return False
+        return False, None, {'fonte': 'feriado_sem_rendimento', 'data_fator': None, 'fallback': False}
+
     if serie_cdi:
-        return data_atual in serie_cdi
-    return eh_dia_util_bancario(data_atual, pacote)
+        if data_atual in serie_cdi:
+            fator_dia = float(serie_cdi[data_atual])
+            return True, fator_dia - 1.0, {'fonte': 'serie_cdi_bcb', 'data_fator': data_atual, 'fallback': False}
+
+        permitir_fallback = (
+            data_fechamento_referencia is not None
+            and data_atual == data_fechamento_referencia
+            and eh_dia_util_bancario(data_atual, pacote)
+        )
+        if permitir_fallback:
+            datas_anteriores = [dt for dt in serie_cdi.keys() if isinstance(dt, date) and dt < data_atual]
+            if datas_anteriores:
+                data_fator = max(datas_anteriores)
+                fator_dia = float(serie_cdi[data_fator])
+                return True, fator_dia - 1.0, {
+                    'fonte': 'fallback_ultimo_fator_cdi',
+                    'data_fator': data_fator,
+                    'fallback': True,
+                }
+
+        return False, None, {'fonte': 'serie_cdi_sem_data', 'data_fator': None, 'fallback': False}
+
+    if eh_dia_util_bancario(data_atual, pacote):
+        taxa_uso = float(pacote.taxa_dia_base if taxa_proj is None else taxa_proj)
+        return True, taxa_uso, {'fonte': 'taxa_modelo', 'data_fator': data_atual, 'fallback': False}
+
+    return False, None, {'fonte': 'nao_eh_dia_util_bancario', 'data_fator': None, 'fallback': False}
+
+
+def is_dia_rendimento(
+    data_atual: date,
+    pacote: PacoteCalendarioFinanceiro,
+    serie_cdi: Optional[Mapping[date, Any]] = None,
+    *,
+    data_fechamento_referencia: Optional[date] = None,
+) -> bool:
+    aplicar, _, _ = obter_taxa_dia_rendimento(
+        data_atual,
+        pacote,
+        serie_cdi=serie_cdi,
+        data_fechamento_referencia=data_fechamento_referencia,
+    )
+    return bool(aplicar)
 
 
 def contar_dias_rendimento(
@@ -228,13 +277,15 @@ def contar_dias_rendimento(
     data_fim: date,
     pacote: PacoteCalendarioFinanceiro,
     serie_cdi: Optional[Mapping[date, Any]] = None,
+    *,
+    data_fechamento_referencia: Optional[date] = None,
 ) -> int:
     if data_fim <= data_inicio:
         return 0
     dias = 0
     atual = data_inicio + timedelta(days=1)
     while atual <= data_fim:
-        if is_dia_rendimento(atual, pacote, serie_cdi=serie_cdi):
+        if is_dia_rendimento(atual, pacote, serie_cdi=serie_cdi, data_fechamento_referencia=data_fechamento_referencia):
             dias += 1
         atual += timedelta(days=1)
     return dias

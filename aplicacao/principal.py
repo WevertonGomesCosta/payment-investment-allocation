@@ -20,7 +20,7 @@ from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_cano
 from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
 from nucleo.triagem_motor import carregar_triagem_motor
 from nucleo.leitor_planilha import carregar_planilha, construir_resumo_planilha
-from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo
+from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, construir_faixas_ir, construir_tabela_iof
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 
 
@@ -89,8 +89,7 @@ def _imprimir_tabela(colunas: Sequence[str], linhas: Sequence[dict[str, object]]
         print(' | '.join(_formatar_valor_tabela(linha.get(col)).ljust(larguras[col]) for col in colunas))
 
 
-def _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, config, data_referencia):
-    from nucleo.nucleo_financeiro_minimo import construir_tabela_iof, construir_faixas_ir
+def _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, config, data_referencia, serie_cdi=None):
     refs = (((config.get('auditoria') or {}).get('referencias_app_lotes')) or [])
     if not refs:
         return []
@@ -126,8 +125,94 @@ def _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, conf
             'Líquido modelo': liquido,
             'Líquido app': liquido_app,
             'Δ líquido': round(liquido - liquido_app, 2),
-            'Dias úteis': contar_dias_rendimento(lote.data_base_fiscal, data_referencia, calendario_financeiro),
+            'Dias úteis': contar_dias_rendimento(
+                lote.data_base_fiscal,
+                data_referencia,
+                calendario_financeiro,
+                serie_cdi=serie_cdi,
+                data_fechamento_referencia=data_referencia,
+            ),
             'Obs.': item.get('observacao') or '',
+        })
+    return linhas
+
+
+def _preparar_resumo_delta_lotes(auditoria_lotes_vs_app):
+    if not auditoria_lotes_vs_app:
+        return []
+    deltas_brutos = [abs(float(item.get('Δ bruto') or 0.0)) for item in auditoria_lotes_vs_app if item.get('Δ bruto') is not None]
+    deltas_liquidos = [abs(float(item.get('Δ líquido') or 0.0)) for item in auditoria_lotes_vs_app if item.get('Δ líquido') is not None]
+    return [
+        ('lotes críticos auditados', len(auditoria_lotes_vs_app)),
+        ('maior |Δ bruto|', round(max(deltas_brutos or [0.0]), 2)),
+        ('maior |Δ líquido|', round(max(deltas_liquidos or [0.0]), 2)),
+        ('soma |Δ bruto|', round(sum(deltas_brutos), 2)),
+        ('soma |Δ líquido|', round(sum(deltas_liquidos), 2)),
+    ]
+
+
+def _preparar_auditoria_lotes_residuais(replay_passado):
+    linhas = []
+    estado = replay_passado.estado_lotes_passado.copy()
+    if len(estado):
+        estado = estado[(estado['Saldo Após Replay'] > 0.0) & (estado['Saldo Após Replay'] <= 5.0)]
+        estado = estado.sort_values(by=['Saldo Após Replay', 'Lote ID'], ascending=[False, True], kind='stable')
+        for _, row in estado.iterrows():
+            vezes_usado = int(row.get('Vezes Usado no Replay') or 0)
+            saldo = float(row.get('Saldo Após Replay') or 0.0)
+            linhas.append({
+                'Tipo': 'micro-saldo',
+                'Referência': row.get('Lote ID'),
+                'Valor': round(saldo, 2),
+                'Classe provável': 'resíduo de saque/arredondamento' if vezes_usado > 0 else 'remanescente residual sem evidência de convenção',
+                'Leitura': f"vezes usado={vezes_usado}; saldo final pequeno em lote remanescente",
+            })
+
+    for item in (replay_passado.auditoria or {}).get('amostra_inconsistencias', []) or []:
+        valor_restante = float(item.get('valor_restante') or 0.0)
+        if valor_restante <= 0.0:
+            continue
+        classe = 'resíduo de saque/arredondamento' if valor_restante <= 1.0 else 'resíduo material do replay histórico'
+        linhas.append({
+            'Tipo': 'conta parcial',
+            'Referência': item.get('despesa_id') or item.get('descricao') or '',
+            'Valor': round(valor_restante, 2),
+            'Classe provável': classe,
+            'Leitura': f"data={item.get('data')} | lotes={item.get('lotes_informados') or item.get('lote_id') or ''}",
+        })
+
+    linhas.sort(key=lambda item: (0 if item.get('Tipo') == 'conta parcial' else 1, -float(item.get('Valor') or 0.0), str(item.get('Referência') or '')))
+    return linhas
+
+
+def _comparar_auditoria_lotes(auditoria_atual, auditoria_menos_1_dia, replay_passado=None, data_referencia=None):
+    por_lote_menos_1 = {item.get('Lote'): item for item in auditoria_menos_1_dia or []}
+    lotes_com_movimento_na_ref = set()
+    if replay_passado is not None and data_referencia is not None and hasattr(replay_passado, 'log_passado'):
+        try:
+            log = replay_passado.log_passado
+            if len(log):
+                lotes_com_movimento_na_ref = set(log[log['Data'] == data_referencia]['Lote'].dropna().astype(str).tolist())
+        except Exception:
+            lotes_com_movimento_na_ref = set()
+    linhas = []
+    for item in auditoria_atual or []:
+        lote = item.get('Lote')
+        base = por_lote_menos_1.get(lote) or {}
+        bruto_atual = item.get('Bruto modelo')
+        liquido_atual = item.get('Líquido modelo')
+        bruto_menos_1 = base.get('Bruto modelo')
+        liquido_menos_1 = base.get('Líquido modelo')
+        contaminado = lote in lotes_com_movimento_na_ref
+        linhas.append({
+            'Lote': lote,
+            'Bruto ref': bruto_atual,
+            'Bruto ref-1d': bruto_menos_1,
+            'Δ 1d bruto': None if contaminado or bruto_atual is None or bruto_menos_1 is None else round(float(bruto_atual) - float(bruto_menos_1), 2),
+            'Líquido ref': liquido_atual,
+            'Líquido ref-1d': liquido_menos_1,
+            'Δ 1d líquido': None if contaminado or liquido_atual is None or liquido_menos_1 is None else round(float(liquido_atual) - float(liquido_menos_1), 2),
+            'Obs.': 'houve saque na data de referência; teste -1d não isola só rendimento' if contaminado else '',
         })
     return linhas
 
@@ -175,6 +260,31 @@ def main() -> None:
         serie_cdi=cache_cdi.serie_cdi,
     )
 
+    data_referencia_menos_1_dia = contexto.data_referencia - timedelta(days=1)
+    calendario_financeiro_menos_1_dia = construir_calendario_financeiro(pacote_config.conteudo, data_referencia=data_referencia_menos_1_dia)
+    dados_operacionais_menos_1_dia = carregar_dados_operacionais_canonicos(
+        pacote_planilha,
+        pacote_config.conteudo,
+        data_referencia=data_referencia_menos_1_dia,
+        carteira_canonica=carteira_canonica,
+    )
+    nucleo_financeiro_menos_1_dia = carregar_nucleo_financeiro_minimo(
+        dados_operacionais_menos_1_dia,
+        carteira_canonica,
+        calendario_financeiro_menos_1_dia,
+        pacote_config.conteudo,
+        data_referencia=data_referencia_menos_1_dia,
+        serie_cdi=cache_cdi.serie_cdi,
+    )
+    replay_passado_menos_1_dia = carregar_replay_passado_controlado(
+        dados_operacionais_menos_1_dia,
+        nucleo_financeiro_menos_1_dia,
+        calendario_financeiro_menos_1_dia,
+        pacote_config.conteudo,
+        data_referencia=data_referencia_menos_1_dia,
+        serie_cdi=cache_cdi.serie_cdi,
+    )
+
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
     resumo_por_aba = {item['nome_aba']: item for item in resumo_planilha}
     abas_cfg = pacote_config.conteudo.get('abas', {}) if isinstance(pacote_config.conteudo.get('abas'), dict) else {}
@@ -191,7 +301,7 @@ def main() -> None:
     ]
     abas_auxiliares = [nome for nome in pacote_planilha.nomes_abas if nome not in {aba for _, aba in abas_primarias_reais}]
     exemplo_inicio = contexto.data_referencia.replace(day=1)
-    dias_rendimento_mes = contar_dias_rendimento(exemplo_inicio - timedelta(days=1), contexto.data_referencia, calendario_financeiro)
+    dias_rendimento_mes = contar_dias_rendimento(exemplo_inicio - timedelta(days=1), contexto.data_referencia, calendario_financeiro, serie_cdi=cache_cdi.serie_cdi, data_fechamento_referencia=contexto.data_referencia)
 
     validacao_carteira = carteira_canonica.validacao or {}
     resumo_inventario = dados_operacionais.auditoria_inventario.get('resumo', {})
@@ -207,9 +317,15 @@ def main() -> None:
     validacao_nucleo = nucleo_financeiro.validacao or {}
     auditoria_cache_cdi = cache_cdi.auditoria or {}
     validacao_cache_cdi = cache_cdi.validacao or {}
+    data_ultimo_fator_cdi = max(cache_cdi.serie_cdi.keys()) if cache_cdi.serie_cdi else None
     auditoria_replay = replay_passado.auditoria or {}
     validacao_replay = replay_passado.validacao or {}
-    auditoria_lotes_vs_app = _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia)
+    auditoria_lotes_vs_app = _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
+    auditoria_lotes_vs_app_menos_1_dia = _preparar_auditoria_lotes_vs_app(replay_passado_menos_1_dia, calendario_financeiro_menos_1_dia, pacote_config.conteudo, data_referencia_menos_1_dia, serie_cdi=cache_cdi.serie_cdi)
+    auditoria_residual_lotes = _preparar_auditoria_lotes_residuais(replay_passado)
+    comparativo_menos_1_dia = _comparar_auditoria_lotes(auditoria_lotes_vs_app, auditoria_lotes_vs_app_menos_1_dia, replay_passado=replay_passado, data_referencia=contexto.data_referencia)
+
+    resumo_deltas_lotes_vs_app = _preparar_resumo_delta_lotes(auditoria_lotes_vs_app)
 
     severidade_carteira = _severidade(erros=validacao_carteira.get('erros'), avisos=validacao_carteira.get('avisos'), condicao_ok=bool(validacao_carteira.get('ok', True)))
     severidade_inventario = _severidade(erros=validacao_inventario.get('erros'), avisos=validacao_inventario.get('avisos'), condicao_ok=bool(validacao_inventario.get('ok', True)))
@@ -225,7 +341,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V29'),
+        ('versão', 'V31'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -264,6 +380,7 @@ def main() -> None:
     _imprimir_pares([
         ('data inicial da consulta', auditoria_cache_cdi.get('data_inicial_consulta')),
         ('data final da consulta', auditoria_cache_cdi.get('data_final_consulta')),
+        ('última data com fator no cache', data_ultimo_fator_cdi),
         ('fonte da série', auditoria_cache_cdi.get('fonte_serie_cdi')),
         ('status do fetch', auditoria_cache_cdi.get('fetch_status')),
         ('caminho do cache', auditoria_cache_cdi.get('caminho_cache')),
@@ -413,6 +530,8 @@ def main() -> None:
         ('lotes com taxa default', auditoria_nucleo.get('qtd_lotes_com_taxa_default', 0)),
         ('lotes com carência', auditoria_nucleo.get('qtd_lotes_com_carencia', 0)),
         ('lotes exauridos ignorados', auditoria_nucleo.get('qtd_lotes_ignorados_exauridos', 0)),
+        ('data final valuation ref. completa', auditoria_nucleo.get('data_final_valuation_referencia')),
+        ('fechamentos da referência com fallback CDI', auditoria_nucleo.get('qtd_fechamentos_referencia_com_fallback_cdi', 0)),
         ('saldo bruto ref. sem replay', auditoria_nucleo.get('saldo_bruto_total_referencia_sem_replay', 0.0)),
         ('saldo líquido ref. sem replay', auditoria_nucleo.get('saldo_liquido_total_referencia_sem_replay', 0.0)),
     ])
@@ -420,6 +539,10 @@ def main() -> None:
     if amostra_saque:
         print('- amostra de saque no núcleo mínimo (auditoria técnica):')
         print(f"  [OK] lote={amostra_saque.get('lote_id')} | bruto={amostra_saque.get('bruto')} | liquido={amostra_saque.get('liquido')} | imposto={amostra_saque.get('imposto')} | saldo_remanescente={amostra_saque.get('saldo_remanescente')}")
+    amostra_fechamento_nucleo = auditoria_nucleo.get('amostra_fechamento_referencia') or {}
+    if amostra_fechamento_nucleo:
+        print('- amostra de fechamento da referência no núcleo mínimo:')
+        print(f"  [OK] data_valuation={amostra_fechamento_nucleo.get('data_valuation')} | data_fator_utilizado={amostra_fechamento_nucleo.get('data_fator_utilizado')} | fonte={amostra_fechamento_nucleo.get('fonte')} | lotes_atualizados={amostra_fechamento_nucleo.get('qtd_lotes_atualizados')}")
     _imprimir_itens_severidade('erros de validação', validacao_nucleo.get('erros'), 'ERRO')
     _imprimir_itens_severidade('avisos de validação', validacao_nucleo.get('avisos'), 'AVISO')
 
@@ -438,6 +561,9 @@ def main() -> None:
         ('lotes informados nao encontrados', auditoria_replay.get('qtd_lotes_informados_nao_encontrados', 0)),
         ('movimentos no log', auditoria_replay.get('qtd_movimentos_log', 0)),
         ('lotes remanescentes ativos', auditoria_replay.get('qtd_lotes_remanescentes_ativos', 0)),
+        ('data final histórica do replay', auditoria_replay.get('data_final_historico_replay')),
+        ('data final valuation ref. completa', auditoria_replay.get('data_final_valuation_referencia')),
+        ('fechamentos da referência com fallback CDI', auditoria_replay.get('qtd_fechamentos_referencia_com_fallback_cdi', 0)),
         ('valor contas historicas', auditoria_replay.get('total_valor_contas_historicas', 0.0)),
         ('liquido coberto', auditoria_replay.get('total_liquido_coberto', 0.0)),
         ('saldo bruto pos replay', auditoria_replay.get('saldo_bruto_total_pos_replay', 0.0)),
@@ -447,6 +573,10 @@ def main() -> None:
     if amostra_replay:
         print('- amostra do log de replay do passado:')
         print(f"  [OK] data={amostra_replay.get('Data')} | lote={amostra_replay.get('Lote')} | conta={amostra_replay.get('Conta')} | bruto={amostra_replay.get('Bruto')} | liquido={amostra_replay.get('Liquido')} | saldo_remanescente={amostra_replay.get('Saldo Remanescente')}")
+    amostra_fechamento_replay = auditoria_replay.get('amostra_fechamento_referencia') or {}
+    if amostra_fechamento_replay:
+        print('- amostra de fechamento da referência no replay:')
+        print(f"  [OK] data_valuation={amostra_fechamento_replay.get('data_valuation')} | data_fator_utilizado={amostra_fechamento_replay.get('data_fator_utilizado')} | fonte={amostra_fechamento_replay.get('fonte')} | lotes_atualizados={amostra_fechamento_replay.get('qtd_lotes_atualizados')}")
     amostras_alias_replay = auditoria_replay.get('amostra_alias_historicos_resolvidos') or []
     if amostras_alias_replay:
         print('- amostras de aliases historicos resolvidos no replay:')
@@ -477,12 +607,27 @@ def main() -> None:
     _imprimir_titulo('AUDITORIA COMPARATIVA DOS LOTES VS APP')
     _imprimir_linha_status('Comparação entre posição do modelo e valores observados nos apps', 'AVISO' if auditoria_lotes_vs_app else 'OK', 'auditoria comparativa de referência para os lotes críticos')
     if auditoria_lotes_vs_app:
+        _imprimir_pares(resumo_deltas_lotes_vs_app)
         _imprimir_tabela(
             ['Lote', 'Bruto modelo', 'Bruto app', 'Δ bruto', 'Líquido modelo', 'Líquido app', 'Δ líquido', 'Dias úteis', 'Obs.'],
             auditoria_lotes_vs_app,
         )
     else:
         print('  [OK] sem referências de app configuradas para auditoria comparativa')
+
+    _imprimir_titulo('REAUDITORIA DOS LOTES RESIDUAIS')
+    _imprimir_linha_status('Separação entre efeito de convenção temporal e resíduo de saque/arredondamento', 'AVISO' if auditoria_residual_lotes else 'OK', 'resíduos pequenos remanescentes após corrigir a data de referência completa')
+    if auditoria_residual_lotes:
+        _imprimir_tabela(['Tipo', 'Referência', 'Valor', 'Classe provável', 'Leitura'], auditoria_residual_lotes, limite=12)
+    else:
+        print('  [OK] sem lotes residuais relevantes ou micro-resíduos nesta execução')
+
+    _imprimir_titulo('TESTE DE -1 DIA DE RENDIMENTO')
+    _imprimir_linha_status('Comparação da posição crítica entre a referência completa e a referência menos 1 dia', 'OK', f"ref={contexto.data_referencia.isoformat()} vs ref-1d={data_referencia_menos_1_dia.isoformat()}")
+    _imprimir_tabela(
+        ['Lote', 'Bruto ref', 'Bruto ref-1d', 'Δ 1d bruto', 'Líquido ref', 'Líquido ref-1d', 'Δ 1d líquido', 'Obs.'],
+        comparativo_menos_1_dia,
+    )
 
     _imprimir_titulo('TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1')
     _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase')
