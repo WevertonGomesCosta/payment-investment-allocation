@@ -185,6 +185,104 @@ def _preparar_auditoria_lotes_residuais(replay_passado):
     return linhas
 
 
+def _preparar_auditoria_detalhada_residuos(replay_passado, config, data_referencia):
+    tabela_iof = construir_tabela_iof(config)
+    faixas_ir = construir_faixas_ir(config)
+    lotes_por_id = {l.id: l for l in replay_passado.lotes_apos_replay}
+    estado = replay_passado.estado_lotes_passado.copy()
+    log = replay_passado.log_passado.copy()
+    linhas = []
+
+    inconsistencias = ((replay_passado.auditoria or {}).get('amostra_inconsistencias') or [])
+    for item in inconsistencias:
+        valor_restante = round(float(item.get('valor_restante') or 0.0), 2)
+        if valor_restante <= 0.0:
+            continue
+        despesa_id = str(item.get('despesa_id') or '').strip()
+        sub = log[log['Despesa ID'].astype(str) == despesa_id].copy() if len(log) else log
+        lote = str(sub.iloc[-1]['Lote']) if len(sub) else str(item.get('lotes_informados') or item.get('lote_id') or '')
+        liquido_coberto = round(float(sub['Liquido'].sum()), 2) if len(sub) else round(float(item.get('valor_conta') or 0.0) - valor_restante, 2)
+        saldo_final_evento = round(float(sub.iloc[-1]['Saldo Remanescente']), 2) if len(sub) else None
+        lote_zerado = saldo_final_evento is not None and saldo_final_evento <= 0.01
+        origem = 'teto líquido do lote no esgotamento' if lote_zerado else 'déficit residual após saque parcial'
+        evid = f"lote={lote} | coberto={liquido_coberto:.2f} | faltou={valor_restante:.2f}"
+        if saldo_final_evento is not None:
+            evid += f" | saldo pós-evento={saldo_final_evento:.2f}"
+        leitura = 'não há evidência de convenção temporal remanescente; a falta aparece no próprio evento histórico de saque'
+        linhas.append({
+            'Tipo': 'conta parcial',
+            'Referência': despesa_id,
+            'Valor': valor_restante,
+            'Origem provável': origem,
+            'Evidência-chave': evid,
+            'Leitura': leitura,
+        })
+
+    if len(estado):
+        estado = estado[(estado['Saldo Após Replay'] > 0.0) & (estado['Saldo Após Replay'] <= 5.0)]
+        estado = estado.sort_values(by=['Saldo Após Replay', 'Lote ID'], ascending=[False, True], kind='stable')
+        for _, row in estado.iterrows():
+            lote_id = str(row.get('Lote ID') or '')
+            saldo = round(float(row.get('Saldo Após Replay') or 0.0), 2)
+            situacao = str(row.get('Situacao Investimento') or '')
+            vezes_usado = int(row.get('Vezes Usado no Replay') or 0)
+            principal_rem = round(float(row.get('Principal Remanescente') or 0.0), 2)
+            valor_inicial = round(float(row.get('Valor Inicial') or 0.0), 2)
+            lote = lotes_por_id.get(lote_id)
+            saldo_liquido_ref = None if lote is None else round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+            sub = log[log['Lote'].astype(str) == lote_id].copy() if len(log) else log
+            ultimo = sub.iloc[-1] if len(sub) else None
+            liquido_total = round(float(sub['Liquido'].sum()), 2) if len(sub) else 0.0
+            bruto_total = round(float(sub['Bruto'].sum()), 2) if len(sub) else 0.0
+            saldo_pos_ultimo = round(float(ultimo['Saldo Remanescente']), 2) if ultimo is not None else saldo
+            if situacao == 'nao_aportado_exaurido':
+                origem = 'remanescente por rendimento histórico'
+                leitura = 'o lote histórico marcado como exaurido ainda acumulou rendimento até o último uso; o resíduo não nasce do fechamento temporal global'
+            elif saldo <= 0.10:
+                origem = 'micro-saldo centesimal pós-saques'
+                leitura = 'o saldo final é muito pequeno e compatível com efeito acumulado de conversão líquido→bruto e arredondamento monetário'
+            else:
+                origem = 'saldo residual após saque líquido-alvo'
+                leitura = 'os saques cobriram exatamente as contas históricas informadas, mas preservaram um pequeno saldo bruto remanescente no lote'
+            evid = f"usos={vezes_usado} | bruto sacado={bruto_total:.2f} | líquido sacado={liquido_total:.2f} | principal rem={principal_rem:.2f}"
+            if ultimo is not None:
+                data_ult = ultimo['Data']
+                data_ult_txt = data_ult.isoformat() if hasattr(data_ult, 'isoformat') else str(data_ult)
+                evid += f" | último saque={data_ult_txt} | saldo pós-último={saldo_pos_ultimo:.2f}"
+            if saldo_liquido_ref is not None:
+                evid += f" | líquido ref={saldo_liquido_ref:.2f}"
+            if abs(liquido_total - valor_inicial) <= 0.01:
+                leitura += '; o líquido total sacado ficou praticamente igual ao valor inicial do lote'
+            linhas.append({
+                'Tipo': 'micro-saldo',
+                'Referência': lote_id,
+                'Valor': saldo,
+                'Origem provável': origem,
+                'Evidência-chave': evid,
+                'Leitura': leitura,
+            })
+
+    linhas.sort(key=lambda item: (0 if item.get('Tipo') == 'conta parcial' else 1, -float(item.get('Valor') or 0.0), str(item.get('Referência') or '')))
+    return linhas
+
+
+def _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada):
+    if not auditoria_detalhada:
+        return []
+    resumo_origem: dict[str, int] = {}
+    for item in auditoria_detalhada:
+        chave = str(item.get('Origem provável') or 'não classificado')
+        resumo_origem[chave] = resumo_origem.get(chave, 0) + 1
+    pares = [
+        ('resíduos auditados', len(auditoria_detalhada)),
+        ('contas parciais auditadas', sum(1 for item in auditoria_detalhada if item.get('Tipo') == 'conta parcial')),
+        ('micro-saldos auditados', sum(1 for item in auditoria_detalhada if item.get('Tipo') == 'micro-saldo')),
+    ]
+    for chave, valor in sorted(resumo_origem.items(), key=lambda kv: (-kv[1], kv[0])):
+        pares.append((f"origem: {chave}", valor))
+    return pares
+
+
 def _comparar_auditoria_lotes(auditoria_atual, auditoria_menos_1_dia, replay_passado=None, data_referencia=None):
     por_lote_menos_1 = {item.get('Lote'): item for item in auditoria_menos_1_dia or []}
     lotes_com_movimento_na_ref = set()
@@ -323,9 +421,11 @@ def main() -> None:
     auditoria_lotes_vs_app = _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
     auditoria_lotes_vs_app_menos_1_dia = _preparar_auditoria_lotes_vs_app(replay_passado_menos_1_dia, calendario_financeiro_menos_1_dia, pacote_config.conteudo, data_referencia_menos_1_dia, serie_cdi=cache_cdi.serie_cdi)
     auditoria_residual_lotes = _preparar_auditoria_lotes_residuais(replay_passado)
+    auditoria_detalhada_residuos = _preparar_auditoria_detalhada_residuos(replay_passado, pacote_config.conteudo, contexto.data_referencia)
     comparativo_menos_1_dia = _comparar_auditoria_lotes(auditoria_lotes_vs_app, auditoria_lotes_vs_app_menos_1_dia, replay_passado=replay_passado, data_referencia=contexto.data_referencia)
 
     resumo_deltas_lotes_vs_app = _preparar_resumo_delta_lotes(auditoria_lotes_vs_app)
+    resumo_detalhado_residuos = _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada_residuos)
 
     severidade_carteira = _severidade(erros=validacao_carteira.get('erros'), avisos=validacao_carteira.get('avisos'), condicao_ok=bool(validacao_carteira.get('ok', True)))
     severidade_inventario = _severidade(erros=validacao_inventario.get('erros'), avisos=validacao_inventario.get('avisos'), condicao_ok=bool(validacao_inventario.get('ok', True)))
@@ -341,7 +441,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V31'),
+        ('versão', 'V32'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -621,6 +721,14 @@ def main() -> None:
         _imprimir_tabela(['Tipo', 'Referência', 'Valor', 'Classe provável', 'Leitura'], auditoria_residual_lotes, limite=12)
     else:
         print('  [OK] sem lotes residuais relevantes ou micro-resíduos nesta execução')
+
+    _imprimir_titulo('AUDITORIA DETALHADA DOS RESÍDUOS DE SAQUE/ARREDONDAMENTO')
+    _imprimir_linha_status('Rastreamento causal dos resíduos no nível do evento histórico', 'AVISO' if auditoria_detalhada_residuos else 'OK', 'separa teto líquido do lote, micro-saldo centesimal e remanescente por rendimento histórico')
+    if auditoria_detalhada_residuos:
+        _imprimir_pares(resumo_detalhado_residuos)
+        _imprimir_tabela(['Tipo', 'Referência', 'Valor', 'Origem provável', 'Evidência-chave', 'Leitura'], auditoria_detalhada_residuos, limite=12)
+    else:
+        print('  [OK] sem resíduos detalhados para rastrear nesta execução')
 
     _imprimir_titulo('TESTE DE -1 DIA DE RENDIMENTO')
     _imprimir_linha_status('Comparação da posição crítica entre a referência completa e a referência menos 1 dia', 'OK', f"ref={contexto.data_referencia.isoformat()} vs ref-1d={data_referencia_menos_1_dia.isoformat()}")

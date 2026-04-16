@@ -345,7 +345,7 @@
   "execucao": {
     "timezone": "America/Sao_Paulo",
     "nivel_log": "INFO",
-    "data_referencia_simulacao": null,
+    "data_referencia_simulacao": "2026-04-15",
     "convencao_dias_ano": {
       "cdi": 252,
       "selic_percentual": 252,
