@@ -170,3 +170,10 @@ A V24 reforça o replay controlado do passado para consumir explicitamente lotes
 ## Atualização operacional V26
 
 A baseline passa a suportar cache diário do CDI do BCB para auditoria e replay, com janela iniciando no primeiro dia do mês do primeiro pagamento/recebido até a data de referência. Na indisponibilidade da série diária, o sistema deve fazer fallback controlado para a taxa de modelo, sem interromper a execução local.
+
+
+## Atualização operacional V38
+
+### Regra canônica de disponibilidade temporal do lote
+
+> Quando um lote possuir `Data Recebimento` e `Data Aplicação` distintas, o valor deve ser tratado como **caixa pré-aplicação** no intervalo entre essas datas. Nessa janela, o lote já pode ser usado para pagamentos, mas ainda **não rende**, **não sofre tributação de investimento** e **não obedece à carência do produto**. O regime financeiro do investimento só passa a valer a partir da efetiva `Data Aplicação`.

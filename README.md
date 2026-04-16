@@ -11,21 +11,19 @@ financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V29
+**Versão atual da baseline:** V38
 
-A V21 preserva a baseline fixa da fase atual, remove a dependência de fallback nominal específico no matching canônico e enquadra explicitamente o score v1 apenas como triagem preliminar proxy do motor:
+A baseline atual já consolidou:
 
-- carteira canônica e `produto_key`;
-- inventário canônico;
-- gastos canônicos;
-- calendário financeiro neutro e taxas/CDI base;
-- lotes shadow normalizados;
-- eventos brutos de aporte histórico;
-- reconciliação observado vs shadow;
-- trilha técnica ordenada de eventos;
-- matching canônico reforçado dos produtos aportados;
-- resumo shadow mais consolidado no console;
-- validação local da baseline.
+- leitura canônica das abas `Carteira`, `Inventário de Lotes` e `Todos os Gastos`;
+- cache diário de CDI com fallback controlado;
+- núcleo financeiro mínimo e replay controlado do passado;
+- auditoria comparativa contra app para os lotes críticos;
+- regra geral de transição entre `Data Recebimento` e `Data Aplicação`.
+
+### Regra canônica ativa da baseline
+
+> Quando um lote possuir `Data Recebimento` e `Data Aplicação` distintas, o valor deve ser tratado como **caixa pré-aplicação** no intervalo entre essas datas. Nessa janela, o lote já pode ser usado para pagamentos, mas ainda **não rende**, **não sofre tributação de investimento** e **não obedece à carência do produto**. O regime financeiro do investimento só passa a valer a partir da efetiva `Data Aplicação`.
 
 A regra de trabalho do projeto continua sendo:
 
@@ -33,72 +31,21 @@ A regra de trabalho do projeto continua sendo:
 > semântica confiável; as decisões de migração e unificação devem seguir a
 > responsabilidade real das funções.
 
-## Estrutura atual do repositório
-
-```text
-.
-├── .editorconfig
-├── .gitattributes
-├── .gitignore
-├── LICENSE
-├── README.md
-├── payment-investment-allocation.Rproj
-├── requirements.txt
-├── aplicacao/
-│   └── principal.py
-├── nucleo/
-│   ├── __init__.py
-│   ├── ambiente.py
-│   ├── carregador_config.py
-│   ├── leitor_planilha.py
-│   ├── carteira_canonica.py
-│   ├── dados_operacionais_canonicos.py
-│   ├── calendario_financeiro.py
-│   ├── switching_shadow_reconciliacao.py
-│   ├── triagem_motor.py
-│   └── utilitarios_neutros.py
-├── scripts/
-│   └── inspecionar_base.py
-├── dados/
-│   ├── config_atualizado.json
-│   ├── dados_financeiros.xlsx
-│   ├── bruto/
-│   │   └── .gitkeep
-│   ├── intermediario/
-│   │   └── .gitkeep
-│   └── processado/
-│       └── .gitkeep
-├── saidas/
-│   └── .gitkeep
-├── relatorios/
-│   ├── .gitkeep
-│   ├── AUDITORIA_ARQUITETURAL_V3.md
-│   ├── CONTRATO_OPERACIONAL_PROJETO.md
-│   ├── BASELINE_FIXA_V18.md
-│   ├── BASELINE_FIXA_V21.md
-│   ├── BASELINE_FIXA_V24.md
-│   ├── VALIDACAO_LOCAL_V18.md
-│   └── VALIDACAO_LOCAL_V21.md
-│   └── VALIDACAO_LOCAL_V24.md
-└── testes/
-    └── .gitkeep
-```
-
 ## Documento-base oficial
 
-O arquivo oficial de regras da fase atual é:
+Os documentos oficiais da fase atual são:
 
 - `relatorios/CONTRATO_OPERACIONAL_PROJETO.md`
+- `relatorios/BASELINE_FIXA_V38.md`
 
-Esse documento deve ser tratado como a referência principal para:
+Esses arquivos devem ser tratados como a referência principal para:
 - reavaliação da baseline;
 - auditoria dos scripts-base;
 - validação de novas regras;
 - futuras alterações organizadas do projeto.
 
-A validação local executada antes desta entrega está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V18.md`
-- `relatorios/VALIDACAO_LOCAL_V21.md`
+A validação local mais recente está registrada em:
+- `relatorios/VALIDACAO_LOCAL_V38.md`
 
 ## Entradas canônicas atuais
 
@@ -106,70 +53,6 @@ A baseline atual utiliza como entradas principais:
 
 - `dados/config_atualizado.json`
 - `dados/dados_financeiros.xlsx`
-
-A convenção oficial da baseline reconstruída permanece sendo a pasta `dados/`.
-
-## Núcleo compartilhado inicial
-
-### `nucleo/ambiente.py`
-Responsável por:
-- detecção da raiz do repositório;
-- warnings seletivos de rede;
-- verificação e instalação opcional de dependências por import real;
-- contexto mínimo de timezone.
-
-### `nucleo/carregador_config.py`
-Responsável por:
-- descoberta do config canônico;
-- leitura do JSON de configuração;
-- suporte a lista ordenada de configs candidatos;
-- suporte a variável de ambiente;
-- helpers seguros para leitura de chaves aninhadas.
-
-### `nucleo/leitor_planilha.py`
-Responsável por:
-- descoberta da planilha canônica;
-- carregamento estrutural das abas;
-- leitura inicial da planilha;
-- canonização inicial de colunas com base nos aliases do config.
-
-### `nucleo/carteira_canonica.py`
-Responsável por:
-- leitura restrita da aba `Carteira` no contexto atual;
-- construção da carteira canônica inicial;
-- geração de `produto_key`;
-- mapa canônico simples de produtos;
-- validação estrutural da aba `Carteira`.
-
-### `nucleo/dados_operacionais_canonicos.py`
-Responsável por:
-- leitura restrita de `Inventário de Lotes` e `Todos os Gastos`;
-- construção do inventário canônico;
-- construção dos gastos canônicos;
-- classificação operacional mínima;
-- separação estrutural entre passado pago e futuro/pendente.
-
-### `nucleo/calendario_financeiro.py`
-Responsável por:
-- calendário financeiro neutro;
-- geração de dias sem rendimento bancário;
-- contagem de dias de rendimento;
-- cálculo da taxa diária base do CDI;
-- metadados neutros de série CDI, sem fetch de rede.
-
-## O que esta baseline ainda não implementa
-
-Esta baseline ainda não implementa:
-- contratos finais de entidades de domínio;
-- motores de pagamento;
-- motores de switching;
-- adaptadores remotos;
-- reconstrução histórica profunda de lotes;
-- regras profundas de IR/IOF;
-- avaliação conjunta final de cenários.
-
-Essas camadas só devem ser abertas depois de novas auditorias comparativas dos
-scripts-base.
 
 ## Uso mínimo
 
@@ -191,16 +74,6 @@ ou:
 python scripts/inspecionar_base.py
 ```
 
-A saída atual do console foi organizada em blocos curtos para facilitar a
-validação incremental da baseline. Nesta V16, a execução local mínima foi
-realizada antes da entrega. Ela deve mostrar, no mínimo:
-- caminhos principais resolvidos;
-- contexto de ambiente;
-- relatório de dependências;
-- abas encontradas;
-- abas primárias do contrato;
-- resumo estrutural da planilha.
-
 ## Princípios mantidos nesta baseline
 
 - config canônico único;
@@ -208,50 +81,4 @@ realizada antes da entrega. Ela deve mostrar, no mínimo:
 - modularização incremental;
 - auditoria por responsabilidade real;
 - reauditoria da base antes de cada nova migração;
-- nenhuma correção estrutural profunda no núcleo financeiro antes da hora;
 - entrega do repositório completo em `.zip` a cada versão.
-
-## Próximo passo recomendado
-
-O próximo passo mais seguro continua sendo a auditoria comparativa dos
-scripts-base antes da criação de entidades finais, validadores semânticos
-profundos ou módulos de negócio mais específicos.
-
-
-## Atualização V21
-
-- a aba `Carteira` passa a ser tratada como universo único de produtos da baseline;
-- a planilha canônica do repositório foi atualizada com a nova base fixa enviada;
-- a filtragem do motor passou a ser feita programaticamente por um **score v1** multicritério e auditável;
-- a triagem continua sem abrir replay, núcleo financeiro completo, switching econômico ou otimização profunda.
-
-
-## Observações da baseline
-
-- Parte dos metadados estruturais da aba `Carteira` ainda é derivada em código como **ponte transitória** até maior estruturação da planilha.
-- A triagem do motor permanece **preliminar proxy** e com **calibração conservadora** nesta fase.
-
-
-## Atualização V22
-
-A V23 abre o **replay controlado do passado** sobre o núcleo financeiro mínimo já implementado, reconciliando pagamentos históricos com lotes explicitamente informados, sem abrir switching econômico, score econômico final, solver ou relatório financeiro atual.
-
-
-## Atualização V23
-
-A V23 abre o **replay controlado do passado** sobre o núcleo financeiro mínimo já implementado, reconciliando pagamentos históricos com lotes explicitamente informados, sem abrir switching econômico, score econômico final, solver ou relatório financeiro atual.
-
-
-## Atualização V24
-
-A V24 reforça o replay controlado do passado para materializar corretamente os lotes históricos não aportados marcados com `Investimento='-'` e também resolver aliases históricos auditáveis como `Lote 7800 abr.` -> `Lote 8000 abr.` quando houver correspondência estrutural suficiente.
-
-
-## Atualização V28
-
-A V28 corrige o modelo base em três frentes antes de qualquer nova camada econômica: reduz o arredondamento interno diário do saldo dos lotes, melhora a exaustão do lote no saque quando o alvo líquido praticamente consome todo o valor disponível e implementa a camada de cache diário do CDI do BCB, com janela iniciando no primeiro dia do mês do primeiro pagamento/recebido até a data de referência. Quando a série do BCB não estiver disponível, a baseline faz fallback controlado para a taxa de modelo.
-
-
-## Atualização V29
-
-A V29 mantém a baseline funcional da V28 e adiciona duas melhorias de auditoria: (1) uma tabela comparativa no console para os lotes críticos auditados contra os valores observados nos apps e (2) uma tabela de inconsistências do replay controlado mostrando explicitamente a despesa, valor e lote(s) informados quando houver aviso de cobertura parcial ou não cobertura.
