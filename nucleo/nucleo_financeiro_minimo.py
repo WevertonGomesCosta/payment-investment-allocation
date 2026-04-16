@@ -24,7 +24,12 @@ from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Mapping, Optional
 
-from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro, obter_taxa_dia_rendimento
+from nucleo.calendario_financeiro import (
+    PacoteCalendarioFinanceiro,
+    eh_dia_util_bancario,
+    obter_taxa_dia_rendimento,
+    proximo_dia_util_bancario_em_ou_apos,
+)
 from nucleo.carteira_canonica import PacoteCarteiraCanonica
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
 from nucleo.utilitarios_neutros import arredondar_monetario, limpar_texto, para_bool, para_float_monetario, para_int
@@ -79,16 +84,26 @@ class Lote:
         self.nao_disponivel_para_aporte = bool(nao_disponivel_para_aporte)
         self.situacao_investimento = str(situacao_investimento or '').strip()
 
-    def get_taxa_dia(self, data_atual: date) -> float:
+    def get_taxa_dia(self, data_atual: date, pacote_calendario: Optional[PacoteCalendarioFinanceiro] = None) -> float:
         idade = (data_atual - self.data_base_fiscal).days
-        if self.taxa_bonus_cdi > 0.0 and idade < self.dias_bonus:
+        if self.taxa_bonus_cdi <= 0.0 or self.dias_bonus <= 0:
+            return float(self.taxa_base_cdi)
+        if idade < self.dias_bonus:
             return float(self.taxa_bonus_cdi)
+
+        if pacote_calendario is not None:
+            data_limite_bonus = self.data_base_fiscal + timedelta(days=self.dias_bonus)
+            if not eh_dia_util_bancario(data_limite_bonus, pacote_calendario):
+                data_fechamento_bonus = proximo_dia_util_bancario_em_ou_apos(data_limite_bonus, pacote_calendario)
+                if data_atual == data_fechamento_bonus:
+                    return float(self.taxa_bonus_cdi)
+
         return float(self.taxa_base_cdi)
 
-    def atualizar_juros(self, data_atual: date, taxa_diaria_decimal: float) -> None:
+    def atualizar_juros(self, data_atual: date, taxa_diaria_decimal: float, pacote_calendario: Optional[PacoteCalendarioFinanceiro] = None) -> None:
         if self.esgotado or data_atual <= self.data_aplicacao:
             return
-        mult = self.get_taxa_dia(data_atual)
+        mult = self.get_taxa_dia(data_atual, pacote_calendario)
         if mult <= 0.0:
             return
         fator_dia = (1.0 + float(taxa_diaria_decimal)) ** mult
@@ -268,7 +283,7 @@ def atualizar_saldo_lotes_no_dia(
     for lote in lotes_ativos:
         if lote.esgotado or float(lote.saldo_bruto or 0.0) <= 0.0:
             continue
-        lote.atualizar_juros(data_atual, taxa_dia)
+        lote.atualizar_juros(data_atual, taxa_dia, pacote_calendario)
         qtd_lotes_atualizados += 1
 
     return {

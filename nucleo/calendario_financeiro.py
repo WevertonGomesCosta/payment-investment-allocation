@@ -215,6 +215,13 @@ def eh_dia_util_bancario(data_atual: date, pacote: PacoteCalendarioFinanceiro) -
     return data_atual.weekday() < 5
 
 
+def proximo_dia_util_bancario_em_ou_apos(data_base: date, pacote: PacoteCalendarioFinanceiro) -> date:
+    atual = data_base
+    while not eh_dia_util_bancario(atual, pacote):
+        atual += timedelta(days=1)
+    return atual
+
+
 def obter_taxa_dia_rendimento(
     data_atual: date,
     pacote: PacoteCalendarioFinanceiro,
