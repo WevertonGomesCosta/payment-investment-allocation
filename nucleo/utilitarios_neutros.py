@@ -60,6 +60,11 @@ def normalizar_identificador(valor: Any, *, remover_sufixo_excel: bool = True) -
 def para_data(valor: Any) -> Optional[date]:
     if valor is None:
         return None
+    try:
+        if pd.isna(valor):
+            return None
+    except Exception:
+        pass
     if isinstance(valor, datetime):
         return valor.date()
     if isinstance(valor, date):

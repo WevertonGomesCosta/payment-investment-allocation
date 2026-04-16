@@ -212,7 +212,12 @@ def _taxa_iof(dias: int, *, tabela_iof: Optional[list[float]] = None) -> float:
     tabela = tabela_iof or []
     if not tabela:
         return 0.0
-    idx = min(max(int(dias), 0), len(tabela) - 1)
+    # A tabela regressiva do IOF é indexada por dia de vida começando em 1.
+    # Como dias_vida aqui é contado em dias corridos inteiros (ex.: 7 dias ->
+    # sétima linha da tabela), o índice correto é dias - 1. O mapeamento
+    # anterior usava o próprio valor de dias e subestimava o IOF em resgates
+    # curtos, especialmente nos lotes com poucos dias de vida.
+    idx = min(max(int(dias) - 1, 0), len(tabela) - 1)
     return float(tabela[idx])
 
 
