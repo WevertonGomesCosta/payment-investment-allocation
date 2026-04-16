@@ -10,7 +10,7 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 2. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial (`v1`, `v2`, `v3`, ...).
 3. O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas do repositório diretamente na raiz.
 4. Todo o projeto deve permanecer em português.
-5. A baseline atual é a V39.
+5. A baseline atual é a V43.
 
 ## 2. Objetivo central do sistema
 
@@ -191,3 +191,10 @@ A baseline passa a suportar cache diário do CDI do BCB para auditoria e replay,
 ### Limpeza documental ampliada da baseline
 
 A V39 consolida a documentação ativa em `relatorios/atuais/`, move a trilha histórica para `relatorios/historico/` e elimina artefatos temporários proibidos do pacote final, como `__pycache__` e arquivos `.pyc`. Essa reorganização não altera a lógica financeira do projeto; ela apenas reduz ruído operacional e melhora a navegabilidade da baseline.
+
+
+## Atualização operacional V43
+
+### Limpeza ampliada do pacote e atualização da base canônica
+
+A V43 consolida a limpeza do repositório ao manter apenas a documentação vigente em `relatorios/atuais/`, mover documentos ativos antigos para `relatorios/historico/`, remover resíduos temporários e atualizar `dados/dados_financeiros.xlsx` como base canônica atual do projeto. A geração operacional corrente passa a usar `saidas/relatorio_operacional_v43.xlsx` como artefato oficial da versão quando a planilha é produzida localmente.

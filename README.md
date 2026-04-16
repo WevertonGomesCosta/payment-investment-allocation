@@ -6,16 +6,18 @@ O objetivo de longo prazo é evoluir esta base para um projeto único, auditáve
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V40
+**Versão atual da baseline:** V43
 
-A baseline atual já consolidou:
+A baseline atual consolida:
 
 - leitura canônica das abas `Carteira`, `Inventário de Lotes` e `Todos os Gastos`;
+- coluna `Data Recebimento` integrada ao contrato operacional dos lotes;
 - cache diário de CDI com fallback controlado;
 - núcleo financeiro mínimo e replay controlado do passado;
 - regra geral de transição entre `Data Recebimento` e `Data Aplicação`;
-- limpeza documental ampla com separação entre documentação vigente e histórica;
-- saída operacional simplificada com tabela final de lotes ativos e planilha operacional consolidada.
+- documentação vigente concentrada em `relatorios/atuais/`;
+- pacote final limpo, sem resíduos temporários de versões anteriores;
+- geração da planilha operacional atual em `saidas/relatorio_operacional_v43.xlsx`.
 
 ## Regra canônica ativa da baseline
 
@@ -30,10 +32,10 @@ A regra de trabalho do projeto continua sendo:
 Documentos vigentes da baseline atual:
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/BASELINE_FIXA_V41.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V41.md`
+- `relatorios/atuais/BASELINE_FIXA_V43.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V43.md`
 
-Mapa completo da documentação:
+Mapa da documentação:
 
 - `relatorios/INDICE_RELATORIOS.md`
 
@@ -43,6 +45,7 @@ A baseline atual utiliza como entradas principais:
 
 - `dados/config_atualizado.json`
 - `dados/dados_financeiros.xlsx`
+- `dados/cache_bcb.json`
 
 ## Uso mínimo
 
@@ -58,10 +61,10 @@ Execute a inspeção mínima da baseline:
 python aplicacao/principal.py
 ```
 
-ou:
+Gere a planilha operacional atual:
 
 ```bash
-python scripts/inspecionar_base.py
+python scripts/gerar_planilha_operacional.py
 ```
 
 ## Princípios mantidos nesta baseline

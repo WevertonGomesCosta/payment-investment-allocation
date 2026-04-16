@@ -579,7 +579,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V40'),
+        ('versão', 'V43'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
