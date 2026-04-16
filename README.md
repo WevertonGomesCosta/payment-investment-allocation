@@ -1,17 +1,12 @@
 # payment-investment-allocation
 
-Repositório controlado para a unificação incremental de dois scripts
-financeiros: um de otimização de pagamentos e resgates, e outro de switching
-para lotes já investidos e lotes disponíveis.
+Repositório controlado para a unificação incremental de dois scripts financeiros: um de otimização de pagamentos e resgates, e outro de switching para lotes já investidos e lotes disponíveis.
 
-O objetivo de longo prazo é evoluir esta base para um projeto único, auditável
- e modular de alocação conjunta de recebidos entre pagamentos, investimentos e
-decisões de switching, maximizando o patrimônio líquido final com matemática
-financeira correta.
+O objetivo de longo prazo é evoluir esta base para um projeto único, auditável e modular de alocação conjunta de recebidos entre pagamentos, investimentos e decisões de switching, maximizando o patrimônio líquido final com matemática financeira correta.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V38
+**Versão atual da baseline:** V39
 
 A baseline atual já consolidou:
 
@@ -19,33 +14,28 @@ A baseline atual já consolidou:
 - cache diário de CDI com fallback controlado;
 - núcleo financeiro mínimo e replay controlado do passado;
 - auditoria comparativa contra app para os lotes críticos;
-- regra geral de transição entre `Data Recebimento` e `Data Aplicação`.
+- regra geral de transição entre `Data Recebimento` e `Data Aplicação`;
+- limpeza documental ampla com separação entre documentação vigente e histórica.
 
-### Regra canônica ativa da baseline
+## Regra canônica ativa da baseline
 
 > Quando um lote possuir `Data Recebimento` e `Data Aplicação` distintas, o valor deve ser tratado como **caixa pré-aplicação** no intervalo entre essas datas. Nessa janela, o lote já pode ser usado para pagamentos, mas ainda **não rende**, **não sofre tributação de investimento** e **não obedece à carência do produto**. O regime financeiro do investimento só passa a valer a partir da efetiva `Data Aplicação`.
 
 A regra de trabalho do projeto continua sendo:
 
-> a estrutura física dos módulos dos scripts-base não é tratada como fronteira
-> semântica confiável; as decisões de migração e unificação devem seguir a
-> responsabilidade real das funções.
+> a estrutura física dos módulos dos scripts-base não é tratada como fronteira semântica confiável; as decisões de migração e unificação devem seguir a responsabilidade real das funções.
 
-## Documento-base oficial
+## Documentação oficial
 
-Os documentos oficiais da fase atual são:
+Documentos vigentes da baseline atual:
 
-- `relatorios/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/BASELINE_FIXA_V38.md`
+- `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
+- `relatorios/atuais/BASELINE_FIXA_V39.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V39.md`
 
-Esses arquivos devem ser tratados como a referência principal para:
-- reavaliação da baseline;
-- auditoria dos scripts-base;
-- validação de novas regras;
-- futuras alterações organizadas do projeto.
+Mapa completo da documentação:
 
-A validação local mais recente está registrada em:
-- `relatorios/VALIDACAO_LOCAL_V38.md`
+- `relatorios/INDICE_RELATORIOS.md`
 
 ## Entradas canônicas atuais
 

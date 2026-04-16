@@ -10,7 +10,7 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 2. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial (`v1`, `v2`, `v3`, ...).
 3. O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas do repositório diretamente na raiz.
 4. Todo o projeto deve permanecer em português.
-5. A baseline atual é a V24.
+5. A baseline atual é a V39.
 
 ## 2. Objetivo central do sistema
 
@@ -177,3 +177,17 @@ A baseline passa a suportar cache diário do CDI do BCB para auditoria e replay,
 ### Regra canônica de disponibilidade temporal do lote
 
 > Quando um lote possuir `Data Recebimento` e `Data Aplicação` distintas, o valor deve ser tratado como **caixa pré-aplicação** no intervalo entre essas datas. Nessa janela, o lote já pode ser usado para pagamentos, mas ainda **não rende**, **não sofre tributação de investimento** e **não obedece à carência do produto**. O regime financeiro do investimento só passa a valer a partir da efetiva `Data Aplicação`.
+
+
+## 22. Hierarquia documental oficial
+
+58. A documentação operacional vigente deve ficar concentrada em `relatorios/atuais/`.
+59. Relatórios de versões anteriores devem permanecer preservados em `relatorios/historico/`, organizados por tipo documental.
+60. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como o mapa oficial de navegação da documentação.
+61. O `README.md` deve apontar apenas para os documentos vigentes e para o índice documental, evitando listar relatórios históricos no nível principal.
+
+## Atualização operacional V39
+
+### Limpeza documental ampliada da baseline
+
+A V39 consolida a documentação ativa em `relatorios/atuais/`, move a trilha histórica para `relatorios/historico/` e elimina artefatos temporários proibidos do pacote final, como `__pycache__` e arquivos `.pyc`. Essa reorganização não altera a lógica financeira do projeto; ela apenas reduz ruído operacional e melhora a navegabilidade da baseline.

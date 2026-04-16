@@ -77,9 +77,11 @@ saidas/*
 relatorios/*
 !saidas/.gitkeep
 !relatorios/.gitkeep
-!relatorios/AUDITORIA_ARQUITETURAL_V3.md
-!relatorios/CONTRATO_OPERACIONAL_PROJETO.md
-!relatorios/VALIDACAO_LOCAL_V6.md
+!relatorios/INDICE_RELATORIOS.md
+!relatorios/atuais/
+!relatorios/atuais/**
+!relatorios/historico/
+!relatorios/historico/**
 
 # ---------------------------------------------------------
 # Derivados de dados e caches
@@ -112,34 +114,4 @@ dados/processado/*
 !dados/intermediario/.gitkeep
 !dados/processado/.gitkeep
 
-!relatorios/VALIDACAO_LOCAL_V7.md
-!relatorios/BASELINE_FIXA_V7.md
-relatorios/_log_validacao_v7_*.txt
-
-!relatorios/VALIDACAO_LOCAL_V8.md
-!relatorios/BASELINE_FIXA_V8.md
-relatorios/_log_validacao_v8_*.txt
-
-*.pyc
 relatorios/_log_validacao_*.txt
-!relatorios/BASELINE_FIXA_V9.md
-!relatorios/VALIDACAO_LOCAL_V9.md
-!relatorios/BASELINE_FIXA_V10.md
-!relatorios/VALIDACAO_LOCAL_V10.md
-!relatorios/BASELINE_FIXA_V11.md
-!relatorios/VALIDACAO_LOCAL_V11.md
-!relatorios/BASELINE_FIXA_V12.md
-!relatorios/VALIDACAO_LOCAL_V12.md
-!relatorios/BASELINE_FIXA_V13.md
-!relatorios/VALIDACAO_LOCAL_V13.md
-!relatorios/BASELINE_FIXA_V14.md
-!relatorios/VALIDACAO_LOCAL_V14.md
-!relatorios/BASELINE_FIXA_V15.md
-!relatorios/VALIDACAO_LOCAL_V15.md
-!relatorios/BASELINE_FIXA_V18.md
-!relatorios/VALIDACAO_LOCAL_V18.md
-relatorios/_log_validacao_v18_*.txt
-
-!relatorios/BASELINE_FIXA_V21.md
-!relatorios/VALIDACAO_LOCAL_V21.md
-relatorios/_log_validacao_v21_*.txt
