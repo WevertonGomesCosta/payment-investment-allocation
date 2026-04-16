@@ -6,7 +6,7 @@ O objetivo de longo prazo é evoluir esta base para um projeto único, auditáve
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V43
+**Versão atual da baseline:** V44
 
 A baseline atual consolida:
 
@@ -14,10 +14,11 @@ A baseline atual consolida:
 - coluna `Data Recebimento` integrada ao contrato operacional dos lotes;
 - cache diário de CDI com fallback controlado;
 - núcleo financeiro mínimo e replay controlado do passado;
+- painel mínimo de cobertura futura, com leitura conservadora da suficiência de liquidez;
 - regra geral de transição entre `Data Recebimento` e `Data Aplicação`;
 - documentação vigente concentrada em `relatorios/atuais/`;
 - pacote final limpo, sem resíduos temporários de versões anteriores;
-- geração da planilha operacional atual em `saidas/relatorio_operacional_v43.xlsx`.
+- geração da planilha operacional atual em `saidas/relatorio_operacional_v44.xlsx`.
 
 ## Regra canônica ativa da baseline
 
@@ -32,8 +33,8 @@ A regra de trabalho do projeto continua sendo:
 Documentos vigentes da baseline atual:
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/BASELINE_FIXA_V43.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V43.md`
+- `relatorios/atuais/BASELINE_FIXA_V44.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V44.md`
 
 Mapa da documentação:
 

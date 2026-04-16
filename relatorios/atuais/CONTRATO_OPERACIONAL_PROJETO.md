@@ -10,7 +10,7 @@ auditorias dos scripts-base e futuras evoluções do repositório.
 2. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial (`v1`, `v2`, `v3`, ...).
 3. O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas do repositório diretamente na raiz.
 4. Todo o projeto deve permanecer em português.
-5. A baseline atual é a V43.
+5. A baseline atual é a V44.
 
 ## 2. Objetivo central do sistema
 
@@ -198,3 +198,10 @@ A V39 consolida a documentação ativa em `relatorios/atuais/`, move a trilha hi
 ### Limpeza ampliada do pacote e atualização da base canônica
 
 A V43 consolida a limpeza do repositório ao manter apenas a documentação vigente em `relatorios/atuais/`, mover documentos ativos antigos para `relatorios/historico/`, remover resíduos temporários e atualizar `dados/dados_financeiros.xlsx` como base canônica atual do projeto. A geração operacional corrente passa a usar `saidas/relatorio_operacional_v43.xlsx` como artefato oficial da versão quando a planilha é produzida localmente.
+
+
+## Atualização operacional V44
+
+### Painel mínimo de cobertura futura
+
+A V44 adiciona uma camada situacional/prospectiva mínima que confronta as despesas futuras acumuladas com a liquidez atual pós-replay de forma conservadora, sem consumir lotes, sem solver e sem projeção econômica adicional além da posição já auditada. Essa camada serve como diagnóstico operacional preliminar da cobertura futura e complementa o extrato passado, o ranking de produtos e a situação atual dos lotes.

@@ -390,6 +390,91 @@ def _comparar_auditoria_lotes(auditoria_atual, auditoria_menos_1_dia, replay_pas
     return linhas
 
 
+def _valor_liquido_disponivel_conservador_lote(
+    lote,
+    data_alvo,
+    calendario_financeiro,
+    *,
+    tabela_iof=None,
+    faixas_ir=None,
+    serie_cdi=None,
+    data_base_referencia=None,
+):
+    if lote.esgotado:
+        return 0.0
+    if data_alvo < lote.data_recebimento:
+        return 0.0
+    if lote.carencia_ate and data_alvo > lote.data_aplicacao and data_alvo < lote.carencia_ate:
+        return 0.0
+    return round(float(lote.valor_liquido_em_data(
+        min(data_alvo, data_base_referencia or data_alvo),
+        calendario_financeiro,
+        tabela_iof=tabela_iof,
+        faixas_ir=faixas_ir,
+        serie_cdi=serie_cdi,
+        data_base_referencia=data_base_referencia,
+    ) or 0.0), 2)
+
+
+def _preparar_painel_cobertura_futura(dados_operacionais, replay_passado, calendario_financeiro, config, data_referencia, *, serie_cdi=None):
+    gastos = dados_operacionais.gastos_canonicos.copy()
+    if len(gastos) == 0:
+        return []
+    futuros = gastos[gastos['futuro_ou_pendente_na_data_referencia'] == True].copy()
+    if len(futuros) == 0:
+        return []
+    futuros = futuros.sort_values(by=['data', 'despesa_id'], kind='stable')
+    tabela_iof = construir_tabela_iof(config)
+    faixas_ir = construir_faixas_ir(config)
+    liquidez_atual_total = round(sum(
+        _valor_liquido_disponivel_conservador_lote(
+            lote,
+            data_referencia,
+            calendario_financeiro,
+            tabela_iof=tabela_iof,
+            faixas_ir=faixas_ir,
+            serie_cdi=serie_cdi,
+            data_base_referencia=data_referencia,
+        )
+        for lote in replay_passado.lotes_apos_replay
+    ), 2)
+    acumulado = 0.0
+    linhas = []
+    for item in futuros.to_dict('records'):
+        valor = round(float(item.get('valor') or 0.0), 2)
+        acumulado = round(acumulado + valor, 2)
+        folga = round(liquidez_atual_total - acumulado, 2)
+        lotes = ' | '.join([str(x).strip() for x in [item.get('lote_usado_1'), item.get('lote_usado_2')] if str(x or '').strip()])
+        linhas.append({
+            'Data': item.get('data').isoformat() if hasattr(item.get('data'), 'isoformat') else str(item.get('data') or ''),
+            'Despesa ID': item.get('despesa_id') or '',
+            'Conta': item.get('descricao') or '',
+            'Valor': valor,
+            'Acumulado': acumulado,
+            'Liquidez atual': liquidez_atual_total,
+            'Folga': folga,
+            'Status': 'cobertura conservadora suficiente' if folga >= 0.0 else 'atenção: déficit potencial',
+            'Lotes informados': lotes,
+        })
+    return linhas
+
+
+def _preparar_resumo_cobertura_futura(painel_cobertura_futura):
+    if not painel_cobertura_futura:
+        return [('despesas futuras mapeadas', 0)]
+    liquidez = round(float(painel_cobertura_futura[0].get('Liquidez atual') or 0.0), 2)
+    maior_acumulado = round(max(float(item.get('Acumulado') or 0.0) for item in painel_cobertura_futura), 2)
+    menor_folga = round(min(float(item.get('Folga') or 0.0) for item in painel_cobertura_futura), 2)
+    qtd_deficit = sum(1 for item in painel_cobertura_futura if float(item.get('Folga') or 0.0) < 0.0)
+    return [
+        ('despesas futuras mapeadas', len(painel_cobertura_futura)),
+        ('liquidez atual pós-replay', liquidez),
+        ('maior demanda acumulada futura', maior_acumulado),
+        ('menor folga conservadora', menor_folga),
+        ('eventos com déficit potencial', qtd_deficit),
+    ]
+
+
 def _resolver_data_economica_situacao_atual(data_referencia, calendario_financeiro, serie_cdi=None):
     data_fechamento = data_referencia - timedelta(days=1)
     while data_fechamento > date(1900, 1, 1) and not eh_dia_util_bancario(data_fechamento, calendario_financeiro):
@@ -561,9 +646,11 @@ def main() -> None:
     auditoria_residual_lotes_pendentes = [item for item in auditoria_residual_lotes if item.get('Status') != 'resolvido por limiar']
     auditoria_detalhada_residuos_pendentes = [item for item in auditoria_detalhada_residuos if item.get('Status') != 'resolvido por limiar']
     comparativo_menos_1_dia = _comparar_auditoria_lotes(auditoria_lotes_vs_app, auditoria_lotes_vs_app_menos_1_dia, replay_passado=replay_passado, data_referencia=contexto.data_referencia)
+    painel_cobertura_futura = _preparar_painel_cobertura_futura(dados_operacionais, replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
 
     resumo_deltas_lotes_vs_app = _preparar_resumo_delta_lotes(auditoria_lotes_vs_app)
     resumo_detalhado_residuos = _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada_residuos, limiar_residuo_resolvido)
+    resumo_cobertura_futura = _preparar_resumo_cobertura_futura(painel_cobertura_futura)
 
     severidade_carteira = _severidade(erros=validacao_carteira.get('erros'), avisos=validacao_carteira.get('avisos'), condicao_ok=bool(validacao_carteira.get('ok', True)))
     severidade_inventario = _severidade(erros=validacao_inventario.get('erros'), avisos=validacao_inventario.get('avisos'), condicao_ok=bool(validacao_inventario.get('ok', True)))
@@ -579,7 +666,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V43'),
+        ('versão', 'V44'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -852,6 +939,14 @@ def main() -> None:
         _imprimir_tabela(colunas_inc, linhas_inc)
     _imprimir_itens_severidade('erros de validação', validacao_replay.get('erros'), 'ERRO')
     _imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
+
+    _imprimir_titulo('PAINEL MÍNIMO DE COBERTURA FUTURA')
+    _imprimir_linha_status('Confronto conservador entre despesas futuras e liquidez atual pós-replay', 'OK', 'sem consumir lotes, sem solver e sem projeção econômica adicional além da posição atual')
+    _imprimir_pares(resumo_cobertura_futura)
+    if painel_cobertura_futura:
+        _imprimir_tabela(['Data', 'Despesa ID', 'Conta', 'Valor', 'Acumulado', 'Liquidez atual', 'Folga', 'Status', 'Lotes informados'], painel_cobertura_futura, limite=12)
+    else:
+        print('  [OK] sem despesas futuras ou pendentes nesta execução')
 
     _imprimir_titulo('TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1')
     _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase')

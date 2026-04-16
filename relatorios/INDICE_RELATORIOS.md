@@ -2,8 +2,8 @@
 
 ## Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/BASELINE_FIXA_V43.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V43.md`
+- `relatorios/atuais/BASELINE_FIXA_V44.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V44.md`
 
 ## Histórico preservado
 - `relatorios/historico/baselines/`
