@@ -30,8 +30,8 @@ A regra de trabalho do projeto continua sendo:
 Documentos vigentes da baseline atual:
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/BASELINE_FIXA_V40.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V40.md`
+- `relatorios/atuais/BASELINE_FIXA_V41.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V41.md`
 
 Mapa completo da documentação:
 

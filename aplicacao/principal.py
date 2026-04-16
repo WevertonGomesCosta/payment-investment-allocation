@@ -396,17 +396,36 @@ def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config,
     limiar = _obter_limiar_residuo_resolvido(config)
     linhas = []
     for lote in sorted(replay_passado.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
-        saldo_bruto = round(float(lote.saldo_bruto or 0.0), 2)
+        saldo_bruto = round(float(lote.valor_bruto_em_data(
+            data_referencia,
+            calendario_financeiro,
+            serie_cdi=serie_cdi,
+            data_base_referencia=data_referencia,
+        ) or 0.0), 2)
         if lote.esgotado or saldo_bruto <= limiar:
             continue
-        saldo_liquido = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+        saldo_liquido = round(float(lote.valor_liquido_em_data(
+            data_referencia,
+            calendario_financeiro,
+            tabela_iof=tabela_iof,
+            faixas_ir=faixas_ir,
+            serie_cdi=serie_cdi,
+            data_base_referencia=data_referencia,
+        ) or 0.0), 2)
         saldo_rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
         dias_corridos = max((data_referencia - lote.data_recebimento).days, 0)
-        dias_uteis = 0 if data_referencia < lote.data_aplicacao else contar_dias_rendimento(lote.data_base_fiscal, data_referencia, calendario_financeiro, serie_cdi=serie_cdi, data_fechamento_referencia=data_referencia)
+        dias_uteis = 0 if data_referencia < lote.data_aplicacao else contar_dias_rendimento(
+            lote.data_base_fiscal,
+            data_referencia,
+            calendario_financeiro,
+            serie_cdi=serie_cdi,
+            data_fechamento_referencia=data_referencia,
+        )
         linhas.append({
             'Recebimento': lote.data_recebimento.isoformat() if hasattr(lote.data_recebimento, 'isoformat') else str(lote.data_recebimento),
             'Aplicação': lote.data_aplicacao.isoformat() if hasattr(lote.data_aplicacao, 'isoformat') else str(lote.data_aplicacao),
             'Produto': lote.investimento,
+            'Valor original': round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2),
             'Dias corridos': dias_corridos,
             'Dias úteis': dias_uteis,
             'Bruto': saldo_bruto,
@@ -871,7 +890,7 @@ def main() -> None:
 
     _imprimir_titulo('SITUAÇÃO ATUAL — LOTES ATIVOS')
     if lotes_ativos:
-        _imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos)
+        _imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Valor original', 'Dias corridos', 'Dias úteis', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos)
     else:
         print('  [OK] sem lotes ativos acima do limiar nesta execução')
 

@@ -25,8 +25,8 @@ from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, c
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 
 
-SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v40.xlsx'
-SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v40.xlsx')
+SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v41.xlsx'
+SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v41.xlsx')
 
 
 def _limiar(config: dict) -> float:
@@ -154,18 +154,36 @@ def main() -> None:
     ws_atual = wb.create_sheet('Situação atual')
     rows_atual = []
     for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
-        saldo_bruto = round(float(lote.saldo_bruto or 0.0), 2)
+        saldo_bruto = round(float(lote.valor_bruto_em_data(
+            ctx.data_referencia,
+            cal,
+            serie_cdi=cache.serie_cdi,
+            data_base_referencia=ctx.data_referencia,
+        ) or 0.0), 2)
         if lote.esgotado or saldo_bruto <= limiar:
             continue
-        saldo_liquido = round(float(lote.valor_liquido_hoje(ctx.data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+        saldo_liquido = round(float(lote.valor_liquido_em_data(
+            ctx.data_referencia,
+            cal,
+            tabela_iof=tabela_iof,
+            faixas_ir=faixas_ir,
+            serie_cdi=cache.serie_cdi,
+            data_base_referencia=ctx.data_referencia,
+        ) or 0.0), 2)
         saldo_rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
         dias_corridos = max((ctx.data_referencia - lote.data_recebimento).days, 0)
-        dias_uteis = 0 if ctx.data_referencia < lote.data_aplicacao else contar_dias_rendimento(lote.data_base_fiscal, ctx.data_referencia, cal, serie_cdi=cache.serie_cdi, data_fechamento_referencia=ctx.data_referencia)
+        dias_uteis = 0 if ctx.data_referencia < lote.data_aplicacao else contar_dias_rendimento(
+            lote.data_base_fiscal,
+            ctx.data_referencia,
+            cal,
+            serie_cdi=cache.serie_cdi,
+            data_fechamento_referencia=ctx.data_referencia,
+        )
         rows_atual.append([
-            lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, dias_corridos, dias_uteis,
+            lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2), dias_corridos, dias_uteis,
             saldo_bruto, saldo_liquido, saldo_rem
         ])
-    headers_atual = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
+    headers_atual = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Valor Original', 'Dias Corridos', 'Dias Úteis', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
     _apply_table_style(ws_atual, headers_atual, rows_atual)
 
     SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
