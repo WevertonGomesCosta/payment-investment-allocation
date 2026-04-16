@@ -1,4 +1,4 @@
-# Validação local V43
+# Validação local V45
 
 ## Procedimentos executados
 - `python -m compileall aplicacao nucleo scripts`
@@ -6,10 +6,10 @@
 - `python scripts/gerar_planilha_operacional.py`
 
 ## Resultado da execução local
-A baseline executou sem erro com a nova base `dados/dados_financeiros.xlsx`.
+A baseline executou sem erro após a revisão documental e a atualização da versão para `V45`.
 
 Resumo observado no console:
-- versão reportada: `V43`
+- versão reportada: `V45`
 - data de referência: `2026-04-16`
 - abas primárias lidas com sucesso: `Carteira`, `Inventário de Lotes`, `Todos os Gastos`
 - carteira canônica: `91` produtos
@@ -17,10 +17,10 @@ Resumo observado no console:
 - gastos canônicos: `214` despesas
 - triagem preliminar: `70` candidatos
 - núcleo financeiro mínimo: `10` lotes financeiros
-- planilha operacional gerada: `saidas/relatorio_operacional_v43.xlsx`
+- planilha operacional gerada: `saidas/relatorio_operacional_v45.xlsx`
 
 ## Critérios validados
-- adoção da nova planilha canônica em `dados/dados_financeiros.xlsx`;
-- limpeza do pacote final, sem logs brutos soltos nem saídas antigas acumuladas;
-- manutenção apenas da documentação vigente em `relatorios/atuais/`;
-- preservação da trilha histórica em `relatorios/historico/`.
+- revisão documental sem regressão operacional na baseline;
+- separação entre contrato executável vigente e backlog contratual futuro;
+- manutenção da hierarquia documental em `relatorios/atuais/` e `relatorios/historico/`;
+- geração operacional preservada após a atualização de versão.

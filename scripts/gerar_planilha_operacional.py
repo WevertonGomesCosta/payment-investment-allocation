@@ -25,8 +25,8 @@ from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, c
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 
 
-SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v44.xlsx'
-SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v44.xlsx')
+SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v45.xlsx'
+SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v45.xlsx')
 
 
 
@@ -39,79 +39,6 @@ def _resolver_data_economica_situacao_atual(data_referencia, calendario_financei
     if ultima_data_serie is not None and ultima_data_serie >= data_fechamento:
         return data_fechamento
     return data_referencia
-
-
-def _valor_liquido_disponivel_conservador_lote(
-    lote,
-    data_alvo,
-    calendario_financeiro,
-    *,
-    tabela_iof=None,
-    faixas_ir=None,
-    serie_cdi=None,
-    data_base_referencia=None,
-):
-    if lote.esgotado:
-        return 0.0
-    if data_alvo < lote.data_recebimento:
-        return 0.0
-    if lote.carencia_ate and data_alvo > lote.data_aplicacao and data_alvo < lote.carencia_ate:
-        return 0.0
-    return round(float(lote.valor_liquido_em_data(
-        min(data_alvo, data_base_referencia or data_alvo),
-        calendario_financeiro,
-        tabela_iof=tabela_iof,
-        faixas_ir=faixas_ir,
-        serie_cdi=serie_cdi,
-        data_base_referencia=data_base_referencia,
-    ) or 0.0), 2)
-
-
-def _preparar_painel_cobertura_futura(dados_operacionais, replay_passado, calendario_financeiro, config, data_referencia, *, serie_cdi=None):
-    gastos = dados_operacionais.gastos_canonicos.copy()
-    if len(gastos) == 0:
-        return []
-    futuros = gastos[gastos['futuro_ou_pendente_na_data_referencia'] == True].copy()
-    if len(futuros) == 0:
-        return []
-    futuros = futuros.sort_values(by=['data', 'despesa_id'], kind='stable')
-    tabela_iof = construir_tabela_iof(config)
-    faixas_ir = construir_faixas_ir(config)
-    liquidez_atual_total = round(sum(
-        _valor_liquido_disponivel_conservador_lote(
-            lote,
-            data_referencia,
-            calendario_financeiro,
-            tabela_iof=tabela_iof,
-            faixas_ir=faixas_ir,
-            serie_cdi=serie_cdi,
-            data_base_referencia=data_referencia,
-        )
-        for lote in replay_passado.lotes_apos_replay
-    ), 2)
-    acumulado = 0.0
-    linhas = []
-    for item in futuros.to_dict('records'):
-        valor = round(float(item.get('valor') or 0.0), 2)
-        acumulado = round(acumulado + valor, 2)
-        folga = round(liquidez_atual_total - acumulado, 2)
-        lotes = ' | '.join([str(x).strip() for x in [item.get('lote_usado_1'), item.get('lote_usado_2')] if str(x or '').strip()])
-        linhas.append([
-            item.get('data'),
-            item.get('descricao'),
-            item.get('despesa_id'),
-            valor,
-            item.get('pago'),
-            item.get('lote_usado_1'),
-            item.get('lote_usado_2'),
-            max((item.get('data') - data_referencia).days, 0) if hasattr(item.get('data'), 'year') else None,
-            acumulado,
-            liquidez_atual_total,
-            folga,
-            'cobertura conservadora suficiente' if folga >= 0.0 else 'atenção: déficit potencial',
-            lotes,
-        ])
-    return linhas
 
 
 def _limiar(config: dict) -> float:
@@ -206,8 +133,23 @@ def main() -> None:
     _apply_table_style(ws_passado, [dst for _, dst in cols_passado], rows_passado)
 
     ws_futuro = wb.create_sheet('Extrato futuro')
-    rows_futuro = _preparar_painel_cobertura_futura(dados, rep, cal, cfg.conteudo, ctx.data_referencia, serie_cdi=cache.serie_cdi)
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote usado 1', 'Lote usado 2', 'Dias até evento', 'Acumulado', 'Liquidez atual', 'Folga', 'Status', 'Lotes informados']
+    gastos_futuros = dados.gastos_canonicos[dados.gastos_canonicos['futuro_ou_pendente_na_data_referencia'] == True].copy().sort_values(by=['data', 'despesa_id'], kind='stable')
+    rows_futuro = []
+    for item in gastos_futuros.to_dict('records'):
+        data_evt = item.get('data')
+        dias_ate = max((data_evt - ctx.data_referencia).days, 0) if isinstance(data_evt, date) else None
+        rows_futuro.append([
+            data_evt,
+            item.get('descricao'),
+            item.get('despesa_id'),
+            item.get('valor'),
+            item.get('pago'),
+            item.get('lote_usado_1'),
+            item.get('lote_usado_2'),
+            dias_ate,
+            'futuro/pendente',
+        ])
+    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote usado 1', 'Lote usado 2', 'Dias até evento', 'Status']
     _apply_table_style(ws_futuro, headers_futuro, rows_futuro)
 
     ws_melhores = wb.create_sheet('Melhores produtos')

@@ -6,7 +6,7 @@ O objetivo de longo prazo é evoluir esta base para um projeto único, auditáve
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V44
+**Versão atual da baseline:** V45
 
 A baseline atual consolida:
 
@@ -14,11 +14,11 @@ A baseline atual consolida:
 - coluna `Data Recebimento` integrada ao contrato operacional dos lotes;
 - cache diário de CDI com fallback controlado;
 - núcleo financeiro mínimo e replay controlado do passado;
-- painel mínimo de cobertura futura, com leitura conservadora da suficiência de liquidez;
 - regra geral de transição entre `Data Recebimento` e `Data Aplicação`;
 - documentação vigente concentrada em `relatorios/atuais/`;
+- backlog contratual futuro separado do contrato executável;
 - pacote final limpo, sem resíduos temporários de versões anteriores;
-- geração da planilha operacional atual em `saidas/relatorio_operacional_v44.xlsx`.
+- geração da planilha operacional atual em `saidas/relatorio_operacional_v45.xlsx`.
 
 ## Regra canônica ativa da baseline
 
@@ -33,8 +33,9 @@ A regra de trabalho do projeto continua sendo:
 Documentos vigentes da baseline atual:
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/BASELINE_FIXA_V44.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V44.md`
+- `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
+- `relatorios/atuais/BASELINE_FIXA_V45.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V45.md`
 
 Mapa da documentação:
 
@@ -74,5 +75,6 @@ python scripts/gerar_planilha_operacional.py
 - interpretação canônica única da planilha;
 - modularização incremental;
 - auditoria por responsabilidade real;
+- separação entre contrato executável e backlog futuro;
 - reauditoria da base antes de cada nova migração;
 - entrega do repositório completo em `.zip` a cada versão.
