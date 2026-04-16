@@ -14,7 +14,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
     sys.path.insert(0, str(RAIZ_REPOSITORIO))
 
 from nucleo.ambiente import bootstrap_ambiente
-from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento, eh_dia_util_bancario, extrair_metadata_serie_cdi
+from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento
 from nucleo.carregador_config import carregar_config
 from nucleo.cache_cdi_bcb import carregar_cache_cdi_diario
 from nucleo.carteira_canonica import carregar_carteira_canonica
@@ -390,23 +390,12 @@ def _comparar_auditoria_lotes(auditoria_atual, auditoria_menos_1_dia, replay_pas
     return linhas
 
 
-def _resolver_data_economica_situacao_atual(data_referencia, calendario_financeiro, serie_cdi=None):
-    data_fechamento = data_referencia - timedelta(days=1)
-    while data_fechamento > date(1900, 1, 1) and not eh_dia_util_bancario(data_fechamento, calendario_financeiro):
-        data_fechamento -= timedelta(days=1)
-    metadata = extrair_metadata_serie_cdi(serie_cdi) if serie_cdi else None
-    ultima_data_serie = getattr(metadata, 'data_final', None) if metadata is not None else None
-    if ultima_data_serie is not None and ultima_data_serie >= data_fechamento:
-        return data_fechamento
-    return data_referencia
-
-
 def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config, data_referencia, *, serie_cdi=None):
     tabela_iof = construir_tabela_iof(config)
     faixas_ir = construir_faixas_ir(config)
     limiar = _obter_limiar_residuo_resolvido(config)
     linhas = []
-    data_economica = _resolver_data_economica_situacao_atual(data_referencia, calendario_financeiro, serie_cdi=serie_cdi)
+    data_economica = data_referencia
     for lote in sorted(replay_passado.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
         saldo_bruto = round(float(lote.valor_bruto_em_data(
             data_economica,
@@ -579,7 +568,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V45'),
+        ('versão', 'V47'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),

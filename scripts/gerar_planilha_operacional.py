@@ -15,7 +15,7 @@ if str(RAIZ) not in sys.path:
 
 from nucleo.carregador_config import carregar_config
 from nucleo.ambiente import bootstrap_ambiente
-from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento, eh_dia_util_bancario, extrair_metadata_serie_cdi
+from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento
 from nucleo.leitor_planilha import carregar_planilha
 from nucleo.carteira_canonica import carregar_carteira_canonica
 from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
@@ -25,8 +25,8 @@ from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, c
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 
 
-SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v45.xlsx'
-SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v45.xlsx')
+SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v47.xlsx'
+SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v47.xlsx')
 
 
 
@@ -165,7 +165,7 @@ def main() -> None:
 
     ws_atual = wb.create_sheet('Situação atual')
     rows_atual = []
-    data_economica = _resolver_data_economica_situacao_atual(ctx.data_referencia, cal, serie_cdi=cache.serie_cdi)
+    data_economica = ctx.data_referencia
     for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
         saldo_bruto = round(float(lote.valor_bruto_em_data(
             data_economica,
