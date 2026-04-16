@@ -46,8 +46,17 @@ class PacoteDadosOperacionaisCanonicos:
 
 
 
-def _classificar_investimento(valor_investimento: Any, data_aplicacao: Optional[date], data_referencia: date) -> dict[str, Any]:
+def _classificar_investimento(
+    valor_investimento: Any,
+    data_aplicacao: Optional[date],
+    data_referencia: date,
+    *,
+    data_recebimento: Optional[date] = None,
+) -> dict[str, Any]:
     bruto = limpar_texto(valor_investimento)
+    data_disponibilidade = data_recebimento or data_aplicacao
+    disponivel_hoje = bool(data_disponibilidade is None or data_disponibilidade <= data_referencia)
+
     if bruto in {"-", "—", "–", "--"}:
         return {
             "investimento_bruto": bruto,
@@ -61,7 +70,7 @@ def _classificar_investimento(valor_investimento: Any, data_aplicacao: Optional[
         }
 
     if bruto == "":
-        futuro = data_aplicacao is not None and data_aplicacao > data_referencia
+        futuro = data_disponibilidade is not None and data_disponibilidade > data_referencia
         return {
             "investimento_bruto": bruto,
             "produto_informado": "",
@@ -81,7 +90,7 @@ def _classificar_investimento(valor_investimento: Any, data_aplicacao: Optional[
         "nao_aportado_disponivel": False,
         "nao_aportado_exaurido": False,
         "recebido_futuro_nao_disponivel": False,
-        "disponivel_na_data_referencia": bool(data_aplicacao is None or data_aplicacao <= data_referencia),
+        "disponivel_na_data_referencia": disponivel_hoje,
     }
 
 
@@ -187,6 +196,7 @@ def carregar_inventario_canonico(
         raise KeyError(f"Aba de lotes não encontrada na planilha: {nome_aba}")
 
     col_lote_id = resolver_coluna(df, config, "lotes", "lote_id")
+    col_data_recebimento = resolver_coluna(df, config, "lotes", "data_recebimento", obrigatoria=False)
     col_data_aplicacao = resolver_coluna(df, config, "lotes", "data_aplicacao")
     col_valor_original = resolver_coluna(df, config, "lotes", "valor_original")
     col_produto = resolver_coluna(df, config, "lotes", "produto_id", obrigatoria=False)
@@ -196,6 +206,7 @@ def carregar_inventario_canonico(
     auditoria = {
         "colunas_resolvidas": {
             "lote_id": col_lote_id,
+            "data_recebimento": col_data_recebimento,
             "data_aplicacao": col_data_aplicacao,
             "valor_original": col_valor_original,
             "produto_id": col_produto,
@@ -208,6 +219,7 @@ def carregar_inventario_canonico(
     registros = []
     for idx, row in df.iterrows():
         lote_id = normalizar_identificador(row.get(col_lote_id))
+        data_recebimento = para_data(row.get(col_data_recebimento)) if col_data_recebimento else None
         data_aplicacao = para_data(row.get(col_data_aplicacao))
         valor_original = para_float_monetario(row.get(col_valor_original), 0.0)
 
@@ -221,7 +233,14 @@ def carregar_inventario_canonico(
             auditoria["linhas_descartadas"].append({"idx": int(idx), "motivo": "valor_original_nao_positivo", "lote_id": lote_id})
             continue
 
-        classificacao = _classificar_investimento(row.get(col_produto) if col_produto else None, data_aplicacao, data_referencia)
+        if data_recebimento is None:
+            data_recebimento = data_aplicacao
+        classificacao = _classificar_investimento(
+            row.get(col_produto) if col_produto else None,
+            data_aplicacao,
+            data_referencia,
+            data_recebimento=data_recebimento,
+        )
         produto_resolvido = _resolver_produto_canonico(classificacao["produto_informado"], carteira_canonica, config)
         data_base_fiscal = para_data(row.get(col_data_base_fiscal)) if col_data_base_fiscal else None
         data_base_fiscal_inferida = data_base_fiscal is None
@@ -233,6 +252,7 @@ def carregar_inventario_canonico(
             "lote_id_raw": limpar_texto(row.get(col_lote_id)),
             "ordem_planilha_lote": para_int(idx, 0) + 1,
             "origem_registro": "inventario_lotes",
+            "data_recebimento": data_recebimento,
             "data_aplicacao": data_aplicacao,
             "valor_original": valor_original,
             "data_base_fiscal": data_base_fiscal,
@@ -255,6 +275,11 @@ def carregar_inventario_canonico(
     if quadro["data_aplicacao"].isna().any():
         validacao["ok"] = False
         validacao["erros"].append("data_aplicacao_nula")
+    if quadro["data_recebimento"].isna().any():
+        validacao["ok"] = False
+        validacao["erros"].append("data_recebimento_nula")
+    if (quadro["data_recebimento"] > quadro["data_aplicacao"]).any():
+        validacao["avisos"].append("existem_lotes_com_recebimento_apos_aplicacao")
     if (quadro["valor_original"] <= 0).any():
         validacao["ok"] = False
         validacao["erros"].append("valor_original_nao_positivo")
@@ -273,6 +298,7 @@ def carregar_inventario_canonico(
         "nao_aportados_disponiveis": int(quadro["nao_aportado_disponivel"].sum()),
         "nao_aportados_exauridos": int(quadro["nao_aportado_exaurido"].sum()),
         "recebidos_futuros": int(quadro["recebido_futuro_nao_disponivel"].sum()),
+        "recebidos_antes_da_aplicacao": int((quadro["data_recebimento"] < quadro["data_aplicacao"]).sum()),
         "aportados_com_match": int((quadro_aportado["produto_encontrado"] == True).sum()) if len(quadro_aportado) > 0 else 0,
         "aportados_sem_match": int((quadro_aportado["produto_encontrado"] == False).sum()) if len(quadro_aportado) > 0 else 0,
         "tipos_match_produto": {

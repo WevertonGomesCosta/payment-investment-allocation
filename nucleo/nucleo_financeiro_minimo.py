@@ -52,6 +52,7 @@ class Lote:
         investimento: str = '',
         produto_key: Optional[str] = None,
         data_base_fiscal: Optional[date] = None,
+        data_recebimento: Optional[date] = None,
         fator_acumulado_inicial: float = 1.0,
         principal_remanescente_inicial: Optional[float] = None,
         taxa_base_cdi: Optional[float] = None,
@@ -64,6 +65,7 @@ class Lote:
     ):
         self.id = str(id_lote).strip()
         self.data_aplicacao = data_aplicacao
+        self.data_recebimento = data_recebimento if data_recebimento is not None else data_aplicacao
         self.data_base_fiscal = data_base_fiscal if data_base_fiscal is not None else data_aplicacao
         self.valor_inicial = float(valor_inicial)
         self.saldo_bruto = float(valor_inicial)
@@ -113,6 +115,10 @@ class Lote:
         self.fator_acumulado *= fator_dia
 
     def get_fator_liquido(self, data_resgate: date, *, tabela_iof: Optional[list[float]] = None, faixas_ir: Optional[list[dict[str, Any]]] = None) -> float:
+        if data_resgate < self.data_recebimento:
+            return 0.0
+        if data_resgate <= self.data_aplicacao:
+            return 1.0
         dias_vida = (data_resgate - self.data_base_fiscal).days
         if dias_vida < 0:
             return 0.0
@@ -120,6 +126,79 @@ class Lote:
 
     def valor_liquido_hoje(self, data_hoje: date, *, tabela_iof: Optional[list[float]] = None, faixas_ir: Optional[list[dict[str, Any]]] = None) -> float:
         return arredondar_monetario(self.saldo_bruto * self.get_fator_liquido(data_hoje, tabela_iof=tabela_iof, faixas_ir=faixas_ir))
+
+    def _estado_em_data(
+        self,
+        data_alvo: date,
+        pacote_calendario: PacoteCalendarioFinanceiro,
+        *,
+        serie_cdi: Optional[Mapping[date, Any]] = None,
+        data_base_referencia: Optional[date] = None,
+    ) -> tuple[float, float]:
+        if data_alvo < self.data_recebimento:
+            return 0.0, 1.0
+        if data_alvo <= self.data_aplicacao:
+            return float(self.principal_remanescente), 1.0
+        saldo = float(self.saldo_bruto)
+        fator = float(self.fator_acumulado)
+        base = data_base_referencia or data_alvo
+        if data_alvo >= base:
+            return saldo, fator
+        data_cursor = base
+        while data_cursor > data_alvo:
+            aplicar, taxa_dia, _ = obter_taxa_dia_rendimento(
+                data_cursor,
+                pacote_calendario,
+                serie_cdi=serie_cdi,
+                taxa_proj=float(pacote_calendario.taxa_dia_base),
+                data_fechamento_referencia=data_cursor,
+            )
+            if aplicar and taxa_dia is not None and data_cursor > self.data_aplicacao:
+                mult = self.get_taxa_dia(data_cursor, pacote_calendario)
+                if mult > 0.0:
+                    fator_dia = (1.0 + float(taxa_dia)) ** mult
+                    saldo /= fator_dia
+                    fator /= fator_dia
+            data_cursor -= timedelta(days=1)
+        return saldo, fator
+
+    def valor_bruto_em_data(
+        self,
+        data_alvo: date,
+        pacote_calendario: PacoteCalendarioFinanceiro,
+        *,
+        serie_cdi: Optional[Mapping[date, Any]] = None,
+        data_base_referencia: Optional[date] = None,
+    ) -> float:
+        saldo, _ = self._estado_em_data(
+            data_alvo,
+            pacote_calendario,
+            serie_cdi=serie_cdi,
+            data_base_referencia=data_base_referencia,
+        )
+        return arredondar_monetario(saldo)
+
+    def valor_liquido_em_data(
+        self,
+        data_alvo: date,
+        pacote_calendario: PacoteCalendarioFinanceiro,
+        *,
+        tabela_iof: Optional[list[float]] = None,
+        faixas_ir: Optional[list[dict[str, Any]]] = None,
+        serie_cdi: Optional[Mapping[date, Any]] = None,
+        data_base_referencia: Optional[date] = None,
+    ) -> float:
+        saldo, fator = self._estado_em_data(
+            data_alvo,
+            pacote_calendario,
+            serie_cdi=serie_cdi,
+            data_base_referencia=data_base_referencia,
+        )
+        if data_alvo <= self.data_aplicacao:
+            return arredondar_monetario(saldo)
+        dias_vida = max((data_alvo - self.data_base_fiscal).days, 0)
+        fator_liquido = _fator_liquido(fator, dias_vida, self.produto_isento_ir, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
+        return arredondar_monetario(saldo * fator_liquido)
 
     def sacar(self, valor_bruto: float, *, tolerancia_monetaria: float = 0.01) -> float:
         if valor_bruto >= self.saldo_bruto - float(tolerancia_monetaria):
@@ -247,6 +326,7 @@ def criar_lote_de_aporte(dt: date, val: float, id_l: str, meta: Optional[Mapping
         investimento=limpar_texto(meta.get('investimento')),
         produto_key=limpar_texto(meta.get('produto_key')) or None,
         data_base_fiscal=meta.get('data_base_fiscal', dt),
+        data_recebimento=meta.get('data_recebimento', dt),
         fator_acumulado_inicial=float(meta.get('fator_acumulado_inicial', 1.0) or 1.0),
         taxa_base_cdi=(1.0 if meta.get('taxa_base_cdi', 1.0) in (None, '') else float(meta.get('taxa_base_cdi', 1.0))),
         taxa_bonus_cdi=(0.0 if meta.get('taxa_bonus_cdi', 0.0) in (None, '') else float(meta.get('taxa_bonus_cdi', 0.0))),
@@ -393,6 +473,7 @@ def carregar_nucleo_financeiro_minimo(
             qtd_lotes_produto_mapeado += 1
 
         data_base_fiscal = row.get('data_base_fiscal') or data_aplicacao
+        data_recebimento = row.get('data_recebimento') or data_aplicacao
         carencia_dias = int(para_int(meta_produto.get('carencia_dias'), 0))
         carencia_ate = data_aplicacao + timedelta(days=carencia_dias) if carencia_dias > 0 else None
         if carencia_ate is not None:
@@ -402,6 +483,7 @@ def carregar_nucleo_financeiro_minimo(
             'investimento': investimento,
             'produto_key': produto_key,
             'data_base_fiscal': data_base_fiscal,
+            'data_recebimento': data_recebimento,
             'fator_acumulado_inicial': 1.0,
             'taxa_base_cdi': taxa_base,
             'taxa_bonus_cdi': taxa_bonus,

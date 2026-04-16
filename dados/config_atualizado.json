@@ -253,6 +253,11 @@
       "data_base_fiscal": [
         "data_base_fiscal",
         "Data Base Fiscal"
+      ],
+      "data_recebimento": [
+        "data_recebimento",
+        "data recebimento",
+        "Data Recebimento"
       ]
     },
     "despesas": {
@@ -345,7 +350,7 @@
   "execucao": {
     "timezone": "America/Sao_Paulo",
     "nivel_log": "INFO",
-    "data_referencia_simulacao": "2026-04-15",
+    "data_referencia_simulacao": null,
     "convencao_dias_ano": {
       "cdi": 252,
       "selic_percentual": 252,
@@ -555,7 +560,9 @@
         "observacao": "app 15/04/2026"
       }
     ],
-    "limiar_residuo_resolvido": 0.2
+    "limiar_residuo_resolvido": 0.2,
+    "mostrar_tabela_residuos_resolvidos": false,
+    "mostrar_teste_menos_1_dia": false
   },
   "saidas": {
     "exportar_excel_final": true,

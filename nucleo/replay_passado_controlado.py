@@ -58,6 +58,7 @@ def _clonar_lote(lote: Lote) -> Lote:
             'investimento': lote.investimento,
             'produto_key': lote.produto_key,
             'data_base_fiscal': lote.data_base_fiscal,
+            'data_recebimento': lote.data_recebimento,
             'fator_acumulado_inicial': lote.fator_acumulado,
             'taxa_base_cdi': lote.taxa_base_cdi,
             'taxa_bonus_cdi': lote.taxa_bonus_cdi,
@@ -74,6 +75,7 @@ def _clonar_lote(lote: Lote) -> Lote:
 def _serializar_estado_lote(lote: Lote) -> dict[str, Any]:
     return {
         'Lote ID': lote.id,
+        'Data Recebimento': lote.data_recebimento,
         'Data Aplicação': lote.data_aplicacao,
         'Data Base Fiscal': lote.data_base_fiscal,
         'Valor Inicial': arredondar_monetario(lote.valor_inicial),
@@ -102,6 +104,7 @@ def _materializar_lote_historico_nao_aportado(row: dict[str, Any]) -> Lote:
         'investimento': '-',
         'produto_key': None,
         'data_base_fiscal': row.get('data_base_fiscal') or data_aplicacao,
+        'data_recebimento': row.get('data_recebimento') or data_aplicacao,
         'fator_acumulado_inicial': 1.0,
         'taxa_base_cdi': 0.0,
         'taxa_bonus_cdi': 0.0,
@@ -333,10 +336,10 @@ def carregar_replay_passado_controlado(
                 if lote.esgotado or float(lote.saldo_bruto) <= valor_min_lote_ativo:
                     inconsistencias.append({**_contexto_inconsistencia(conta), 'lote_id': lote_id_resolvido, 'motivo': 'lote_esgotado_ou_sem_saldo'})
                     continue
-                if lote.data_aplicacao > data_atual:
+                if lote.data_recebimento > data_atual:
                     inconsistencias.append({**_contexto_inconsistencia(conta), 'lote_id': lote_id_resolvido, 'motivo': 'lote_ainda_nao_recebido_na_data'})
                     continue
-                if lote.carencia_ate and data_atual < lote.carencia_ate:
+                if lote.carencia_ate and data_atual > lote.data_aplicacao and data_atual < lote.carencia_ate:
                     inconsistencias.append({**_contexto_inconsistencia(conta), 'lote_id': lote_id_resolvido, 'motivo': 'lote_em_carencia'})
                     continue
                 valor_liquido_alvo = min(restante, float(lote.valor_liquido_hoje(data_atual, tabela_iof=tabela_iof, faixas_ir=faixas_ir)))
@@ -369,8 +372,9 @@ def carregar_replay_passado_controlado(
                     'Bruto': arredondar_monetario(movimento['bruto']),
                     'Imposto': arredondar_monetario(movimento['imposto']),
                     'Liquido': arredondar_monetario(liquido),
-                    'Dias Corridos': (data_atual - lote.data_base_fiscal).days,
-                    'Dias Úteis': contar_dias_rendimento(lote.data_base_fiscal, data_atual, calendario_financeiro),
+                    'Dias Corridos': max((data_atual - lote.data_base_fiscal).days, 0),
+                    'Dias Úteis': 0 if data_atual < lote.data_aplicacao else contar_dias_rendimento(lote.data_base_fiscal, data_atual, calendario_financeiro),
+                    'Fase Operacional Lote': 'caixa_pre_aplicacao' if lote.data_recebimento <= data_atual <= lote.data_aplicacao else 'aplicado',
                     'Saldo Remanescente': arredondar_monetario(movimento['saldo_remanescente']),
                     'Sequencia Saque': seq_mov,
                     'Situacao Investimento Lote': str(getattr(lote, 'situacao_investimento', '') or ''),
