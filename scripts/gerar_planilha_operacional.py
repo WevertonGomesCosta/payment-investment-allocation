@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from datetime import date
+from datetime import date, timedelta
 from typing import Iterable
 import sys
 
@@ -15,7 +15,7 @@ if str(RAIZ) not in sys.path:
 
 from nucleo.carregador_config import carregar_config
 from nucleo.ambiente import bootstrap_ambiente
-from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento
+from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento, eh_dia_util_bancario, extrair_metadata_serie_cdi
 from nucleo.leitor_planilha import carregar_planilha
 from nucleo.carteira_canonica import carregar_carteira_canonica
 from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
@@ -25,8 +25,20 @@ from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, c
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 
 
-SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v41.xlsx'
-SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v41.xlsx')
+SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v42.xlsx'
+SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v42.xlsx')
+
+
+
+def _resolver_data_economica_situacao_atual(data_referencia, calendario_financeiro, serie_cdi=None):
+    data_fechamento = data_referencia - timedelta(days=1)
+    while data_fechamento > date(1900, 1, 1) and not eh_dia_util_bancario(data_fechamento, calendario_financeiro):
+        data_fechamento -= timedelta(days=1)
+    metadata = extrair_metadata_serie_cdi(serie_cdi) if serie_cdi else None
+    ultima_data_serie = getattr(metadata, 'data_final', None) if metadata is not None else None
+    if ultima_data_serie is not None and ultima_data_serie >= data_fechamento:
+        return data_fechamento
+    return data_referencia
 
 
 def _limiar(config: dict) -> float:
@@ -153,9 +165,10 @@ def main() -> None:
 
     ws_atual = wb.create_sheet('Situação atual')
     rows_atual = []
+    data_economica = _resolver_data_economica_situacao_atual(ctx.data_referencia, cal, serie_cdi=cache.serie_cdi)
     for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
         saldo_bruto = round(float(lote.valor_bruto_em_data(
-            ctx.data_referencia,
+            data_economica,
             cal,
             serie_cdi=cache.serie_cdi,
             data_base_referencia=ctx.data_referencia,
@@ -163,7 +176,7 @@ def main() -> None:
         if lote.esgotado or saldo_bruto <= limiar:
             continue
         saldo_liquido = round(float(lote.valor_liquido_em_data(
-            ctx.data_referencia,
+            data_economica,
             cal,
             tabela_iof=tabela_iof,
             faixas_ir=faixas_ir,
@@ -172,12 +185,12 @@ def main() -> None:
         ) or 0.0), 2)
         saldo_rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
         dias_corridos = max((ctx.data_referencia - lote.data_recebimento).days, 0)
-        dias_uteis = 0 if ctx.data_referencia < lote.data_aplicacao else contar_dias_rendimento(
+        dias_uteis = 0 if data_economica < lote.data_aplicacao else contar_dias_rendimento(
             lote.data_base_fiscal,
-            ctx.data_referencia,
+            data_economica,
             cal,
             serie_cdi=cache.serie_cdi,
-            data_fechamento_referencia=ctx.data_referencia,
+            data_fechamento_referencia=data_economica,
         )
         rows_atual.append([
             lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2), dias_corridos, dias_uteis,

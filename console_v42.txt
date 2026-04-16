@@ -1,0 +1,292 @@
+
+=== BASELINE ===
+- versão: V40
+- raiz do repositório: /mnt/data/v41audit
+- config carregado: /mnt/data/v41audit/dados/config_atualizado.json
+- planilha carregada: /mnt/data/v41audit/dados/dados_financeiros.xlsx
+
+=== AMBIENTE ===
+- timezone: America/Sao_Paulo
+- data de referência: 2026-04-16
+- colab: não
+- warnings de rede configurados: sim
+
+=== DEPENDÊNCIAS ===
+[AVISO] Dependências essenciais da baseline — baseline mínima e auditoria estrutural
+- instaladas: numpy, openpyxl, pandas, python-dateutil, requests
+- ausentes: pulp, workalendar
+
+=== CALENDÁRIO FINANCEIRO E TAXAS BASE ===
+[OK] Camada neutra de calendário e taxas base — sem fetch do BCB e sem aplicação econômica aos lotes
+- CDI anual do modelo: 0.149000
+- convenção dias/ano CDI: 252
+- taxa diária base: 0.000551310642
+- anos dias sem rendimento: 2025-2035
+- dias sem rendimento mapeados: 11
+- workalendar disponível: não
+- calendário Brasil disponível: não
+- dias de rendimento no mês até a data de referência: 10
+
+=== CACHE CDI DIÁRIO (BCB) ===
+[OK] Cache diário de CDI para auditoria e replay — 49 datas
+- data inicial da consulta: 2026-02-01
+- data final da consulta: 2026-04-16
+- última data com fator no cache: 2026-04-14
+- fonte da série: cache_local
+- status do fetch: falha_fetch_bcb:ConnectionError
+- caminho do cache: /mnt/data/v41audit/dados/cache_bcb.json
+
+=== ABAS ENCONTRADAS ===
+- [1] Todos os Gastos
+- [2] Inventário de Lotes
+- [3] Resumo Mensal
+- [4] Carteira
+
+=== RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS ===
+[OK] Carteira — 160 linhas, 26 colunas
+  colunas (primeiras 8): Nome, Taxa_Base_CDI, Taxa_Bonus_CDI, Dias_Bonus, Prazo_Dias, Carência_Dias, Isento_IR, Aplicação_Mínima
+[OK] Inventário de Lotes — 39 linhas, 5 colunas
+  colunas (primeiras 8): Lote (ID), Data Recebimento, Data Aplicação, Valor Original, Investimento
+[OK] Todos os Gastos — 214 linhas, 5 colunas
+  colunas (primeiras 8): Data, Descrição, Valor, Pago, Lote usado
+
+=== ABAS PRIMÁRIAS DO CONTRATO ===
+[OK] Abas primárias do contrato — 3 blocos esperados
+[OK] Bloco carteira — Carteira
+- presente: sim
+- linhas: 160
+- colunas: 26
+
+[OK] Bloco lotes — Inventário de Lotes
+- presente: sim
+- linhas: 39
+- colunas: 5
+
+[OK] Bloco despesas — Todos os Gastos
+- presente: sim
+- linhas: 214
+- colunas: 5
+
+
+=== ABAS AUXILIARES / NÃO OPERACIONAIS ===
+[OK] Abas auxiliares identificadas — 1 abas fora do contrato operacional
+- Resumo Mensal: 16 linhas, 13 colunas
+
+=== RESUMO CONSOLIDADO DAS CAMADAS CANÔNICAS ===
+[AVISO] Carteira canônica — 160 produtos
+[AVISO] Inventário canônico — 15 lotes
+[AVISO] Gastos canônicos — 214 despesas
+[OK] Lotes shadow — 15 lotes técnicos
+[OK] Trilha técnica de eventos — 15 eventos ordenados
+[AVISO] Triagem programática do motor — 97 candidatos
+[OK] Núcleo financeiro mínimo — 10 lotes financeiros
+
+=== CARTEIRA CANÔNICA ===
+[AVISO] Validação estrutural da carteira
+- aba: Carteira
+- produtos canônicos: 160
+- produto_key únicos: 160
+- nomes normalizados únicos: 160
+- famílias de produto: 17
+- regimes de taxa: 8
+- papéis de produto: 2
+- linhas sem produto_id explícito: 160
+- erros de validação: 0
+- avisos de validação: 2
+- colunas resolvidas:
+  [OK] nome: Nome
+  [OK] tipo: Tipo
+  [OK] indexador: Indexador
+  [OK] taxa_base: Taxa_Base_CDI
+  [OK] taxa_bonus: Taxa_Bonus_CDI
+  [OK] dias_bonus: Dias_Bonus
+  [OK] prazo_dias: Prazo_Dias
+  [OK] carencia_dias: Carência_Dias
+  [OK] isento_ir: Isento_IR
+  [OK] aplicacao_minima: Aplicação_Mínima
+  [OK] aplicacao_maxima: Aplicação_Máxima
+  [OK] ativo: Ativo
+  [OK] fgc: FGC
+  [OK] banco_emissor: Banco_Emissor
+  [OK] risco_real: Risco_Real
+  [OK] somente_combo: Somente_Combo
+  [OK] produto_base: Produto_Base
+  [OK] produto_bonus: Produto_Bonus
+  [OK] ratio_base: Ratio_Base
+  [OK] ratio_bonus: Ratio_Bonus
+  [OK] max_usos: Max_Usos
+  [OK] observacoes: Observações
+  [OK] camada: Camada
+  [OK] status_confirmacao: Status_Confirmação
+  [OK] campos_pendentes: Campos_Pendentes
+  [OK] score_banco: Score_Banco
+- observação estrutural: metadados derivados da carteira atuam como ponte transitória até maior estruturação explícita da planilha.
+- campos estruturais ainda sem coluna resolvida: 0
+  [AVISO] pendentes na planilha: familia_produto, regime_taxa, regime_liquidez, papel_produto, elegivel_motor, elegivel_aporte_novo, elegivel_switch_in, elegivel_reconciliacao_historica
+- fontes dos metadados estruturais:
+- avisos de validação:
+  [AVISO] existem_taxas_base_nao_positivas
+  [AVISO] nenhum_produto_padrao_marcado
+
+=== INVENTÁRIO CANÔNICO ===
+[AVISO] Validação estrutural do inventário
+- aba: Inventário de Lotes
+- lotes canônicos: 15
+- aportados: 10
+- não aportados disponíveis: 0
+- não aportados exauridos: 5
+- recebidos futuros: 0
+- aportados com match: 10
+- aportados sem match: 0
+- erros de validação: 0
+- avisos de validação: 1
+- colunas resolvidas:
+  [OK] lote_id: Lote (ID)
+  [OK] data_recebimento: Data Recebimento
+  [OK] data_aplicacao: Data Aplicação
+  [OK] valor_original: Valor Original
+  [OK] produto_id: Investimento
+- avisos de validação:
+  [AVISO] existem_lotes_nao_aportados_exauridos
+
+=== GASTOS CANÔNICOS ===
+[AVISO] Validação estrutural dos gastos
+- aba: Todos os Gastos
+- despesas canônicas: 214
+- pagas até data de referência: 62
+- futuras ou pendentes: 152
+- com lote informado: 62
+- erros de validação: 0
+- avisos de validação: 2
+- colunas resolvidas:
+  [OK] data: Data
+  [OK] descricao: Descrição
+  [OK] valor: Valor
+  [OK] pago: Pago
+  [OK] lote_usado_1: Lote usado
+- avisos de validação:
+  [AVISO] existem_despesas_pagamento_historico
+  [AVISO] existem_despesas_futuras_ou_pendentes
+
+=== SWITCHING SHADOW E RECONCILIAÇÃO ===
+[OK] Normalização shadow dos lotes
+- lotes shadow: 15
+- produto reconhecido: 10
+- produto não reconhecido: 0
+- fração produto reconhecido: 0.0
+- caixa disponível: 0
+- caixa futuro: 0
+- caixa exaurido: 5
+- eventos aporte shadow: 15
+- reconciliação equivalente: sim
+- ids somente shadow: 0
+- ids somente observado: 0
+- cobertura ids observado: 0.0
+- cobertura ids shadow: 0.0
+- tipos de match de produto no shadow:
+  [OK] nome_norm: 10
+  [OK] vazio: 5
+
+=== NÚCLEO FINANCEIRO MÍNIMO ===
+[OK] Primitivas financeiras irreduzíveis do lote — sem solver, sem replay, sem switching econômico e sem relatório financeiro atual
+- lotes financeiros: 10
+- lotes aportados: 10
+- caixa disponível: 0
+- recebidos futuros: 0
+- lotes não disponíveis para aporte: 0
+- lotes com produto mapeado: 10
+- lotes sem produto: 0
+- lotes com taxa default: 0
+- lotes com carência: 1
+- lotes exauridos ignorados: 5
+- data final valuation ref. completa: 2026-04-16
+- fechamentos da referência com fallback CDI: 1
+- saldo bruto ref. sem replay: 54150.61
+- saldo líquido ref. sem replay: 53849.58
+- amostra de saque no núcleo mínimo (auditoria técnica):
+  [OK] lote=Lote 4000 fev. | bruto=100.65 | liquido=100.0 | imposto=0.65 | saldo_remanescente=4018.447874995443
+- amostra de fechamento da referência no núcleo mínimo:
+  [OK] data_valuation=2026-04-16 | data_fator_utilizado=2026-04-14 | fonte=fallback_ultimo_fator_cdi | lotes_atualizados=10
+
+=== REPLAY CONTROLADO DO PASSADO ===
+[OK] Reconciliacao de pagamentos historicos com lotes informados — consome o nucleo financeiro minimo sem abrir switching economico, score final, solver ou relatorio financeiro atual
+- contas historicas: 62
+- contas com lote informado: 62
+- contas processadas: 62
+- cobertas integralmente: 61
+- parcialmente cobertas: 1
+- nao cobertas: 0
+- contas sem lote informado: 0
+- lotes historicos nao aportados materializados: 5
+- aliases historicos resolvidos: 0
+- lotes informados nao encontrados: 0
+- movimentos no log: 62
+- lotes remanescentes ativos: 5
+- data final histórica do replay: 2026-04-15
+- data final valuation ref. completa: 2026-04-16
+- fechamentos da referência com fallback CDI: 1
+- valor contas historicas: 44362.75
+- liquido coberto: 44362.66
+- saldo bruto pos replay: 22556.34
+- saldo liquido pos replay: 22453.12
+- amostra do log de replay do passado:
+  [OK] data=2026-02-09 | lote=Lote 10342 fev. | conta=Cartão Azul | bruto=6021.75 | liquido=6014.06 | saldo_remanescente=4335.08
+- amostra de fechamento da referência no replay:
+  [OK] data_valuation=2026-04-16 | data_fator_utilizado=2026-04-14 | fonte=fallback_ultimo_fator_cdi | lotes_atualizados=6
+
+=== TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1 ===
+[AVISO] Seleção contextual preliminar de candidatos — proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase
+- produtos totais no universo: 160
+- elegíveis brutos: 154
+- candidatos motor v1: 97
+- top_k global: 48
+- top_k por família: 8
+- score mínimo seleção: 20.0
+- modo de calibração: conservadora_transitoria
+- fração elegíveis selecionados: 0.6299
+- elegíveis não selecionados: 57
+- recursos disponíveis para aporte: 0.0
+- recursos aportados observados: 52827.5
+- despesas futuras 30 dias: 14013.099999999999
+- cobertura caixa 30 dias: 0.0
+- famílias no universo único da carteira:
+  [OK] cdb_cdi: 45
+  [OK] fundo_renda_fixa: 17
+  [OK] cdb_ipca: 15
+  [OK] tesouro: 14
+  [OK] cdb_prefixado: 11
+  [OK] lca_cdi: 10
+  [OK] lca: 9
+  [OK] renda_fixa: 7
+  [OK] combo: 7
+  [OK] cdb: 5
+  [OK] compromissada: 5
+  [OK] fundo_prev: 4
+  [OK] fundo_variavel: 4
+  [OK] lci: 2
+  [OK] cdb_cdi_escalonado: 2
+  [OK] lci_cdi: 2
+  [OK] cdb_selic: 1
+
+=== TOP PRODUTOS SELECIONADOS — SCORE V1 ===
+Rank | Produto                                 | Score | Família | Regime
+-----+-----------------------------------------+-------+---------+-------
+1    | Tesouro Educa+ 2032                     | 92.74 | tesouro | ipca  
+2    | Tesouro Educa+ 2027                     | 90.66 | tesouro | ipca  
+3    | Tesouro Educa+ 2028                     | 90.50 | tesouro | ipca  
+4    | Tesouro Educa+ 2029                     | 90.38 | tesouro | ipca  
+5    | Tesouro IPCA+ 2032                      | 90.26 | tesouro | ipca  
+6    | Tesouro Educa+ 2030                     | 90.22 | tesouro | ipca  
+7    | Tesouro Educa+ 2031                     | 89.98 | tesouro | ipca  
+8    | Tesouro Educa+ 2033                     | 89.50 | tesouro | ipca  
+9    | Tesouro IPCA+ com Juros Semestrais 2037 | 89.33 | tesouro | ipca  
+10   | Tesouro Educa+ 2034                     | 89.22 | tesouro | ipca  
+
+=== SITUAÇÃO ATUAL — LOTES ATIVOS ===
+Lote              | Recebimento | Aplicação  | Produto                               | Valor original | Dias corridos | Dias úteis | Bruto   | Líquido | Saldo rem
+------------------+-------------+------------+---------------------------------------+----------------+---------------+------------+---------+---------+----------
+Lote 6630,64 fev. | 2026-02-04  | 2026-02-04 | CDB Turbinado                         | 6630.64        | 71            | 46         | 2849.29 | 2831.45 | 2770.00  
+Lote 3000 mar. V  | 2026-03-03  | 2026-03-03 | CDB XP 230%                           | 3000.00        | 44            | 29         | 3107.35 | 3083.19 | 3000.00  
+Lote 3000 mar. B  | 2026-03-04  | 2026-03-04 | CDB XP 230%                           | 3000.00        | 43            | 28         | 3103.41 | 3080.14 | 3000.00  
+Lote 8500 mar.    | 2026-03-06  | 2026-03-06 | CDB Sofisa 105%                       | 8587.00        | 41            | 26         | 8710.79 | 8682.94 | 8587.00  
+Lote 5680 abr.    | 2026-04-06  | 2026-04-14 | CDB Neon Planejado 150% CDI - 60 dias | 5680.00        | 10            | 0          | 4752.99 | 4752.99 | 4752.99  
