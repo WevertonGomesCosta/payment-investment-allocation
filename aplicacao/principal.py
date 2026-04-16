@@ -151,41 +151,78 @@ def _preparar_resumo_delta_lotes(auditoria_lotes_vs_app):
     ]
 
 
-def _preparar_auditoria_lotes_residuais(replay_passado):
+def _obter_limiar_residuo_resolvido(config):
+    auditoria_cfg = config.get('auditoria', {}) if isinstance(config.get('auditoria'), dict) else {}
+    replay_cfg = config.get('replay', {}) if isinstance(config.get('replay'), dict) else {}
+    valor = auditoria_cfg.get('limiar_residuo_resolvido')
+    if valor is None:
+        valor = replay_cfg.get('valor_minimo_lote_ativo', 0.01)
+    try:
+        return round(float(valor), 2)
+    except Exception:
+        return 0.01
+
+
+def _classificar_status_residuo(valor, limiar):
+    return 'resolvido por limiar' if float(valor or 0.0) <= float(limiar or 0.0) else 'pendente para validação'
+
+
+def _preparar_auditoria_lotes_residuais(replay_passado, config):
     linhas = []
+    limiar = _obter_limiar_residuo_resolvido(config)
     estado = replay_passado.estado_lotes_passado.copy()
+    log = replay_passado.log_passado.copy()
     if len(estado):
         estado = estado[(estado['Saldo Após Replay'] > 0.0) & (estado['Saldo Após Replay'] <= 5.0)]
         estado = estado.sort_values(by=['Saldo Após Replay', 'Lote ID'], ascending=[False, True], kind='stable')
         for _, row in estado.iterrows():
+            lote_id = str(row.get('Lote ID') or '')
+            sub = log[log['Lote'].astype(str) == lote_id].copy() if len(log) else log
+            ultimo = sub.iloc[-1] if len(sub) else None
             vezes_usado = int(row.get('Vezes Usado no Replay') or 0)
-            saldo = float(row.get('Saldo Após Replay') or 0.0)
+            saldo = round(float(row.get('Saldo Após Replay') or 0.0), 2)
+            data_txt = ''
+            conta_txt = ''
+            if ultimo is not None:
+                data_ult = ultimo['Data']
+                data_txt = data_ult.isoformat() if hasattr(data_ult, 'isoformat') else str(data_ult)
+                conta_txt = str(ultimo.get('Conta') or '')
             linhas.append({
                 'Tipo': 'micro-saldo',
-                'Referência': row.get('Lote ID'),
-                'Valor': round(saldo, 2),
+                'Referência': lote_id,
+                'Data': data_txt,
+                'Conta': conta_txt,
+                'Lote': lote_id,
+                'Valor': saldo,
+                'Status': _classificar_status_residuo(saldo, limiar),
                 'Classe provável': 'resíduo de saque/arredondamento' if vezes_usado > 0 else 'remanescente residual sem evidência de convenção',
                 'Leitura': f"vezes usado={vezes_usado}; saldo final pequeno em lote remanescente",
             })
 
     for item in (replay_passado.auditoria or {}).get('amostra_inconsistencias', []) or []:
-        valor_restante = float(item.get('valor_restante') or 0.0)
+        valor_restante = round(float(item.get('valor_restante') or 0.0), 2)
         if valor_restante <= 0.0:
             continue
         classe = 'resíduo de saque/arredondamento' if valor_restante <= 1.0 else 'resíduo material do replay histórico'
+        lote_ref = item.get('lotes_informados') or item.get('lote_id') or ''
         linhas.append({
             'Tipo': 'conta parcial',
             'Referência': item.get('despesa_id') or item.get('descricao') or '',
-            'Valor': round(valor_restante, 2),
+            'Data': item.get('data') or '',
+            'Conta': item.get('descricao') or '',
+            'Lote': lote_ref,
+            'Valor': valor_restante,
+            'Status': _classificar_status_residuo(valor_restante, limiar),
             'Classe provável': classe,
-            'Leitura': f"data={item.get('data')} | lotes={item.get('lotes_informados') or item.get('lote_id') or ''}",
+            'Leitura': f"data={item.get('data')} | lotes={lote_ref}",
         })
 
-    linhas.sort(key=lambda item: (0 if item.get('Tipo') == 'conta parcial' else 1, -float(item.get('Valor') or 0.0), str(item.get('Referência') or '')))
+    linhas.sort(key=lambda item: (0 if item.get('Status') == 'pendente para validação' else 1, 0 if item.get('Tipo') == 'conta parcial' else 1, -float(item.get('Valor') or 0.0), str(item.get('Referência') or '')))
     return linhas
 
 
 def _preparar_auditoria_detalhada_residuos(replay_passado, config, data_referencia):
+    limiar = _obter_limiar_residuo_resolvido(config)
     tabela_iof = construir_tabela_iof(config)
     faixas_ir = construir_faixas_ir(config)
     lotes_por_id = {l.id: l for l in replay_passado.lotes_apos_replay}
@@ -201,6 +238,9 @@ def _preparar_auditoria_detalhada_residuos(replay_passado, config, data_referenc
         despesa_id = str(item.get('despesa_id') or '').strip()
         sub = log[log['Despesa ID'].astype(str) == despesa_id].copy() if len(log) else log
         lote = str(sub.iloc[-1]['Lote']) if len(sub) else str(item.get('lotes_informados') or item.get('lote_id') or '')
+        conta = str(sub.iloc[-1]['Conta']) if len(sub) else str(item.get('descricao') or '')
+        data_evento = sub.iloc[-1]['Data'] if len(sub) else item.get('data')
+        data_txt = data_evento.isoformat() if hasattr(data_evento, 'isoformat') else str(data_evento)
         liquido_coberto = round(float(sub['Liquido'].sum()), 2) if len(sub) else round(float(item.get('valor_conta') or 0.0) - valor_restante, 2)
         saldo_final_evento = round(float(sub.iloc[-1]['Saldo Remanescente']), 2) if len(sub) else None
         lote_zerado = saldo_final_evento is not None and saldo_final_evento <= 0.01
@@ -212,7 +252,11 @@ def _preparar_auditoria_detalhada_residuos(replay_passado, config, data_referenc
         linhas.append({
             'Tipo': 'conta parcial',
             'Referência': despesa_id,
+            'Data': data_txt,
+            'Conta': conta,
+            'Lote': lote,
             'Valor': valor_restante,
+            'Status': _classificar_status_residuo(valor_restante, limiar),
             'Origem provável': origem,
             'Evidência-chave': evid,
             'Leitura': leitura,
@@ -235,6 +279,12 @@ def _preparar_auditoria_detalhada_residuos(replay_passado, config, data_referenc
             liquido_total = round(float(sub['Liquido'].sum()), 2) if len(sub) else 0.0
             bruto_total = round(float(sub['Bruto'].sum()), 2) if len(sub) else 0.0
             saldo_pos_ultimo = round(float(ultimo['Saldo Remanescente']), 2) if ultimo is not None else saldo
+            data_txt = ''
+            conta_txt = ''
+            if ultimo is not None:
+                data_ult = ultimo['Data']
+                data_txt = data_ult.isoformat() if hasattr(data_ult, 'isoformat') else str(data_ult)
+                conta_txt = str(ultimo.get('Conta') or '')
             if situacao == 'nao_aportado_exaurido':
                 origem = 'remanescente por rendimento histórico'
                 leitura = 'o lote histórico marcado como exaurido ainda acumulou rendimento até o último uso; o resíduo não nasce do fechamento temporal global'
@@ -246,9 +296,7 @@ def _preparar_auditoria_detalhada_residuos(replay_passado, config, data_referenc
                 leitura = 'os saques cobriram exatamente as contas históricas informadas, mas preservaram um pequeno saldo bruto remanescente no lote'
             evid = f"usos={vezes_usado} | bruto sacado={bruto_total:.2f} | líquido sacado={liquido_total:.2f} | principal rem={principal_rem:.2f}"
             if ultimo is not None:
-                data_ult = ultimo['Data']
-                data_ult_txt = data_ult.isoformat() if hasattr(data_ult, 'isoformat') else str(data_ult)
-                evid += f" | último saque={data_ult_txt} | saldo pós-último={saldo_pos_ultimo:.2f}"
+                evid += f" | último saque={data_txt} | saldo pós-último={saldo_pos_ultimo:.2f}"
             if saldo_liquido_ref is not None:
                 evid += f" | líquido ref={saldo_liquido_ref:.2f}"
             if abs(liquido_total - valor_inicial) <= 0.01:
@@ -256,25 +304,32 @@ def _preparar_auditoria_detalhada_residuos(replay_passado, config, data_referenc
             linhas.append({
                 'Tipo': 'micro-saldo',
                 'Referência': lote_id,
+                'Data': data_txt,
+                'Conta': conta_txt,
+                'Lote': lote_id,
                 'Valor': saldo,
+                'Status': _classificar_status_residuo(saldo, limiar),
                 'Origem provável': origem,
                 'Evidência-chave': evid,
                 'Leitura': leitura,
             })
 
-    linhas.sort(key=lambda item: (0 if item.get('Tipo') == 'conta parcial' else 1, -float(item.get('Valor') or 0.0), str(item.get('Referência') or '')))
+    linhas.sort(key=lambda item: (0 if item.get('Status') == 'pendente para validação' else 1, 0 if item.get('Tipo') == 'conta parcial' else 1, -float(item.get('Valor') or 0.0), str(item.get('Referência') or '')))
     return linhas
 
 
-def _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada):
+def _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada, limiar):
     if not auditoria_detalhada:
-        return []
+        return [('limiar operacional de resolução', limiar)]
     resumo_origem: dict[str, int] = {}
     for item in auditoria_detalhada:
         chave = str(item.get('Origem provável') or 'não classificado')
         resumo_origem[chave] = resumo_origem.get(chave, 0) + 1
     pares = [
+        ('limiar operacional de resolução', limiar),
         ('resíduos auditados', len(auditoria_detalhada)),
+        ('resolvidos por limiar', sum(1 for item in auditoria_detalhada if item.get('Status') == 'resolvido por limiar')),
+        ('pendentes para validação', sum(1 for item in auditoria_detalhada if item.get('Status') == 'pendente para validação')),
         ('contas parciais auditadas', sum(1 for item in auditoria_detalhada if item.get('Tipo') == 'conta parcial')),
         ('micro-saldos auditados', sum(1 for item in auditoria_detalhada if item.get('Tipo') == 'micro-saldo')),
     ]
@@ -420,12 +475,16 @@ def main() -> None:
     validacao_replay = replay_passado.validacao or {}
     auditoria_lotes_vs_app = _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
     auditoria_lotes_vs_app_menos_1_dia = _preparar_auditoria_lotes_vs_app(replay_passado_menos_1_dia, calendario_financeiro_menos_1_dia, pacote_config.conteudo, data_referencia_menos_1_dia, serie_cdi=cache_cdi.serie_cdi)
-    auditoria_residual_lotes = _preparar_auditoria_lotes_residuais(replay_passado)
+    limiar_residuo_resolvido = _obter_limiar_residuo_resolvido(pacote_config.conteudo)
+    auditoria_residual_lotes = _preparar_auditoria_lotes_residuais(replay_passado, pacote_config.conteudo)
     auditoria_detalhada_residuos = _preparar_auditoria_detalhada_residuos(replay_passado, pacote_config.conteudo, contexto.data_referencia)
+    auditoria_residual_lotes_resolvidos = [item for item in auditoria_residual_lotes if item.get('Status') == 'resolvido por limiar']
+    auditoria_residual_lotes_pendentes = [item for item in auditoria_residual_lotes if item.get('Status') != 'resolvido por limiar']
+    auditoria_detalhada_residuos_pendentes = [item for item in auditoria_detalhada_residuos if item.get('Status') != 'resolvido por limiar']
     comparativo_menos_1_dia = _comparar_auditoria_lotes(auditoria_lotes_vs_app, auditoria_lotes_vs_app_menos_1_dia, replay_passado=replay_passado, data_referencia=contexto.data_referencia)
 
     resumo_deltas_lotes_vs_app = _preparar_resumo_delta_lotes(auditoria_lotes_vs_app)
-    resumo_detalhado_residuos = _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada_residuos)
+    resumo_detalhado_residuos = _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada_residuos, limiar_residuo_resolvido)
 
     severidade_carteira = _severidade(erros=validacao_carteira.get('erros'), avisos=validacao_carteira.get('avisos'), condicao_ok=bool(validacao_carteira.get('ok', True)))
     severidade_inventario = _severidade(erros=validacao_inventario.get('erros'), avisos=validacao_inventario.get('avisos'), condicao_ok=bool(validacao_inventario.get('ok', True)))
@@ -441,7 +500,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V32'),
+        ('versão', 'V33'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -716,17 +775,29 @@ def main() -> None:
         print('  [OK] sem referências de app configuradas para auditoria comparativa')
 
     _imprimir_titulo('REAUDITORIA DOS LOTES RESIDUAIS')
-    _imprimir_linha_status('Separação entre efeito de convenção temporal e resíduo de saque/arredondamento', 'AVISO' if auditoria_residual_lotes else 'OK', 'resíduos pequenos remanescentes após corrigir a data de referência completa')
-    if auditoria_residual_lotes:
-        _imprimir_tabela(['Tipo', 'Referência', 'Valor', 'Classe provável', 'Leitura'], auditoria_residual_lotes, limite=12)
-    else:
+    _imprimir_linha_status('Classificação dos resíduos após aplicar o limiar operacional aprovado', 'AVISO' if auditoria_residual_lotes_pendentes else 'OK', f"limiar={limiar_residuo_resolvido:.2f}; itens até o limiar ficam resolvidos nesta auditoria")
+    _imprimir_pares([
+        ('limiar operacional de resolução', limiar_residuo_resolvido),
+        ('resíduos resolvidos por limiar', len(auditoria_residual_lotes_resolvidos)),
+        ('resíduos pendentes > limiar', len(auditoria_residual_lotes_pendentes)),
+    ])
+    if auditoria_residual_lotes_resolvidos:
+        print('- itens resolvidos por limiar:')
+        _imprimir_tabela(['Tipo', 'Referência', 'Data', 'Conta', 'Lote', 'Valor', 'Status'], auditoria_residual_lotes_resolvidos, limite=12)
+    if auditoria_residual_lotes_pendentes:
+        print('- itens pendentes para validação (> limiar):')
+        _imprimir_tabela(['Tipo', 'Referência', 'Data', 'Conta', 'Lote', 'Valor', 'Classe provável', 'Leitura'], auditoria_residual_lotes_pendentes, limite=12)
+    if not auditoria_residual_lotes:
         print('  [OK] sem lotes residuais relevantes ou micro-resíduos nesta execução')
 
     _imprimir_titulo('AUDITORIA DETALHADA DOS RESÍDUOS DE SAQUE/ARREDONDAMENTO')
-    _imprimir_linha_status('Rastreamento causal dos resíduos no nível do evento histórico', 'AVISO' if auditoria_detalhada_residuos else 'OK', 'separa teto líquido do lote, micro-saldo centesimal e remanescente por rendimento histórico')
+    _imprimir_linha_status('Rastreamento causal dos resíduos pendentes no nível do evento histórico', 'AVISO' if auditoria_detalhada_residuos_pendentes else 'OK', 'explicita data, conta e lote para validação manual dos itens acima do limiar')
     if auditoria_detalhada_residuos:
         _imprimir_pares(resumo_detalhado_residuos)
-        _imprimir_tabela(['Tipo', 'Referência', 'Valor', 'Origem provável', 'Evidência-chave', 'Leitura'], auditoria_detalhada_residuos, limite=12)
+    if auditoria_detalhada_residuos_pendentes:
+        _imprimir_tabela(['Tipo', 'Referência', 'Data', 'Conta', 'Lote', 'Valor', 'Origem provável', 'Evidência-chave', 'Leitura'], auditoria_detalhada_residuos_pendentes, limite=12)
+    elif auditoria_detalhada_residuos:
+        print('  [OK] todos os resíduos detalhados ficaram resolvidos pelo limiar operacional nesta execução')
     else:
         print('  [OK] sem resíduos detalhados para rastrear nesta execução')
 

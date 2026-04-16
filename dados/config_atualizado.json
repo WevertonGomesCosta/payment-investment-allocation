@@ -496,7 +496,7 @@
     "reconciliar_saldo_ao_final": true,
     "tolerancia_monetaria": 0.01,
     "registrar_lineage_lotes": true,
-    "valor_minimo_lote_ativo": 0.01
+    "valor_minimo_lote_ativo": 0.2
   },
   "pagamento": {
     "estrategia_resgate": "menor_ir",
@@ -554,7 +554,8 @@
         "saldo_liquido_app": 8690.7,
         "observacao": "app 15/04/2026"
       }
-    ]
+    ],
+    "limiar_residuo_resolvido": 0.2
   },
   "saidas": {
     "exportar_excel_final": true,
