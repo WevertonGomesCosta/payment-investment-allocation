@@ -108,6 +108,25 @@ def _extrair_data_auditoria_item(item, data_padrao):
     return data_padrao
 
 
+
+
+def _descrever_origem_planilha(pacote_planilha) -> str:
+    fonte = str((getattr(pacote_planilha, 'auditoria', {}) or {}).get('fonte_planilha') or '')
+    if fonte == 'download':
+        return 'download'
+    if fonte == 'caminho_explicito':
+        return 'caminho_explicito'
+    return 'fallback_local'
+
+
+def _descrever_origem_cdi(auditoria_cache_cdi: dict[str, object]) -> str:
+    fonte = str(auditoria_cache_cdi.get('fonte_serie_cdi') or '')
+    if fonte == 'bcb_online':
+        return 'download_bcb'
+    if fonte == 'cache_local':
+        return 'fallback_cache_local'
+    return fonte or 'indisponivel'
+
 def _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, config, data_referencia, serie_cdi=None):
     refs = (((config.get('auditoria') or {}).get('referencias_app_lotes')) or [])
     if not refs:
@@ -568,7 +587,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V54'),
+        ('versão', 'V55'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -580,6 +599,14 @@ def main() -> None:
         ('data de referência', contexto.data_referencia.isoformat()),
         ('colab', 'sim' if contexto.em_colab else 'não'),
         ('warnings de rede configurados', 'sim' if contexto.warnings_configurados else 'não'),
+    ])
+
+    _imprimir_titulo('ORIGEM DOS DADOS')
+    _imprimir_pares([
+        ('dados financeiros', _descrever_origem_planilha(pacote_planilha)),
+        ('status obtenção planilha', (getattr(pacote_planilha, 'auditoria', {}) or {}).get('fetch_status_planilha') or 'nao_tentado'),
+        ('dados CDI/BCB', _descrever_origem_cdi(auditoria_cache_cdi)),
+        ('status obtenção CDI/BCB', auditoria_cache_cdi.get('fetch_status') or ('cache_local' if auditoria_cache_cdi.get('fonte_serie_cdi') == 'cache_local' else 'nao_tentado')),
     ])
 
     _imprimir_titulo('DEPENDÊNCIAS')

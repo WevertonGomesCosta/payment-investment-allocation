@@ -28,9 +28,8 @@ class PacotePlanilha:
     nomes_abas: list[str]
     quadros_brutos: dict[str, pd.DataFrame]
     quadros_canonicos: dict[str, pd.DataFrame]
-
-
-
+    auditoria: dict[str, Any]
+    validacao: dict[str, Any]
 
 
 def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
@@ -213,6 +212,25 @@ def carregar_planilha(
     caminho_explicito: Optional[str | Path] = None,
     carregar_todas_as_abas: bool = True,
 ) -> PacotePlanilha:
+    fonte_planilha = 'caminho_explicito' if caminho_explicito is not None else 'fallback_local'
+    fetch_status: Optional[str] = None
+    erros_validacao: list[str] = []
+    avisos_validacao: list[str] = []
+
+    if caminho_explicito is None:
+        raiz = (raiz_repositorio or Path.cwd()).resolve()
+        arquivos_cfg = config.get("arquivos", {}) if isinstance(config.get("arquivos"), Mapping) else {}
+        nome_arquivo = arquivos_cfg.get("planilha", "dados_financeiros.xlsx")
+        destino_planilha = (raiz / "dados" / nome_arquivo).resolve()
+        baixou, motivo = _tentar_baixar_planilha(config, destino_planilha)
+        if baixou:
+            fonte_planilha = 'download'
+            fetch_status = 'ok'
+        else:
+            fetch_status = motivo or 'nao_tentado'
+            if motivo not in (None, 'url_planilha_ausente'):
+                avisos_validacao.append('download_planilha_indisponivel_usando_fallback_local')
+
     caminho_planilha = resolver_caminho_planilha(
         config,
         raiz_repositorio=raiz_repositorio,
@@ -242,11 +260,21 @@ def carregar_planilha(
         mapa_alias = aliases_por_bloco.get(nome_bloco, {}) if nome_bloco else {}
         quadros_canonicos[nome_aba] = canonizar_colunas(quadro, mapa_alias=mapa_alias)
 
+    auditoria = {
+        'fonte_planilha': fonte_planilha,
+        'fetch_status_planilha': fetch_status,
+        'caminho_planilha': str(caminho_planilha),
+        'qtd_abas_planilha': len(excel.sheet_names),
+    }
+    validacao = {'ok': len(erros_validacao) == 0, 'erros': erros_validacao, 'avisos': avisos_validacao}
+
     return PacotePlanilha(
         caminho=caminho_planilha,
         nomes_abas=list(excel.sheet_names),
         quadros_brutos=quadros_brutos,
         quadros_canonicos=quadros_canonicos,
+        auditoria=auditoria,
+        validacao=validacao,
     )
 
 

@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V54**.
-2. A V54 preserva a linha funcional consolidada e incorpora a regra operacional de aquisição de dados com tentativa de download primeiro e fallback controlado depois, sem abertura de solver, switching econômico, score econômico final ou engine conjunta completa.
+1. A baseline atual é a **V55**.
+2. A V55 preserva a linha funcional consolidada e incorpora a regra operacional de aquisição de dados com tentativa de download primeiro e fallback controlado depois, sem abertura de solver, switching econômico, score econômico final ou engine conjunta completa.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 

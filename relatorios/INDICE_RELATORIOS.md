@@ -3,9 +3,9 @@
 ## Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V54.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V54.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V54.md`
+- `relatorios/atuais/BASELINE_FIXA_V55.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V55.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V55.md`
 
 ## Histórico preservado
 - `relatorios/historico/baselines/`

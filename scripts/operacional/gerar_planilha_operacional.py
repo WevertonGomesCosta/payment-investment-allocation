@@ -25,8 +25,8 @@ from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, c
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 
 
-SAIDA_INTERNA = RAIZ / 'saidas' / 'operacional' / 'relatorio_operacional_v54.xlsx'
-SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v54.xlsx')
+SAIDA_INTERNA = RAIZ / 'saidas' / 'operacional' / 'relatorio_operacional_v55.xlsx'
+SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v55.xlsx')
 
 
 
