@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V74**.
-2. A V74 preserva integralmente a base funcional da V73 e sincroniza a documentação vigente com o estado real do repositório, mantendo o `proxy econômico v3` congelado como decisão monofonte vigente.
+1. A baseline atual é a **V75**.
+2. A V75 preserva integralmente a base funcional da V74 e abre uma etapa exclusivamente documental/diagnóstica de mapeamento de absorção legado dos Scripts 1 e 2, mantendo o `proxy econômico v3` congelado como decisão monofonte vigente.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -18,7 +18,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 8. Todo o projeto deve permanecer em português.
 9. Antes de cada entrega, a etapa implementada deve ser executada e validada localmente no ambiente disponível.
 10. A checagem de release em `scripts/diagnostico/verificar_release_baseline.py` é gate obrigatório antes das entregas.
-11. O pacote final não deve incluir artefatos temporários como `__pycache__`, `.pyc`, logs brutos auxiliares, caches efêmeros não oficiais ou saídas redundantes de versões antigas.
+11. O mapa vigente de absorção legado dos Scripts 1 e 2 deve ser consultado antes de qualquer migração de regra de negócio ainda ausente.
+12. O pacote final não deve incluir artefatos temporários como `__pycache__`, `.pyc`, logs brutos auxiliares, caches efêmeros não oficiais ou saídas redundantes de versões antigas.
 
 ## 3. Regra metodológica principal de auditoria
 
@@ -136,3 +137,10 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 58. A documentação vigente deve ficar concentrada em `relatorios/atuais/`.
 59. Relatórios de versões anteriores devem permanecer preservados em `relatorios/historico/`, organizados por tipo documental.
 60. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como mapa oficial de navegação documental.
+
+
+## 10. Mapeamento legado vigente
+
+91. A baseline V75 incorpora um mapa de absorção legado específico para os `Script 1.txt` e `Script 2.txt`.
+92. Esse mapa classifica funções e blocos em: `migrar já`, `migrar depois`, `não migrar` e `substituída pela baseline atual`.
+93. Nenhuma migração funcional dos Scripts 1 e 2 deve ser feita de forma bruta; a absorção deve seguir esse mapa e ocorrer primeiro em modo shadow/diagnóstico quando a regra ainda estiver ausente.

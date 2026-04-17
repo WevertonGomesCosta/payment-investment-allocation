@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V74'
-VERSAO_ANTERIOR = 'V73'
+VERSAO_VIGENTE = 'V75'
+VERSAO_ANTERIOR = 'V74'
 
 
 def repo_root() -> Path:
@@ -34,6 +34,7 @@ def validar_indice_documental(base: Path) -> list[str]:
         f'relatorios/atuais/VALIDACAO_LOCAL_{VERSAO_VIGENTE}.md',
         f'relatorios/atuais/ESTRUTURA_REPOSITORIO_{VERSAO_VIGENTE}.md',
         'relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md',
+        'relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md',
     ]
     if not indice.exists():
         return ['relatorios/INDICE_RELATORIOS.md ausente']
@@ -93,6 +94,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_saldo_disponivel_geral.py',
         'scripts/diagnostico/inspecionar_decisao_local_v1.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py',
+        'scripts/diagnostico/inspecionar_mapa_absorcao_legado.py',
         'scripts/gerar_planilha_operacional.py',
         'scripts/gerar_auditoria_diaria_lote.py',
         'scripts/inspecionar_base.py',
@@ -103,6 +105,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_saldo_disponivel_geral.py',
         'scripts/inspecionar_decisao_local_v1.py',
         'scripts/inspecionar_comparativo_proxy_v2_v3.py',
+        'scripts/inspecionar_mapa_absorcao_legado.py',
         'nucleo/caixa_recebidos_auditaveis.py',
     ]
     erros: list[str] = []

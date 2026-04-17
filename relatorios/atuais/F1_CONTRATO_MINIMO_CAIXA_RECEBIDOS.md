@@ -165,9 +165,9 @@ A auditoria comparativa entre `proxy v2` e `proxy v3` pode ser inspecionada por:
 python scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py
 ```
 
-## Atualização V74
+## Atualização V75
 
-- baseline atualizada para **V74** sem alteração funcional da F1;
+- baseline atualizada para **V75** sem alteração funcional da F1;
 - congelamento explícito do `proxy econômico v3` como decisão monofonte vigente;
 - manutenção da auditoria comparativa `proxy v2 vs v3` como referência diagnóstica;
 - preservação do fluxo principal e do motor financeiro, sem abrir multifonte nesta etapa.

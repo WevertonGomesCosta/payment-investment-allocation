@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V74
+**Versão atual da baseline:** V75
 
-A V74 preserva integralmente a base funcional da V73 e executa uma **sincronização documental** do repositório: contrato operacional, backlog, README e relatórios vigentes passam a refletir o estado real da baseline, com `proxy econômico v3` congelado como decisão monofonte vigente e `multifonte v1` mantido como frente futura condicionada à evidência.
+A V75 preserva integralmente a base funcional da V74 e abre uma etapa exclusivamente de **mapeamento de absorção legado** para os `Script 1.txt` e `Script 2.txt`, sem alterar o motor financeiro, sem reabrir o `proxy econômico v3` congelado e sem abrir `multifonte v1`.
 
-## Estrutura canônica da V74
+## Estrutura canônica da V75
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -30,11 +30,15 @@ A V74 preserva integralmente a base funcional da V73 e executa uma **sincroniza�
 - `scripts/diagnostico/inspecionar_saldo_disponivel_geral.py`
 - `scripts/diagnostico/inspecionar_decisao_local_v1.py`
 - `scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py`
+- `scripts/diagnostico/inspecionar_mapa_absorcao_legado.py`
 - `scripts/*.py` → wrappers de compatibilidade
 
 ### Camada F1 aberta até aqui
 - `nucleo/caixa_recebidos_auditaveis.py`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
+
+### Mapeamento legado vigente
+- `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 
 ### Dados canônicos
 - `dados/config_atualizado.json`
@@ -47,10 +51,11 @@ A V74 preserva integralmente a base funcional da V73 e executa uma **sincroniza�
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V74.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V74.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V74.md`
+- `relatorios/atuais/BASELINE_FIXA_V75.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V75.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V75.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
+- `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 
 ## Gate obrigatório antes de cada entrega
 
@@ -72,6 +77,7 @@ python scripts/diagnostico/inspecionar_fontes_elegiveis_pagamento.py
 python scripts/diagnostico/inspecionar_saldo_disponivel_geral.py
 python scripts/diagnostico/inspecionar_decisao_local_v1.py
 python scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py
+python scripts/diagnostico/inspecionar_mapa_absorcao_legado.py
 ```
 
 ## Comandos antigos preservados
@@ -88,12 +94,14 @@ python scripts/inspecionar_fontes_elegiveis_pagamento.py
 python scripts/inspecionar_saldo_disponivel_geral.py
 python scripts/inspecionar_decisao_local_v1.py
 python scripts/inspecionar_comparativo_proxy_v2_v3.py
+python scripts/inspecionar_mapa_absorcao_legado.py
 ```
 
-## Atualização V74
+## Atualização V75
 
-- baseline atualizada para **V74** sem alteração funcional do motor;
-- sincronização do `README`, do contrato operacional e do backlog com o estado real da baseline;
-- congelamento explícito do `proxy econômico v3` como decisão monofonte vigente;
+- baseline atualizada para **V75** sem alteração funcional do motor;
+- abertura de uma etapa documental e diagnóstica de **mapeamento de absorção legado** para os Scripts 1 e 2;
+- classificação explícita do que migrar já, do que migrar depois, do que não migrar e do que já foi substituído pela baseline;
+- preservação do `proxy econômico v3` congelado como decisão monofonte vigente;
 - manutenção de `multifonte v1` como frente futura condicionada à evidência;
 - preservação do `release checker` como gate obrigatório antes das próximas entregas.
