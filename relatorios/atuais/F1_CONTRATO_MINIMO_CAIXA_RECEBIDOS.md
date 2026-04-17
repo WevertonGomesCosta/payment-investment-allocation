@@ -2,7 +2,7 @@
 
 ## Escopo desta etapa
 
-A Etapa 2 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e materializa a primeira estrutura real: `recebido_auditavel`. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre a decisão econômica real e **não** integra ainda a F1 ao fluxo principal do console ou da planilha operacional.
+A Etapa 3 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e materializa a segunda estrutura real: `fonte_elegivel_pagamento`. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre a decisão econômica real e **não** integra ainda a F1 ao fluxo principal do console ou da planilha operacional.
 
 ## Objetivo
 
@@ -28,7 +28,7 @@ Campos mínimos:
 - `origem_status`
 - `observacao_auditavel`
 
-**Estado atual:** apenas contratual.
+**Estado atual:** contratual + materializado a partir do inventário canônico, da data de referência corrente, dos recebidos auditáveis e do estado mínimo observável do replay. Nesta etapa, a camada ainda não materializa um `saldo_disponivel` geral robusto e independente da origem explícita do recebido.
 
 ### 2. `recebido_auditavel`
 Representa o recebido com valor, status e destino auditável.
@@ -68,7 +68,7 @@ Campos mínimos:
 - alterar valuation dos lotes;
 - abrir switching econômico;
 - integrar a decisão local v1 ao fluxo principal;
-- materializar `fonte_elegivel_pagamento`.
+- materializar uma camada geral de `saldo_disponivel` sem duplicação ou inconsistência com as fontes explícitas já observáveis.
 
 ## Evidência observável desta etapa
 
@@ -88,4 +88,16 @@ ou pelo wrapper de compatibilidade:
 
 ```bash
 python scripts/inspecionar_recebidos_auditaveis.py
+```
+
+A segunda estrutura real da F1 pode ser inspecionada por:
+
+```bash
+python scripts/diagnostico/inspecionar_fontes_elegiveis_pagamento.py
+```
+
+ou pelo wrapper de compatibilidade:
+
+```bash
+python scripts/inspecionar_fontes_elegiveis_pagamento.py
 ```

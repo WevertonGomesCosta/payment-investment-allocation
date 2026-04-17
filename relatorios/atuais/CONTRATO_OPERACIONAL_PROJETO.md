@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V61**.
-2. A V61 preserva a linha funcional consolidada até a V60 e abre a **Etapa 2 da Frente F1**, materializando `recebido_auditavel` a partir dos dados canônicos e dos vínculos históricos de gastos, sem alterar o motor financeiro.
+1. A baseline atual é a **V62**.
+2. A V62 preserva a linha funcional consolidada até a V61 e abre a **Etapa 3 da Frente F1**, materializando `fonte_elegivel_pagamento` a partir do inventário canônico, da data de referência corrente, dos recebidos auditáveis e do estado mínimo observável do replay, sem alterar o motor financeiro.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -94,31 +94,33 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 9. Itens parcialmente implementados e observáveis na F1
 
-44. A F1 está parcialmente aberta na forma de **contrato mínimo canônico observável** e de uma **primeira estrutura real** derivada dos dados canônicos.
+44. A F1 está parcialmente aberta na forma de **contrato mínimo canônico observável** e de **duas estruturas reais** derivadas dos dados canônicos.
 45. O contrato mínimo da F1 deve permanecer centralizado em `nucleo/caixa_recebidos_auditaveis.py` e documentado em `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`.
 46. Nesta etapa, a F1 disponibiliza as estruturas canônicas:
-    - `fonte_elegivel_pagamento` (apenas contratual);
+    - `fonte_elegivel_pagamento` (contratual + materializado);
     - `recebido_auditavel` (contratual + materializado);
     - `decisao_local_v1` (apenas contratual).
 47. A inspeção dessa camada deve ser possível por:
     - `scripts/diagnostico/inspecionar_contrato_f1.py`;
-    - `scripts/diagnostico/inspecionar_recebidos_auditaveis.py`.
+    - `scripts/diagnostico/inspecionar_recebidos_auditaveis.py`;
+    - `scripts/diagnostico/inspecionar_fontes_elegiveis_pagamento.py`.
 48. A materialização atual de `recebido_auditavel` deve usar, no mínimo, o inventário canônico, a data de referência corrente e os vínculos históricos explícitos da aba de gastos.
-49. A abertura da F1 nesta etapa não implica integração ao fluxo principal, nem decisão econômica real, nem alteração do replay, nem abertura de switching.
+49. A materialização atual de `fonte_elegivel_pagamento` deve usar, no mínimo, o inventário canônico, a data de referência corrente, `recebido_auditavel` e o estado mínimo observável do replay, preservando a ausência de uma camada geral robusta de `saldo_disponivel` nesta etapa.
+50. A abertura da F1 nesta etapa não implica integração ao fluxo principal, nem decisão econômica real, nem alteração do replay, nem abertura de switching.
 
 ## 10. O que continua fora do contrato executável
 
-50. Ainda não fazem parte do contrato executável:
+51. Ainda não fazem parte do contrato executável:
     - switching econômico;
     - decisão conjunta completa de pagamentos + aportes + switching;
     - solver ou busca pesada;
     - recomendação final por cenário integrado;
     - decisão econômica real entre saldo disponível e resgate;
     - integração da F1 ao console principal e ao `.xlsx` operacional.
-51. Esses itens só podem ser abertos por etapa posterior explicitamente auditada e documentada.
+52. Esses itens só podem ser abertos por etapa posterior explicitamente auditada e documentada.
 
 ## 11. Hierarquia documental oficial
 
-52. A documentação vigente deve ficar concentrada em `relatorios/atuais/`.
-53. Relatórios de versões anteriores devem permanecer preservados em `relatorios/historico/`, organizados por tipo documental.
-54. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como mapa oficial de navegação documental.
+53. A documentação vigente deve ficar concentrada em `relatorios/atuais/`.
+54. Relatórios de versões anteriores devem permanecer preservados em `relatorios/historico/`, organizados por tipo documental.
+55. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como mapa oficial de navegação documental.

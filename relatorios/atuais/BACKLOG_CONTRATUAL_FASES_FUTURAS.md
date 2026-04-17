@@ -15,31 +15,32 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 
 ## 3. Continuação da Frente F1
 
-6. Materializar `fonte_elegivel_pagamento` diretamente a partir dos dados canônicos e do estado do replay.
+6. Materializar uma camada robusta de `saldo_disponivel` geral sem duplicar nem conflitar com as fontes explícitas já observáveis.
 7. Refinar `recebido_auditavel` com leitura por evento e trilha mais explícita de destino observado versus destino elegível.
-8. Abrir a regra local v1 entre saldo disponível, caixa pré-aplicação, recebidos e resgate.
-9. Expor a trilha correspondente no console e no `.xlsx`.
+8. Refinar `fonte_elegivel_pagamento` com horizonte por data de pagamento, em vez de apenas fotografia na data de referência.
+9. Abrir a regra local v1 entre saldo disponível, caixa pré-aplicação, recebidos e resgate.
+10. Expor a trilha correspondente no console e no `.xlsx`.
 
 ## 4. Saídas finais ainda não abertas
 
-10. Evoluir o `.xlsx` para contemplar, quando a etapa for aberta:
+11. Evoluir o `.xlsx` para contemplar, quando a etapa for aberta:
     - auditoria formal de pagamentos;
     - auditoria formal de recebidos com bruto/líquido;
     - recomendação final por cenário integrado.
 
 ## 5. Switching e busca mais pesada
 
-11. Abrir switching econômico híbrido por lote e por grupos de lotes.
-12. Só depois disso abrir solver, MILP ou buscas mais pesadas, preservando auditabilidade.
+12. Abrir switching econômico híbrido por lote e por grupos de lotes.
+13. Só depois disso abrir solver, MILP ou buscas mais pesadas, preservando auditabilidade.
 
 ## 6. Parametrização intradiária mais explícita
 
-13. Tornar a precedência intradiária entre recebidos e pagamentos no mesmo dia uma regra central, explícita e auditável no `config`.
-14. Registrar essa ordem na trilha de eventos quando a camada correspondente for aberta.
+14. Tornar a precedência intradiária entre recebidos e pagamentos no mesmo dia uma regra central, explícita e auditável no `config`.
+15. Registrar essa ordem na trilha de eventos quando a camada correspondente for aberta.
 
 ## 7. Critério de entrada no contrato executável
 
-15. Um item deste backlog só deve migrar para o contrato executável quando estiver:
+16. Um item deste backlog só deve migrar para o contrato executável quando estiver:
     - implementado de forma observável;
     - validado localmente;
     - documentado de forma estável.

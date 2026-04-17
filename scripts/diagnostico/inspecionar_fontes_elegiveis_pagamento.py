@@ -1,4 +1,4 @@
-"""Inspeciona a primeira estrutura real da F1: recebido_auditavel."""
+"""Inspeciona a segunda estrutura real da F1: fonte_elegivel_pagamento."""
 
 from __future__ import annotations
 
@@ -13,33 +13,32 @@ from nucleo.contexto_baseline import carregar_contexto_baseline
 
 
 COLUNAS_EXIBICAO = [
+    'fonte_id',
+    'tipo_fonte',
+    'data_evento',
+    'lote_id',
     'recebido_id',
-    'lote_id_origem',
-    'data_recebimento',
-    'data_aplicacao',
-    'valor_bruto',
-    'status_recebido',
-    'destino_potencial',
-    'qtd_pagamentos_vinculados',
-    'valor_pagamentos_pre_aplicacao',
-    'valor_pagamentos_pos_aplicacao',
-    'valor_residual_para_aplicacao_origem',
+    'produto_nome_canonico',
+    'valor_bruto_disponivel',
+    'valor_liquido_disponivel',
+    'origem_status',
+    'carencia_ate_origem',
     'observacao_auditavel',
 ]
 
 
 def main() -> int:
     contexto = carregar_contexto_baseline(raiz_repositorio=RAIZ_REPOSITORIO)
-    pacote = contexto.recebidos_auditaveis
-    quadro = pacote.quadro_recebidos_auditaveis
+    pacote = contexto.fontes_elegiveis_pagamento
+    quadro = pacote.quadro_fontes_elegiveis
     auditoria = pacote.auditoria
 
-    print('=== RECEBIDOS AUDITÁVEIS (F1 / ETAPA 3) ===')
+    print('=== FONTES ELEGÍVEIS DE PAGAMENTO (F1 / ETAPA 3) ===')
     print(f"data_referencia: {contexto.execucao.data_referencia}")
-    print(f"total_recebidos: {len(quadro)}")
+    print(f"total_fontes: {len(quadro)}")
     print(f"status_validacao: {'OK' if auditoria.get('validacao', {}).get('ok') else 'FALHA'}")
-    print(f"resumo_status: {auditoria.get('resumo', {}).get('status_recebido', {})}")
-    print(f"resumo_destino: {auditoria.get('resumo', {}).get('destino_potencial', {})}")
+    print(f"resumo_tipo: {auditoria.get('resumo', {}).get('tipo_fonte', {})}")
+    print(f"resumo_status: {auditoria.get('resumo', {}).get('origem_status', {})}")
     if auditoria.get('validacao', {}).get('avisos'):
         print(f"avisos: {auditoria['validacao']['avisos']}")
     if auditoria.get('validacao', {}).get('erros'):
