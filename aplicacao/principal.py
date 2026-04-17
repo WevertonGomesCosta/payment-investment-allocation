@@ -568,7 +568,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V50'),
+        ('versão', 'V51'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -677,6 +677,10 @@ def main() -> None:
     for chave, valor in carteira_canonica.auditoria.get('colunas_resolvidas', {}).items():
         if valor:
             print(f"  [OK] {chave}: {valor}")
+    _imprimir_itens_severidade('erros de validação', validacao_carteira.get('erros'), 'ERRO')
+    _imprimir_itens_severidade('avisos de validação', validacao_carteira.get('avisos'), 'AVISO')
+
+    _imprimir_titulo('CARTEIRA CANÔNICA — OBSERVAÇÕES')
     print('- observação estrutural: metadados derivados da carteira atuam como ponte transitória até maior estruturação explícita da planilha.')
     print(f"- campos estruturais ainda sem coluna resolvida: {carteira_canonica.auditoria.get('qtd_campos_estruturais_sem_coluna_resolvida', 0)}")
     if carteira_canonica.auditoria.get('campos_estruturais_sem_coluna_resolvida'):
@@ -686,8 +690,6 @@ def main() -> None:
         cobertura_planilha = carteira_canonica.auditoria.get('resumo_cobertura_metadados_planilha', {}).get(campo, 0)
         cobertura_derivada = carteira_canonica.auditoria.get('resumo_cobertura_metadados_derivados', {}).get(campo, 0)
         print(f"  [OK] {campo}: {resumo} | planilha={cobertura_planilha} | derivado={cobertura_derivada}")
-    _imprimir_itens_severidade('erros de validação', validacao_carteira.get('erros'), 'ERRO')
-    _imprimir_itens_severidade('avisos de validação', validacao_carteira.get('avisos'), 'AVISO')
 
     _imprimir_titulo('INVENTÁRIO CANÔNICO')
     _imprimir_linha_status('Validação estrutural do inventário', severidade_inventario)
@@ -768,11 +770,19 @@ def main() -> None:
         ('lotes com taxa default', auditoria_nucleo.get('qtd_lotes_com_taxa_default', 0)),
         ('lotes com carência', auditoria_nucleo.get('qtd_lotes_com_carencia', 0)),
         ('lotes exauridos ignorados', auditoria_nucleo.get('qtd_lotes_ignorados_exauridos', 0)),
+    ])
+    _imprimir_itens_severidade('erros de validação', validacao_nucleo.get('erros'), 'ERRO')
+    _imprimir_itens_severidade('avisos de validação', validacao_nucleo.get('avisos'), 'AVISO')
+
+    _imprimir_titulo('NÚCLEO FINANCEIRO MÍNIMO — VALUATION')
+    _imprimir_pares([
         ('data final valuation ref. completa', auditoria_nucleo.get('data_final_valuation_referencia')),
         ('fechamentos da referência com fallback CDI', auditoria_nucleo.get('qtd_fechamentos_referencia_com_fallback_cdi', 0)),
         ('saldo bruto ref. sem replay', auditoria_nucleo.get('saldo_bruto_total_referencia_sem_replay', 0.0)),
         ('saldo líquido ref. sem replay', auditoria_nucleo.get('saldo_liquido_total_referencia_sem_replay', 0.0)),
     ])
+
+    _imprimir_titulo('NÚCLEO FINANCEIRO MÍNIMO — AMOSTRAS')
     amostra_saque = auditoria_nucleo.get('amostra_movimento_saque') or {}
     if amostra_saque:
         print('- amostra de saque no núcleo mínimo (auditoria técnica):')
@@ -781,8 +791,8 @@ def main() -> None:
     if amostra_fechamento_nucleo:
         print('- amostra de fechamento da referência no núcleo mínimo:')
         print(f"  [OK] data_valuation={amostra_fechamento_nucleo.get('data_valuation')} | data_fator_utilizado={amostra_fechamento_nucleo.get('data_fator_utilizado')} | fonte={amostra_fechamento_nucleo.get('fonte')} | lotes_atualizados={amostra_fechamento_nucleo.get('qtd_lotes_atualizados')}")
-    _imprimir_itens_severidade('erros de validação', validacao_nucleo.get('erros'), 'ERRO')
-    _imprimir_itens_severidade('avisos de validação', validacao_nucleo.get('avisos'), 'AVISO')
+    if not amostra_saque and not amostra_fechamento_nucleo:
+        print('  [OK] nenhuma amostra disponível nesta execução')
 
     _imprimir_titulo('REPLAY CONTROLADO DO PASSADO')
     _imprimir_linha_status('Reconciliacao de pagamentos historicos com lotes informados', severidade_replay, 'consome o nucleo financeiro minimo sem abrir switching economico, score final, solver ou relatorio financeiro atual')
@@ -800,13 +810,19 @@ def main() -> None:
         ('movimentos no log', auditoria_replay.get('qtd_movimentos_log', 0)),
         ('lotes remanescentes ativos', auditoria_replay.get('qtd_lotes_remanescentes_ativos', 0)),
         ('data final histórica do replay', auditoria_replay.get('data_final_historico_replay')),
-        ('data final valuation ref. completa', auditoria_replay.get('data_final_valuation_referencia')),
-        ('fechamentos da referência com fallback CDI', auditoria_replay.get('qtd_fechamentos_referencia_com_fallback_cdi', 0)),
         ('valor contas historicas', auditoria_replay.get('total_valor_contas_historicas', 0.0)),
         ('liquido coberto', auditoria_replay.get('total_liquido_coberto', 0.0)),
         ('saldo bruto pos replay', auditoria_replay.get('saldo_bruto_total_pos_replay', 0.0)),
         ('saldo liquido pos replay', auditoria_replay.get('saldo_liquido_total_pos_replay', 0.0)),
     ])
+
+    _imprimir_titulo('REPLAY CONTROLADO DO PASSADO — VALUATION')
+    _imprimir_pares([
+        ('data final valuation ref. completa', auditoria_replay.get('data_final_valuation_referencia')),
+        ('fechamentos da referência com fallback CDI', auditoria_replay.get('qtd_fechamentos_referencia_com_fallback_cdi', 0)),
+    ])
+
+    _imprimir_titulo('REPLAY CONTROLADO DO PASSADO — AMOSTRAS')
     amostra_replay = auditoria_replay.get('amostra_log_passado') or {}
     if amostra_replay:
         print('- amostra do log de replay do passado:')
@@ -838,7 +854,10 @@ def main() -> None:
                 'Motivo': item.get('motivo') or '',
                 'Valor restante': item.get('valor_restante'),
             })
+    if amostra_inconsistencias_replay:
         _imprimir_tabela(colunas_inc, linhas_inc)
+    if not amostra_replay and not amostra_fechamento_replay and not amostras_alias_replay and not amostra_inconsistencias_replay:
+        print('  [OK] nenhuma amostra disponível nesta execução')
     _imprimir_itens_severidade('erros de validação', validacao_replay.get('erros'), 'ERRO')
     _imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
 

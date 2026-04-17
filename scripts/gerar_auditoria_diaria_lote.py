@@ -275,8 +275,8 @@ def gerar_auditoria_diaria_lote(lote_id: str) -> pd.DataFrame:
 def main() -> None:
     parser = argparse.ArgumentParser(description='Gera auditoria diária de um lote usando a mesma convenção econômica da série CDI.')
     parser.add_argument('--lote', default='Lote 6630,64 fev.', help='ID do lote a auditar')
-    parser.add_argument('--xlsx', default=str(RAIZ / 'saidas' / 'auditoria_diaria_lote_6630_64_fev_v50.xlsx'))
-    parser.add_argument('--csv', default=str(RAIZ / 'saidas' / 'auditoria_diaria_lote_6630_64_fev_v50.csv'))
+    parser.add_argument('--xlsx', default=str(RAIZ / 'saidas' / 'auditoria_diaria_lote_6630_64_fev_v51.xlsx'))
+    parser.add_argument('--csv', default=str(RAIZ / 'saidas' / 'auditoria_diaria_lote_6630_64_fev_v51.csv'))
     args = parser.parse_args()
 
     df = gerar_auditoria_diaria_lote(args.lote)
