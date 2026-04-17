@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V56
+**Versão atual da baseline:** V57
 
-A V56 preserva a base funcional vigente, mas reorganiza a arquitetura de orquestração da baseline, modulariza o console e centraliza a identidade da versão e dos artefatos.
+A V57 preserva a base funcional vigente, mas reorganiza a arquitetura de orquestração da baseline, modulariza o console e centraliza a identidade da versão e dos artefatos.
 
-## Estrutura canônica da V56
+## Estrutura canônica da V57
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -36,9 +36,9 @@ A V56 preserva a base funcional vigente, mas reorganiza a arquitetura de orquest
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V56.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V56.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V56.md`
+- `relatorios/atuais/BASELINE_FIXA_V57.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V57.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V57.md`
 
 ## Comandos canônicos
 
@@ -57,3 +57,8 @@ python scripts/gerar_planilha_operacional.py
 python scripts/gerar_auditoria_diaria_lote.py --lote "Lote 6630,64 fev."
 python scripts/inspecionar_base.py
 ```
+
+
+## Atualização V57
+
+- fallback encadeado do CDI para dias úteis consecutivos sem fator novo, repetindo o último fator válido disponível até a data de referência corrente quando o download do BCB falhar.

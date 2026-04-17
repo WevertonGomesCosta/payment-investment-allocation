@@ -1,4 +1,4 @@
-# Validação local V56
+# Validação local V57
 
 ## Escopo validado
 
@@ -19,4 +19,9 @@
 
 ## Artefatos gerados
 
-- `saidas/operacional/relatorio_operacional_v56.xlsx`
+- `saidas/operacional/relatorio_operacional_v57.xlsx`
+
+
+## Atualização V57
+
+- fallback encadeado do CDI para dias úteis consecutivos sem fator novo, repetindo o último fator válido disponível até a data de referência corrente quando o download do BCB falhar.

@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V56**.
-2. A V56 preserva a linha funcional consolidada, incorpora a regra operacional de aquisição de dados com tentativa de download primeiro e fallback controlado depois, centraliza a montagem da baseline em `nucleo/contexto_baseline.py`, centraliza a identidade da versão em `nucleo/identidade_baseline.py` e modulariza o console por seções, sem abertura de solver, switching econômico, score econômico final ou engine conjunta completa.
+1. A baseline atual é a **V57**.
+2. A V57 preserva a linha funcional consolidada, incorpora a regra operacional de aquisição de dados com tentativa de download primeiro e fallback controlado depois, centraliza a montagem da baseline em `nucleo/contexto_baseline.py`, centraliza a identidade da versão em `nucleo/identidade_baseline.py` e modulariza o console por seções, sem abertura de solver, switching econômico, score econômico final ou engine conjunta completa.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -36,35 +36,36 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 20. O cache CDI vigente da baseline é `dados/cache_bcb.json`.
 21. Para os dados operacionais financeiros, a baseline deve primeiro tentar o download da planilha canônica configurada e, se isso não for possível, usar o fallback local em `dados/dados_financeiros.xlsx`.
 22. Para o CDI do BCB, a baseline deve primeiro tentar o download online da série necessária e, se isso não for possível, usar o fallback local em `dados/cache_bcb.json`.
-23. Quando o download do BCB falhar e o cache local não contiver o próprio dia corrente, a baseline deve usar o valor da data útil mais próxima anterior disponível na série, desde que a data corrente seja um dia útil bancário.
-24. A ausência de download novo não deve interromper a execução quando o fallback local estiver disponível e validado.
+23. Quando o download do BCB falhar e o cache local não contiver o próprio dia corrente, a baseline deve usar fallback encadeado com o valor da data útil mais próxima anterior disponível na série, desde que a data corrente seja um dia útil bancário.
+24. O fallback encadeado deve poder cobrir dias úteis consecutivos sem fator novo, repetindo o último fator válido disponível até a data de referência corrente.
+25. A ausência de download novo não deve interromper a execução quando o fallback local estiver disponível e validado.
 
 ## 5. Regras executáveis sobre lotes e temporalidade
 
-25. O projeto deve distinguir, no mínimo, lotes aportados ativos, aportados parcialmente resgatados, lotes exauridos, lotes não aportados disponíveis e lotes não aportados exauridos.
-26. A semântica formal do campo `Investimento` em `Inventário de Lotes` permanece:
+26. O projeto deve distinguir, no mínimo, lotes aportados ativos, aportados parcialmente resgatados, lotes exauridos, lotes não aportados disponíveis e lotes não aportados exauridos.
+27. A semântica formal do campo `Investimento` em `Inventário de Lotes` permanece:
     - com nome de produto = lote aportado/associado;
     - em branco = lote não aportado disponível somente se a data relevante já ocorreu;
     - em branco com data futura = recebido futuro ainda não disponível;
     - `Investimento = "-"` = lote não aportado já consumido/exaurido.
-27. Quando um lote possuir `Data Recebimento` e `Data Aplicação` distintas, o valor deve ser tratado como **caixa pré-aplicação** no intervalo entre essas datas.
-28. Na janela de caixa pré-aplicação, o lote já pode ser usado para pagamentos, mas ainda:
+28. Quando um lote possuir `Data Recebimento` e `Data Aplicação` distintas, o valor deve ser tratado como **caixa pré-aplicação** no intervalo entre essas datas.
+29. Na janela de caixa pré-aplicação, o lote já pode ser usado para pagamentos, mas ainda:
     - não rende;
     - não sofre tributação de investimento;
     - não obedece à carência do produto.
-29. O regime financeiro do investimento só passa a valer a partir da efetiva `Data Aplicação`.
-30. O cálculo de rendimento dos lotes deve considerar explicitamente os resgates realizados para pagamentos, fazendo o saldo remanescente continuar rendendo a partir do valor residual.
-31. O cálculo de rendimento continua sendo tratado como hipótese operacional auditável e não como verdade fechada; portanto, diferenças relevantes com apps devem continuar podendo abrir auditoria específica.
+30. O regime financeiro do investimento só passa a valer a partir da efetiva `Data Aplicação`.
+31. O cálculo de rendimento dos lotes deve considerar explicitamente os resgates realizados para pagamentos, fazendo o saldo remanescente continuar rendendo a partir do valor residual.
+32. O cálculo de rendimento continua sendo tratado como hipótese operacional auditável e não como verdade fechada; portanto, diferenças relevantes com apps devem continuar podendo abrir auditoria específica.
 
 ## 6. Regra de referência temporal da baseline
 
-32. A baseline opera com **data de referência corrente** da execução.
-33. Quando a série CDI diária não contiver o próprio dia corrente, a baseline pode usar fechamento econômico coerente com o último fator disponível, sem extrapolar indevidamente um novo dia útil já representado pela série.
-34. A idade em dias corridos pode continuar referenciada à data corrente, mas o fechamento econômico deve respeitar a última data útil efetivamente observada na série.
+33. A baseline opera com **data de referência corrente** da execução.
+34. Quando a série CDI diária não contiver o próprio dia corrente, a baseline pode usar fechamento econômico coerente com o último fator disponível, sem extrapolar indevidamente um novo dia útil já representado pela série.
+35. A idade em dias corridos pode continuar referenciada à data corrente, mas o fechamento econômico deve respeitar a última data útil efetivamente observada na série.
 
 ## 7. Camadas efetivamente abertas na baseline
 
-35. Estão efetivamente abertas e executáveis na baseline atual:
+36. Estão efetivamente abertas e executáveis na baseline atual:
     - leitura canônica da planilha;
     - carteira canônica;
     - inventário canônico;
@@ -76,53 +77,53 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
     - replay controlado do passado;
     - triagem preliminar proxy do motor (`score v1`);
     - geração da planilha operacional.
-36. Essas camadas devem permanecer auditáveis por console, artefatos e relatórios vigentes.
+37. Essas camadas devem permanecer auditáveis por console, artefatos e relatórios vigentes.
 
 ## 8. Saídas executáveis da baseline atual
 
-37. A saída do console deve permanecer organizada, legível e centrada no que está ativo e útil para a etapa corrente.
-38. Auditorias já concluídas podem ser resumidas, ocultadas ou retiradas da saída principal, desde que exista caminho documental para reabrir a trilha quando necessário.
-39. A planilha operacional vigente deve conter, no mínimo, as abas:
+38. A saída do console deve permanecer organizada, legível e centrada no que está ativo e útil para a etapa corrente.
+39. Auditorias já concluídas podem ser resumidas, ocultadas ou retiradas da saída principal, desde que exista caminho documental para reabrir a trilha quando necessário.
+40. A planilha operacional vigente deve conter, no mínimo, as abas:
     - `Extrato passado`;
     - `Extrato futuro`;
     - `Melhores produtos`;
     - `Situação atual`.
-40. A aba `Situação atual` deve exibir os lotes ainda ativos com colunas auditáveis, incluindo pelo menos recebimento, aplicação, produto, valor original, dias corridos, dias úteis, bruto, líquido e saldo remanescente.
-41. A seção de top produtos deve permanecer separada da situação atual dos lotes.
+41. A aba `Situação atual` deve exibir os lotes ainda ativos com colunas auditáveis, incluindo pelo menos recebimento, aplicação, produto, valor original, dias corridos, dias úteis, bruto, líquido e saldo remanescente.
+42. A seção de top produtos deve permanecer separada da situação atual dos lotes.
 
 ## 9. Itens parcialmente implementados, mas já reconhecidos pela baseline
 
-42. A triagem do motor por `score v1` é apenas uma camada preliminar proxy e não deve ser tratada como decisão econômica final.
-43. O replay controlado do passado já reconcilia pagamentos históricos com lotes informados, mas ainda não representa a engine conjunta completa do projeto.
-44. A utilização de recebidos futuros e de saldo disponível em decisões econômicas completas continua apenas parcialmente representada pela baseline atual.
+43. A triagem do motor por `score v1` é apenas uma camada preliminar proxy e não deve ser tratada como decisão econômica final.
+44. O replay controlado do passado já reconcilia pagamentos históricos com lotes informados, mas ainda não representa a engine conjunta completa do projeto.
+45. A utilização de recebidos futuros e de saldo disponível em decisões econômicas completas continua apenas parcialmente representada pela baseline atual.
 
 ## 10. Itens explicitamente fora do escopo atual da baseline
 
-45. Não fazem parte do escopo executável atual:
+46. Não fazem parte do escopo executável atual:
     - solver;
     - switching econômico aberto;
     - score econômico final;
     - recomendação final por cenário integrado;
     - engine conjunta completa de pagamentos + aportes + switching.
-46. Esses itens só podem ser abertos por etapa posterior explicitamente auditada e documentada.
+47. Esses itens só podem ser abertos por etapa posterior explicitamente auditada e documentada.
 
 ## 11. Hierarquia documental oficial
 
-47. A documentação vigente deve ficar concentrada em `relatorios/atuais/`.
-48. Relatórios de versões anteriores devem permanecer preservados em `relatorios/historico/`, organizados por tipo documental.
-49. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como mapa oficial de navegação documental.
-50. O `README.md` deve apontar apenas para os documentos vigentes e para o índice documental.
+48. A documentação vigente deve ficar concentrada em `relatorios/atuais/`.
+49. Relatórios de versões anteriores devem permanecer preservados em `relatorios/historico/`, organizados por tipo documental.
+50. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como mapa oficial de navegação documental.
+51. O `README.md` deve apontar apenas para os documentos vigentes e para o índice documental.
 
 ## 12. Regra de evolução a partir desta revisão contratual
 
-51. Toda nova etapa deve informar claramente se altera:
+52. Toda nova etapa deve informar claramente se altera:
     - o contrato executável vigente;
     - o backlog contratual futuro;
     - ambos.
-52. Alterações futuras no contrato executável devem refletir apenas comportamento já validado na baseline.
-53. Metas futuras, ampliações de escopo e camadas ainda não abertas devem ser registradas no backlog contratual e não neste contrato.
+53. Alterações futuras no contrato executável devem refletir apenas comportamento já validado na baseline.
+54. Metas futuras, ampliações de escopo e camadas ainda não abertas devem ser registradas no backlog contratual e não neste contrato.
 
-54. A montagem da baseline executável deve ser centralizada em `nucleo/contexto_baseline.py` para evitar duplicação de orquestração entre console, planilha operacional e auditorias específicas.
-55. A identidade da versão e os nomes-base dos artefatos operacionais devem ser centralizados em `nucleo/identidade_baseline.py`.
-56. O console deve permanecer modularizado por seções, com o orquestrador em `aplicacao/console/principal.py` e a renderização distribuída em módulos específicos de seção.
-57. Wrappers de compatibilidade antigos podem permanecer, desde que não substituam os caminhos canônicos da baseline.
+55. A montagem da baseline executável deve ser centralizada em `nucleo/contexto_baseline.py` para evitar duplicação de orquestração entre console, planilha operacional e auditorias específicas.
+56. A identidade da versão e os nomes-base dos artefatos operacionais devem ser centralizados em `nucleo/identidade_baseline.py`.
+57. O console deve permanecer modularizado por seções, com o orquestrador em `aplicacao/console/principal.py` e a renderização distribuída em módulos específicos de seção.
+58. Wrappers de compatibilidade antigos podem permanecer, desde que não substituam os caminhos canônicos da baseline.

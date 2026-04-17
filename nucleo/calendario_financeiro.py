@@ -231,21 +231,23 @@ def obter_taxa_dia_rendimento(
             fator_dia = float(serie_cdi[data_atual])
             return True, fator_dia - 1.0, {'fonte': 'serie_cdi_bcb', 'data_fator': data_atual, 'fallback': False}
 
-        permitir_fallback = (
+        datas_disponiveis = sorted(dt for dt in serie_cdi.keys() if isinstance(dt, date))
+        ultima_data_disponivel = max(datas_disponiveis) if datas_disponiveis else None
+
+        permitir_fallback_encadeado = (
             data_fechamento_referencia is not None
-            and data_atual == data_fechamento_referencia
+            and ultima_data_disponivel is not None
+            and data_atual > ultima_data_disponivel
+            and data_atual <= data_fechamento_referencia
             and eh_dia_util_bancario(data_atual, pacote)
         )
-        if permitir_fallback:
-            datas_anteriores = [dt for dt in serie_cdi.keys() if isinstance(dt, date) and dt < data_atual]
-            if datas_anteriores:
-                data_fator = max(datas_anteriores)
-                fator_dia = float(serie_cdi[data_fator])
-                return True, fator_dia - 1.0, {
-                    'fonte': 'fallback_ultimo_fator_cdi',
-                    'data_fator': data_fator,
-                    'fallback': True,
-                }
+        if permitir_fallback_encadeado:
+            fator_dia = float(serie_cdi[ultima_data_disponivel])
+            return True, fator_dia - 1.0, {
+                'fonte': 'fallback_encadeado_ultimo_fator_cdi',
+                'data_fator': ultima_data_disponivel,
+                'fallback': True,
+            }
 
         return False, None, {'fonte': 'serie_cdi_sem_data', 'data_fator': None, 'fallback': False}
 

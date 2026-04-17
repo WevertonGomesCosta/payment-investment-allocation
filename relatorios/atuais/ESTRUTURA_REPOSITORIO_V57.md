@@ -1,4 +1,4 @@
-# Estrutura oficial do repositório V56
+# Estrutura oficial do repositório V57
 
 ## Orquestração canônica
 
@@ -34,3 +34,8 @@
 
 - `relatorios/atuais/` → documentos vigentes
 - `relatorios/historico/` → trilha preservada por categoria documental
+
+
+## Atualização V57
+
+- fallback encadeado do CDI para dias úteis consecutivos sem fator novo, repetindo o último fator válido disponível até a data de referência corrente quando o download do BCB falhar.

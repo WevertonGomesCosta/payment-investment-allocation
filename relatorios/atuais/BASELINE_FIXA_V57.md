@@ -1,4 +1,4 @@
-# Baseline fixa V56
+# Baseline fixa V57
 
 ## Objetivo desta versão
 
@@ -20,8 +20,13 @@ Reorganizar arquiteturalmente a V55 sem alterar a lógica financeira validada da
 
 ## Garantia de compatibilidade
 
-Os comandos canônicos e os comandos antigos continuam executáveis na V56.
+Os comandos canônicos e os comandos antigos continuam executáveis na V57.
 
 ## Critério desta baseline
 
-A V56 reorganiza orquestração, apresentação e governança do repositório, mas preserva a matemática já validada dos lotes, do replay e da planilha operacional.
+A V57 reorganiza orquestração, apresentação e governança do repositório, mas preserva a matemática já validada dos lotes, do replay e da planilha operacional.
+
+
+## Atualização V57
+
+- fallback encadeado do CDI para dias úteis consecutivos sem fator novo, repetindo o último fator válido disponível até a data de referência corrente quando o download do BCB falhar.
