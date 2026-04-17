@@ -2,7 +2,7 @@
 
 ## Objetivo desta versão
 
-Derivar a V70 de forma cirúrgica para abrir a micro-etapa **F1.7**, materializando `decisao_local_v1` com proxy econômico v2 por pagamento sobre a matriz temporal completa (`fonte_elegivel_pagamento` + `saldo_disponivel_geral`), sem alterar o motor financeiro nem integrar a decisão ao fluxo principal.
+Derivar a V71 de forma cirúrgica para abrir a micro-etapa **F1.7**, materializando `decisao_local_v1` com proxy econômico v2 por pagamento sobre a matriz temporal completa (`fonte_elegivel_pagamento` + `saldo_disponivel_geral`), sem alterar o motor financeiro nem integrar a decisão ao fluxo principal.
 
 ## Ajustes aplicados
 
@@ -23,7 +23,7 @@ A V71 preserva a baseline funcional da V68 e abre a primeira regra executável d
 
 ## Atualização V71
 
-- manutenção da V70 como baseline oficial de partida;
+- manutenção da V71 como baseline oficial de partida;
 - abertura da micro-etapa **F1.7** por materialização de `decisao_local_v1` com proxy econômico v2;
 - preservação integral da lógica econômica já implementada;
 - manutenção do release checker como gate obrigatório;

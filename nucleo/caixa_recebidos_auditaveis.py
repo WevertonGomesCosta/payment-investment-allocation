@@ -125,7 +125,7 @@ def _campos_decisao_local_v1() -> tuple[CampoContrato, ...]:
         CampoContrato('fonte_escolhida_id', 'str', True, 'Fonte escolhida pela regra local v1.'),
         CampoContrato('tipo_fonte_escolhida', 'str', True, 'Categoria da fonte escolhida.'),
         CampoContrato('criterio_decisao', 'str', True, 'Critério auditável aplicado na decisão local v1.'),
-        CampoContrato('custo_economico_proxy', 'float|None', False, 'Score do proxy econômico v2 associado à escolha local, quanto menor melhor.'),
+        CampoContrato('custo_economico_proxy', 'float|None', False, 'Score do proxy econômico v3 associado à escolha local, quanto menor melhor.'),
         CampoContrato('observacao_auditavel', 'str', False, 'Resumo curto da decisão local sem abrir solver ou switching.'),
     )
 
@@ -149,14 +149,14 @@ def obter_contrato_minimo_caixa_recebidos() -> dict[str, Any]:
         ),
         EstruturaContrato(
             nome='decisao_local_v1',
-            descricao='Estrutura canônica da decisão local entre saldo disponível, caixa pré-aplicação, recebidos e resgate, agora com proxy econômico v2 ainda sem solver e sem switching.',
+            descricao='Estrutura canônica da decisão local entre saldo disponível, caixa pré-aplicação, recebidos e resgate, agora com proxy econômico v3 ainda sem solver e sem switching.',
             campos=_campos_decisao_local_v1(),
         ),
     )
     return {
         'frente': 'F1',
         'nome': 'caixa e recebidos auditáveis + decisão local v1 entre saldo disponível e resgate',
-        'escopo_etapa_atual': 'Materialização da decisão local v1 com proxy econômico v2 por pagamento sobre a matriz temporal completa de fontes e saldo geral, ainda sem solver, sem switching e sem integração ao fluxo principal da baseline.',
+        'escopo_etapa_atual': 'Materialização da decisão local v1 com proxy econômico v3 por pagamento sobre a matriz temporal completa de fontes e saldo geral, ainda sem solver, sem switching e sem integração ao fluxo principal da baseline.',
         'implementado_nesta_etapa': [
             'Contrato mínimo documentado e observável da camada F1.',
             'Estruturas canônicas para fonte elegível de pagamento, recebido auditável e decisão local v1.',
@@ -905,11 +905,11 @@ def _valor_float(valor: Any) -> float:
         return 0.0
 
 
-def _janela_excesso_proxy_v2(valor_pagamento: float) -> float:
-    return round(max(500.0, valor_pagamento * 0.25), 2)
+def _janela_excesso_proxy_v3(valor_pagamento: float) -> float:
+    return round(max(300.0, valor_pagamento * 0.18), 2)
 
 
-def _score_proxy_economico_v2(candidato: dict[str, Any], *, valor_pagamento: float) -> tuple[float, dict[str, float]]:
+def _score_proxy_economico_v3(candidato: dict[str, Any], *, valor_pagamento: float) -> tuple[float, dict[str, float]]:
     tipo_fonte = limpar_texto(candidato.get('tipo_fonte_escolhida'))
     origem_status = limpar_texto(candidato.get('origem_status'))
     valor_disponivel = round(_valor_float(candidato.get('valor_disponivel')), 2)
@@ -918,25 +918,30 @@ def _score_proxy_economico_v2(candidato: dict[str, Any], *, valor_pagamento: flo
     base_tipo = {
         'saldo_disponivel_geral': 0.0,
         'saldo_disponivel': 0.0,
-        'caixa_pre_aplicacao': 6.0,
-        'recebido_disponivel': 9.0,
-        'lote_resgatavel': 20.0,
+        'caixa_pre_aplicacao': 5.0,
+        'recebido_disponivel': 8.0,
+        'lote_resgatavel': 18.0,
         'nenhuma': 999.0,
     }.get(tipo_fonte, 50.0)
     penalidade_status = {
         'confirmado': 0.0,
-        'parcial': 8.0,
-        'estimado': 15.0,
+        'parcial': 10.0,
+        'estimado': 18.0,
         'ausente': 150.0,
-        'bloqueado': 200.0,
-    }.get(origem_status, 25.0)
+        'bloqueado': 220.0,
+    }.get(origem_status, 30.0)
 
     gap = max(valor_pagamento - valor_disponivel, 0.0)
     excesso = max(valor_disponivel - valor_pagamento, 0.0)
+    cobertura_ratio = min(valor_pagamento / max(valor_disponivel, 1.0), 1.0)
+    residual = max(valor_disponivel - valor_pagamento, 0.0)
+
     penalidade_gap = 0.0
     if gap > 0:
-        penalidade_gap = 120.0 + min((gap / max(valor_pagamento, 1.0)) * 100.0, 200.0)
-    penalidade_excesso = min((excesso / max(valor_pagamento, 1.0)) * 12.0, 60.0)
+        penalidade_gap = 160.0 + min((gap / max(valor_pagamento, 1.0)) * 220.0, 260.0)
+
+    penalidade_excesso_rel = min((excesso / max(valor_pagamento, 1.0)) * 16.0, 90.0)
+    penalidade_excesso_abs = min(excesso / max(valor_pagamento, 1.0) * 4.0, 24.0)
 
     taxa_base = max(_valor_float(produto.get('taxa_base_cdi')), 0.0)
     taxa_bonus = max(_valor_float(produto.get('taxa_bonus_cdi')), 0.0)
@@ -945,41 +950,103 @@ def _score_proxy_economico_v2(candidato: dict[str, Any], *, valor_pagamento: flo
     carencia_dias = max(_valor_float(produto.get('carencia_dias')), 0.0)
     liquidez_dias = max(_valor_float(produto.get('liquidez_dias')), 0.0)
     regime_liquidez = limpar_texto(produto.get('regime_liquidez'))
+    risco_real = limpar_texto(produto.get('risco_real'))
+    papel_produto = limpar_texto(produto.get('papel_produto'))
 
-    penalidade_taxa = taxa_total * 10.0 if tipo_fonte == 'lote_resgatavel' else 0.0
-    penalidade_prazo = min(prazo_dias / 365.0, 6.0) if tipo_fonte == 'lote_resgatavel' else 0.0
-    penalidade_carencia = min(carencia_dias / 180.0, 4.0) if tipo_fonte == 'lote_resgatavel' else 0.0
-    penalidade_liquidez = min(liquidez_dias / 30.0, 4.0) if tipo_fonte == 'lote_resgatavel' else 0.0
-    penalidade_regime = 3.0 if tipo_fonte == 'lote_resgatavel' and regime_liquidez == 'vencimento' else 0.0
+    penalidade_taxa = taxa_total * 8.0 if tipo_fonte == 'lote_resgatavel' else 0.0
+    penalidade_prazo = (min(prazo_dias / 365.0, 8.0) * 0.9) if tipo_fonte == 'lote_resgatavel' else 0.0
+    penalidade_carencia = (min(carencia_dias / 180.0, 5.0) * 1.2) if tipo_fonte == 'lote_resgatavel' else 0.0
+    penalidade_liquidez = (min(liquidez_dias / 30.0, 5.0) * 1.0) if tipo_fonte == 'lote_resgatavel' else 0.0
+    penalidade_regime = 2.0 if tipo_fonte == 'lote_resgatavel' and regime_liquidez == 'vencimento' else 0.0
+
+    ajuste_risco = 0.0
+    if tipo_fonte == 'lote_resgatavel':
+        ajuste_risco = {
+            'baixo': 2.0,
+            'médio': 0.0,
+            'medio': 0.0,
+            'alto': -2.0,
+        }.get(risco_real, 0.5)
+
+    penalidade_papel_estrategico = 0.0
+    if tipo_fonte == 'lote_resgatavel' and papel_produto in {'ativo_motor', 'núcleo_estrutural', 'nucleo_estrutural'}:
+        penalidade_papel_estrategico = 4.0
+
+    indice_estrategico = 0.0
+    if tipo_fonte == 'lote_resgatavel':
+        indice_estrategico = (
+            max(taxa_total - 1.0, 0.0) * 6.0
+            + min(prazo_dias / 365.0, 8.0) * 1.5
+            + min(carencia_dias / 180.0, 5.0) * 1.3
+            + (2.0 if regime_liquidez == 'vencimento' else 0.0)
+            + (2.5 if papel_produto in {'ativo_motor', 'núcleo_estrutural', 'nucleo_estrutural'} else 0.0)
+        )
+    penalidade_destruicao_estrategica = indice_estrategico * max(1.0 - cobertura_ratio, 0.0) * 2.6
+
+    penalidade_fragmentacao_residual = 0.0
+    if tipo_fonte == 'lote_resgatavel' and residual > 0:
+        limiar_fragmento = max(200.0, valor_pagamento * 0.15)
+        if residual < limiar_fragmento:
+            penalidade_fragmentacao_residual = 8.0
 
     data_pagamento = candidato.get('data_pagamento')
     data_base_valor = candidato.get('data_base_valor')
-    penalidade_fotografia = 2.0 if (
+    penalidade_fotografia = 0.0
+    if (
         tipo_fonte == 'lote_resgatavel'
         and limpar_texto(candidato.get('metodo_valor')) == 'fotografia_data_referencia'
         and data_pagamento is not None
         and data_base_valor is not None
         and data_pagamento > data_base_valor
-    ) else 0.0
+    ):
+        delta_dias = max((data_pagamento - data_base_valor).days, 0)
+        penalidade_fotografia = min(delta_dias * 0.04, 15.0)
+
+    penalidade_horizonte_curto = 0.0
+    if tipo_fonte == 'lote_resgatavel' and data_pagamento is not None and data_base_valor is not None:
+        delta_dias = max((data_pagamento - data_base_valor).days, 0)
+        if delta_dias <= 45 and prazo_dias >= 365:
+            penalidade_horizonte_curto = 6.0
 
     score = round(
-        base_tipo + penalidade_status + penalidade_gap + penalidade_excesso + penalidade_taxa
-        + penalidade_prazo + penalidade_carencia + penalidade_liquidez + penalidade_regime + penalidade_fotografia,
+        base_tipo
+        + penalidade_status
+        + penalidade_gap
+        + penalidade_excesso_rel
+        + penalidade_excesso_abs
+        + penalidade_taxa
+        + penalidade_prazo
+        + penalidade_carencia
+        + penalidade_liquidez
+        + penalidade_regime
+        + ajuste_risco
+        + penalidade_papel_estrategico
+        + penalidade_destruicao_estrategica
+        + penalidade_fragmentacao_residual
+        + penalidade_fotografia
+        + penalidade_horizonte_curto,
         4,
     )
     detalhes = {
         'base_tipo': round(base_tipo, 4),
         'penalidade_status': round(penalidade_status, 4),
         'penalidade_gap': round(penalidade_gap, 4),
-        'penalidade_excesso': round(penalidade_excesso, 4),
+        'penalidade_excesso_rel': round(penalidade_excesso_rel, 4),
+        'penalidade_excesso_abs': round(penalidade_excesso_abs, 4),
         'penalidade_taxa': round(penalidade_taxa, 4),
         'penalidade_prazo': round(penalidade_prazo, 4),
         'penalidade_carencia': round(penalidade_carencia, 4),
         'penalidade_liquidez': round(penalidade_liquidez, 4),
         'penalidade_regime': round(penalidade_regime, 4),
+        'ajuste_risco': round(ajuste_risco, 4),
+        'penalidade_papel_estrategico': round(penalidade_papel_estrategico, 4),
+        'penalidade_destruicao_estrategica': round(penalidade_destruicao_estrategica, 4),
+        'penalidade_fragmentacao_residual': round(penalidade_fragmentacao_residual, 4),
         'penalidade_fotografia': round(penalidade_fotografia, 4),
+        'penalidade_horizonte_curto': round(penalidade_horizonte_curto, 4),
     }
     return score, detalhes
+
 
 def _prioridade_tipo_fonte(tipo_fonte: str) -> int:
     prioridades = {
@@ -1095,23 +1162,23 @@ def _selecionar_candidato_decisao_local_v1(candidatos: list[dict[str, Any]], *, 
         return escolhido, 'sem_fonte_elegivel_na_data', 'todas as fontes materializadas para o pagamento estão bloqueadas ou ausentes na data.'
 
     elegiveis_cobertura_total = [c for c in elegiveis if c.get('pagamento_totalmente_coberto')]
-    janela_excesso = _janela_excesso_proxy_v2(valor_pagamento)
+    janela_excesso = _janela_excesso_proxy_v3(valor_pagamento)
     if elegiveis_cobertura_total:
         min_excesso = min(max(float(c.get('valor_disponivel') or 0.0) - valor_pagamento, 0.0) for c in elegiveis_cobertura_total)
         pool = [
             c for c in elegiveis_cobertura_total
             if max(float(c.get('valor_disponivel') or 0.0) - valor_pagamento, 0.0) <= min_excesso + janela_excesso
         ]
-        criterio = 'proxy_economico_v2_com_cobertura_total'
+        criterio = 'proxy_economico_v3_com_cobertura_total'
     else:
         pool = list(elegiveis)
-        criterio = 'proxy_economico_v2_com_cobertura_parcial'
+        criterio = 'proxy_economico_v3_com_cobertura_parcial'
 
     melhor_score = None
     escolhido = None
     melhor_detalhe: dict[str, float] = {}
     for candidato in pool:
-        score, detalhes = _score_proxy_economico_v2(candidato, valor_pagamento=valor_pagamento)
+        score, detalhes = _score_proxy_economico_v3(candidato, valor_pagamento=valor_pagamento)
         candidato['custo_economico_proxy'] = score
         candidato['proxy_componentes'] = detalhes
         candidato['excesso_relativo'] = round(max(float(candidato.get('valor_disponivel') or 0.0) - valor_pagamento, 0.0), 2)
@@ -1137,12 +1204,12 @@ def _selecionar_candidato_decisao_local_v1(candidatos: list[dict[str, Any]], *, 
     score_txt = f"score={float(escolhido.get('custo_economico_proxy') or 0.0):.4f}"
     if bool(escolhido.get('pagamento_totalmente_coberto')):
         observacao = (
-            'fonte escolhida cobre integralmente o pagamento e foi selecionada pelo proxy econômico v2 '
+            'fonte escolhida cobre integralmente o pagamento e foi selecionada pelo proxy econômico v3 '
             f'dentro de uma janela de excesso de até {janela_excesso:.2f}. {score_txt}.'
         )
     else:
         observacao = (
-            'fonte escolhida é a melhor elegível observável pelo proxy econômico v2, mas não cobre integralmente o pagamento nesta etapa. '
+            'fonte escolhida é a melhor elegível observável pelo proxy econômico v3, mas não cobre integralmente o pagamento nesta etapa. '
             f'{score_txt}.'
         )
     if melhor_detalhe:
@@ -1241,7 +1308,7 @@ def materializar_decisao_local_v1(
             'valor_total_pagamentos': round(float(quadro['valor_pagamento'].sum()),2),
             'valor_total_coberto_pelas_fontes_escolhidas': round(float(quadro[['valor_pagamento','valor_disponivel_escolhido']].min(axis=1).sum()),2),
             'decisao_local_v1_materializada': True,
-            'proxy_economico_v2_ativo': True,
+            'proxy_economico_v3_ativo': True,
         },
     }
     return PacoteDecisaoLocalV1(quadro_decisao_local_v1=quadro, auditoria=auditoria)

@@ -24,7 +24,7 @@ def main() -> int:
     quadro = pacote.quadro_decisao_local_v1
     auditoria = pacote.auditoria
 
-    print('=== DECISÃO LOCAL V1 (F1 / ETAPA 7) ===')
+    print('=== DECISÃO LOCAL V1 (F1 / ETAPA 8) ===')
     print(f"data_referencia: {contexto.execucao.data_referencia}")
     print(f"total_pagamentos_alvo: {auditoria.get('resumo', {}).get('total_pagamentos_alvo')}")
     print(f"total_linhas_decisao: {len(quadro)}")

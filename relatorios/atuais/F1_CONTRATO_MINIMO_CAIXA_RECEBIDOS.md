@@ -2,7 +2,7 @@
 
 ## Escopo desta etapa
 
-A Etapa 7 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e materializa a quarta estrutura real: `decisao_local_v1` agora passa a escolher, por pagamento, uma fonte prioritária observável sobre a matriz temporal completa (`fonte_elegivel_pagamento` + `saldo_disponivel_geral`) usando um proxy econômico v2 auditável. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre solver ou switching e **não** integra ainda a decisão ao fluxo principal do console ou da planilha operacional.
+A Etapa 8 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e materializa a quarta estrutura real: `decisao_local_v1` agora passa a escolher, por pagamento, uma fonte prioritária observável sobre a matriz temporal completa (`fonte_elegivel_pagamento` + `saldo_disponivel_geral`) usando um proxy econômico v3 auditável. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre solver ou switching e **não** integra ainda a decisão ao fluxo principal do console ou da planilha operacional.
 
 ## Objetivo
 
@@ -81,7 +81,7 @@ Campos mínimos:
 **Estado atual:** contratual + materializado por pagamento a partir das fontes explícitas já observáveis (`recebido_disponivel` e `caixa_pre_aplicacao`) sem projetar financeiramente o caixa e sem somar novamente as fontes componentes.
 
 ### 4. `decisao_local_v1`
-Representa a primeira decisão local executável entre caixa e resgate, agora com proxy econômico v2 auditável, ainda sem solver e sem switching.
+Representa a primeira decisão local executável entre caixa e resgate, agora com proxy econômico v3 auditável, ainda sem solver e sem switching.
 
 Campos mínimos:
 - `pagamento_id`
@@ -92,7 +92,7 @@ Campos mínimos:
 - `custo_economico_proxy`
 - `observacao_auditavel`
 
-**Estado atual:** contratual + materializado por pagamento a partir de `saldo_disponivel_geral` e `fonte_elegivel_pagamento`, usando um proxy econômico v2 que prioriza cobertura integral, janela de excesso economicamente próxima e score local entre as fontes elegíveis.
+**Estado atual:** contratual + materializado por pagamento a partir de `saldo_disponivel_geral` e `fonte_elegivel_pagamento`, usando um proxy econômico v3 que prioriza cobertura integral, janela de excesso economicamente próxima e score local entre as fontes elegíveis.
 
 ## Fora do escopo nesta etapa
 
