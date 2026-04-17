@@ -201,11 +201,12 @@ def _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada, limiar):
     return pares
 
 
-def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config, data_referencia, *, serie_cdi=None):
+def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro, config, data_referencia, *, serie_cdi=None):
     tabela_iof = construir_tabela_iof(config)
     faixas_ir = construir_faixas_ir(config)
     limiar = obter_limiar_residuo_resolvido(config)
-    linhas = []
+    lotes_ativos = []
+    lotes_exauridos = []
     data_economica = data_referencia
     for lote in sorted(replay_passado.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
         saldo_bruto = round(float(lote.valor_bruto_em_data(
@@ -214,8 +215,6 @@ def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config,
             serie_cdi=serie_cdi,
             data_base_referencia=data_referencia,
         ) or 0.0), 2)
-        if lote.esgotado or saldo_bruto <= limiar:
-            continue
         saldo_liquido = round(float(lote.valor_liquido_em_data(
             data_economica,
             calendario_financeiro,
@@ -233,7 +232,7 @@ def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config,
             serie_cdi=serie_cdi,
             data_fechamento_referencia=data_economica,
         )
-        linhas.append({
+        linha = {
             'Recebimento': lote.data_recebimento.isoformat() if hasattr(lote.data_recebimento, 'isoformat') else str(lote.data_recebimento),
             'Aplicação': lote.data_aplicacao.isoformat() if hasattr(lote.data_aplicacao, 'isoformat') else str(lote.data_aplicacao),
             'Produto': lote.investimento,
@@ -244,8 +243,12 @@ def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config,
             'Líquido': saldo_liquido,
             'Saldo rem': saldo_rem,
             'Lote': lote.id,
-        })
-    return linhas
+        }
+        if lote.esgotado or saldo_bruto <= limiar:
+            lotes_exauridos.append(linha)
+        else:
+            lotes_ativos.append(linha)
+    return lotes_ativos, lotes_exauridos
 
 
 def _preparar_tabela_recebidos_situacao_atual(recebidos_auditaveis):
@@ -400,7 +403,7 @@ def main() -> None:
         severidade_triagem=severidade_triagem,
     )
 
-    lotes_ativos = _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
+    lotes_ativos, lotes_exauridos = _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
     recebidos_situacao_atual = _preparar_tabela_recebidos_situacao_atual(contexto_baseline.recebidos_auditaveis)
     resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
         data_referencia=contexto.data_referencia,
@@ -409,6 +412,7 @@ def main() -> None:
     )
     render_secao_situacao_atual(
         lotes_ativos=lotes_ativos,
+        lotes_exauridos=lotes_exauridos,
         recebidos_atuais=recebidos_situacao_atual,
         resumo_fechamento=resumo_fechamento_situacao_atual,
         resumo_recebidos=contexto_baseline.recebidos_auditaveis.auditoria.get('resumo', {}),

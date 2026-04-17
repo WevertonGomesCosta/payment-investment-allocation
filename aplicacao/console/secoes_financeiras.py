@@ -110,10 +110,11 @@ def render_secao_replay(*, auditoria_replay, validacao_replay, severidade_replay
     imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
 
 
-def render_secao_situacao_atual(*, lotes_ativos, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
-    imprimir_titulo('SITUAÇÃO ATUAL — LOTES ATIVOS E RECEBIDOS')
+def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
+    imprimir_titulo('SITUAÇÃO ATUAL')
     resumo_fechamento = resumo_fechamento or {}
     resumo_recebidos = resumo_recebidos or {}
+    lotes_exauridos = lotes_exauridos or []
     recebidos_atuais = recebidos_atuais or []
     if resumo_fechamento:
         imprimir_pares([
@@ -127,10 +128,19 @@ def render_secao_situacao_atual(*, lotes_ativos, recebidos_atuais=None, resumo_f
         observacao = resumo_fechamento.get('observacao')
         if observacao:
             print(f'- leitura auditável: {observacao}')
+    print('\n- lotes exauridos:')
+    if lotes_exauridos:
+        print('  identificação e tempo:')
+        imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_exauridos)
+        print('\n  valores atuais:')
+        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_exauridos)
+    else:
+        print('  [OK] sem lotes exauridos nesta execução')
+    print('\n- lotes ativos:')
     if lotes_ativos:
-        print('- identificação e tempo dos lotes ativos:')
+        print('  identificação e tempo:')
         imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_ativos)
-        print('\n- valores atuais dos lotes ativos:')
+        print('\n  valores atuais:')
         imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos)
     else:
         print('  [OK] sem lotes ativos acima do limiar nesta execução')
@@ -149,3 +159,4 @@ def render_secao_situacao_atual(*, lotes_ativos, recebidos_atuais=None, resumo_f
         imprimir_tabela(['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref'], recebidos_atuais)
     else:
         print('  [OK] sem recebidos auditáveis materializados nesta execução')
+

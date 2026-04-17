@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V64
+**Versão atual da baseline:** V65
 
-A V64 preserva a base funcional da V63 e amplia a seção `Situação atual` do console e da planilha operacional para incluir todos os recebidos auditáveis, inclusive os exauridos, mantendo intactos o motor financeiro e a etapa funcional da F1 já aberta.
+A V65 preserva a base funcional da V64 e reorganiza a seção `Situação atual` do console e da planilha operacional em blocos explícitos de lotes exauridos e lotes ativos, preservando também a leitura de todos os recebidos auditáveis, inclusive os exauridos, sem alterar o motor financeiro.
 
-## Estrutura canônica da V64
+## Estrutura canônica da V65
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -44,9 +44,9 @@ A V64 preserva a base funcional da V63 e amplia a seção `Situação atual` do 
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V64.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V64.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V64.md`
+- `relatorios/atuais/BASELINE_FIXA_V65.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V65.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V65.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 
 ## Gate obrigatório antes de cada entrega
@@ -81,14 +81,10 @@ python scripts/inspecionar_recebidos_auditaveis.py
 python scripts/inspecionar_fontes_elegiveis_pagamento.py
 ```
 
-## Atualização V64
+## Atualização V65
 
-- V61 consolidada como baseline oficial da fase F1;
+- V64 consolidada como baseline oficial de partida;
 - checagem de release mantida como gate obrigatório;
-- materialização executável de `fonte_elegivel_pagamento`;
-- nenhuma alteração do motor financeiro ou do fluxo principal nesta etapa.
-
-
-- seção `Situação atual` do console ampliada com resumo e tabela de todos os recebidos auditáveis;
-- aba `Situação atual` da planilha ampliada com resumo e tabela de todos os recebidos auditáveis;
-- recebidos exauridos preservados explicitamente nessa leitura atual.
+- seção `Situação atual` reorganizada em blocos de lotes exauridos e lotes ativos;
+- aba `Situação atual` reorganizada com quatro tabelas de lotes;
+- recebidos auditáveis preservados no bloco atual.

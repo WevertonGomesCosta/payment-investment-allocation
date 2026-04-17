@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V64**.
-2. A V64 preserva a linha funcional consolidada até a V63, mantém aberta a **Etapa 3 da Frente F1** já materializada e amplia a seção `Situação atual` do console e da planilha operacional para incluir todos os recebidos auditáveis, inclusive os exauridos, sem alterar o motor financeiro.
+1. A baseline atual é a **V65**.
+2. A V65 preserva a linha funcional consolidada até a V64, mantém aberta a **Etapa 3 da Frente F1** já materializada e reorganiza a seção `Situação atual` do console e da planilha operacional em blocos explícitos de lotes exauridos e lotes ativos, preservando a leitura de todos os recebidos auditáveis, inclusive os exauridos, sem alterar o motor financeiro.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -89,29 +89,30 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
     - `Extrato futuro`;
     - `Melhores produtos`;
     - `Situação atual`.
-42. A aba `Situação atual` deve exibir os lotes ainda ativos com colunas auditáveis, incluindo pelo menos recebimento, aplicação, produto, valor original, dias corridos, dias úteis, bruto, líquido e saldo remanescente.
-43. A seção `Situação atual` do console e da planilha deve incluir também a situação atual de todos os recebidos auditáveis, incluindo os exauridos, com status e destino observável.
-44. A seção de top produtos deve permanecer separada da situação atual dos lotes e recebidos.
+42. A aba `Situação atual` deve exibir os lotes em dois blocos explícitos: `lotes exauridos` e `lotes ativos`.
+43. Cada bloco de lotes da `Situação atual`, no console e na planilha, deve expor duas tabelas: uma de identificação/tempo (`Lote | Recebimento | Aplicação | Produto | Dias corridos | Dias úteis`) e outra de valores atuais (`Lote | Valor original | Bruto | Líquido | Saldo rem`).
+44. A seção `Situação atual` do console e da planilha deve incluir também a situação atual de todos os recebidos auditáveis, incluindo os exauridos, com status e destino observável.
+45. A seção de top produtos deve permanecer separada da situação atual dos lotes e recebidos.
 
 ## 9. Itens parcialmente implementados e observáveis na F1
 
-44. A F1 está parcialmente aberta na forma de **contrato mínimo canônico observável** e de **duas estruturas reais** derivadas dos dados canônicos.
-45. O contrato mínimo da F1 deve permanecer centralizado em `nucleo/caixa_recebidos_auditaveis.py` e documentado em `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`.
-46. Nesta etapa, a F1 disponibiliza as estruturas canônicas:
+46. A F1 está parcialmente aberta na forma de **contrato mínimo canônico observável** e de **duas estruturas reais** derivadas dos dados canônicos.
+47. O contrato mínimo da F1 deve permanecer centralizado em `nucleo/caixa_recebidos_auditaveis.py` e documentado em `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`.
+48. Nesta etapa, a F1 disponibiliza as estruturas canônicas:
     - `fonte_elegivel_pagamento` (contratual + materializado);
     - `recebido_auditavel` (contratual + materializado);
     - `decisao_local_v1` (apenas contratual).
-47. A inspeção dessa camada deve ser possível por:
+49. A inspeção dessa camada deve ser possível por:
     - `scripts/diagnostico/inspecionar_contrato_f1.py`;
     - `scripts/diagnostico/inspecionar_recebidos_auditaveis.py`;
     - `scripts/diagnostico/inspecionar_fontes_elegiveis_pagamento.py`.
-48. A materialização atual de `recebido_auditavel` deve usar, no mínimo, o inventário canônico, a data de referência corrente e os vínculos históricos explícitos da aba de gastos.
-49. A materialização atual de `fonte_elegivel_pagamento` deve usar, no mínimo, o inventário canônico, a data de referência corrente, `recebido_auditavel` e o estado mínimo observável do replay, preservando a ausência de uma camada geral robusta de `saldo_disponivel` nesta etapa.
-50. A abertura da F1 nesta etapa não implica integração ao fluxo principal, nem decisão econômica real, nem alteração do replay, nem abertura de switching.
+50. A materialização atual de `recebido_auditavel` deve usar, no mínimo, o inventário canônico, a data de referência corrente e os vínculos históricos explícitos da aba de gastos.
+51. A materialização atual de `fonte_elegivel_pagamento` deve usar, no mínimo, o inventário canônico, a data de referência corrente, `recebido_auditavel` e o estado mínimo observável do replay, preservando a ausência de uma camada geral robusta de `saldo_disponivel` nesta etapa.
+52. A abertura da F1 nesta etapa não implica integração ao fluxo principal, nem decisão econômica real, nem alteração do replay, nem abertura de switching.
 
 ## 10. O que continua fora do contrato executável
 
-51. Ainda não fazem parte do contrato executável:
+53. Ainda não fazem parte do contrato executável:
     - switching econômico;
     - decisão conjunta completa de pagamentos + aportes + switching;
     - solver ou busca pesada;

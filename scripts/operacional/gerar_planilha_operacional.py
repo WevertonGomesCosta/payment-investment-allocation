@@ -85,6 +85,54 @@ def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: i
     return header_row + len(rows)
 
 
+def _classificar_lotes_situacao_atual(contexto):
+    ctx = contexto.execucao
+    cal = contexto.calendario_financeiro
+    cache = contexto.cache_cdi
+    rep = contexto.replay_passado
+    tabela_iof = contexto.tabela_iof
+    faixas_ir = contexto.faixas_ir
+    limiar = obter_limiar_residuo_resolvido(contexto.pacote_config.conteudo)
+    rows_ativos_ident = []
+    rows_ativos_valores = []
+    rows_exauridos_ident = []
+    rows_exauridos_valores = []
+    data_economica = ctx.data_referencia
+    for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
+        saldo_bruto = round(float(lote.valor_bruto_em_data(
+            data_economica,
+            cal,
+            serie_cdi=cache.serie_cdi,
+            data_base_referencia=ctx.data_referencia,
+        ) or 0.0), 2)
+        saldo_liquido = round(float(lote.valor_liquido_em_data(
+            data_economica,
+            cal,
+            tabela_iof=tabela_iof,
+            faixas_ir=faixas_ir,
+            serie_cdi=cache.serie_cdi,
+            data_base_referencia=ctx.data_referencia,
+        ) or 0.0), 2)
+        saldo_rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
+        dias_corridos = max((ctx.data_referencia - lote.data_recebimento).days, 0)
+        dias_uteis = 0 if data_economica < lote.data_aplicacao else contar_dias_rendimento(
+            lote.data_base_fiscal,
+            data_economica,
+            cal,
+            serie_cdi=cache.serie_cdi,
+            data_fechamento_referencia=data_economica,
+        )
+        linha_ident = [lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, dias_corridos, dias_uteis]
+        linha_valores = [lote.id, round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2), saldo_bruto, saldo_liquido, saldo_rem]
+        if lote.esgotado or saldo_bruto <= limiar:
+            rows_exauridos_ident.append(linha_ident)
+            rows_exauridos_valores.append(linha_valores)
+        else:
+            rows_ativos_ident.append(linha_ident)
+            rows_ativos_valores.append(linha_valores)
+    return rows_exauridos_ident, rows_exauridos_valores, rows_ativos_ident, rows_ativos_valores
+
+
 def main() -> None:
     contexto = carregar_contexto_baseline(raiz_repositorio=RAIZ, instalar_automaticamente=False)
     cfg = contexto.pacote_config
@@ -160,8 +208,7 @@ def main() -> None:
         ['Data confirmada da série', resumo_fechamento_situacao_atual.get('data_fechamento_confirmado')],
         ['Leitura auditável', resumo_fechamento_situacao_atual.get('observacao')],
     ]
-    rows_atual_ident = []
-    rows_atual_valores = []
+    rows_exauridos_ident, rows_exauridos_valores, rows_ativos_ident, rows_ativos_valores = _classificar_lotes_situacao_atual(contexto)
     rows_recebidos_resumo = [
         ['Total de recebidos', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('total_recebidos', 0)],
         ['Valor total bruto', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('valor_total_bruto', 0.0)],
@@ -189,46 +236,14 @@ def main() -> None:
             'sim' if bool(row.get('disponivel_na_data_referencia', False)) else 'não',
             row.get('observacao_auditavel') or '',
         ])
-    data_economica = ctx.data_referencia
-    for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
-        saldo_bruto = round(float(lote.valor_bruto_em_data(
-            data_economica,
-            cal,
-            serie_cdi=cache.serie_cdi,
-            data_base_referencia=ctx.data_referencia,
-        ) or 0.0), 2)
-        if lote.esgotado or saldo_bruto <= limiar:
-            continue
-        saldo_liquido = round(float(lote.valor_liquido_em_data(
-            data_economica,
-            cal,
-            tabela_iof=tabela_iof,
-            faixas_ir=faixas_ir,
-            serie_cdi=cache.serie_cdi,
-            data_base_referencia=ctx.data_referencia,
-        ) or 0.0), 2)
-        saldo_rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
-        dias_corridos = max((ctx.data_referencia - lote.data_recebimento).days, 0)
-        dias_uteis = 0 if data_economica < lote.data_aplicacao else contar_dias_rendimento(
-            lote.data_base_fiscal,
-            data_economica,
-            cal,
-            serie_cdi=cache.serie_cdi,
-            data_fechamento_referencia=data_economica,
-        )
-        valor_original = round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2)
-        rows_atual_ident.append([
-            lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, dias_corridos, dias_uteis,
-        ])
-        rows_atual_valores.append([
-            lote.id, valor_original, saldo_bruto, saldo_liquido, saldo_rem,
-        ])
     headers_atual_ident = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis']
     headers_atual_valores = ['Lote', 'Valor Original', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
     headers_recebidos = ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação']
     ultima_linha_fechamento = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=1, title='Fechamento econômico da situação atual', freeze=False)
-    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_atual_ident, start_row=ultima_linha_fechamento + 3, title='Identificação e tempo dos lotes ativos', freeze=True)
-    ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_atual_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes ativos')
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_exauridos_ident, start_row=ultima_linha_fechamento + 3, title='Identificação e tempo dos lotes exauridos', freeze=True)
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_exauridos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes exauridos')
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_ativos_ident, start_row=ultima_linha + 3, title='Identificação e tempo dos lotes ativos')
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_ativos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes ativos')
     ultima_linha = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_recebidos_resumo, start_row=ultima_linha + 3, title='Resumo dos recebidos auditáveis (inclui exauridos)')
     _apply_table_style(ws_atual, headers_recebidos, rows_recebidos_detalhe, start_row=ultima_linha + 3, title='Situação atual de todos os recebidos (inclui exauridos)')
 
