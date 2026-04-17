@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V73
+**Versão atual da baseline:** V74
 
-A V73 preserva a base funcional da V72 e abre a auditoria comparativa **proxy econômico v2 vs v3** sobre a mesma base e os mesmos pagamentos, sem alterar o motor financeiro nem integrar novas decisões ao fluxo principal.
+A V74 preserva integralmente a base funcional da V73 e executa uma **sincronização documental** do repositório: contrato operacional, backlog, README e relatórios vigentes passam a refletir o estado real da baseline, com `proxy econômico v3` congelado como decisão monofonte vigente e `multifonte v1` mantido como frente futura condicionada à evidência.
 
-## Estrutura canônica da V73
+## Estrutura canônica da V74
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -47,9 +47,9 @@ A V73 preserva a base funcional da V72 e abre a auditoria comparativa **proxy ec
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V73.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V73.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V73.md`
+- `relatorios/atuais/BASELINE_FIXA_V74.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V74.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V74.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 
 ## Gate obrigatório antes de cada entrega
@@ -87,19 +87,13 @@ python scripts/inspecionar_recebidos_auditaveis.py
 python scripts/inspecionar_fontes_elegiveis_pagamento.py
 python scripts/inspecionar_saldo_disponivel_geral.py
 python scripts/inspecionar_decisao_local_v1.py
+python scripts/inspecionar_comparativo_proxy_v2_v3.py
 ```
 
-## Atualização V73
+## Atualização V74
 
-- V70 consolidada como baseline oficial de partida;
-- checagem de release mantida como gate obrigatório;
-- abertura da micro-etapa **F1.7** com `decisao_local_v1` e proxy econômico v3 por pagamento sobre a matriz temporal completa;
-- inclusão de diagnóstico e metadados auditáveis para fonte escolhida, lote escolhido, cobertura, critério de decisão e score do proxy econômico v3;
-- preservação integral da lógica econômica já implementada.
-
-
-## Atualização V73
-
-- baseline atualizada para **V73**;
-- abertura da auditoria comparativa **proxy econômico v2 vs v3** sobre a mesma base e os mesmos pagamentos;
-- inclusão de diagnóstico e artefatos exportáveis para comparar mudança de lote, critério e delta de custo proxy antes de abrir multifonte.
+- baseline atualizada para **V74** sem alteração funcional do motor;
+- sincronização do `README`, do contrato operacional e do backlog com o estado real da baseline;
+- congelamento explícito do `proxy econômico v3` como decisão monofonte vigente;
+- manutenção de `multifonte v1` como frente futura condicionada à evidência;
+- preservação do `release checker` como gate obrigatório antes das próximas entregas.

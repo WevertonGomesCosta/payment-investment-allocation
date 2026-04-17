@@ -2,7 +2,7 @@
 
 ## Escopo desta etapa
 
-A Etapa 8 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e materializa a quarta estrutura real: `decisao_local_v1` agora passa a escolher, por pagamento, uma fonte prioritária observável sobre a matriz temporal completa (`fonte_elegivel_pagamento` + `saldo_disponivel_geral`) usando um proxy econômico v3 auditável. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre solver ou switching e **não** integra ainda a decisão ao fluxo principal do console ou da planilha operacional.
+A Etapa 8 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e mantém a quarta estrutura real materializada: `decisao_local_v1` escolhe, por pagamento, uma fonte prioritária observável sobre a matriz temporal completa (`fonte_elegivel_pagamento` + `saldo_disponivel_geral`) usando um `proxy econômico v3` auditável. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre solver ou switching e **não** integra ainda a decisão ao fluxo principal do console ou da planilha operacional.
 
 ## Objetivo
 
@@ -56,7 +56,6 @@ Campos mínimos:
 
 **Estado atual:** contratual + materializado a partir do inventário canônico e dos vínculos históricos explícitos da aba `Todos os Gastos`.
 
-
 ### 3. `saldo_disponivel_geral`
 Representa o saldo disponível geral observável por pagamento, agregado apenas das fontes explícitas de caixa já abertas na F1.
 
@@ -81,7 +80,7 @@ Campos mínimos:
 **Estado atual:** contratual + materializado por pagamento a partir das fontes explícitas já observáveis (`recebido_disponivel` e `caixa_pre_aplicacao`) sem projetar financeiramente o caixa e sem somar novamente as fontes componentes.
 
 ### 4. `decisao_local_v1`
-Representa a primeira decisão local executável entre caixa e resgate, agora com proxy econômico v3 auditável, ainda sem solver e sem switching.
+Representa a primeira decisão local executável entre caixa e resgate, com `proxy econômico v3` auditável, ainda sem solver e sem switching.
 
 Campos mínimos:
 - `pagamento_id`
@@ -92,7 +91,7 @@ Campos mínimos:
 - `custo_economico_proxy`
 - `observacao_auditavel`
 
-**Estado atual:** contratual + materializado por pagamento a partir de `saldo_disponivel_geral` e `fonte_elegivel_pagamento`, usando um proxy econômico v3 que prioriza cobertura integral, janela de excesso economicamente próxima e score local entre as fontes elegíveis.
+**Estado atual:** contratual + materializado por pagamento a partir de `saldo_disponivel_geral` e `fonte_elegivel_pagamento`, usando um `proxy econômico v3` congelado como critério vigente até nova evidência concreta.
 
 ## Fora do escopo nesta etapa
 
@@ -136,7 +135,6 @@ ou pelo wrapper de compatibilidade:
 python scripts/inspecionar_fontes_elegiveis_pagamento.py
 ```
 
-
 A terceira estrutura real da F1 pode ser inspecionada por:
 
 ```bash
@@ -148,7 +146,6 @@ ou pelo wrapper de compatibilidade:
 ```bash
 python scripts/inspecionar_saldo_disponivel_geral.py
 ```
-
 
 A quarta estrutura real da F1 pode ser inspecionada por:
 
@@ -162,14 +159,15 @@ ou pelo wrapper de compatibilidade:
 python scripts/inspecionar_decisao_local_v1.py
 ```
 
+A auditoria comparativa entre `proxy v2` e `proxy v3` pode ser inspecionada por:
 
-## Atualização V73
+```bash
+python scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py
+```
 
-- baseline atualizada para **V73**;
-- inclusão da auditoria comparativa **proxy econômico v2 vs v3** como camada diagnóstica reproduzível;
+## Atualização V74
+
+- baseline atualizada para **V74** sem alteração funcional da F1;
+- congelamento explícito do `proxy econômico v3` como decisão monofonte vigente;
+- manutenção da auditoria comparativa `proxy v2 vs v3` como referência diagnóstica;
 - preservação do fluxo principal e do motor financeiro, sem abrir multifonte nesta etapa.
-
-
-## Atualização V73
-
-Nesta versão, a F1 preserva a `decisao_local_v1` com proxy econômico v3 como baseline vigente e adiciona uma auditoria comparativa reproduzível entre `proxy v2` e `proxy v3` sobre a mesma base e os mesmos pagamentos, sem alterar o motor financeiro nem abrir multifonte.
