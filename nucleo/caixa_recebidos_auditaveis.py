@@ -49,15 +49,23 @@ class PacoteFontesElegiveisPagamento:
 
 def _campos_fonte_elegivel() -> tuple[CampoContrato, ...]:
     return (
+        CampoContrato('fonte_pagamento_id', 'str', True, 'Identificador canônico e estável da linha fonte x pagamento.'),
         CampoContrato('fonte_id', 'str', True, 'Identificador canônico e estável da fonte elegível.'),
+        CampoContrato('pagamento_id', 'str', True, 'Identificador canônico do pagamento alvo.'),
+        CampoContrato('data_pagamento', 'date', True, 'Data econômica do pagamento alvo.'),
         CampoContrato('tipo_fonte', 'str', True, 'Categoria da fonte: saldo_disponivel, caixa_pre_aplicacao, lote_resgatavel ou recebido_disponivel.'),
         CampoContrato('data_evento', 'date', True, 'Data econômica em que a fonte pode financiar o pagamento.'),
         CampoContrato('lote_id', 'str|None', False, 'Identificador do lote quando a fonte deriva de um lote específico.'),
         CampoContrato('recebido_id', 'str|None', False, 'Identificador do recebido quando a fonte deriva de um recebido explícito.'),
         CampoContrato('produto_key', 'str|None', False, 'Produto canônico associado quando houver produto financeiro vinculado.'),
-        CampoContrato('valor_bruto_disponivel', 'float', True, 'Valor bruto economicamente elegível na data do evento.'),
-        CampoContrato('valor_liquido_disponivel', 'float', True, 'Valor líquido economicamente elegível na data do evento.'),
+        CampoContrato('valor_pagamento', 'float', True, 'Valor bruto do pagamento alvo.'),
+        CampoContrato('valor_bruto_disponivel', 'float', True, 'Valor bruto economicamente elegível ou observável para a fonte.'),
+        CampoContrato('valor_liquido_disponivel', 'float', True, 'Valor líquido economicamente elegível ou observável para a fonte.'),
+        CampoContrato('elegivel_na_data_pagamento', 'bool', True, 'Indica se a fonte está elegível na data específica do pagamento.'),
         CampoContrato('origem_status', 'str', True, 'Status operacional da origem: confirmado, estimado, parcial ou bloqueado.'),
+        CampoContrato('motivo_bloqueio_temporal', 'str|None', False, 'Motivo auditável quando a fonte não está elegível na data do pagamento.'),
+        CampoContrato('data_base_valor', 'date', True, 'Data-base da fotografia do valor disponível usada nesta etapa.'),
+        CampoContrato('metodo_valor_disponivel', 'str', True, 'Método de leitura do valor disponível: nominal_origem, fotografia_data_referencia ou similar.'),
         CampoContrato('observacao_auditavel', 'str', False, 'Texto curto para explicar a elegibilidade ou restrição da fonte.'),
     )
 
@@ -110,12 +118,12 @@ def obter_contrato_minimo_caixa_recebidos() -> dict[str, Any]:
     return {
         'frente': 'F1',
         'nome': 'caixa e recebidos auditáveis + decisão local v1 entre saldo disponível e resgate',
-        'escopo_etapa_atual': 'Materialização inicial de recebido_auditavel e fonte_elegivel_pagamento a partir dos dados canônicos, da data de referência corrente e do estado mínimo observável do replay, sem integrar ainda essa camada ao fluxo principal da baseline.',
+        'escopo_etapa_atual': 'Refinamento temporal de fonte_elegivel_pagamento por data de pagamento a partir dos dados canônicos, da data de referência corrente, dos recebidos auditáveis e do estado mínimo observável do replay, sem integrar ainda essa camada ao fluxo principal da baseline.',
         'implementado_nesta_etapa': [
             'Contrato mínimo documentado e observável da camada F1.',
             'Estruturas canônicas para fonte elegível de pagamento, recebido auditável e decisão local v1.',
             'Materialização executável de recebido_auditavel a partir do inventário canônico e dos vínculos históricos de gastos.',
-            'Materialização executável de fonte_elegivel_pagamento a partir dos recebidos auditáveis, do inventário canônico, da data de referência e do estado mínimo observável do replay.',
+            'Materialização executável de fonte_elegivel_pagamento por data de pagamento, usando os pagamentos futuros/pendentes, os recebidos auditáveis, o inventário canônico e o estado mínimo observável do replay.',
             'Scripts diagnósticos para inspecionar o contrato mínimo e as duas estruturas reais da F1 sem tocar no motor financeiro.',
         ],
         'fora_do_escopo_nesta_etapa': [
@@ -124,6 +132,7 @@ def obter_contrato_minimo_caixa_recebidos() -> dict[str, Any]:
             'Abertura de switching econômico.',
             'Integração da F1 ao fluxo principal do console ou da planilha operacional.',
             'Materialização robusta de saldo_disponivel geral independente da origem explícita do recebido.',
+            'Projeção financeira futura completa dos valores das fontes até cada data de pagamento.',
         ],
         'estruturas': [estrutura.para_dict() for estrutura in estruturas],
     }
@@ -178,6 +187,9 @@ def _slug_fonte(chave: str) -> str:
 def _fonte_id(tipo_fonte: str, *, lote_id: str | None = None, recebido_id: str | None = None) -> str:
     base = lote_id or recebido_id or tipo_fonte
     return f"fonte::{_slug_fonte(tipo_fonte)}::{_slug_fonte(base)}"
+
+def _fonte_pagamento_id(fonte_id: str, pagamento_id: str) -> str:
+    return f"{fonte_id}::pagamento::{_slug_fonte(pagamento_id)}"
 
 
 def _gastos_por_lote(gastos_canonicos: pd.DataFrame) -> pd.DataFrame:
@@ -398,16 +410,85 @@ def _indexar_inventario_por_lote(inventario: pd.DataFrame) -> dict[str, dict[str
     }
 
 
-def _materializar_fontes_de_recebidos(
+def _pagamentos_alvo_f1_4(gastos_canonicos: pd.DataFrame, *, data_referencia: date) -> pd.DataFrame:
+    if len(gastos_canonicos) == 0:
+        return pd.DataFrame(columns=['despesa_id', 'data', 'descricao', 'valor', 'pago'])
+    quadro = gastos_canonicos.copy()
+    mask = quadro['futuro_ou_pendente_na_data_referencia'].eq(True) & quadro['data'].notna() & (quadro['data'] >= data_referencia)
+    quadro = quadro.loc[mask, ['despesa_id', 'data', 'descricao', 'valor', 'pago']].copy()
+    if len(quadro) == 0:
+        return quadro
+    quadro['descricao'] = quadro['descricao'].map(limpar_texto)
+    quadro['despesa_id'] = quadro['despesa_id'].map(limpar_texto)
+    quadro['valor'] = quadro['valor'].map(lambda v: round(float(v or 0.0), 2))
+    quadro = quadro.sort_values(['data', 'despesa_id'], kind='stable').reset_index(drop=True)
+    return quadro
+
+
+def _linha_base_fonte_pagamento(
+    *,
+    pagamento: dict[str, Any],
+    fonte_id: str,
+    tipo_fonte: str,
+    data_evento: date,
+    lote_id: str | None,
+    recebido_id: str | None,
+    produto_key: Any,
+    produto_nome: Any,
+    valor_bruto_disponivel: float,
+    valor_liquido_disponivel: float,
+    elegivel_na_data_pagamento: bool,
+    origem_status: str,
+    motivo_bloqueio_temporal: str | None,
+    observacao_auditavel: str,
+    data_base_valor: date,
+    metodo_valor_disponivel: str,
+    data_recebimento_origem: date | None,
+    data_aplicacao_origem: date | None,
+    carencia_ate_origem: date | None,
+    origem_estrutura: str,
+) -> dict[str, Any]:
+    pagamento_id = limpar_texto(pagamento.get('despesa_id'))
+    return {
+        'fonte_pagamento_id': _fonte_pagamento_id(fonte_id, pagamento_id),
+        'fonte_id': fonte_id,
+        'pagamento_id': pagamento_id,
+        'data_pagamento': pagamento.get('data'),
+        'descricao_pagamento': limpar_texto(pagamento.get('descricao')),
+        'valor_pagamento': round(float(pagamento.get('valor') or 0.0), 2),
+        'tipo_fonte': tipo_fonte,
+        'data_evento': data_evento,
+        'lote_id': lote_id,
+        'recebido_id': recebido_id,
+        'produto_key': produto_key,
+        'produto_nome_canonico': produto_nome,
+        'valor_bruto_disponivel': round(float(valor_bruto_disponivel or 0.0), 2),
+        'valor_liquido_disponivel': round(float(valor_liquido_disponivel or 0.0), 2),
+        'elegivel_na_data_pagamento': bool(elegivel_na_data_pagamento),
+        'origem_status': origem_status,
+        'motivo_bloqueio_temporal': limpar_texto(motivo_bloqueio_temporal) or None,
+        'data_base_valor': data_base_valor,
+        'metodo_valor_disponivel': metodo_valor_disponivel,
+        'observacao_auditavel': observacao_auditavel,
+        'data_recebimento_origem': data_recebimento_origem,
+        'data_aplicacao_origem': data_aplicacao_origem,
+        'carencia_ate_origem': carencia_ate_origem,
+        'origem_estrutura': origem_estrutura,
+    }
+
+
+def _materializar_fontes_de_recebidos_por_pagamento(
     quadro_recebidos: pd.DataFrame,
+    pagamentos_alvo: pd.DataFrame,
     *,
     data_referencia: date,
     limiar_valor: float,
 ) -> list[dict[str, Any]]:
     registros: list[dict[str, Any]] = []
-    if len(quadro_recebidos) == 0:
+    if len(quadro_recebidos) == 0 or len(pagamentos_alvo) == 0:
         return registros
 
+    pagamentos = pagamentos_alvo.to_dict(orient='records')
     for _, row in quadro_recebidos.iterrows():
         recebido_id = limpar_texto(row.get('recebido_id'))
         lote_id = normalizar_identificador(row.get('lote_id_origem'))
@@ -415,59 +496,125 @@ def _materializar_fontes_de_recebidos(
         produto_nome = row.get('produto_nome_canonico')
         status_recebido = limpar_texto(row.get('status_recebido'))
         observacao_origem = limpar_texto(row.get('observacao_auditavel'))
+        data_recebimento = row.get('data_recebimento')
+        data_aplicacao = row.get('data_aplicacao')
+        lote_destino_id = normalizar_identificador(row.get('lote_destino_id'))
+        valor_nominal = round(float(row.get('valor_liquido') or row.get('valor_bruto') or 0.0), 2)
+        valor_residual = round(float(row.get('valor_residual_para_aplicacao_origem') or 0.0), 2)
+        valor_pre_aplicacao = valor_residual if lote_destino_id else valor_nominal
 
-        if status_recebido == 'disponivel':
-            valor = round(float(row.get('valor_liquido') or row.get('valor_bruto') or 0.0), 2)
-            if valor > limiar_valor:
-                registros.append({
-                    'fonte_id': _fonte_id('recebido_disponivel', recebido_id=recebido_id),
-                    'tipo_fonte': 'recebido_disponivel',
-                    'data_evento': data_referencia,
-                    'lote_id': lote_id or None,
-                    'recebido_id': recebido_id,
-                    'produto_key': produto_key,
-                    'valor_bruto_disponivel': valor,
-                    'valor_liquido_disponivel': valor,
-                    'origem_status': 'confirmado',
-                    'observacao_auditavel': observacao_origem or 'recebido disponível em caixa na data de referência.',
-                    'produto_nome_canonico': produto_nome,
-                    'data_recebimento_origem': row.get('data_recebimento'),
-                    'data_aplicacao_origem': row.get('data_aplicacao'),
-                    'carencia_ate_origem': None,
-                    'origem_estrutura': 'recebido_auditavel',
-                })
+        if status_recebido == 'exaurido':
+            continue
 
-        if bool(row.get('em_janela_pre_aplicacao_na_referencia')):
-            valor_residual = round(float(row.get('valor_residual_para_aplicacao_origem') or 0.0), 2)
-            if valor_residual > limiar_valor:
-                origem_status = 'parcial' if status_recebido == STATUS_USO_PRE_APLICACAO_COM_APORTE_POSTERIOR else 'confirmado'
-                observacao = observacao_origem or 'valor disponível em caixa pré-aplicação na data de referência.'
-                if origem_status == 'parcial':
-                    observacao = f'{observacao} Residual remanescente após uso parcial em pagamentos antes da aplicação.'
-                registros.append({
-                    'fonte_id': _fonte_id('caixa_pre_aplicacao', lote_id=lote_id or None, recebido_id=recebido_id),
-                    'tipo_fonte': 'caixa_pre_aplicacao',
-                    'data_evento': data_referencia,
-                    'lote_id': lote_id or None,
-                    'recebido_id': recebido_id,
-                    'produto_key': produto_key,
-                    'valor_bruto_disponivel': valor_residual,
-                    'valor_liquido_disponivel': valor_residual,
-                    'origem_status': origem_status,
-                    'observacao_auditavel': observacao,
-                    'produto_nome_canonico': produto_nome,
-                    'data_recebimento_origem': row.get('data_recebimento'),
-                    'data_aplicacao_origem': row.get('data_aplicacao'),
-                    'carencia_ate_origem': None,
-                    'origem_estrutura': 'recebido_auditavel',
-                })
+        for pagamento in pagamentos:
+            data_pagamento = pagamento.get('data')
+            if data_pagamento is None:
+                continue
+
+            if lote_destino_id:
+                if data_aplicacao is not None and data_pagamento >= data_aplicacao:
+                    continue
+                if valor_pre_aplicacao <= limiar_valor:
+                    continue
+
+                fonte_id = _fonte_id('caixa_pre_aplicacao', lote_id=lote_id or None, recebido_id=recebido_id)
+                mesmo_dia_recebimento = data_recebimento is not None and data_pagamento == data_recebimento
+                if data_recebimento is not None and data_pagamento < data_recebimento:
+                    origem_status = 'bloqueado'
+                    elegivel = False
+                    motivo = 'recebido_ainda_nao_existente_na_data_do_pagamento'
+                    observacao = 'recebido/lote ainda não existe economicamente na data do pagamento.'
+                elif data_aplicacao is not None and data_pagamento == data_aplicacao:
+                    origem_status = 'estimado'
+                    elegivel = True
+                    motivo = None
+                    observacao = 'pagamento na mesma data da aplicação; precedência intradiária entre pagar e aplicar ainda não foi materializada.'
+                else:
+                    elegivel = True
+                    motivo = None
+                    if mesmo_dia_recebimento:
+                        origem_status = 'estimado'
+                        observacao = 'pagamento na mesma data do recebimento; precedência intradiária ainda não foi materializada para esta fonte pré-aplicação.'
+                    else:
+                        origem_status = 'parcial' if status_recebido == STATUS_USO_PRE_APLICACAO_COM_APORTE_POSTERIOR else 'confirmado'
+                        observacao = observacao_origem or 'valor disponível em caixa pré-aplicação na data do pagamento.'
+                        if origem_status == 'parcial':
+                            observacao = f'{observacao} Residual remanescente após uso parcial em pagamentos antes da aplicação.'
+
+                registros.append(_linha_base_fonte_pagamento(
+                    pagamento=pagamento,
+                    fonte_id=fonte_id,
+                    tipo_fonte='caixa_pre_aplicacao',
+                    data_evento=data_pagamento,
+                    lote_id=lote_id or None,
+                    recebido_id=recebido_id,
+                    produto_key=produto_key,
+                    produto_nome=produto_nome,
+                    valor_bruto_disponivel=valor_pre_aplicacao,
+                    valor_liquido_disponivel=valor_pre_aplicacao,
+                    elegivel_na_data_pagamento=elegivel,
+                    origem_status=origem_status,
+                    motivo_bloqueio_temporal=motivo,
+                    observacao_auditavel=observacao,
+                    data_base_valor=data_referencia if data_pagamento > data_referencia else data_pagamento,
+                    metodo_valor_disponivel='nominal_origem',
+                    data_recebimento_origem=data_recebimento,
+                    data_aplicacao_origem=data_aplicacao,
+                    carencia_ate_origem=None,
+                    origem_estrutura='recebido_auditavel',
+                ))
+                continue
+
+            if valor_nominal <= limiar_valor:
+                continue
+
+            fonte_id = _fonte_id('recebido_disponivel', recebido_id=recebido_id)
+            mesmo_dia_recebimento = data_recebimento is not None and data_pagamento == data_recebimento
+            if data_recebimento is not None and data_pagamento < data_recebimento:
+                origem_status = 'bloqueado'
+                elegivel = False
+                motivo = 'recebido_ainda_nao_existente_na_data_do_pagamento'
+                observacao = 'recebido futuro ainda não existente economicamente na data do pagamento.'
+            else:
+                elegivel = True
+                motivo = None
+                if mesmo_dia_recebimento:
+                    origem_status = 'estimado'
+                    observacao = 'pagamento na mesma data do recebimento; precedência intradiária ainda não foi materializada para o caixa disponível.'
+                else:
+                    origem_status = 'confirmado'
+                    observacao = observacao_origem or 'recebido disponível em caixa na data do pagamento.'
+
+            registros.append(_linha_base_fonte_pagamento(
+                pagamento=pagamento,
+                fonte_id=fonte_id,
+                tipo_fonte='recebido_disponivel',
+                data_evento=data_pagamento,
+                lote_id=lote_id or None,
+                recebido_id=recebido_id,
+                produto_key=produto_key,
+                produto_nome=produto_nome,
+                valor_bruto_disponivel=valor_nominal,
+                valor_liquido_disponivel=valor_nominal,
+                elegivel_na_data_pagamento=elegivel,
+                origem_status=origem_status,
+                motivo_bloqueio_temporal=motivo,
+                observacao_auditavel=observacao,
+                data_base_valor=data_referencia if data_pagamento > data_referencia else data_pagamento,
+                metodo_valor_disponivel='nominal_origem',
+                data_recebimento_origem=data_recebimento,
+                data_aplicacao_origem=data_aplicacao,
+                carencia_ate_origem=None,
+                origem_estrutura='recebido_auditavel',
+            ))
 
     return registros
 
 
-def _materializar_fontes_de_replay(
+def _materializar_fontes_de_replay_por_pagamento(
     lotes_replay: list[Any],
     inventario_por_lote: dict[str, dict[str, Any]],
+    pagamentos_alvo: pd.DataFrame,
     *,
     data_referencia: date,
     tabela_iof: list[float] | None,
@@ -475,6 +622,10 @@ def _materializar_fontes_de_replay(
     limiar_valor: float,
 ) -> list[dict[str, Any]]:
     registros: list[dict[str, Any]] = []
+    if len(pagamentos_alvo) == 0:
+        return registros
+
+    pagamentos = pagamentos_alvo.to_dict(orient='records')
     for lote in lotes_replay or []:
         lote_id = normalizar_identificador(getattr(lote, 'id', None))
         if not lote_id:
@@ -484,9 +635,6 @@ def _materializar_fontes_de_replay(
             continue
 
         data_aplicacao = getattr(lote, 'data_aplicacao', None)
-        if data_aplicacao is not None and data_referencia < data_aplicacao:
-            continue
-
         data_recebimento = getattr(lote, 'data_recebimento', None)
         carencia_ate = getattr(lote, 'carencia_ate', None)
         linha_inventario = inventario_por_lote.get(lote_id, {})
@@ -495,34 +643,59 @@ def _materializar_fontes_de_replay(
         recebido_id = _recebido_id(lote_id)
 
         try:
-            valor_liquido = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir)), 2)
+            valor_liquido_referencia = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir)), 2)
         except Exception:
-            valor_liquido = saldo_bruto
+            valor_liquido_referencia = saldo_bruto
 
-        if carencia_ate is not None and data_referencia < carencia_ate:
-            origem_status = 'bloqueado'
-            observacao = f'lote ativo após o replay, mas ainda bloqueado por carência até {carencia_ate.isoformat()}.'
-        else:
-            origem_status = 'confirmado'
-            observacao = 'lote ativo com saldo remanescente após o replay e elegível para resgate na data de referência.'
+        fonte_id = _fonte_id('lote_resgatavel', lote_id=lote_id)
+        for pagamento in pagamentos:
+            data_pagamento = pagamento.get('data')
+            if data_pagamento is None:
+                continue
+            if data_aplicacao is not None and data_pagamento < data_aplicacao:
+                continue
 
-        registros.append({
-            'fonte_id': _fonte_id('lote_resgatavel', lote_id=lote_id),
-            'tipo_fonte': 'lote_resgatavel',
-            'data_evento': data_referencia,
-            'lote_id': lote_id,
-            'recebido_id': recebido_id,
-            'produto_key': produto_key,
-            'valor_bruto_disponivel': saldo_bruto,
-            'valor_liquido_disponivel': valor_liquido,
-            'origem_status': origem_status,
-            'observacao_auditavel': observacao,
-            'produto_nome_canonico': produto_nome,
-            'data_recebimento_origem': data_recebimento,
-            'data_aplicacao_origem': data_aplicacao,
-            'carencia_ate_origem': carencia_ate,
-            'origem_estrutura': 'replay_passado_controlado',
-        })
+            mesmo_dia_aplicacao = data_aplicacao is not None and data_pagamento == data_aplicacao
+            if carencia_ate is not None and data_pagamento < carencia_ate:
+                origem_status = 'bloqueado'
+                elegivel = False
+                motivo = 'carencia_ativa_na_data_do_pagamento'
+                observacao = f'lote com saldo remanescente após o replay, mas ainda bloqueado por carência até {carencia_ate.isoformat()}.'
+            elif mesmo_dia_aplicacao:
+                origem_status = 'estimado'
+                elegivel = True
+                motivo = None
+                observacao = 'pagamento na mesma data da aplicação; precedência intradiária entre pagar e aplicar ainda não foi materializada para este lote.'
+            else:
+                origem_status = 'confirmado'
+                elegivel = True
+                motivo = None
+                observacao = 'lote com saldo remanescente após o replay e elegível para resgate na data do pagamento.'
+                if data_pagamento > data_referencia:
+                    observacao += ' Valor mantido como fotografia da data de referência; a projeção futura da fonte ainda não foi aberta nesta etapa.'
+
+            registros.append(_linha_base_fonte_pagamento(
+                pagamento=pagamento,
+                fonte_id=fonte_id,
+                tipo_fonte='lote_resgatavel',
+                data_evento=data_pagamento,
+                lote_id=lote_id,
+                recebido_id=recebido_id,
+                produto_key=produto_key,
+                produto_nome=produto_nome,
+                valor_bruto_disponivel=saldo_bruto,
+                valor_liquido_disponivel=valor_liquido_referencia,
+                elegivel_na_data_pagamento=elegivel,
+                origem_status=origem_status,
+                motivo_bloqueio_temporal=motivo,
+                observacao_auditavel=observacao,
+                data_base_valor=data_referencia,
+                metodo_valor_disponivel='fotografia_data_referencia',
+                data_recebimento_origem=data_recebimento,
+                data_aplicacao_origem=data_aplicacao,
+                carencia_ate_origem=carencia_ate,
+                origem_estrutura='replay_passado_controlado',
+            ))
     return registros
 
 
@@ -539,13 +712,22 @@ def materializar_fontes_elegiveis_pagamento(
     inventario = dados_operacionais.inventario_canonico.copy()
     inventario_por_lote = _indexar_inventario_por_lote(inventario)
     quadro_recebidos = recebidos_auditaveis.quadro_recebidos_auditaveis.copy()
+    pagamentos_alvo = _pagamentos_alvo_f1_4(dados_operacionais.gastos_canonicos.copy(), data_referencia=data_referencia)
 
     registros: list[dict[str, Any]] = []
-    registros.extend(_materializar_fontes_de_recebidos(quadro_recebidos, data_referencia=data_referencia, limiar_valor=limiar_valor))
     registros.extend(
-        _materializar_fontes_de_replay(
+        _materializar_fontes_de_recebidos_por_pagamento(
+            quadro_recebidos,
+            pagamentos_alvo,
+            data_referencia=data_referencia,
+            limiar_valor=limiar_valor,
+        )
+    )
+    registros.extend(
+        _materializar_fontes_de_replay_por_pagamento(
             getattr(replay_passado, 'lotes_apos_replay', []) if replay_passado is not None else [],
             inventario_por_lote,
+            pagamentos_alvo,
             data_referencia=data_referencia,
             tabela_iof=tabela_iof,
             faixas_ir=faixas_ir,
@@ -554,18 +736,27 @@ def materializar_fontes_elegiveis_pagamento(
     )
 
     quadro = pd.DataFrame(registros)
+    avisos_base = ['saldo_disponivel_ainda_nao_materializado']
+    if len(pagamentos_alvo) == 0:
+        avisos_base.append('nao_ha_pagamentos_futuros_ou_pendentes_para_f1_4')
     if len(quadro) == 0:
         auditoria = {
-            'validacao': {'ok': False, 'erros': ['fontes_elegiveis_vazio'], 'avisos': ['saldo_disponivel_ainda_nao_materializado']},
-            'resumo': {},
+            'validacao': {'ok': False, 'erros': ['fontes_elegiveis_vazio'], 'avisos': avisos_base},
+            'resumo': {
+                'total_pagamentos_alvo': int(len(pagamentos_alvo)),
+            },
         }
         return PacoteFontesElegiveisPagamento(quadro_fontes_elegiveis=quadro, auditoria=auditoria)
 
-    quadro = quadro.sort_values(['tipo_fonte', 'origem_status', 'lote_id', 'recebido_id'], kind='stable').reset_index(drop=True)
+    quadro = quadro.sort_values(['data_pagamento', 'pagamento_id', 'tipo_fonte', 'origem_status', 'lote_id', 'recebido_id'], kind='stable').reset_index(drop=True)
     erros: list[str] = []
-    avisos: list[str] = []
-    if quadro['fonte_id'].duplicated().any():
-        erros.append('fonte_id_duplicado')
+    avisos: list[str] = list(avisos_base)
+    if quadro['fonte_pagamento_id'].duplicated().any():
+        erros.append('fonte_pagamento_id_duplicado')
+    if quadro['pagamento_id'].isna().any() or (quadro['pagamento_id'].astype(str).str.strip() == '').any():
+        erros.append('pagamento_id_nulo_ou_vazio')
+    if quadro['data_pagamento'].isna().any():
+        erros.append('data_pagamento_nula')
     if quadro['data_evento'].isna().any():
         erros.append('data_evento_nula')
     if (quadro['valor_bruto_disponivel'] <= 0).any():
@@ -578,19 +769,33 @@ def materializar_fontes_elegiveis_pagamento(
         avisos.append('existem_fontes_bloqueadas_por_restricao_operacional')
     if (quadro['origem_status'] == 'parcial').any():
         avisos.append('existem_fontes_parciais_em_janela_pre_aplicacao')
+    if (quadro['origem_status'] == 'estimado').any():
+        avisos.append('existem_fontes_dependentes_de_precedencia_intradiaria_nao_materializada')
+    if (quadro['metodo_valor_disponivel'] == 'fotografia_data_referencia').any():
+        avisos.append('valores_de_lotes_futuros_ainda_em_fotografia_da_data_de_referencia')
 
     resumo_tipos = {str(k): int(v) for k, v in quadro['tipo_fonte'].value_counts(dropna=False).to_dict().items()}
     resumo_status = {str(k): int(v) for k, v in quadro['origem_status'].value_counts(dropna=False).to_dict().items()}
+    resumo_elegibilidade = {str(k): int(v) for k, v in quadro['elegivel_na_data_pagamento'].value_counts(dropna=False).to_dict().items()}
+    pagamentos_com_fonte = quadro.groupby('pagamento_id', sort=False)['elegivel_na_data_pagamento'].any()
     auditoria = {
-        'validacao': {'ok': len(erros) == 0, 'erros': erros, 'avisos': avisos},
+        'validacao': {'ok': len(erros) == 0, 'erros': erros, 'avisos': sorted(set(avisos))},
         'resumo': {
-            'total_fontes': int(len(quadro)),
+            'total_pagamentos_alvo': int(len(pagamentos_alvo)),
+            'total_fontes_pagamento': int(len(quadro)),
+            'datas_pagamento_mapeadas': int(quadro['data_pagamento'].nunique()),
+            'data_primeiro_pagamento': pagamentos_alvo['data'].min() if len(pagamentos_alvo) else None,
+            'data_ultimo_pagamento': pagamentos_alvo['data'].max() if len(pagamentos_alvo) else None,
             'tipo_fonte': resumo_tipos,
             'origem_status': resumo_status,
-            'valor_total_bruto_disponivel': round(float(quadro['valor_bruto_disponivel'].sum()), 2),
-            'valor_total_liquido_disponivel': round(float(quadro['valor_liquido_disponivel'].sum()), 2),
+            'elegivel_na_data_pagamento': resumo_elegibilidade,
+            'valor_total_bruto_disponivel': round(float(quadro.loc[quadro['elegivel_na_data_pagamento'] == True, 'valor_bruto_disponivel'].sum()), 2),
+            'valor_total_liquido_disponivel': round(float(quadro.loc[quadro['elegivel_na_data_pagamento'] == True, 'valor_liquido_disponivel'].sum()), 2),
+            'pagamentos_com_alguma_fonte_elegivel': int(pagamentos_com_fonte.sum()),
+            'pagamentos_sem_fonte_elegivel': int((~pagamentos_com_fonte).sum()),
             'fontes_confirmadas': int((quadro['origem_status'] == 'confirmado').sum()),
             'fontes_parciais': int((quadro['origem_status'] == 'parcial').sum()),
+            'fontes_estimadas': int((quadro['origem_status'] == 'estimado').sum()),
             'fontes_bloqueadas': int((quadro['origem_status'] == 'bloqueado').sum()),
             'fontes_lote_resgatavel': int((quadro['tipo_fonte'] == 'lote_resgatavel').sum()),
             'fontes_recebido_disponivel': int((quadro['tipo_fonte'] == 'recebido_disponivel').sum()),

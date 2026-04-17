@@ -2,12 +2,12 @@
 
 ## Escopo desta etapa
 
-A Etapa 3 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e materializa a segunda estrutura real: `fonte_elegivel_pagamento`. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre a decisão econômica real e **não** integra ainda a F1 ao fluxo principal do console ou da planilha operacional.
+A Etapa 4 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e refina a segunda estrutura real: `fonte_elegivel_pagamento` agora passa a ser lida **por pagamento** e por **data de pagamento**. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre a decisão econômica real e **não** integra ainda a F1 ao fluxo principal do console ou da planilha operacional.
 
 ## Objetivo
 
 Criar uma base formal, estável e auditável para que as próximas etapas possam materializar:
-- fontes elegíveis de pagamento por data;
+- fontes elegíveis de pagamento por data e por pagamento;
 - recebidos auditáveis com destino explícito e vínculo histórico observável;
 - decisão local v1 entre saldo disponível, caixa pré-aplicação, recebidos e resgate.
 
@@ -17,18 +17,26 @@ Criar uma base formal, estável e auditável para que as próximas etapas possam
 Representa qualquer fonte economicamente elegível para financiar um pagamento em uma data específica.
 
 Campos mínimos:
+- `fonte_pagamento_id`
 - `fonte_id`
+- `pagamento_id`
+- `data_pagamento`
 - `tipo_fonte`
 - `data_evento`
 - `lote_id`
 - `recebido_id`
 - `produto_key`
+- `valor_pagamento`
 - `valor_bruto_disponivel`
 - `valor_liquido_disponivel`
+- `elegivel_na_data_pagamento`
 - `origem_status`
+- `motivo_bloqueio_temporal`
+- `data_base_valor`
+- `metodo_valor_disponivel`
 - `observacao_auditavel`
 
-**Estado atual:** contratual + materializado a partir do inventário canônico, da data de referência corrente, dos recebidos auditáveis e do estado mínimo observável do replay. Nesta etapa, a camada ainda não materializa um `saldo_disponivel` geral robusto e independente da origem explícita do recebido.
+**Estado atual:** contratual + materializado a partir do inventário canônico, da data de referência corrente, dos pagamentos futuros/pendentes, dos recebidos auditáveis e do estado mínimo observável do replay. Nesta etapa, a camada ainda não materializa um `saldo_disponivel` geral robusto e não projeta financeiramente o valor das fontes até a data do pagamento.
 
 ### 2. `recebido_auditavel`
 Representa o recebido com valor, status e destino auditável.
@@ -68,7 +76,8 @@ Campos mínimos:
 - alterar valuation dos lotes;
 - abrir switching econômico;
 - integrar a decisão local v1 ao fluxo principal;
-- materializar uma camada geral de `saldo_disponivel` sem duplicação ou inconsistência com as fontes explícitas já observáveis.
+- materializar uma camada geral de `saldo_disponivel` sem duplicação ou inconsistência com as fontes explícitas já observáveis;
+- projetar financeiramente os saldos das fontes até cada data de pagamento.
 
 ## Evidência observável desta etapa
 

@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V67
+**Versão atual da baseline:** V68
 
-A V67 preserva a base funcional da V66 e substitui o rótulo operacional `misto` por uma classificação mais explicativa para recebidos usados antes da aplicação e aportados depois, sem alterar o motor financeiro.
+A V68 preserva a base funcional da V67 e abre a micro-etapa **F1.4**, refinando `fonte_elegivel_pagamento` para uma leitura **por pagamento e por data de pagamento**, sem alterar o motor financeiro.
 
-## Estrutura canônica da V67
+## Estrutura canônica da V68
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -44,9 +44,9 @@ A V67 preserva a base funcional da V66 e substitui o rótulo operacional `misto`
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V67.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V67.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V67.md`
+- `relatorios/atuais/BASELINE_FIXA_V68.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V68.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V68.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 
 ## Gate obrigatório antes de cada entrega
@@ -81,10 +81,10 @@ python scripts/inspecionar_recebidos_auditaveis.py
 python scripts/inspecionar_fontes_elegiveis_pagamento.py
 ```
 
-## Atualização V67
+## Atualização V68
 
-- V66 consolidada como baseline oficial de partida;
+- V67 consolidada como baseline oficial de partida;
 - checagem de release mantida como gate obrigatório;
-- substituição do rótulo `misto` por `uso_pre_aplicacao_com_aporte_posterior` para recebidos/lotes usados em pagamentos antes da aplicação e aportados depois;
-- substituição do destino `misto` por `pagamento_e_aplicacao`;
+- abertura da micro-etapa **F1.4** com `fonte_elegivel_pagamento` refinada por `pagamento_id` e `data_pagamento`;
+- inclusão de metadados de elegibilidade temporal, motivo de bloqueio e método de leitura do valor disponível;
 - preservação integral da lógica econômica já implementada.

@@ -107,7 +107,7 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
     - `scripts/diagnostico/inspecionar_recebidos_auditaveis.py`;
     - `scripts/diagnostico/inspecionar_fontes_elegiveis_pagamento.py`.
 50. A materialização atual de `recebido_auditavel` deve usar, no mínimo, o inventário canônico, a data de referência corrente e os vínculos históricos explícitos da aba de gastos.
-51. A materialização atual de `fonte_elegivel_pagamento` deve usar, no mínimo, o inventário canônico, a data de referência corrente, `recebido_auditavel` e o estado mínimo observável do replay, preservando a ausência de uma camada geral robusta de `saldo_disponivel` nesta etapa.
+51. A materialização atual de `fonte_elegivel_pagamento` deve usar, no mínimo, o inventário canônico, a data de referência corrente, os pagamentos futuros/pendentes, `recebido_auditavel` e o estado mínimo observável do replay, refinando a leitura por `pagamento_id` e `data_pagamento`, mas preservando a ausência de uma camada geral robusta de `saldo_disponivel` nesta etapa.
 52. A abertura da F1 nesta etapa não implica integração ao fluxo principal, nem decisão econômica real, nem alteração do replay, nem abertura de switching.
 
 ## 10. O que continua fora do contrato executável

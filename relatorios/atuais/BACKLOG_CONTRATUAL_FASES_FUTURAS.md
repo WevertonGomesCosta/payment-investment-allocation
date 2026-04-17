@@ -17,7 +17,7 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 
 6. Materializar uma camada robusta de `saldo_disponivel` geral sem duplicar nem conflitar com as fontes explícitas já observáveis.
 7. Refinar `recebido_auditavel` com leitura por evento e trilha mais explícita de destino observado versus destino elegível.
-8. Refinar `fonte_elegivel_pagamento` com horizonte por data de pagamento, em vez de apenas fotografia na data de referência.
+8. Projetar financeiramente o valor das fontes até cada data de pagamento, substituindo a fotografia da data de referência quando essa frente for aberta.
 9. Abrir a regra local v1 entre saldo disponível, caixa pré-aplicação, recebidos e resgate.
 10. Expor a trilha correspondente no console e no `.xlsx`.
 
