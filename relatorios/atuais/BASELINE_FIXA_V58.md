@@ -1,8 +1,8 @@
-# Baseline fixa V57
+# Baseline fixa V58
 
 ## Objetivo desta versão
 
-Reorganizar arquiteturalmente a V55 sem alterar a lógica financeira validada da baseline.
+Derivar a V57 de forma cirúrgica para retirar a auditoria comparativa contra app do fluxo executável e tornar auditável o uso de fallback CDI na situação atual, sem alterar o motor financeiro.
 
 ## Reorganização aplicada
 
@@ -20,13 +20,17 @@ Reorganizar arquiteturalmente a V55 sem alterar a lógica financeira validada da
 
 ## Garantia de compatibilidade
 
-Os comandos canônicos e os comandos antigos continuam executáveis na V57.
+Os comandos canônicos e os comandos antigos continuam executáveis na V58.
 
 ## Critério desta baseline
 
-A V57 reorganiza orquestração, apresentação e governança do repositório, mas preserva a matemática já validada dos lotes, do replay e da planilha operacional.
+A V58 reorganiza orquestração, apresentação e governança do repositório, mas preserva a matemática já validada dos lotes, do replay e da planilha operacional.
 
 
-## Atualização V57
+## Atualização V58
 
 - fallback encadeado do CDI para dias úteis consecutivos sem fator novo, repetindo o último fator válido disponível até a data de referência corrente quando o download do BCB falhar.
+
+- remoção do ramo de auditoria contra app do fluxo executável da baseline;
+- remoção do teste de `-1 dia` do fluxo principal;
+- rotulagem auditável do fallback CDI na situação atual do console e do `.xlsx`.

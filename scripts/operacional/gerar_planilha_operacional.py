@@ -16,6 +16,7 @@ if str(RAIZ) not in sys.path:
 from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
 from nucleo.identidade_baseline import caminho_artifact, caminho_saida_operacional, nome_relatorio_operacional
 from nucleo.calendario_financeiro import contar_dias_rendimento
+from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
 
 SAIDA_INTERNA = caminho_saida_operacional(RAIZ, nome_relatorio_operacional())
 SAIDA_EXTERNA = caminho_artifact(nome_relatorio_operacional())
@@ -145,6 +146,20 @@ def main() -> None:
     _apply_table_style(ws_melhores, headers_melhores, rows_melhores)
 
     ws_atual = wb.create_sheet('Situação atual')
+    resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
+        data_referencia=ctx.data_referencia,
+        calendario_financeiro=cal,
+        serie_cdi=cache.serie_cdi,
+    )
+    rows_fechamento_atual = [
+        ['Data de referência', resumo_fechamento_situacao_atual.get('data_referencia')],
+        ['Status do fechamento econômico', resumo_fechamento_situacao_atual.get('status_fechamento')],
+        ['Fonte do fechamento', resumo_fechamento_situacao_atual.get('fonte_fechamento')],
+        ['Fechamentos com fallback CDI', resumo_fechamento_situacao_atual.get('qtd_fechamentos_fallback_cdi', 0)],
+        ['Último fator explícito CDI', resumo_fechamento_situacao_atual.get('data_ultimo_fator_explicito_cdi')],
+        ['Data confirmada da série', resumo_fechamento_situacao_atual.get('data_fechamento_confirmado')],
+        ['Leitura auditável', resumo_fechamento_situacao_atual.get('observacao')],
+    ]
     rows_atual_ident = []
     rows_atual_valores = []
     data_economica = ctx.data_referencia
@@ -183,7 +198,8 @@ def main() -> None:
         ])
     headers_atual_ident = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis']
     headers_atual_valores = ['Lote', 'Valor Original', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
-    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_atual_ident, start_row=1, title='Identificação e tempo', freeze=True)
+    ultima_linha_fechamento = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=1, title='Fechamento econômico da situação atual', freeze=False)
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_atual_ident, start_row=ultima_linha_fechamento + 3, title='Identificação e tempo', freeze=True)
     _apply_table_style(ws_atual, headers_atual_valores, rows_atual_valores, start_row=ultima_linha + 3, title='Valores atuais')
 
     SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)

@@ -110,8 +110,21 @@ def render_secao_replay(*, auditoria_replay, validacao_replay, severidade_replay
     imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
 
 
-def render_secao_situacao_atual(*, lotes_ativos):
+def render_secao_situacao_atual(*, lotes_ativos, resumo_fechamento=None):
     imprimir_titulo('SITUAÇÃO ATUAL — LOTES ATIVOS')
+    resumo_fechamento = resumo_fechamento or {}
+    if resumo_fechamento:
+        imprimir_pares([
+            ('data de referência', resumo_fechamento.get('data_referencia')),
+            ('status do fechamento econômico', resumo_fechamento.get('status_fechamento')),
+            ('fonte do fechamento', resumo_fechamento.get('fonte_fechamento')),
+            ('fechamentos com fallback CDI', resumo_fechamento.get('qtd_fechamentos_fallback_cdi', 0)),
+            ('último fator explícito CDI', resumo_fechamento.get('data_ultimo_fator_explicito_cdi')),
+            ('data confirmada da série', resumo_fechamento.get('data_fechamento_confirmado')),
+        ])
+        observacao = resumo_fechamento.get('observacao')
+        if observacao:
+            print(f'- leitura auditável: {observacao}')
     if lotes_ativos:
         print('- identificação e tempo:')
         imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_ativos)

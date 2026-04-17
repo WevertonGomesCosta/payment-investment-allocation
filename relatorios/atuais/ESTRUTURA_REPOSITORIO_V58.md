@@ -1,4 +1,4 @@
-# Estrutura oficial do repositório V57
+# Estrutura oficial do repositório V58
 
 ## Orquestração canônica
 
@@ -20,6 +20,10 @@
 - `scripts/diagnostico/inspecionar_base.py`
 - `scripts/*.py` → wrappers de compatibilidade
 
+## Auditabilidade de fechamento
+
+- `nucleo/rotulagem_fechamento.py` → resumo auditável do fechamento econômico da situação atual
+
 ## Dados
 
 - `dados/config_atualizado.json`
@@ -36,6 +40,10 @@
 - `relatorios/historico/` → trilha preservada por categoria documental
 
 
-## Atualização V57
+## Atualização V58
 
 - fallback encadeado do CDI para dias úteis consecutivos sem fator novo, repetindo o último fator válido disponível até a data de referência corrente quando o download do BCB falhar.
+
+- remoção do ramo de auditoria contra app do fluxo executável da baseline;
+- remoção do teste de `-1 dia` do fluxo principal;
+- rotulagem auditável do fallback CDI na situação atual do console e do `.xlsx`.

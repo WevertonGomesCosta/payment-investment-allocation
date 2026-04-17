@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V57
+**Versão atual da baseline:** V58
 
-A V57 preserva a base funcional vigente, mas reorganiza a arquitetura de orquestração da baseline, modulariza o console e centraliza a identidade da versão e dos artefatos.
+A V58 preserva a base funcional vigente, mas reorganiza a arquitetura de orquestração da baseline, modulariza o console e centraliza a identidade da versão e dos artefatos.
 
-## Estrutura canônica da V57
+## Estrutura canônica da V58
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -36,9 +36,9 @@ A V57 preserva a base funcional vigente, mas reorganiza a arquitetura de orquest
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V57.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V57.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V57.md`
+- `relatorios/atuais/BASELINE_FIXA_V58.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V58.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V58.md`
 
 ## Comandos canônicos
 
@@ -59,6 +59,8 @@ python scripts/inspecionar_base.py
 ```
 
 
-## Atualização V57
+## Atualização V58
 
-- fallback encadeado do CDI para dias úteis consecutivos sem fator novo, repetindo o último fator válido disponível até a data de referência corrente quando o download do BCB falhar.
+- remoção da auditoria contra app do fluxo executável e da configuração ativa;
+- remoção do teste de `-1 dia` do fluxo principal;
+- rotulagem auditável do fallback CDI na seção `Situação atual` do console e na aba homônima do `.xlsx`, sem alterar o motor financeiro.

@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V57**.
-2. A V57 preserva a linha funcional consolidada, incorpora a regra operacional de aquisição de dados com tentativa de download primeiro e fallback controlado depois, centraliza a montagem da baseline em `nucleo/contexto_baseline.py`, centraliza a identidade da versão em `nucleo/identidade_baseline.py` e modulariza o console por seções, sem abertura de solver, switching econômico, score econômico final ou engine conjunta completa.
+1. A baseline atual é a **V58**.
+2. A V58 preserva a linha funcional consolidada, incorpora a regra operacional de aquisição de dados com tentativa de download primeiro e fallback controlado depois, centraliza a montagem da baseline em `nucleo/contexto_baseline.py`, centraliza a identidade da versão em `nucleo/identidade_baseline.py` e modulariza o console por seções, sem abertura de solver, switching econômico, score econômico final ou engine conjunta completa.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -55,7 +55,7 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
     - não obedece à carência do produto.
 30. O regime financeiro do investimento só passa a valer a partir da efetiva `Data Aplicação`.
 31. O cálculo de rendimento dos lotes deve considerar explicitamente os resgates realizados para pagamentos, fazendo o saldo remanescente continuar rendendo a partir do valor residual.
-32. O cálculo de rendimento continua sendo tratado como hipótese operacional auditável e não como verdade fechada; portanto, diferenças relevantes com apps devem continuar podendo abrir auditoria específica.
+32. O cálculo de rendimento continua sendo tratado como hipótese operacional auditável e não como verdade fechada; a auditabilidade corrente deve priorizar evidência interna da baseline e da série CDI carregada, sem manter auditoria comparativa contra app no fluxo executável.
 
 ## 6. Regra de referência temporal da baseline
 
@@ -127,3 +127,5 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 56. A identidade da versão e os nomes-base dos artefatos operacionais devem ser centralizados em `nucleo/identidade_baseline.py`.
 57. O console deve permanecer modularizado por seções, com o orquestrador em `aplicacao/console/principal.py` e a renderização distribuída em módulos específicos de seção.
 58. Wrappers de compatibilidade antigos podem permanecer, desde que não substituam os caminhos canônicos da baseline.
+
+59. A seção e a aba `Situação atual` devem rotular explicitamente se o fechamento econômico foi confirmado pela série CDI ou estimado por fallback.
