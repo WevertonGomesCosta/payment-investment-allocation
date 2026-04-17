@@ -133,6 +133,7 @@ def carregar_contexto_baseline(
         fontes_elegiveis_pagamento,
         saldo_disponivel_geral,
         data_referencia=contexto_execucao.data_referencia,
+        carteira_canonica=carteira_canonica,
     )
     return ContextoBaseline(
         pacote_config=pacote_config,

@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V70
+**Versão atual da baseline:** V71
 
-A V70 preserva a base funcional da V68 e abre a micro-etapa **F1.6**, materializando `decisao_local_v1` por pagamento sobre a matriz temporal completa, sem alterar o motor financeiro nem integrar a decisão ao fluxo principal.
+A V71 preserva a base funcional da V68 e abre a micro-etapa **F1.7**, materializando `decisao_local_v1` com proxy econômico v2 por pagamento sobre a matriz temporal completa, sem alterar o motor financeiro nem integrar a decisão ao fluxo principal.
 
-## Estrutura canônica da V70
+## Estrutura canônica da V71
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -46,9 +46,9 @@ A V70 preserva a base funcional da V68 e abre a micro-etapa **F1.6**, materializ
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V70.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V70.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V70.md`
+- `relatorios/atuais/BASELINE_FIXA_V71.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V71.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V71.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 
 ## Gate obrigatório antes de cada entrega
@@ -87,10 +87,10 @@ python scripts/inspecionar_saldo_disponivel_geral.py
 python scripts/inspecionar_decisao_local_v1.py
 ```
 
-## Atualização V70
+## Atualização V71
 
-- V69 consolidada como baseline oficial de partida;
+- V70 consolidada como baseline oficial de partida;
 - checagem de release mantida como gate obrigatório;
-- abertura da micro-etapa **F1.6** com `decisao_local_v1` por pagamento sobre a matriz temporal completa;
-- inclusão de diagnóstico e metadados auditáveis para fonte escolhida, cobertura e critério de decisão;
+- abertura da micro-etapa **F1.7** com `decisao_local_v1` e proxy econômico v2 por pagamento sobre a matriz temporal completa;
+- inclusão de diagnóstico e metadados auditáveis para fonte escolhida, lote escolhido, cobertura, critério de decisão e score do proxy econômico v2;
 - preservação integral da lógica econômica já implementada.

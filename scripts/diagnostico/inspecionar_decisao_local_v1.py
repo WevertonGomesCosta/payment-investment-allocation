@@ -12,7 +12,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 from nucleo.contexto_baseline import carregar_contexto_baseline
 
 COLUNAS_EXIBICAO = [
-    'pagamento_id', 'data_pagamento', 'descricao_pagamento', 'valor_pagamento', 'fonte_escolhida_id', 'tipo_fonte_escolhida',
+    'pagamento_id', 'data_pagamento', 'descricao_pagamento', 'valor_pagamento', 'fonte_escolhida_id', 'lote_id_escolhido', 'tipo_fonte_escolhida',
     'criterio_decisao', 'custo_economico_proxy', 'valor_disponivel_escolhido', 'pagamento_totalmente_coberto', 'fonte_origem_status',
     'fonte_elegivel_na_data', 'motivo_bloqueio_ou_restricao',
 ]
@@ -24,7 +24,7 @@ def main() -> int:
     quadro = pacote.quadro_decisao_local_v1
     auditoria = pacote.auditoria
 
-    print('=== DECISÃO LOCAL V1 (F1 / ETAPA 6) ===')
+    print('=== DECISÃO LOCAL V1 (F1 / ETAPA 7) ===')
     print(f"data_referencia: {contexto.execucao.data_referencia}")
     print(f"total_pagamentos_alvo: {auditoria.get('resumo', {}).get('total_pagamentos_alvo')}")
     print(f"total_linhas_decisao: {len(quadro)}")
@@ -32,6 +32,8 @@ def main() -> int:
     print(f"resumo_tipo_fonte_escolhida: {auditoria.get('resumo', {}).get('tipo_fonte_escolhida', {})}")
     print(f"resumo_criterio_decisao: {auditoria.get('resumo', {}).get('criterio_decisao', {})}")
     print(f"resumo_fonte_origem_status: {auditoria.get('resumo', {}).get('fonte_origem_status', {})}")
+    print(f"resumo_fonte_base_escolhida: {auditoria.get('resumo', {}).get('fonte_base_escolhida', {})}")
+    print(f"resumo_lote_id_escolhido: {auditoria.get('resumo', {}).get('lote_id_escolhido', {})}")
     print('pagamentos_totalmente_cobertos: ' f"{auditoria.get('resumo', {}).get('pagamentos_totalmente_cobertos')}")
     if auditoria.get('validacao', {}).get('avisos'):
         print(f"avisos: {auditoria['validacao']['avisos']}")

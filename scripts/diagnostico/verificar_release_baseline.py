@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V70'
-VERSAO_ANTERIOR = 'V69'
+VERSAO_VIGENTE = 'V71'
+VERSAO_ANTERIOR = 'V70'
 
 
 def repo_root() -> Path:

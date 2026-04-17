@@ -125,7 +125,7 @@ def _campos_decisao_local_v1() -> tuple[CampoContrato, ...]:
         CampoContrato('fonte_escolhida_id', 'str', True, 'Fonte escolhida pela regra local v1.'),
         CampoContrato('tipo_fonte_escolhida', 'str', True, 'Categoria da fonte escolhida.'),
         CampoContrato('criterio_decisao', 'str', True, 'Critério auditável aplicado na decisão local v1.'),
-        CampoContrato('custo_economico_proxy', 'float|None', False, 'Custo econômico proxy associado à escolha, quando a etapa correspondente for aberta.'),
+        CampoContrato('custo_economico_proxy', 'float|None', False, 'Score do proxy econômico v2 associado à escolha local, quanto menor melhor.'),
         CampoContrato('observacao_auditavel', 'str', False, 'Resumo curto da decisão local sem abrir solver ou switching.'),
     )
 
@@ -149,14 +149,14 @@ def obter_contrato_minimo_caixa_recebidos() -> dict[str, Any]:
         ),
         EstruturaContrato(
             nome='decisao_local_v1',
-            descricao='Estrutura reservada para a futura decisão local entre saldo disponível, caixa pré-aplicação, recebidos e resgate, ainda sem solver e sem switching.',
+            descricao='Estrutura canônica da decisão local entre saldo disponível, caixa pré-aplicação, recebidos e resgate, agora com proxy econômico v2 ainda sem solver e sem switching.',
             campos=_campos_decisao_local_v1(),
         ),
     )
     return {
         'frente': 'F1',
         'nome': 'caixa e recebidos auditáveis + decisão local v1 entre saldo disponível e resgate',
-        'escopo_etapa_atual': 'Materialização da decisão local v1 por pagamento sobre a matriz temporal completa de fontes e saldo geral, ainda sem solver, sem switching e sem integração ao fluxo principal da baseline.',
+        'escopo_etapa_atual': 'Materialização da decisão local v1 com proxy econômico v2 por pagamento sobre a matriz temporal completa de fontes e saldo geral, ainda sem solver, sem switching e sem integração ao fluxo principal da baseline.',
         'implementado_nesta_etapa': [
             'Contrato mínimo documentado e observável da camada F1.',
             'Estruturas canônicas para fonte elegível de pagamento, recebido auditável e decisão local v1.',
@@ -877,6 +877,110 @@ def materializar_saldo_disponivel_geral(
 
 
 
+
+
+def _construir_mapa_produtos_proxy(carteira_canonica: Any | None) -> dict[str, dict[str, Any]]:
+    quadro = getattr(carteira_canonica, 'quadro_canonico', None) if carteira_canonica is not None else None
+    if quadro is None or len(quadro) == 0:
+        return {}
+
+    mapa: dict[str, dict[str, Any]] = {}
+    colunas = {
+        'produto_key', 'taxa_base_cdi', 'taxa_bonus_cdi', 'prazo_dias', 'carencia_dias', 'liquidez_dias',
+        'risco_real', 'familia_produto', 'regime_liquidez', 'papel_produto',
+    }
+    disponiveis = [c for c in quadro.columns if c in colunas]
+    for row in quadro[disponiveis].to_dict(orient='records'):
+        produto_key = limpar_texto(row.get('produto_key'))
+        if not produto_key:
+            continue
+        mapa[produto_key] = row
+    return mapa
+
+
+def _valor_float(valor: Any) -> float:
+    try:
+        return float(valor or 0.0)
+    except Exception:
+        return 0.0
+
+
+def _janela_excesso_proxy_v2(valor_pagamento: float) -> float:
+    return round(max(500.0, valor_pagamento * 0.25), 2)
+
+
+def _score_proxy_economico_v2(candidato: dict[str, Any], *, valor_pagamento: float) -> tuple[float, dict[str, float]]:
+    tipo_fonte = limpar_texto(candidato.get('tipo_fonte_escolhida'))
+    origem_status = limpar_texto(candidato.get('origem_status'))
+    valor_disponivel = round(_valor_float(candidato.get('valor_disponivel')), 2)
+    produto = candidato.get('produto_proxy') or {}
+
+    base_tipo = {
+        'saldo_disponivel_geral': 0.0,
+        'saldo_disponivel': 0.0,
+        'caixa_pre_aplicacao': 6.0,
+        'recebido_disponivel': 9.0,
+        'lote_resgatavel': 20.0,
+        'nenhuma': 999.0,
+    }.get(tipo_fonte, 50.0)
+    penalidade_status = {
+        'confirmado': 0.0,
+        'parcial': 8.0,
+        'estimado': 15.0,
+        'ausente': 150.0,
+        'bloqueado': 200.0,
+    }.get(origem_status, 25.0)
+
+    gap = max(valor_pagamento - valor_disponivel, 0.0)
+    excesso = max(valor_disponivel - valor_pagamento, 0.0)
+    penalidade_gap = 0.0
+    if gap > 0:
+        penalidade_gap = 120.0 + min((gap / max(valor_pagamento, 1.0)) * 100.0, 200.0)
+    penalidade_excesso = min((excesso / max(valor_pagamento, 1.0)) * 12.0, 60.0)
+
+    taxa_base = max(_valor_float(produto.get('taxa_base_cdi')), 0.0)
+    taxa_bonus = max(_valor_float(produto.get('taxa_bonus_cdi')), 0.0)
+    taxa_total = taxa_base + taxa_bonus
+    prazo_dias = max(_valor_float(produto.get('prazo_dias')), 0.0)
+    carencia_dias = max(_valor_float(produto.get('carencia_dias')), 0.0)
+    liquidez_dias = max(_valor_float(produto.get('liquidez_dias')), 0.0)
+    regime_liquidez = limpar_texto(produto.get('regime_liquidez'))
+
+    penalidade_taxa = taxa_total * 10.0 if tipo_fonte == 'lote_resgatavel' else 0.0
+    penalidade_prazo = min(prazo_dias / 365.0, 6.0) if tipo_fonte == 'lote_resgatavel' else 0.0
+    penalidade_carencia = min(carencia_dias / 180.0, 4.0) if tipo_fonte == 'lote_resgatavel' else 0.0
+    penalidade_liquidez = min(liquidez_dias / 30.0, 4.0) if tipo_fonte == 'lote_resgatavel' else 0.0
+    penalidade_regime = 3.0 if tipo_fonte == 'lote_resgatavel' and regime_liquidez == 'vencimento' else 0.0
+
+    data_pagamento = candidato.get('data_pagamento')
+    data_base_valor = candidato.get('data_base_valor')
+    penalidade_fotografia = 2.0 if (
+        tipo_fonte == 'lote_resgatavel'
+        and limpar_texto(candidato.get('metodo_valor')) == 'fotografia_data_referencia'
+        and data_pagamento is not None
+        and data_base_valor is not None
+        and data_pagamento > data_base_valor
+    ) else 0.0
+
+    score = round(
+        base_tipo + penalidade_status + penalidade_gap + penalidade_excesso + penalidade_taxa
+        + penalidade_prazo + penalidade_carencia + penalidade_liquidez + penalidade_regime + penalidade_fotografia,
+        4,
+    )
+    detalhes = {
+        'base_tipo': round(base_tipo, 4),
+        'penalidade_status': round(penalidade_status, 4),
+        'penalidade_gap': round(penalidade_gap, 4),
+        'penalidade_excesso': round(penalidade_excesso, 4),
+        'penalidade_taxa': round(penalidade_taxa, 4),
+        'penalidade_prazo': round(penalidade_prazo, 4),
+        'penalidade_carencia': round(penalidade_carencia, 4),
+        'penalidade_liquidez': round(penalidade_liquidez, 4),
+        'penalidade_regime': round(penalidade_regime, 4),
+        'penalidade_fotografia': round(penalidade_fotografia, 4),
+    }
+    return score, detalhes
+
 def _prioridade_tipo_fonte(tipo_fonte: str) -> int:
     prioridades = {
         'saldo_disponivel_geral': 0,
@@ -903,6 +1007,7 @@ def _construir_candidatos_decisao_local_v1(
     pagamento: dict[str, Any],
     quadro_saldo: pd.DataFrame,
     quadro_fontes: pd.DataFrame,
+    mapa_produtos_proxy: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     pagamento_id = limpar_texto(pagamento.get('despesa_id'))
     valor_pagamento = round(float(pagamento.get('valor') or 0.0), 2)
@@ -912,16 +1017,25 @@ def _construir_candidatos_decisao_local_v1(
     for _, row in saldo_pagamento.iterrows():
         valor_disponivel = round(float(row.get('saldo_disponivel_liquido') or row.get('saldo_disponivel_bruto') or 0.0), 2)
         candidatos.append({
-            'fonte_escolhida_id': limpar_texto(row.get('saldo_disponivel_id')) ,
+            'fonte_escolhida_id': limpar_texto(row.get('saldo_disponivel_id')),
             'tipo_fonte_escolhida': 'saldo_disponivel_geral',
             'valor_disponivel': valor_disponivel,
             'pagamento_totalmente_coberto': bool(valor_disponivel >= valor_pagamento and bool(row.get('saldo_disponivel_elegivel', False))),
             'elegivel': bool(row.get('saldo_disponivel_elegivel', False)),
             'origem_status': limpar_texto(row.get('origem_status')),
             'data_base_valor': row.get('data_base_saldo'),
+            'data_pagamento': pagamento.get('data'),
             'motivo_bloqueio': None if bool(row.get('saldo_disponivel_elegivel', False)) else limpar_texto(row.get('origem_saldo')) or 'saldo_disponivel_inexistente_ou_nao_elegivel',
             'observacao': limpar_texto(row.get('observacao_auditavel')),
             'custo_economico_proxy': 0.0,
+            'produto_key': None,
+            'produto_proxy': {},
+            'lote_id': None,
+            'recebido_id': None,
+            'metodo_valor': limpar_texto(row.get('metodo_saldo')),
+            'fonte_base_escolhida': 'saldo_disponivel_geral',
+            'lote_id': None,
+            'recebido_id': None,
         })
 
     fontes_pagamento = quadro_fontes[quadro_fontes['pagamento_id'] == pagamento_id].copy() if len(quadro_fontes) else pd.DataFrame()
@@ -929,6 +1043,7 @@ def _construir_candidatos_decisao_local_v1(
         elegivel = bool(row.get('elegivel_na_data_pagamento', False))
         valor_disponivel = round(float(row.get('valor_liquido_disponivel') or row.get('valor_bruto_disponivel') or 0.0), 2)
         tipo_fonte = limpar_texto(row.get('tipo_fonte'))
+        produto_key = limpar_texto(row.get('produto_key')) or None
         candidatos.append({
             'fonte_escolhida_id': limpar_texto(row.get('fonte_pagamento_id')),
             'tipo_fonte_escolhida': tipo_fonte,
@@ -937,14 +1052,21 @@ def _construir_candidatos_decisao_local_v1(
             'elegivel': elegivel,
             'origem_status': limpar_texto(row.get('origem_status')),
             'data_base_valor': row.get('data_base_valor'),
+            'data_pagamento': pagamento.get('data'),
             'motivo_bloqueio': limpar_texto(row.get('motivo_bloqueio_temporal')) or None,
             'observacao': limpar_texto(row.get('observacao_auditavel')),
-            'custo_economico_proxy': float(_prioridade_tipo_fonte(tipo_fonte)),
+            'custo_economico_proxy': None,
+            'produto_key': produto_key,
+            'produto_proxy': mapa_produtos_proxy.get(produto_key or '', {}),
+            'lote_id': normalizar_identificador(row.get('lote_id')) or None,
+            'recebido_id': limpar_texto(row.get('recebido_id')) or None,
+            'metodo_valor': limpar_texto(row.get('metodo_valor_disponivel')),
+            'fonte_base_escolhida': limpar_texto(row.get('fonte_id')) or tipo_fonte,
         })
     return candidatos
 
 
-def _selecionar_candidato_decisao_local_v1(candidatos: list[dict[str, Any]]) -> tuple[dict[str, Any], str, str]:
+def _selecionar_candidato_decisao_local_v1(candidatos: list[dict[str, Any]], *, valor_pagamento: float) -> tuple[dict[str, Any], str, str]:
     if not candidatos:
         return ({
             'fonte_escolhida_id': 'sem_fonte_elegivel',
@@ -961,20 +1083,72 @@ def _selecionar_candidato_decisao_local_v1(candidatos: list[dict[str, Any]]) -> 
 
     elegiveis = [c for c in candidatos if c.get('elegivel')]
     if not elegiveis:
-        escolhido = sorted(candidatos, key=lambda c: (_prioridade_status_origem(c.get('origem_status','ausente')), _prioridade_tipo_fonte(c.get('tipo_fonte_escolhida','nenhuma')), -float(c.get('valor_disponivel') or 0.0), limpar_texto(c.get('fonte_escolhida_id'))))[0]
+        escolhido = sorted(
+            candidatos,
+            key=lambda c: (
+                _prioridade_status_origem(c.get('origem_status', 'ausente')),
+                _prioridade_tipo_fonte(c.get('tipo_fonte_escolhida', 'nenhuma')),
+                -float(c.get('valor_disponivel') or 0.0),
+                limpar_texto(c.get('fonte_escolhida_id')),
+            ),
+        )[0]
         return escolhido, 'sem_fonte_elegivel_na_data', 'todas as fontes materializadas para o pagamento estão bloqueadas ou ausentes na data.'
 
     elegiveis_cobertura_total = [c for c in elegiveis if c.get('pagamento_totalmente_coberto')]
-    pool = elegiveis_cobertura_total if elegiveis_cobertura_total else elegiveis
-    criterio = 'prioridade_fonte_com_cobertura_total' if elegiveis_cobertura_total else 'prioridade_fonte_com_cobertura_parcial'
-    escolhido = sorted(pool, key=lambda c: (_prioridade_tipo_fonte(c.get('tipo_fonte_escolhida','nenhuma')), _prioridade_status_origem(c.get('origem_status','ausente')), -float(c.get('valor_disponivel') or 0.0), limpar_texto(c.get('fonte_escolhida_id'))))[0]
+    janela_excesso = _janela_excesso_proxy_v2(valor_pagamento)
+    if elegiveis_cobertura_total:
+        min_excesso = min(max(float(c.get('valor_disponivel') or 0.0) - valor_pagamento, 0.0) for c in elegiveis_cobertura_total)
+        pool = [
+            c for c in elegiveis_cobertura_total
+            if max(float(c.get('valor_disponivel') or 0.0) - valor_pagamento, 0.0) <= min_excesso + janela_excesso
+        ]
+        criterio = 'proxy_economico_v2_com_cobertura_total'
+    else:
+        pool = list(elegiveis)
+        criterio = 'proxy_economico_v2_com_cobertura_parcial'
+
+    melhor_score = None
+    escolhido = None
+    melhor_detalhe: dict[str, float] = {}
+    for candidato in pool:
+        score, detalhes = _score_proxy_economico_v2(candidato, valor_pagamento=valor_pagamento)
+        candidato['custo_economico_proxy'] = score
+        candidato['proxy_componentes'] = detalhes
+        candidato['excesso_relativo'] = round(max(float(candidato.get('valor_disponivel') or 0.0) - valor_pagamento, 0.0), 2)
+        chave = (
+            score,
+            max(float(candidato.get('valor_disponivel') or 0.0) - valor_pagamento, 0.0),
+            _prioridade_status_origem(candidato.get('origem_status', 'ausente')),
+            limpar_texto(candidato.get('fonte_escolhida_id')),
+        )
+        if melhor_score is None or chave < melhor_score:
+            melhor_score = chave
+            escolhido = candidato
+            melhor_detalhe = detalhes
+
+    assert escolhido is not None
     if escolhido.get('tipo_fonte_escolhida') == 'saldo_disponivel_geral':
-        criterio += '__preferencia_por_caixa_geral'
+        criterio += '__caixa_geral'
     elif escolhido.get('tipo_fonte_escolhida') in {'caixa_pre_aplicacao', 'recebido_disponivel'}:
-        criterio += '__preferencia_por_caixa_explicito'
+        criterio += '__caixa_explicito'
     elif escolhido.get('tipo_fonte_escolhida') == 'lote_resgatavel':
-        criterio += '__resgate_necessario'
-    observacao = 'fonte escolhida cobre integralmente o pagamento nesta etapa local v1.' if bool(escolhido.get('pagamento_totalmente_coberto')) else 'fonte escolhida é a melhor elegível observável, mas não cobre integralmente o pagamento nesta etapa local v1.'
+        criterio += '__resgate_otimizado_proxy'
+
+    score_txt = f"score={float(escolhido.get('custo_economico_proxy') or 0.0):.4f}"
+    if bool(escolhido.get('pagamento_totalmente_coberto')):
+        observacao = (
+            'fonte escolhida cobre integralmente o pagamento e foi selecionada pelo proxy econômico v2 '
+            f'dentro de uma janela de excesso de até {janela_excesso:.2f}. {score_txt}.'
+        )
+    else:
+        observacao = (
+            'fonte escolhida é a melhor elegível observável pelo proxy econômico v2, mas não cobre integralmente o pagamento nesta etapa. '
+            f'{score_txt}.'
+        )
+    if melhor_detalhe:
+        componentes = ', '.join([f"{k}={v:.2f}" for k, v in melhor_detalhe.items() if v])
+        if componentes:
+            observacao += f' Componentes relevantes: {componentes}.'
     return escolhido, criterio, observacao
 
 
@@ -984,10 +1158,11 @@ def materializar_decisao_local_v1(
     saldo_disponivel_geral: PacoteSaldoDisponivelGeral,
     *,
     data_referencia: date,
+    carteira_canonica: Any | None = None,
 ) -> PacoteDecisaoLocalV1:
     pagamentos_alvo = _pagamentos_alvo_f1_4(dados_operacionais.gastos_canonicos.copy(), data_referencia=data_referencia)
     colunas = [
-        'pagamento_id', 'data_pagamento', 'descricao_pagamento', 'valor_pagamento', 'fonte_escolhida_id', 'tipo_fonte_escolhida', 'criterio_decisao',
+        'pagamento_id', 'data_pagamento', 'descricao_pagamento', 'valor_pagamento', 'fonte_escolhida_id', 'fonte_base_escolhida', 'lote_id_escolhido', 'recebido_id_escolhido', 'tipo_fonte_escolhida', 'criterio_decisao',
         'custo_economico_proxy', 'observacao_auditavel', 'valor_disponivel_escolhido', 'pagamento_totalmente_coberto', 'fonte_origem_status',
         'fonte_elegivel_na_data', 'data_base_valor_escolhido', 'motivo_bloqueio_ou_restricao',
     ]
@@ -998,11 +1173,12 @@ def materializar_decisao_local_v1(
 
     quadro_fontes = fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy()
     quadro_saldo = saldo_disponivel_geral.quadro_saldo_disponivel.copy()
+    mapa_produtos_proxy = _construir_mapa_produtos_proxy(carteira_canonica)
     registros=[]
     for pagamento in pagamentos_alvo.to_dict(orient='records'):
         pagamento_id = limpar_texto(pagamento.get('despesa_id'))
-        candidatos = _construir_candidatos_decisao_local_v1(pagamento, quadro_saldo, quadro_fontes)
-        escolhido, criterio_decisao, observacao_base = _selecionar_candidato_decisao_local_v1(candidatos)
+        candidatos = _construir_candidatos_decisao_local_v1(pagamento, quadro_saldo, quadro_fontes, mapa_produtos_proxy)
+        escolhido, criterio_decisao, observacao_base = _selecionar_candidato_decisao_local_v1(candidatos, valor_pagamento=round(float(pagamento.get('valor') or 0.0), 2))
         obs=[observacao_base]
         if limpar_texto(escolhido.get('observacao')):
             obs.append(limpar_texto(escolhido.get('observacao')))
@@ -1014,9 +1190,12 @@ def materializar_decisao_local_v1(
             'descricao_pagamento': limpar_texto(pagamento.get('descricao')),
             'valor_pagamento': round(float(pagamento.get('valor') or 0.0),2),
             'fonte_escolhida_id': limpar_texto(escolhido.get('fonte_escolhida_id')),
+            'fonte_base_escolhida': limpar_texto(escolhido.get('fonte_base_escolhida')),
+            'lote_id_escolhido': normalizar_identificador(escolhido.get('lote_id')) or None,
+            'recebido_id_escolhido': limpar_texto(escolhido.get('recebido_id')) or None,
             'tipo_fonte_escolhida': limpar_texto(escolhido.get('tipo_fonte_escolhida')),
             'criterio_decisao': criterio_decisao,
-            'custo_economico_proxy': escolhido.get('custo_economico_proxy'),
+            'custo_economico_proxy': round(float(escolhido.get('custo_economico_proxy') or 0.0), 4) if escolhido.get('custo_economico_proxy') is not None else None,
             'observacao_auditavel': ' '.join([o for o in obs if o]).strip(),
             'valor_disponivel_escolhido': round(float(escolhido.get('valor_disponivel') or 0.0),2),
             'pagamento_totalmente_coberto': bool(escolhido.get('pagamento_totalmente_coberto', False)),
@@ -1057,9 +1236,12 @@ def materializar_decisao_local_v1(
             'tipo_fonte_escolhida': {str(k): int(v) for k,v in quadro['tipo_fonte_escolhida'].value_counts(dropna=False).to_dict().items()},
             'criterio_decisao': {str(k): int(v) for k,v in quadro['criterio_decisao'].value_counts(dropna=False).to_dict().items()},
             'fonte_origem_status': {str(k): int(v) for k,v in quadro['fonte_origem_status'].value_counts(dropna=False).to_dict().items()},
+            'fonte_base_escolhida': {str(k): int(v) for k,v in quadro['fonte_base_escolhida'].value_counts(dropna=False).to_dict().items()},
+            'lote_id_escolhido': {str(k): int(v) for k,v in quadro['lote_id_escolhido'].dropna().value_counts(dropna=False).to_dict().items()},
             'valor_total_pagamentos': round(float(quadro['valor_pagamento'].sum()),2),
             'valor_total_coberto_pelas_fontes_escolhidas': round(float(quadro[['valor_pagamento','valor_disponivel_escolhido']].min(axis=1).sum()),2),
             'decisao_local_v1_materializada': True,
+            'proxy_economico_v2_ativo': True,
         },
     }
     return PacoteDecisaoLocalV1(quadro_decisao_local_v1=quadro, auditoria=auditoria)

@@ -1,8 +1,8 @@
-# Estrutura oficial do repositório V70
+# Estrutura oficial do repositório V71
 
 ## Orquestração canônica
 
-- `nucleo/contexto_baseline.py` → montagem central da baseline e derivação de `recebidos_auditaveis`, `fontes_elegiveis_pagamento` e `saldo_disponivel_geral e decisao_local_v1`
+- `nucleo/contexto_baseline.py` → montagem central da baseline e derivação de `recebidos_auditaveis`, `fontes_elegiveis_pagamento` e `saldo_disponivel_geral e decisao_local_v1 com proxy econômico v2`
 - `nucleo/identidade_baseline.py` → versão e nomes-base dos artefatos
 - `nucleo/config_utils.py` → leitura compartilhada do config
 
@@ -28,12 +28,12 @@
 
 ## Camada F1 aberta até aqui
 
-- `nucleo/caixa_recebidos_auditaveis.py` → contrato mínimo da F1 + materialização de `recebido_auditavel`, `fonte_elegivel_pagamento` por pagamento, `saldo_disponivel_geral` e `decisao_local_v1`
+- `nucleo/caixa_recebidos_auditaveis.py` → contrato mínimo da F1 + materialização de `recebido_auditavel`, `fonte_elegivel_pagamento` por pagamento, `saldo_disponivel_geral` e `decisao_local_v1` com proxy econômico v2
 - `scripts/diagnostico/inspecionar_contrato_f1.py` → leitura observável do contrato mínimo da F1
 - `scripts/diagnostico/inspecionar_recebidos_auditaveis.py` → leitura observável da primeira estrutura real da F1
 - `scripts/diagnostico/inspecionar_fontes_elegiveis_pagamento.py` → leitura observável da segunda estrutura real da F1 na Etapa 4
 - `scripts/diagnostico/inspecionar_saldo_disponivel_geral.py` → leitura observável da terceira estrutura real da F1 na Etapa 5
-- `scripts/diagnostico/inspecionar_decisao_local_v1.py` → leitura observável da quarta estrutura real da F1 na Etapa 6
+- `scripts/diagnostico/inspecionar_decisao_local_v1.py` → leitura observável da quarta estrutura real da F1 na Etapa 7
 
 ## Auditabilidade de fechamento
 
@@ -59,9 +59,9 @@
 - `relatorios/atuais/` → documentos vigentes
 - `relatorios/historico/` → trilha preservada por categoria documental
 
-## Atualização V70
+## Atualização V71
 
-- materialização de `decisao_local_v1` por pagamento;
+- materialização de `decisao_local_v1` com proxy econômico v2 por pagamento;
 - inclusão de estrutura e diagnóstico para `decisao_local_v1`;
 - preservação da base funcional, da planilha operacional e do console principal;
 - manutenção da F1 fora do fluxo decisório principal.

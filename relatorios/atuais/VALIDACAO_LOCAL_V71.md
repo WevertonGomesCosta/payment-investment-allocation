@@ -1,15 +1,15 @@
-# Validação local V70
+# Validação local V71
 
 ## Escopo validado
 
-- identidade da baseline atualizada para V70;
+- identidade da baseline atualizada para V71;
 - checagem mínima de release mantida como gate obrigatório;
-- contrato mínimo da F1 preservado e refinado para a Etapa 6;
+- contrato mínimo da F1 preservado e refinado para a Etapa 7;
 - materialização executável de `recebido_auditavel` preservada;
 - materialização executável de `fonte_elegivel_pagamento` preservada por `pagamento_id` e `data_pagamento`;
 - materialização executável de `saldo_disponivel_geral` preservada;
-- materialização executável de `decisao_local_v1` por pagamento sobre a matriz temporal completa;
-- diagnóstico de `decisao_local_v1` atualizado para mostrar critério, fonte escolhida, cobertura e status da origem;
+- materialização executável de `decisao_local_v1` com proxy econômico v2 por pagamento sobre a matriz temporal completa;
+- diagnóstico de `decisao_local_v1` atualizado para mostrar critério, proxy econômico v2, fonte escolhida, cobertura e status da origem;
 - preservação observável do console principal, da planilha operacional e dos wrappers compatíveis.
 
 ## Execução validada
@@ -38,16 +38,16 @@
 
 - `saidas/operacional/relatorio_operacional_v70.xlsx`
 
-## Atualização V70
+## Atualização V71
 
 - manutenção da fase atual sobre a baseline V68;
-- abertura da Etapa 6 da F1 por materialização de `saldo_disponivel_geral`;
+- abertura da Etapa 7 da F1 por materialização de `decisao_local_v1` com proxy econômico v2;
 - manutenção da checagem de release como gate obrigatório;
 - preservação integral da lógica econômica e da materialização já aberta na F1.
 
-## Evidências observáveis da V70
+## Evidências observáveis da V71
 
-- o diagnóstico de `decisao_local_v1` passa a exibir `pagamento_id`, `data_pagamento`, fonte escolhida, critério de decisão e cobertura;
+- o diagnóstico de `decisao_local_v1` passa a exibir `pagamento_id`, `data_pagamento`, lote escolhido, fonte escolhida, critério de decisão, score do proxy econômico v2 e cobertura;
 - o resumo passa a exibir `tipo_fonte_escolhida`, `criterio_decisao` e `pagamentos_totalmente_cobertos`;
 - os comandos canônicos seguem executando sem regressão funcional;
 - o release checker continua aprovando a baseline em estado limpo final.
