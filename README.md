@@ -78,3 +78,10 @@ python scripts/gerar_planilha_operacional.py
 - separação entre contrato executável e backlog futuro;
 - reauditoria da base antes de cada nova migração;
 - entrega do repositório completo em `.zip` a cada versão.
+
+
+## Auditoria diária de lote
+
+Para gerar a auditoria diária de um lote com a mesma convenção econômica da série CDI:
+
+`python scripts/gerar_auditoria_diaria_lote.py --lote "Lote 6630,64 fev."`
