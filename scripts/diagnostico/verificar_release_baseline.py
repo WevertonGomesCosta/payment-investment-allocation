@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V68'
-VERSAO_ANTERIOR = 'V67'
+VERSAO_VIGENTE = 'V69'
+VERSAO_ANTERIOR = 'V68'
 
 
 def repo_root() -> Path:
@@ -90,6 +90,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_contrato_f1.py',
         'scripts/diagnostico/inspecionar_recebidos_auditaveis.py',
         'scripts/diagnostico/inspecionar_fontes_elegiveis_pagamento.py',
+        'scripts/diagnostico/inspecionar_saldo_disponivel_geral.py',
         'scripts/gerar_planilha_operacional.py',
         'scripts/gerar_auditoria_diaria_lote.py',
         'scripts/inspecionar_base.py',
@@ -97,6 +98,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_contrato_f1.py',
         'scripts/inspecionar_recebidos_auditaveis.py',
         'scripts/inspecionar_fontes_elegiveis_pagamento.py',
+        'scripts/inspecionar_saldo_disponivel_geral.py',
         'nucleo/caixa_recebidos_auditaveis.py',
     ]
     erros: list[str] = []

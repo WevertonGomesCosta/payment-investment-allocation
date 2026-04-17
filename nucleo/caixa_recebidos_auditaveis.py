@@ -47,6 +47,12 @@ class PacoteFontesElegiveisPagamento:
     auditoria: dict[str, Any]
 
 
+@dataclass(slots=True)
+class PacoteSaldoDisponivelGeral:
+    quadro_saldo_disponivel: pd.DataFrame
+    auditoria: dict[str, Any]
+
+
 def _campos_fonte_elegivel() -> tuple[CampoContrato, ...]:
     return (
         CampoContrato('fonte_pagamento_id', 'str', True, 'Identificador canônico e estável da linha fonte x pagamento.'),
@@ -85,6 +91,27 @@ def _campos_recebido_auditavel() -> tuple[CampoContrato, ...]:
     )
 
 
+def _campos_saldo_disponivel_geral() -> tuple[CampoContrato, ...]:
+    return (
+        CampoContrato('saldo_disponivel_id', 'str', True, 'Identificador canônico e estável da linha de saldo disponível geral por pagamento.'),
+        CampoContrato('pagamento_id', 'str', True, 'Identificador canônico do pagamento alvo.'),
+        CampoContrato('data_pagamento', 'date', True, 'Data econômica do pagamento analisado.'),
+        CampoContrato('valor_pagamento', 'float', True, 'Valor bruto do pagamento alvo.'),
+        CampoContrato('saldo_disponivel_bruto', 'float', True, 'Valor bruto do caixa geral observável para a data do pagamento, sem projeção financeira adicional.'),
+        CampoContrato('saldo_disponivel_liquido', 'float', True, 'Valor líquido do caixa geral observável para a data do pagamento.'),
+        CampoContrato('saldo_disponivel_elegivel', 'bool', True, 'Indica se existe saldo disponível geral observável e economicamente elegível na data do pagamento.'),
+        CampoContrato('origem_status', 'str', True, 'Status operacional do saldo geral: confirmado, parcial, estimado ou ausente.'),
+        CampoContrato('origem_saldo', 'str', True, 'Origem auditável do saldo geral: agregado de recebidos disponíveis, caixa pré-aplicação ou ausência observável na base.'),
+        CampoContrato('qtd_fontes_componentes', 'int', True, 'Quantidade de fontes explícitas agregadas para formar o saldo geral observado.'),
+        CampoContrato('tipos_fontes_componentes', 'str', True, 'Lista textual dos tipos de fonte explícita agregados ao saldo geral.'),
+        CampoContrato('regra_precedencia_intradiaria', 'str', True, 'Estado auditável da precedência intradiária aplicável nesta etapa.'),
+        CampoContrato('restricao_duplicidade_recebidos', 'bool', True, 'Marca que o saldo geral é agregado de fontes explícitas e não deve ser somado novamente a elas.'),
+        CampoContrato('data_base_saldo', 'date', True, 'Data-base do saldo observado usada na etapa atual.'),
+        CampoContrato('metodo_saldo', 'str', True, 'Método de materialização do saldo geral nesta etapa.'),
+        CampoContrato('observacao_auditavel', 'str', False, 'Texto curto para explicar o saldo geral observado ou sua ausência na base atual.'),
+    )
+
+
 def _campos_decisao_local_v1() -> tuple[CampoContrato, ...]:
     return (
         CampoContrato('pagamento_id', 'str', True, 'Identificador canônico do pagamento analisado.'),
@@ -110,6 +137,11 @@ def obter_contrato_minimo_caixa_recebidos() -> dict[str, Any]:
             campos=_campos_recebido_auditavel(),
         ),
         EstruturaContrato(
+            nome='saldo_disponivel_geral',
+            descricao='Estrutura canônica mínima para representar o saldo disponível geral observável por pagamento sem duplicar, nesta etapa, as fontes explícitas já materializadas.',
+            campos=_campos_saldo_disponivel_geral(),
+        ),
+        EstruturaContrato(
             nome='decisao_local_v1',
             descricao='Estrutura reservada para a futura decisão local entre saldo disponível, caixa pré-aplicação, recebidos e resgate, ainda sem solver e sem switching.',
             campos=_campos_decisao_local_v1(),
@@ -118,21 +150,22 @@ def obter_contrato_minimo_caixa_recebidos() -> dict[str, Any]:
     return {
         'frente': 'F1',
         'nome': 'caixa e recebidos auditáveis + decisão local v1 entre saldo disponível e resgate',
-        'escopo_etapa_atual': 'Refinamento temporal de fonte_elegivel_pagamento por data de pagamento a partir dos dados canônicos, da data de referência corrente, dos recebidos auditáveis e do estado mínimo observável do replay, sem integrar ainda essa camada ao fluxo principal da baseline.',
+        'escopo_etapa_atual': 'Materialização de saldo_disponivel geral por pagamento a partir das fontes explícitas já observáveis da F1, preservando a ausência de decisão econômica real, sem duplicar recebidos/lotes explícitos e sem integrar ainda essa camada ao fluxo principal da baseline.',
         'implementado_nesta_etapa': [
             'Contrato mínimo documentado e observável da camada F1.',
             'Estruturas canônicas para fonte elegível de pagamento, recebido auditável e decisão local v1.',
             'Materialização executável de recebido_auditavel a partir do inventário canônico e dos vínculos históricos de gastos.',
             'Materialização executável de fonte_elegivel_pagamento por data de pagamento, usando os pagamentos futuros/pendentes, os recebidos auditáveis, o inventário canônico e o estado mínimo observável do replay.',
-            'Scripts diagnósticos para inspecionar o contrato mínimo e as duas estruturas reais da F1 sem tocar no motor financeiro.',
+            'Materialização executável de saldo_disponivel geral por pagamento, agregando somente as fontes explícitas de caixa já observáveis na F1 sem somá-las novamente na decisão futura.',
+            'Scripts diagnósticos para inspecionar o contrato mínimo e as estruturas reais abertas da F1 sem tocar no motor financeiro.',
         ],
         'fora_do_escopo_nesta_etapa': [
             'Alteração do motor financeiro.',
             'Abertura da decisão econômica real.',
             'Abertura de switching econômico.',
             'Integração da F1 ao fluxo principal do console ou da planilha operacional.',
-            'Materialização robusta de saldo_disponivel geral independente da origem explícita do recebido.',
             'Projeção financeira futura completa dos valores das fontes até cada data de pagamento.',
+            'Decisão econômica real sobre a nova matriz temporal de fontes e saldo geral.',
         ],
         'estruturas': [estrutura.para_dict() for estrutura in estruturas],
     }
@@ -697,6 +730,143 @@ def _materializar_fontes_de_replay_por_pagamento(
                 origem_estrutura='replay_passado_controlado',
             ))
     return registros
+
+
+def materializar_saldo_disponivel_geral(
+    dados_operacionais: PacoteDadosOperacionaisCanonicos,
+    fontes_elegiveis_pagamento: PacoteFontesElegiveisPagamento,
+    *,
+    data_referencia: date,
+    limiar_valor: float = 0.01,
+) -> PacoteSaldoDisponivelGeral:
+    pagamentos_alvo = _pagamentos_alvo_f1_4(dados_operacionais.gastos_canonicos.copy(), data_referencia=data_referencia)
+    quadro_fontes = fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy()
+
+    colunas_vazias = [
+        'saldo_disponivel_id', 'pagamento_id', 'data_pagamento', 'descricao_pagamento', 'valor_pagamento',
+        'saldo_disponivel_bruto', 'saldo_disponivel_liquido', 'saldo_disponivel_elegivel', 'origem_status',
+        'origem_saldo', 'qtd_fontes_componentes', 'tipos_fontes_componentes', 'regra_precedencia_intradiaria',
+        'restricao_duplicidade_recebidos', 'data_base_saldo', 'metodo_saldo', 'observacao_auditavel',
+    ]
+
+    if len(pagamentos_alvo) == 0:
+        quadro_vazio = pd.DataFrame(columns=colunas_vazias)
+        auditoria = {
+            'validacao': {'ok': False, 'erros': ['saldo_disponivel_sem_pagamentos_alvo'], 'avisos': []},
+            'resumo': {'total_pagamentos_alvo': 0},
+        }
+        return PacoteSaldoDisponivelGeral(quadro_saldo_disponivel=quadro_vazio, auditoria=auditoria)
+
+    tipos_caixa = {'recebido_disponivel', 'caixa_pre_aplicacao'}
+    quadro_componentes = quadro_fontes[
+        quadro_fontes['tipo_fonte'].isin(tipos_caixa)
+        & quadro_fontes['elegivel_na_data_pagamento'].eq(True)
+    ].copy() if len(quadro_fontes) else pd.DataFrame()
+
+    agregados: dict[str, dict[str, Any]] = {}
+    if len(quadro_componentes):
+        for pagamento_id, grupo in quadro_componentes.groupby('pagamento_id', sort=False):
+            tipos = sorted({limpar_texto(v) for v in grupo['tipo_fonte'].tolist() if limpar_texto(v)})
+            status_origem = set(grupo['origem_status'].astype(str).tolist())
+            if 'estimado' in status_origem:
+                origem_status = 'estimado'
+            elif 'parcial' in status_origem:
+                origem_status = 'parcial'
+            else:
+                origem_status = 'confirmado'
+            agregados[pagamento_id] = {
+                'saldo_disponivel_bruto': round(float(grupo['valor_bruto_disponivel'].sum()), 2),
+                'saldo_disponivel_liquido': round(float(grupo['valor_liquido_disponivel'].sum()), 2),
+                'qtd_fontes_componentes': int(grupo['fonte_id'].nunique()),
+                'tipos_fontes_componentes': ', '.join(tipos),
+                'origem_status': origem_status,
+                'data_base_saldo': grupo['data_base_valor'].max(),
+                'componentes': sorted({limpar_texto(v) for v in grupo['fonte_id'].tolist() if limpar_texto(v)}),
+            }
+
+    registros: list[dict[str, Any]] = []
+    for pagamento in pagamentos_alvo.to_dict(orient='records'):
+        pagamento_id = limpar_texto(pagamento.get('despesa_id'))
+        agregado = agregados.get(pagamento_id)
+        if agregado is None:
+            saldo_bruto = 0.0
+            saldo_liquido = 0.0
+            elegivel = False
+            origem_status = 'ausente'
+            origem_saldo = 'sem_caixa_geral_observavel_na_base'
+            qtd_componentes = 0
+            tipos_componentes = ''
+            restricao_duplicidade = False
+            data_base_saldo = pagamento.get('data') if pagamento.get('data') is not None and pagamento.get('data') <= data_referencia else data_referencia
+            observacao = 'não há saldo disponível geral observável na base atual sem duplicar recebidos ou fontes explícitas já materializadas.'
+        else:
+            saldo_bruto = agregado['saldo_disponivel_bruto']
+            saldo_liquido = agregado['saldo_disponivel_liquido']
+            elegivel = saldo_liquido > limiar_valor
+            origem_status = agregado['origem_status']
+            origem_saldo = 'agregado_fontes_explicitas_observaveis'
+            qtd_componentes = agregado['qtd_fontes_componentes']
+            tipos_componentes = agregado['tipos_fontes_componentes']
+            restricao_duplicidade = True
+            data_base_saldo = agregado['data_base_saldo']
+            observacao = 'saldo disponível geral agregado apenas de fontes explícitas de caixa já observáveis; não é aditivo com as linhas componentes.'
+
+        registros.append({
+            'saldo_disponivel_id': f"saldo_disponivel::{_slug_fonte(pagamento_id)}",
+            'pagamento_id': pagamento_id,
+            'data_pagamento': pagamento.get('data'),
+            'descricao_pagamento': limpar_texto(pagamento.get('descricao')),
+            'valor_pagamento': round(float(pagamento.get('valor') or 0.0), 2),
+            'saldo_disponivel_bruto': saldo_bruto,
+            'saldo_disponivel_liquido': saldo_liquido,
+            'saldo_disponivel_elegivel': bool(elegivel),
+            'origem_status': origem_status,
+            'origem_saldo': origem_saldo,
+            'qtd_fontes_componentes': int(qtd_componentes),
+            'tipos_fontes_componentes': tipos_componentes,
+            'regra_precedencia_intradiaria': 'nao_materializada',
+            'restricao_duplicidade_recebidos': bool(restricao_duplicidade),
+            'data_base_saldo': data_base_saldo,
+            'metodo_saldo': 'agregado_fontes_explicitas_por_pagamento',
+            'observacao_auditavel': observacao,
+        })
+
+    quadro = pd.DataFrame(registros, columns=colunas_vazias)
+    quadro = quadro.sort_values(['data_pagamento', 'pagamento_id'], kind='stable').reset_index(drop=True)
+    erros: list[str] = []
+    avisos: list[str] = []
+    if quadro['saldo_disponivel_id'].duplicated().any():
+        erros.append('saldo_disponivel_id_duplicado')
+    if len(quadro) != len(pagamentos_alvo):
+        erros.append('saldo_disponivel_nao_cobre_todos_os_pagamentos_alvo')
+    if (quadro['saldo_disponivel_bruto'] < 0).any():
+        erros.append('saldo_disponivel_bruto_negativo')
+    if (quadro['saldo_disponivel_liquido'] < 0).any():
+        erros.append('saldo_disponivel_liquido_negativo')
+    if (quadro['origem_status'] == 'ausente').any():
+        avisos.append('existem_pagamentos_sem_saldo_disponivel_geral_observavel')
+    if (quadro['restricao_duplicidade_recebidos'] == True).any():
+        avisos.append('saldo_disponivel_geral_agrega_fontes_explicitas_e_nao_deve_ser_somado_novamente')
+    if (quadro['origem_status'] == 'estimado').any():
+        avisos.append('existem_saldos_dependentes_de_precedencia_intradiaria_nao_materializada')
+    if not quadro['saldo_disponivel_elegivel'].any():
+        avisos.append('saldo_disponivel_geral_materializado_sem_valor_elegivel_na_base_atual')
+
+    auditoria = {
+        'validacao': {'ok': len(erros) == 0, 'erros': erros, 'avisos': avisos},
+        'resumo': {
+            'total_pagamentos_alvo': int(len(quadro)),
+            'pagamentos_com_saldo_disponivel': int(quadro['saldo_disponivel_elegivel'].sum()),
+            'pagamentos_sem_saldo_disponivel': int((~quadro['saldo_disponivel_elegivel']).sum()),
+            'valor_total_bruto_disponivel': round(float(quadro.loc[quadro['saldo_disponivel_elegivel'] == True, 'saldo_disponivel_bruto'].sum()), 2),
+            'valor_total_liquido_disponivel': round(float(quadro.loc[quadro['saldo_disponivel_elegivel'] == True, 'saldo_disponivel_liquido'].sum()), 2),
+            'origem_status': {str(k): int(v) for k, v in quadro['origem_status'].value_counts(dropna=False).to_dict().items()},
+            'origem_saldo': {str(k): int(v) for k, v in quadro['origem_saldo'].value_counts(dropna=False).to_dict().items()},
+            'saldo_disponivel_materializado': True,
+            'saldo_disponivel_componente_fontes_explicitas': int((quadro['qtd_fontes_componentes'] > 0).sum()),
+        },
+    }
+    return PacoteSaldoDisponivelGeral(quadro_saldo_disponivel=quadro, auditoria=auditoria)
 
 
 def materializar_fontes_elegiveis_pagamento(

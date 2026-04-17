@@ -15,7 +15,7 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 
 ## 3. Continuação da Frente F1
 
-6. Materializar uma camada robusta de `saldo_disponivel` geral sem duplicar nem conflitar com as fontes explícitas já observáveis.
+6. Refinar `saldo_disponivel_geral` para além da agregação de fontes explícitas, incluindo caixa não explicitado por recebido quando essa camada for aberta.
 7. Refinar `recebido_auditavel` com leitura por evento e trilha mais explícita de destino observado versus destino elegível.
 8. Projetar financeiramente o valor das fontes até cada data de pagamento, substituindo a fotografia da data de referência quando essa frente for aberta.
 9. Abrir a regra local v1 entre saldo disponível, caixa pré-aplicação, recebidos e resgate.

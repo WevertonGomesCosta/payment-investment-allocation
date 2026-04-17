@@ -16,7 +16,11 @@ from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
 from nucleo.triagem_motor import carregar_triagem_motor
 from nucleo.config_utils import obter_config
-from nucleo.caixa_recebidos_auditaveis import materializar_fontes_elegiveis_pagamento, materializar_recebidos_auditaveis
+from nucleo.caixa_recebidos_auditaveis import (
+    materializar_fontes_elegiveis_pagamento,
+    materializar_recebidos_auditaveis,
+    materializar_saldo_disponivel_geral,
+)
 
 
 @dataclass(slots=True)
@@ -29,6 +33,7 @@ class ContextoBaseline:
     dados_operacionais: Any
     recebidos_auditaveis: Any
     fontes_elegiveis_pagamento: Any
+    saldo_disponivel_geral: Any
     cache_cdi: PacoteCacheCDIDiario
     switching_shadow: Any
     triagem_motor: Any
@@ -115,6 +120,12 @@ def carregar_contexto_baseline(
         tabela_iof=construir_tabela_iof(pacote_config.conteudo),
         faixas_ir=construir_faixas_ir(pacote_config.conteudo),
     )
+    saldo_disponivel_geral = materializar_saldo_disponivel_geral(
+        dados_operacionais,
+        fontes_elegiveis_pagamento,
+        data_referencia=contexto_execucao.data_referencia,
+        limiar_valor=obter_limiar_residuo_resolvido(pacote_config.conteudo),
+    )
     return ContextoBaseline(
         pacote_config=pacote_config,
         execucao=contexto_execucao,
@@ -124,6 +135,7 @@ def carregar_contexto_baseline(
         dados_operacionais=dados_operacionais,
         recebidos_auditaveis=recebidos_auditaveis,
         fontes_elegiveis_pagamento=fontes_elegiveis_pagamento,
+        saldo_disponivel_geral=saldo_disponivel_geral,
         cache_cdi=cache_cdi,
         switching_shadow=switching_shadow,
         triagem_motor=triagem_motor,
