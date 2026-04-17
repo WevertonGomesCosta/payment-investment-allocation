@@ -161,3 +161,15 @@ ou pelo wrapper de compatibilidade:
 ```bash
 python scripts/inspecionar_decisao_local_v1.py
 ```
+
+
+## Atualização V73
+
+- baseline atualizada para **V73**;
+- inclusão da auditoria comparativa **proxy econômico v2 vs v3** como camada diagnóstica reproduzível;
+- preservação do fluxo principal e do motor financeiro, sem abrir multifonte nesta etapa.
+
+
+## Atualização V73
+
+Nesta versão, a F1 preserva a `decisao_local_v1` com proxy econômico v3 como baseline vigente e adiciona uma auditoria comparativa reproduzível entre `proxy v2` e `proxy v3` sobre a mesma base e os mesmos pagamentos, sem alterar o motor financeiro nem abrir multifonte.

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-VERSAO_BASELINE = "V72"
+VERSAO_BASELINE = "V73"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
 
@@ -26,3 +26,7 @@ def caminho_saida_operacional(raiz: Path, nome_arquivo: str) -> Path:
 
 def caminho_artifact(nome_arquivo: str) -> Path:
     return Path('/mnt/data') / f"payment-investment-allocation_{nome_arquivo}" if nome_arquivo.startswith('relatorio_operacional_') else Path('/mnt/data') / nome_arquivo
+
+
+def nome_auditoria_comparativa_proxy_v2_v3(extensao: str) -> str:
+    return f"auditoria_comparativa_proxy_v2_v3_{VERSAO_SLUG}.{extensao.lstrip('.')}"
