@@ -53,6 +53,12 @@ class PacoteSaldoDisponivelGeral:
     auditoria: dict[str, Any]
 
 
+@dataclass(slots=True)
+class PacoteDecisaoLocalV1:
+    quadro_decisao_local_v1: pd.DataFrame
+    auditoria: dict[str, Any]
+
+
 def _campos_fonte_elegivel() -> tuple[CampoContrato, ...]:
     return (
         CampoContrato('fonte_pagamento_id', 'str', True, 'Identificador canônico e estável da linha fonte x pagamento.'),
@@ -150,13 +156,14 @@ def obter_contrato_minimo_caixa_recebidos() -> dict[str, Any]:
     return {
         'frente': 'F1',
         'nome': 'caixa e recebidos auditáveis + decisão local v1 entre saldo disponível e resgate',
-        'escopo_etapa_atual': 'Materialização de saldo_disponivel geral por pagamento a partir das fontes explícitas já observáveis da F1, preservando a ausência de decisão econômica real, sem duplicar recebidos/lotes explícitos e sem integrar ainda essa camada ao fluxo principal da baseline.',
+        'escopo_etapa_atual': 'Materialização da decisão local v1 por pagamento sobre a matriz temporal completa de fontes e saldo geral, ainda sem solver, sem switching e sem integração ao fluxo principal da baseline.',
         'implementado_nesta_etapa': [
             'Contrato mínimo documentado e observável da camada F1.',
             'Estruturas canônicas para fonte elegível de pagamento, recebido auditável e decisão local v1.',
             'Materialização executável de recebido_auditavel a partir do inventário canônico e dos vínculos históricos de gastos.',
             'Materialização executável de fonte_elegivel_pagamento por data de pagamento, usando os pagamentos futuros/pendentes, os recebidos auditáveis, o inventário canônico e o estado mínimo observável do replay.',
             'Materialização executável de saldo_disponivel geral por pagamento, agregando somente as fontes explícitas de caixa já observáveis na F1 sem somá-las novamente na decisão futura.',
+            'Materialização executável de decisao_local_v1 por pagamento sobre a matriz temporal completa de fontes e saldo geral.',
             'Scripts diagnósticos para inspecionar o contrato mínimo e as estruturas reais abertas da F1 sem tocar no motor financeiro.',
         ],
         'fora_do_escopo_nesta_etapa': [
@@ -165,7 +172,7 @@ def obter_contrato_minimo_caixa_recebidos() -> dict[str, Any]:
             'Abertura de switching econômico.',
             'Integração da F1 ao fluxo principal do console ou da planilha operacional.',
             'Projeção financeira futura completa dos valores das fontes até cada data de pagamento.',
-            'Decisão econômica real sobre a nova matriz temporal de fontes e saldo geral.',
+            'Decisão econômica real otimizada, com solver, switching ou alocação multi-fonte.',
         ],
         'estruturas': [estrutura.para_dict() for estrutura in estruturas],
     }
@@ -867,6 +874,195 @@ def materializar_saldo_disponivel_geral(
         },
     }
     return PacoteSaldoDisponivelGeral(quadro_saldo_disponivel=quadro, auditoria=auditoria)
+
+
+
+def _prioridade_tipo_fonte(tipo_fonte: str) -> int:
+    prioridades = {
+        'saldo_disponivel_geral': 0,
+        'saldo_disponivel': 0,
+        'caixa_pre_aplicacao': 1,
+        'recebido_disponivel': 2,
+        'lote_resgatavel': 3,
+    }
+    return prioridades.get(limpar_texto(tipo_fonte), 99)
+
+
+def _prioridade_status_origem(status: str) -> int:
+    prioridades = {
+        'confirmado': 0,
+        'parcial': 1,
+        'estimado': 2,
+        'ausente': 98,
+        'bloqueado': 99,
+    }
+    return prioridades.get(limpar_texto(status), 50)
+
+
+def _construir_candidatos_decisao_local_v1(
+    pagamento: dict[str, Any],
+    quadro_saldo: pd.DataFrame,
+    quadro_fontes: pd.DataFrame,
+) -> list[dict[str, Any]]:
+    pagamento_id = limpar_texto(pagamento.get('despesa_id'))
+    valor_pagamento = round(float(pagamento.get('valor') or 0.0), 2)
+    candidatos: list[dict[str, Any]] = []
+
+    saldo_pagamento = quadro_saldo[quadro_saldo['pagamento_id'] == pagamento_id].copy() if len(quadro_saldo) else pd.DataFrame()
+    for _, row in saldo_pagamento.iterrows():
+        valor_disponivel = round(float(row.get('saldo_disponivel_liquido') or row.get('saldo_disponivel_bruto') or 0.0), 2)
+        candidatos.append({
+            'fonte_escolhida_id': limpar_texto(row.get('saldo_disponivel_id')) ,
+            'tipo_fonte_escolhida': 'saldo_disponivel_geral',
+            'valor_disponivel': valor_disponivel,
+            'pagamento_totalmente_coberto': bool(valor_disponivel >= valor_pagamento and bool(row.get('saldo_disponivel_elegivel', False))),
+            'elegivel': bool(row.get('saldo_disponivel_elegivel', False)),
+            'origem_status': limpar_texto(row.get('origem_status')),
+            'data_base_valor': row.get('data_base_saldo'),
+            'motivo_bloqueio': None if bool(row.get('saldo_disponivel_elegivel', False)) else limpar_texto(row.get('origem_saldo')) or 'saldo_disponivel_inexistente_ou_nao_elegivel',
+            'observacao': limpar_texto(row.get('observacao_auditavel')),
+            'custo_economico_proxy': 0.0,
+        })
+
+    fontes_pagamento = quadro_fontes[quadro_fontes['pagamento_id'] == pagamento_id].copy() if len(quadro_fontes) else pd.DataFrame()
+    for _, row in fontes_pagamento.iterrows():
+        elegivel = bool(row.get('elegivel_na_data_pagamento', False))
+        valor_disponivel = round(float(row.get('valor_liquido_disponivel') or row.get('valor_bruto_disponivel') or 0.0), 2)
+        tipo_fonte = limpar_texto(row.get('tipo_fonte'))
+        candidatos.append({
+            'fonte_escolhida_id': limpar_texto(row.get('fonte_pagamento_id')),
+            'tipo_fonte_escolhida': tipo_fonte,
+            'valor_disponivel': valor_disponivel,
+            'pagamento_totalmente_coberto': bool(elegivel and valor_disponivel >= valor_pagamento),
+            'elegivel': elegivel,
+            'origem_status': limpar_texto(row.get('origem_status')),
+            'data_base_valor': row.get('data_base_valor'),
+            'motivo_bloqueio': limpar_texto(row.get('motivo_bloqueio_temporal')) or None,
+            'observacao': limpar_texto(row.get('observacao_auditavel')),
+            'custo_economico_proxy': float(_prioridade_tipo_fonte(tipo_fonte)),
+        })
+    return candidatos
+
+
+def _selecionar_candidato_decisao_local_v1(candidatos: list[dict[str, Any]]) -> tuple[dict[str, Any], str, str]:
+    if not candidatos:
+        return ({
+            'fonte_escolhida_id': 'sem_fonte_elegivel',
+            'tipo_fonte_escolhida': 'nenhuma',
+            'valor_disponivel': 0.0,
+            'pagamento_totalmente_coberto': False,
+            'elegivel': False,
+            'origem_status': 'ausente',
+            'data_base_valor': None,
+            'motivo_bloqueio': 'nao_ha_fontes_materializadas_para_o_pagamento',
+            'observacao': 'não há fontes materializadas para o pagamento nesta etapa.',
+            'custo_economico_proxy': None,
+        }, 'sem_fonte_elegivel', 'não há fontes materializadas para o pagamento nesta etapa.')
+
+    elegiveis = [c for c in candidatos if c.get('elegivel')]
+    if not elegiveis:
+        escolhido = sorted(candidatos, key=lambda c: (_prioridade_status_origem(c.get('origem_status','ausente')), _prioridade_tipo_fonte(c.get('tipo_fonte_escolhida','nenhuma')), -float(c.get('valor_disponivel') or 0.0), limpar_texto(c.get('fonte_escolhida_id'))))[0]
+        return escolhido, 'sem_fonte_elegivel_na_data', 'todas as fontes materializadas para o pagamento estão bloqueadas ou ausentes na data.'
+
+    elegiveis_cobertura_total = [c for c in elegiveis if c.get('pagamento_totalmente_coberto')]
+    pool = elegiveis_cobertura_total if elegiveis_cobertura_total else elegiveis
+    criterio = 'prioridade_fonte_com_cobertura_total' if elegiveis_cobertura_total else 'prioridade_fonte_com_cobertura_parcial'
+    escolhido = sorted(pool, key=lambda c: (_prioridade_tipo_fonte(c.get('tipo_fonte_escolhida','nenhuma')), _prioridade_status_origem(c.get('origem_status','ausente')), -float(c.get('valor_disponivel') or 0.0), limpar_texto(c.get('fonte_escolhida_id'))))[0]
+    if escolhido.get('tipo_fonte_escolhida') == 'saldo_disponivel_geral':
+        criterio += '__preferencia_por_caixa_geral'
+    elif escolhido.get('tipo_fonte_escolhida') in {'caixa_pre_aplicacao', 'recebido_disponivel'}:
+        criterio += '__preferencia_por_caixa_explicito'
+    elif escolhido.get('tipo_fonte_escolhida') == 'lote_resgatavel':
+        criterio += '__resgate_necessario'
+    observacao = 'fonte escolhida cobre integralmente o pagamento nesta etapa local v1.' if bool(escolhido.get('pagamento_totalmente_coberto')) else 'fonte escolhida é a melhor elegível observável, mas não cobre integralmente o pagamento nesta etapa local v1.'
+    return escolhido, criterio, observacao
+
+
+def materializar_decisao_local_v1(
+    dados_operacionais: PacoteDadosOperacionaisCanonicos,
+    fontes_elegiveis_pagamento: PacoteFontesElegiveisPagamento,
+    saldo_disponivel_geral: PacoteSaldoDisponivelGeral,
+    *,
+    data_referencia: date,
+) -> PacoteDecisaoLocalV1:
+    pagamentos_alvo = _pagamentos_alvo_f1_4(dados_operacionais.gastos_canonicos.copy(), data_referencia=data_referencia)
+    colunas = [
+        'pagamento_id', 'data_pagamento', 'descricao_pagamento', 'valor_pagamento', 'fonte_escolhida_id', 'tipo_fonte_escolhida', 'criterio_decisao',
+        'custo_economico_proxy', 'observacao_auditavel', 'valor_disponivel_escolhido', 'pagamento_totalmente_coberto', 'fonte_origem_status',
+        'fonte_elegivel_na_data', 'data_base_valor_escolhido', 'motivo_bloqueio_ou_restricao',
+    ]
+    if len(pagamentos_alvo) == 0:
+        quadro_vazio = pd.DataFrame(columns=colunas)
+        auditoria = {'validacao': {'ok': False, 'erros': ['decisao_local_v1_sem_pagamentos_alvo'], 'avisos': []}, 'resumo': {'total_pagamentos_alvo': 0}}
+        return PacoteDecisaoLocalV1(quadro_decisao_local_v1=quadro_vazio, auditoria=auditoria)
+
+    quadro_fontes = fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy()
+    quadro_saldo = saldo_disponivel_geral.quadro_saldo_disponivel.copy()
+    registros=[]
+    for pagamento in pagamentos_alvo.to_dict(orient='records'):
+        pagamento_id = limpar_texto(pagamento.get('despesa_id'))
+        candidatos = _construir_candidatos_decisao_local_v1(pagamento, quadro_saldo, quadro_fontes)
+        escolhido, criterio_decisao, observacao_base = _selecionar_candidato_decisao_local_v1(candidatos)
+        obs=[observacao_base]
+        if limpar_texto(escolhido.get('observacao')):
+            obs.append(limpar_texto(escolhido.get('observacao')))
+        if escolhido.get('tipo_fonte_escolhida') == 'saldo_disponivel_geral':
+            obs.append('saldo disponível geral é uma síntese de fontes explícitas observáveis e não deve ser somado novamente às suas componentes.')
+        registros.append({
+            'pagamento_id': pagamento_id,
+            'data_pagamento': pagamento.get('data'),
+            'descricao_pagamento': limpar_texto(pagamento.get('descricao')),
+            'valor_pagamento': round(float(pagamento.get('valor') or 0.0),2),
+            'fonte_escolhida_id': limpar_texto(escolhido.get('fonte_escolhida_id')),
+            'tipo_fonte_escolhida': limpar_texto(escolhido.get('tipo_fonte_escolhida')),
+            'criterio_decisao': criterio_decisao,
+            'custo_economico_proxy': escolhido.get('custo_economico_proxy'),
+            'observacao_auditavel': ' '.join([o for o in obs if o]).strip(),
+            'valor_disponivel_escolhido': round(float(escolhido.get('valor_disponivel') or 0.0),2),
+            'pagamento_totalmente_coberto': bool(escolhido.get('pagamento_totalmente_coberto', False)),
+            'fonte_origem_status': limpar_texto(escolhido.get('origem_status')),
+            'fonte_elegivel_na_data': bool(escolhido.get('elegivel', False)),
+            'data_base_valor_escolhido': escolhido.get('data_base_valor'),
+            'motivo_bloqueio_ou_restricao': limpar_texto(escolhido.get('motivo_bloqueio')) or None,
+        })
+
+    quadro = pd.DataFrame(registros, columns=colunas).sort_values(['data_pagamento','pagamento_id'], kind='stable').reset_index(drop=True)
+    erros=[]
+    avisos=[]
+    if quadro['pagamento_id'].duplicated().any():
+        erros.append('decisao_local_v1_pagamento_duplicado')
+    if len(quadro) != len(pagamentos_alvo):
+        erros.append('decisao_local_v1_nao_cobre_todos_os_pagamentos_alvo')
+    if quadro['fonte_escolhida_id'].isna().any() or (quadro['fonte_escolhida_id'].astype(str).str.strip()=='').any():
+        erros.append('decisao_local_v1_sem_fonte_escolhida_id')
+    if (quadro['valor_disponivel_escolhido'] < 0).any():
+        erros.append('decisao_local_v1_valor_disponivel_negativo')
+    if (~quadro['pagamento_totalmente_coberto']).any():
+        avisos.append('existem_pagamentos_sem_cobertura_integral_na_decisao_local_v1')
+    if (quadro['tipo_fonte_escolhida'] == 'lote_resgatavel').any():
+        avisos.append('existem_pagamentos_em_que_a_decisao_local_v1_precisou_resgatar_lote')
+    if (quadro['tipo_fonte_escolhida'] == 'saldo_disponivel_geral').any():
+        avisos.append('existem_pagamentos_em_que_a_decisao_local_v1_escolheu_caixa_geral_aggregado')
+    if (quadro['fonte_origem_status'] == 'estimado').any():
+        avisos.append('existem_decisoes_dependentes_de_precedencia_intradiaria_nao_materializada')
+    if (quadro['tipo_fonte_escolhida'] == 'nenhuma').any() or (quadro['fonte_origem_status'] == 'ausente').any():
+        avisos.append('existem_pagamentos_sem_fonte_elegivel_observavel_na_decisao_local_v1')
+
+    auditoria={
+        'validacao': {'ok': len(erros)==0, 'erros': erros, 'avisos': avisos},
+        'resumo': {
+            'total_pagamentos_alvo': int(len(quadro)),
+            'pagamentos_totalmente_cobertos': int(quadro['pagamento_totalmente_coberto'].sum()),
+            'pagamentos_parcialmente_cobertos_ou_sem_fonte': int((~quadro['pagamento_totalmente_coberto']).sum()),
+            'tipo_fonte_escolhida': {str(k): int(v) for k,v in quadro['tipo_fonte_escolhida'].value_counts(dropna=False).to_dict().items()},
+            'criterio_decisao': {str(k): int(v) for k,v in quadro['criterio_decisao'].value_counts(dropna=False).to_dict().items()},
+            'fonte_origem_status': {str(k): int(v) for k,v in quadro['fonte_origem_status'].value_counts(dropna=False).to_dict().items()},
+            'valor_total_pagamentos': round(float(quadro['valor_pagamento'].sum()),2),
+            'valor_total_coberto_pelas_fontes_escolhidas': round(float(quadro[['valor_pagamento','valor_disponivel_escolhido']].min(axis=1).sum()),2),
+            'decisao_local_v1_materializada': True,
+        },
+    }
+    return PacoteDecisaoLocalV1(quadro_decisao_local_v1=quadro, auditoria=auditoria)
 
 
 def materializar_fontes_elegiveis_pagamento(

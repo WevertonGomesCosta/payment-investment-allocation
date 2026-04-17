@@ -20,6 +20,7 @@ from nucleo.caixa_recebidos_auditaveis import (
     materializar_fontes_elegiveis_pagamento,
     materializar_recebidos_auditaveis,
     materializar_saldo_disponivel_geral,
+    materializar_decisao_local_v1,
 )
 
 
@@ -34,6 +35,7 @@ class ContextoBaseline:
     recebidos_auditaveis: Any
     fontes_elegiveis_pagamento: Any
     saldo_disponivel_geral: Any
+    decisao_local_v1: Any
     cache_cdi: PacoteCacheCDIDiario
     switching_shadow: Any
     triagem_motor: Any
@@ -126,6 +128,12 @@ def carregar_contexto_baseline(
         data_referencia=contexto_execucao.data_referencia,
         limiar_valor=obter_limiar_residuo_resolvido(pacote_config.conteudo),
     )
+    decisao_local_v1 = materializar_decisao_local_v1(
+        dados_operacionais,
+        fontes_elegiveis_pagamento,
+        saldo_disponivel_geral,
+        data_referencia=contexto_execucao.data_referencia,
+    )
     return ContextoBaseline(
         pacote_config=pacote_config,
         execucao=contexto_execucao,
@@ -136,6 +144,7 @@ def carregar_contexto_baseline(
         recebidos_auditaveis=recebidos_auditaveis,
         fontes_elegiveis_pagamento=fontes_elegiveis_pagamento,
         saldo_disponivel_geral=saldo_disponivel_geral,
+        decisao_local_v1=decisao_local_v1,
         cache_cdi=cache_cdi,
         switching_shadow=switching_shadow,
         triagem_motor=triagem_motor,

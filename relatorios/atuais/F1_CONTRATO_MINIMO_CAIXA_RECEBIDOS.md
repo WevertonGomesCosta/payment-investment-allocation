@@ -2,7 +2,7 @@
 
 ## Escopo desta etapa
 
-A Etapa 5 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e materializa a terceira estrutura real: `saldo_disponivel_geral` agora passa a sintetizar, por pagamento, o caixa observável agregado apenas das fontes explícitas já abertas na F1. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre a decisão econômica real e **não** integra ainda a F1 ao fluxo principal do console ou da planilha operacional.
+A Etapa 6 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e materializa a quarta estrutura real: `decisao_local_v1` agora passa a escolher, por pagamento, uma fonte prioritária observável sobre a matriz temporal completa (`fonte_elegivel_pagamento` + `saldo_disponivel_geral`). Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre solver ou switching e **não** integra ainda a decisão ao fluxo principal do console ou da planilha operacional.
 
 ## Objetivo
 
@@ -81,7 +81,7 @@ Campos mínimos:
 **Estado atual:** contratual + materializado por pagamento a partir das fontes explícitas já observáveis (`recebido_disponivel` e `caixa_pre_aplicacao`) sem projetar financeiramente o caixa e sem somar novamente as fontes componentes.
 
 ### 4. `decisao_local_v1`
-Reserva a estrutura da futura decisão local entre caixa e resgate, ainda sem solver e sem switching.
+Representa a primeira decisão local executável entre caixa e resgate, ainda sem solver e sem switching.
 
 Campos mínimos:
 - `pagamento_id`
@@ -92,7 +92,7 @@ Campos mínimos:
 - `custo_economico_proxy`
 - `observacao_auditavel`
 
-**Estado atual:** apenas contratual.
+**Estado atual:** contratual + materializado por pagamento a partir de `saldo_disponivel_geral` e `fonte_elegivel_pagamento`, usando uma regra determinística simples de prioridade entre caixa geral, caixa explícito e resgate de lote.
 
 ## Fora do escopo nesta etapa
 
@@ -101,6 +101,7 @@ Campos mínimos:
 - alterar valuation dos lotes;
 - abrir switching econômico;
 - integrar a decisão local v1 ao fluxo principal;
+- permitir decisão multi-fonte para cobrir um mesmo pagamento;
 - projetar financeiramente os saldos das fontes até cada data de pagamento.
 
 ## Evidência observável desta etapa
@@ -146,4 +147,17 @@ ou pelo wrapper de compatibilidade:
 
 ```bash
 python scripts/inspecionar_saldo_disponivel_geral.py
+```
+
+
+A quarta estrutura real da F1 pode ser inspecionada por:
+
+```bash
+python scripts/diagnostico/inspecionar_decisao_local_v1.py
+```
+
+ou pelo wrapper de compatibilidade:
+
+```bash
+python scripts/inspecionar_decisao_local_v1.py
 ```
