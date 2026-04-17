@@ -23,7 +23,7 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 
 ## 4. Migração restante de scripts originais
 
-11. O mapa de absorção legado dos Scripts 1 e 2 já foi aberto na V75 e deve orientar as próximas migrações.
+11. O mapa de absorção legado dos Scripts 1 e 2 já foi aberto na V76 e deve orientar as próximas migrações.
 12. Priorizar apenas scripts legados que tragam regras ausentes sobre:
     - precedência intradiária entre recebido e pagamento;
     - lógica por evento de pagamento/recebido;

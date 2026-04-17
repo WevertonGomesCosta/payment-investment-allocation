@@ -165,9 +165,14 @@ A auditoria comparativa entre `proxy v2` e `proxy v3` pode ser inspecionada por:
 python scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py
 ```
 
-## Atualização V75
+## Atualização V76
 
-- baseline atualizada para **V75** sem alteração funcional da F1;
+- baseline atualizada para **V76** sem alteração funcional da F1;
 - congelamento explícito do `proxy econômico v3` como decisão monofonte vigente;
 - manutenção da auditoria comparativa `proxy v2 vs v3` como referência diagnóstica;
 - preservação do fluxo principal e do motor financeiro, sem abrir multifonte nesta etapa.
+
+
+## Observação pós-V76
+
+A V76 abriu uma camada paralela `switching_economico_shadow` para absorção diagnóstica do legado de switching. Essa camada não altera o contrato mínimo da F1 e permanece desacoplada da decisão local monofonte vigente.

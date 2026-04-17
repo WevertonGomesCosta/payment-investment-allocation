@@ -15,6 +15,7 @@ from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabel
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
 from nucleo.triagem_motor import carregar_triagem_motor
+from nucleo.switching_economico_shadow import carregar_switching_economico_shadow
 from nucleo.config_utils import obter_config
 from nucleo.caixa_recebidos_auditaveis import (
     materializar_fontes_elegiveis_pagamento,
@@ -38,6 +39,7 @@ class ContextoBaseline:
     decisao_local_v1: Any
     cache_cdi: PacoteCacheCDIDiario
     switching_shadow: Any
+    switching_economico_shadow: Any
     triagem_motor: Any
     nucleo_financeiro: Any
     replay_passado: Any
@@ -64,6 +66,7 @@ def carregar_contexto_baseline(
     incluir_switching_shadow: bool = True,
     incluir_triagem: bool = True,
     incluir_replay: bool = True,
+    incluir_switching_economico_shadow: bool = True,
 ) -> ContextoBaseline:
     pacote_config = carregar_config(raiz_repositorio=raiz_repositorio)
     contexto_execucao = bootstrap_ambiente(
@@ -114,6 +117,17 @@ def carregar_contexto_baseline(
         data_referencia=contexto_execucao.data_referencia,
         serie_cdi=cache_cdi.serie_cdi,
     ) if incluir_replay else None
+    switching_economico_shadow = carregar_switching_economico_shadow(
+        dados_operacionais,
+        carteira_canonica,
+        triagem_motor,
+        replay_passado,
+        calendario_financeiro,
+        pacote_config.conteudo,
+        data_referencia=contexto_execucao.data_referencia,
+        tabela_iof=construir_tabela_iof(pacote_config.conteudo),
+        faixas_ir=construir_faixas_ir(pacote_config.conteudo),
+    ) if incluir_switching_economico_shadow else None
     fontes_elegiveis_pagamento = materializar_fontes_elegiveis_pagamento(
         dados_operacionais,
         recebidos_auditaveis,
@@ -148,6 +162,7 @@ def carregar_contexto_baseline(
         decisao_local_v1=decisao_local_v1,
         cache_cdi=cache_cdi,
         switching_shadow=switching_shadow,
+        switching_economico_shadow=switching_economico_shadow,
         triagem_motor=triagem_motor,
         nucleo_financeiro=nucleo_financeiro,
         replay_passado=replay_passado,

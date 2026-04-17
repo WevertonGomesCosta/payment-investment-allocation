@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V75
+**Versão atual da baseline:** V76
 
-A V75 preserva integralmente a base funcional da V74 e abre uma etapa exclusivamente de **mapeamento de absorção legado** para os `Script 1.txt` e `Script 2.txt`, sem alterar o motor financeiro, sem reabrir o `proxy econômico v3` congelado e sem abrir `multifonte v1`.
+A V76 preserva integralmente a base funcional da V75 e abre a absorção inicial do **switching econômico legado em modo shadow**, sem alterar o motor financeiro, sem reabrir o `proxy econômico v3` congelado e sem abrir `multifonte v1`.
 
-## Estrutura canônica da V75
+## Estrutura canônica da V76
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -31,6 +31,7 @@ A V75 preserva integralmente a base funcional da V74 e abre uma etapa exclusivam
 - `scripts/diagnostico/inspecionar_decisao_local_v1.py`
 - `scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py`
 - `scripts/diagnostico/inspecionar_mapa_absorcao_legado.py`
+- `scripts/diagnostico/inspecionar_switching_economico_shadow.py`
 - `scripts/*.py` → wrappers de compatibilidade
 
 ### Camada F1 aberta até aqui
@@ -39,6 +40,9 @@ A V75 preserva integralmente a base funcional da V74 e abre uma etapa exclusivam
 
 ### Mapeamento legado vigente
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
+
+### Shadow do switching econômico legado
+- `nucleo/switching_economico_shadow.py`
 
 ### Dados canônicos
 - `dados/config_atualizado.json`
@@ -51,9 +55,9 @@ A V75 preserva integralmente a base funcional da V74 e abre uma etapa exclusivam
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V75.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V75.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V75.md`
+- `relatorios/atuais/BASELINE_FIXA_V76.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V76.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V76.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 
@@ -78,6 +82,7 @@ python scripts/diagnostico/inspecionar_saldo_disponivel_geral.py
 python scripts/diagnostico/inspecionar_decisao_local_v1.py
 python scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py
 python scripts/diagnostico/inspecionar_mapa_absorcao_legado.py
+python scripts/diagnostico/inspecionar_switching_economico_shadow.py
 ```
 
 ## Comandos antigos preservados
@@ -95,13 +100,15 @@ python scripts/inspecionar_saldo_disponivel_geral.py
 python scripts/inspecionar_decisao_local_v1.py
 python scripts/inspecionar_comparativo_proxy_v2_v3.py
 python scripts/inspecionar_mapa_absorcao_legado.py
+python scripts/inspecionar_switching_economico_shadow.py
 ```
 
-## Atualização V75
+## Atualização V76
 
-- baseline atualizada para **V75** sem alteração funcional do motor;
-- abertura de uma etapa documental e diagnóstica de **mapeamento de absorção legado** para os Scripts 1 e 2;
-- classificação explícita do que migrar já, do que migrar depois, do que não migrar e do que já foi substituído pela baseline;
+- baseline atualizada para **V76** sem alteração funcional do motor;
+- abertura da absorção inicial do **switching econômico legado em modo shadow**;
+- criação de uma camada diagnóstica que compara `manter` vs `switch agora e carregar até o horizonte`;
+- criação do diagnóstico `inspecionar_switching_economico_shadow.py`;
 - preservação do `proxy econômico v3` congelado como decisão monofonte vigente;
 - manutenção de `multifonte v1` como frente futura condicionada à evidência;
 - preservação do `release checker` como gate obrigatório antes das próximas entregas.

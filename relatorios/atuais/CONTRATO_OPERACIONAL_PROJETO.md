@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V75**.
-2. A V75 preserva integralmente a base funcional da V74 e abre uma etapa exclusivamente documental/diagnóstica de mapeamento de absorção legado dos Scripts 1 e 2, mantendo o `proxy econômico v3` congelado como decisão monofonte vigente.
+1. A baseline atual é a **V76**.
+2. A V76 preserva integralmente a base funcional da V75 e abre uma camada shadow de **switching econômico legado**, mantendo o `proxy econômico v3` congelado como decisão monofonte vigente e sem acoplar switching ao fluxo principal.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -19,13 +19,14 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 9. Antes de cada entrega, a etapa implementada deve ser executada e validada localmente no ambiente disponível.
 10. A checagem de release em `scripts/diagnostico/verificar_release_baseline.py` é gate obrigatório antes das entregas.
 11. O mapa vigente de absorção legado dos Scripts 1 e 2 deve ser consultado antes de qualquer migração de regra de negócio ainda ausente.
-12. O pacote final não deve incluir artefatos temporários como `__pycache__`, `.pyc`, logs brutos auxiliares, caches efêmeros não oficiais ou saídas redundantes de versões antigas.
+12. A camada `switching_economico_shadow` é diagnóstica e auditável; ela não executa switches no fluxo principal nem altera o replay/valuation vigentes.
+13. O pacote final não deve incluir artefatos temporários como `__pycache__`, `.pyc`, logs brutos auxiliares, caches efêmeros não oficiais ou saídas redundantes de versões antigas.
 
 ## 3. Regra metodológica principal de auditoria
 
-12. A divisão física dos módulos dos scripts-base não deve ser tratada como fronteira semântica confiável.
-13. A unidade oficial de análise continua sendo a **responsabilidade real da função**, e não o módulo onde ela aparece.
-14. Antes de criar, mover, consolidar ou excluir funções, a baseline deve ser auditada por responsabilidade real, comparando equivalências, duplicações e divergências entre os blocos herdados.
+14. A divisão física dos módulos dos scripts-base não deve ser tratada como fronteira semântica confiável.
+15. A unidade oficial de análise continua sendo a **responsabilidade real da função**, e não o módulo onde ela aparece.
+16. Antes de criar, mover, consolidar ou excluir funções, a baseline deve ser auditada por responsabilidade real, comparando equivalências, duplicações e divergências entre os blocos herdados.
 
 ## 4. Entradas canônicas e contrato de dados
 
@@ -139,8 +140,15 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 60. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como mapa oficial de navegação documental.
 
 
-## 10. Mapeamento legado vigente
+## 12. Mapeamento legado vigente
 
-91. A baseline V75 incorpora um mapa de absorção legado específico para os `Script 1.txt` e `Script 2.txt`.
+91. A baseline V76 mantém e usa um mapa de absorção legado específico para os `Script 1.txt` e `Script 2.txt`.
 92. Esse mapa classifica funções e blocos em: `migrar já`, `migrar depois`, `não migrar` e `substituída pela baseline atual`.
 93. Nenhuma migração funcional dos Scripts 1 e 2 deve ser feita de forma bruta; a absorção deve seguir esse mapa e ocorrer primeiro em modo shadow/diagnóstico quando a regra ainda estiver ausente.
+
+## 13. Camadas shadow e diagnósticas atualmente abertas
+
+64. A baseline mantém duas camadas shadow distintas: `switching_shadow_reconciliacao` e `switching_economico_shadow`.
+65. `switching_shadow_reconciliacao` permanece limitada à reconciliação técnica dos lotes/eventos.
+66. `switching_economico_shadow` avalia lotes ativos pós-replay, compara `manter` vs `switch agora e carregar até o horizonte` e produz apenas ranking/plano shadow auditável.
+67. Nenhuma dessas camadas executa switches no fluxo principal da baseline atual.
