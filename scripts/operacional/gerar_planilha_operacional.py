@@ -85,6 +85,12 @@ def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: i
     return header_row + len(rows)
 
 
+def _normalizar_valores_situacao_atual_exaurida(*, saldo_bruto: float, saldo_liquido: float, saldo_rem: float, exaurido: bool) -> tuple[float, float, float]:
+    if not exaurido:
+        return saldo_bruto, saldo_liquido, saldo_rem
+    return 0.0, 0.0, 0.0
+
+
 def _classificar_lotes_situacao_atual(contexto):
     ctx = contexto.execucao
     cal = contexto.calendario_financeiro
@@ -122,9 +128,16 @@ def _classificar_lotes_situacao_atual(contexto):
             serie_cdi=cache.serie_cdi,
             data_fechamento_referencia=data_economica,
         )
+        lote_exaurido_na_situacao = bool(lote.esgotado or saldo_bruto <= limiar)
+        saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao = _normalizar_valores_situacao_atual_exaurida(
+            saldo_bruto=saldo_bruto,
+            saldo_liquido=saldo_liquido,
+            saldo_rem=saldo_rem,
+            exaurido=lote_exaurido_na_situacao,
+        )
         linha_ident = [lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, dias_corridos, dias_uteis]
-        linha_valores = [lote.id, round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2), saldo_bruto, saldo_liquido, saldo_rem]
-        if lote.esgotado or saldo_bruto <= limiar:
+        linha_valores = [lote.id, round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2), saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao]
+        if lote_exaurido_na_situacao:
             rows_exauridos_ident.append(linha_ident)
             rows_exauridos_valores.append(linha_valores)
         else:
@@ -194,6 +207,7 @@ def main() -> None:
     _apply_table_style(ws_melhores, headers_melhores, rows_melhores)
 
     ws_atual = wb.create_sheet('Situação atual')
+    ws_fechamento_atual = wb.create_sheet('Fechamento econômico atual')
     resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
         data_referencia=ctx.data_referencia,
         calendario_financeiro=cal,
@@ -218,34 +232,14 @@ def main() -> None:
         ['Recebidos em janela pré-aplicação', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('recebidos_em_janela_pre_aplicacao', 0)],
         ['Recebidos com uso misto observado', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('recebidos_com_uso_misto_observado', 0)],
     ]
-    rows_recebidos_detalhe = []
-    quadro_recebidos = contexto.recebidos_auditaveis.quadro_recebidos_auditaveis.copy().sort_values(by=['data_recebimento', 'lote_id_origem', 'recebido_id'], kind='stable')
-    for _, row in quadro_recebidos.iterrows():
-        rows_recebidos_detalhe.append([
-            row.get('recebido_id'),
-            row.get('lote_id_origem'),
-            row.get('data_recebimento'),
-            row.get('data_aplicacao'),
-            round(float(row.get('valor_bruto') or 0.0), 2),
-            round(float(row.get('valor_liquido') or 0.0), 2),
-            row.get('status_recebido'),
-            row.get('destino_potencial'),
-            int(row.get('qtd_pagamentos_vinculados') or 0),
-            round(float(row.get('valor_total_vinculado') or 0.0), 2),
-            round(float(row.get('valor_residual_para_aplicacao_origem') or 0.0), 2),
-            'sim' if bool(row.get('disponivel_na_data_referencia', False)) else 'não',
-            row.get('observacao_auditavel') or '',
-        ])
     headers_atual_ident = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis']
     headers_atual_valores = ['Lote', 'Valor Original', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
-    headers_recebidos = ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação']
-    ultima_linha_fechamento = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=1, title='Fechamento econômico da situação atual', freeze=False)
-    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_exauridos_ident, start_row=ultima_linha_fechamento + 3, title='Identificação e tempo dos lotes exauridos', freeze=True)
+    _apply_table_style(ws_fechamento_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=1, title='Fechamento econômico da situação atual', freeze=True)
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_exauridos_ident, start_row=1, title='Identificação e tempo dos lotes exauridos', freeze=True)
     ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_exauridos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes exauridos')
     ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_ativos_ident, start_row=ultima_linha + 3, title='Identificação e tempo dos lotes ativos')
     ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_ativos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes ativos')
-    ultima_linha = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_recebidos_resumo, start_row=ultima_linha + 3, title='Resumo dos recebidos auditáveis (inclui exauridos)')
-    _apply_table_style(ws_atual, headers_recebidos, rows_recebidos_detalhe, start_row=ultima_linha + 3, title='Situação atual de todos os recebidos (inclui exauridos)')
+    _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_recebidos_resumo, start_row=ultima_linha + 3, title='Resumo dos recebidos auditáveis (inclui exauridos)')
 
     SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
     wb.save(SAIDA_INTERNA)

@@ -154,9 +154,6 @@ def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos
         ('recebidos em janela pré-aplicação', resumo_recebidos.get('recebidos_em_janela_pre_aplicacao', 0)),
         ('recebidos com uso misto observado', resumo_recebidos.get('recebidos_com_uso_misto_observado', 0)),
     ])
-    if recebidos_atuais:
-        print('\n- situação atual de todos os recebidos (inclui exauridos):')
-        imprimir_tabela(['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref'], recebidos_atuais)
-    else:
+    if not recebidos_atuais:
         print('  [OK] sem recebidos auditáveis materializados nesta execução')
 

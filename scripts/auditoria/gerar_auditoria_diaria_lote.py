@@ -13,7 +13,7 @@ RAIZ = Path(__file__).resolve().parents[2]
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-from nucleo.contexto_baseline import carregar_contexto_baseline
+from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
 from nucleo.identidade_baseline import caminho_saida_operacional, nome_auditoria_diaria_lote
 from nucleo.calendario_financeiro import obter_taxa_dia_rendimento_lote
 from nucleo.nucleo_financeiro_minimo import criar_lote_de_aporte, Lote
@@ -226,19 +226,31 @@ def gerar_auditoria_diaria_lote(lote_id: str) -> pd.DataFrame:
         })
         atual += timedelta(days=1)
 
-    return pd.DataFrame(linhas)
+    df = pd.DataFrame(linhas)
+    limiar_residuo_resolvido = obter_limiar_residuo_resolvido(contexto.cfg)
+    if len(df) > 0:
+        df['Normalizado por limiar'] = 'FALSO'
+        idx_final = df.index[-1]
+        saldo_final = float(df.at[idx_final, 'Saldo fechamento bruto'] or 0.0)
+        principal_final = float(df.at[idx_final, 'Principal remanescente'] or 0.0)
+        if saldo_final <= float(limiar_residuo_resolvido) and principal_final <= float(limiar_residuo_resolvido):
+            df.at[idx_final, 'Saldo fechamento bruto'] = 0.0
+            df.at[idx_final, 'Saldo fechamento líquido'] = 0.0
+            df.at[idx_final, 'Principal remanescente'] = 0.0
+            df.at[idx_final, 'Normalizado por limiar'] = 'VERDADEIRO'
+    return df
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Gera auditoria diária de um lote usando a mesma convenção econômica da série CDI.')
     parser.add_argument('--lote', default='Lote 6630,64 fev.', help='ID do lote a auditar')
-    parser.add_argument('--xlsx', default=str(caminho_saida_operacional(RAIZ, nome_auditoria_diaria_lote('Lote 6630,64 fev.', 'xlsx'))))
-    parser.add_argument('--csv', default=str(caminho_saida_operacional(RAIZ, nome_auditoria_diaria_lote('Lote 6630,64 fev.', 'csv'))))
+    parser.add_argument('--xlsx', default=None, help='Caminho de saída do xlsx; quando omitido usa o lote informado para compor o nome do arquivo')
+    parser.add_argument('--csv', default=None, help='Caminho de saída do csv; quando omitido usa o lote informado para compor o nome do arquivo')
     args = parser.parse_args()
 
     df = gerar_auditoria_diaria_lote(args.lote)
-    xlsx = Path(args.xlsx)
-    csv = Path(args.csv)
+    xlsx = Path(args.xlsx) if args.xlsx else caminho_saida_operacional(RAIZ, nome_auditoria_diaria_lote(args.lote, 'xlsx'))
+    csv = Path(args.csv) if args.csv else caminho_saida_operacional(RAIZ, nome_auditoria_diaria_lote(args.lote, 'csv'))
     xlsx.parent.mkdir(parents=True, exist_ok=True)
     csv.parent.mkdir(parents=True, exist_ok=True)
     df.to_excel(xlsx, index=False)

@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V65
+**Versão atual da baseline:** V66
 
-A V65 preserva a base funcional da V64 e reorganiza a seção `Situação atual` do console e da planilha operacional em blocos explícitos de lotes exauridos e lotes ativos, preservando também a leitura de todos os recebidos auditáveis, inclusive os exauridos, sem alterar o motor financeiro.
+A V66 preserva a base funcional da V65, remove a tabela detalhada de recebidos da situação atual, separa o fechamento econômico em aba própria da planilha e corrige a normalização operacional de resíduos sub-limiar em lotes já tratados como exauridos, sem alterar o motor financeiro.
 
-## Estrutura canônica da V65
+## Estrutura canônica da V66
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -44,9 +44,9 @@ A V65 preserva a base funcional da V64 e reorganiza a seção `Situação atual`
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V65.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V65.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V65.md`
+- `relatorios/atuais/BASELINE_FIXA_V66.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V66.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V66.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 
 ## Gate obrigatório antes de cada entrega
@@ -81,10 +81,10 @@ python scripts/inspecionar_recebidos_auditaveis.py
 python scripts/inspecionar_fontes_elegiveis_pagamento.py
 ```
 
-## Atualização V65
+## Atualização V66
 
-- V64 consolidada como baseline oficial de partida;
+- V65 consolidada como baseline oficial de partida;
 - checagem de release mantida como gate obrigatório;
-- seção `Situação atual` reorganizada em blocos de lotes exauridos e lotes ativos;
-- aba `Situação atual` reorganizada com quatro tabelas de lotes;
-- recebidos auditáveis preservados no bloco atual.
+- remoção da tabela detalhada de recebidos da seção/aba `Situação atual`;
+- criação da aba `Fechamento econômico atual`;
+- normalização pós-replay de resíduos sub-limiar na situação atual.

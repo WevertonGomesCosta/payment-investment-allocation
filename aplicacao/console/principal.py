@@ -201,6 +201,12 @@ def _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada, limiar):
     return pares
 
 
+def _normalizar_valores_situacao_atual_exaurida(*, saldo_bruto: float, saldo_liquido: float, saldo_rem: float, exaurido: bool) -> tuple[float, float, float]:
+    if not exaurido:
+        return saldo_bruto, saldo_liquido, saldo_rem
+    return 0.0, 0.0, 0.0
+
+
 def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro, config, data_referencia, *, serie_cdi=None):
     tabela_iof = construir_tabela_iof(config)
     faixas_ir = construir_faixas_ir(config)
@@ -232,6 +238,13 @@ def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro,
             serie_cdi=serie_cdi,
             data_fechamento_referencia=data_economica,
         )
+        lote_exaurido_na_situacao = bool(lote.esgotado or saldo_bruto <= limiar)
+        saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao = _normalizar_valores_situacao_atual_exaurida(
+            saldo_bruto=saldo_bruto,
+            saldo_liquido=saldo_liquido,
+            saldo_rem=saldo_rem,
+            exaurido=lote_exaurido_na_situacao,
+        )
         linha = {
             'Recebimento': lote.data_recebimento.isoformat() if hasattr(lote.data_recebimento, 'isoformat') else str(lote.data_recebimento),
             'Aplicação': lote.data_aplicacao.isoformat() if hasattr(lote.data_aplicacao, 'isoformat') else str(lote.data_aplicacao),
@@ -239,12 +252,12 @@ def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro,
             'Valor original': round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2),
             'Dias corridos': dias_corridos,
             'Dias úteis': dias_uteis,
-            'Bruto': saldo_bruto,
-            'Líquido': saldo_liquido,
-            'Saldo rem': saldo_rem,
+            'Bruto': saldo_bruto_exibicao,
+            'Líquido': saldo_liquido_exibicao,
+            'Saldo rem': saldo_rem_exibicao,
             'Lote': lote.id,
         }
-        if lote.esgotado or saldo_bruto <= limiar:
+        if lote_exaurido_na_situacao:
             lotes_exauridos.append(linha)
         else:
             lotes_ativos.append(linha)
