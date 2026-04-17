@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
+from datetime import date
 from typing import Any
+
+import pandas as pd
+
+from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
+from nucleo.utilitarios_neutros import limpar_texto, normalizar_identificador, normalizar_texto
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +30,12 @@ class EstruturaContrato:
             'descricao': self.descricao,
             'campos': [asdict(campo) for campo in self.campos],
         }
+
+
+@dataclass(slots=True)
+class PacoteRecebidosAuditaveis:
+    quadro_recebidos_auditaveis: pd.DataFrame
+    auditoria: dict[str, Any]
 
 
 def _campos_fonte_elegivel() -> tuple[CampoContrato, ...]:
@@ -89,17 +101,19 @@ def obter_contrato_minimo_caixa_recebidos() -> dict[str, Any]:
     return {
         'frente': 'F1',
         'nome': 'caixa e recebidos auditáveis + decisão local v1 entre saldo disponível e resgate',
-        'escopo_etapa_atual': 'Definição do contrato mínimo canônico da camada de caixa/recebidos auditáveis, sem integrar ainda essa camada ao fluxo principal da baseline.',
+        'escopo_etapa_atual': 'Materialização inicial de recebido_auditavel a partir dos dados canônicos e dos vínculos históricos de gastos, sem integrar ainda essa camada ao fluxo principal da baseline.',
         'implementado_nesta_etapa': [
             'Contrato mínimo documentado e observável da camada F1.',
             'Estruturas canônicas para fonte elegível de pagamento, recebido auditável e decisão local v1.',
-            'Script diagnóstico para inspecionar o contrato mínimo sem tocar no motor financeiro.',
+            'Materialização executável de recebido_auditavel a partir do inventário canônico e dos vínculos históricos de gastos.',
+            'Script diagnóstico para inspecionar o contrato mínimo e a primeira estrutura real da F1 sem tocar no motor financeiro.',
         ],
         'fora_do_escopo_nesta_etapa': [
             'Alteração do motor financeiro.',
             'Abertura da decisão econômica real.',
             'Abertura de switching econômico.',
             'Integração da F1 ao fluxo principal do console ou da planilha operacional.',
+            'Materialização de fonte_elegivel_pagamento.',
         ],
         'estruturas': [estrutura.para_dict() for estrutura in estruturas],
     }
@@ -135,3 +149,220 @@ def validar_contrato_minimo_caixa_recebidos() -> list[str]:
             if not str(campo.get('descricao') or '').strip():
                 erros.append(f'campo_sem_descricao: {nome}.{campo_nome}')
     return erros
+
+
+def _slug_recebido(lote_id: str) -> str:
+    texto = normalizar_texto(lote_id).replace(' ', '_')
+    return texto or 'recebido'
+
+
+def _recebido_id(lote_id: str) -> str:
+    return f'recebido::{_slug_recebido(lote_id)}'
+
+
+def _gastos_por_lote(gastos_canonicos: pd.DataFrame) -> pd.DataFrame:
+    registros: list[dict[str, Any]] = []
+    if len(gastos_canonicos) == 0:
+        return pd.DataFrame(columns=['despesa_id', 'data', 'valor', 'lote_id'])
+
+    for _, row in gastos_canonicos.iterrows():
+        for coluna in ('lote_usado_1', 'lote_usado_2'):
+            lote_id = normalizar_identificador(row.get(coluna))
+            if not lote_id:
+                continue
+            registros.append({
+                'despesa_id': limpar_texto(row.get('despesa_id')),
+                'data': row.get('data'),
+                'valor': float(row.get('valor') or 0.0),
+                'lote_id': lote_id,
+            })
+    if not registros:
+        return pd.DataFrame(columns=['despesa_id', 'data', 'valor', 'lote_id'])
+    return pd.DataFrame(registros)
+
+
+def _resumir_vinculos_pagamento(lote_id: str, data_aplicacao: date | None, gastos_por_lote: pd.DataFrame) -> dict[str, Any]:
+    if len(gastos_por_lote) == 0:
+        return {
+            'qtd_pagamentos_vinculados': 0,
+            'valor_total_vinculado': 0.0,
+            'valor_pagamentos_pre_aplicacao': 0.0,
+            'valor_pagamentos_pos_aplicacao': 0.0,
+            'pagamento_vinculado_id': None,
+        }
+
+    quadro = gastos_por_lote[gastos_por_lote['lote_id'] == lote_id].copy()
+    if len(quadro) == 0:
+        return {
+            'qtd_pagamentos_vinculados': 0,
+            'valor_total_vinculado': 0.0,
+            'valor_pagamentos_pre_aplicacao': 0.0,
+            'valor_pagamentos_pos_aplicacao': 0.0,
+            'pagamento_vinculado_id': None,
+        }
+
+    valor_total = round(float(quadro['valor'].sum()), 2)
+    if data_aplicacao is None:
+        valor_pre = 0.0
+        valor_pos = valor_total
+    else:
+        mask_pre = quadro['data'].apply(lambda x: x is not None and x < data_aplicacao)
+        valor_pre = round(float(quadro.loc[mask_pre, 'valor'].sum()), 2)
+        valor_pos = round(valor_total - valor_pre, 2)
+
+    despesas_unicas = sorted({limpar_texto(v) for v in quadro['despesa_id'].tolist() if limpar_texto(v)})
+    return {
+        'qtd_pagamentos_vinculados': int(len(quadro)),
+        'valor_total_vinculado': valor_total,
+        'valor_pagamentos_pre_aplicacao': valor_pre,
+        'valor_pagamentos_pos_aplicacao': valor_pos,
+        'pagamento_vinculado_id': despesas_unicas[0] if len(despesas_unicas) == 1 else None,
+    }
+
+
+def _classificar_recebido(row: pd.Series, data_referencia: date, resumo_pagamentos: dict[str, Any]) -> tuple[str, str, str | None, str]:
+    situacao = limpar_texto(row.get('situacao_investimento'))
+    data_recebimento = row.get('data_recebimento')
+    data_aplicacao = row.get('data_aplicacao')
+    lote_id = normalizar_identificador(row.get('lote_id'))
+
+    qtd_pagamentos = int(resumo_pagamentos.get('qtd_pagamentos_vinculados', 0) or 0)
+    valor_pre = float(resumo_pagamentos.get('valor_pagamentos_pre_aplicacao', 0.0) or 0.0)
+
+    if situacao == 'recebido_futuro_nao_disponivel':
+        return (
+            'futuro',
+            'caixa',
+            None,
+            'recebido futuro ainda não disponível na data de referência.',
+        )
+
+    if situacao == 'nao_aportado_disponivel':
+        return (
+            'disponivel',
+            'caixa',
+            None,
+            'recebido disponível em caixa e ainda não aportado.',
+        )
+
+    if situacao == 'nao_aportado_exaurido':
+        observacao = 'recebido já exaurido em pagamentos históricos.'
+        if qtd_pagamentos > 0:
+            observacao = f'recebido não aportado já exaurido em {qtd_pagamentos} pagamento(s) histórico(s).'
+        return ('exaurido', 'pagamento', None, observacao)
+
+    if situacao == 'aportado':
+        if data_recebimento is not None and data_recebimento > data_referencia:
+            return ('futuro', 'aplicacao', lote_id, 'recebido associado a lote aportado, mas ainda não disponível economicamente.')
+        if data_aplicacao is not None and data_referencia < data_aplicacao:
+            if qtd_pagamentos > 0:
+                return (
+                    'misto',
+                    'misto',
+                    lote_id,
+                    'recebido em janela pré-aplicação com pagamentos já vinculados antes do aporte final.',
+                )
+            return (
+                'comprometido',
+                'aplicacao',
+                lote_id,
+                'recebido disponível, porém comprometido para aplicação futura.',
+            )
+        if valor_pre > 0:
+            return (
+                'misto',
+                'misto',
+                lote_id,
+                'recebido com uso misto: parte financiou pagamentos antes da aplicação e o residual foi aportado.',
+            )
+        return ('aplicado', 'aplicacao', lote_id, 'recebido integralmente associado a lote aportado.')
+
+    return ('disponivel', 'misto', lote_id or None, 'classificação econômica provisória para recebido não enquadrado nas regras principais.')
+
+
+def materializar_recebidos_auditaveis(
+    dados_operacionais: PacoteDadosOperacionaisCanonicos,
+    *,
+    data_referencia: date,
+) -> PacoteRecebidosAuditaveis:
+    inventario = dados_operacionais.inventario_canonico.copy()
+    gastos = dados_operacionais.gastos_canonicos.copy()
+    gastos_por_lote = _gastos_por_lote(gastos)
+
+    registros: list[dict[str, Any]] = []
+    for _, row in inventario.iterrows():
+        lote_id = normalizar_identificador(row.get('lote_id'))
+        resumo_pagamentos = _resumir_vinculos_pagamento(lote_id, row.get('data_aplicacao'), gastos_por_lote)
+        status_recebido, destino_potencial, lote_destino_id, observacao = _classificar_recebido(row, data_referencia, resumo_pagamentos)
+        recebido_id = _recebido_id(lote_id)
+
+        registros.append({
+            'recebido_id': recebido_id,
+            'lote_id_origem': lote_id,
+            'data_recebimento': row.get('data_recebimento'),
+            'data_aplicacao': row.get('data_aplicacao'),
+            'valor_bruto': round(float(row.get('valor_original') or 0.0), 2),
+            'valor_liquido': round(float(row.get('valor_original') or 0.0), 2),
+            'status_recebido': status_recebido,
+            'destino_potencial': destino_potencial,
+            'pagamento_vinculado_id': resumo_pagamentos.get('pagamento_vinculado_id'),
+            'lote_destino_id': lote_destino_id,
+            'observacao_auditavel': observacao,
+            'produto_key': row.get('produto_key'),
+            'produto_nome_canonico': row.get('produto_nome_canonico'),
+            'situacao_investimento_origem': row.get('situacao_investimento'),
+            'disponivel_na_data_referencia': bool(row.get('disponivel_na_data_referencia', False)),
+            'qtd_pagamentos_vinculados': int(resumo_pagamentos.get('qtd_pagamentos_vinculados', 0) or 0),
+            'valor_total_vinculado': round(float(resumo_pagamentos.get('valor_total_vinculado', 0.0) or 0.0), 2),
+            'valor_pagamentos_pre_aplicacao': round(float(resumo_pagamentos.get('valor_pagamentos_pre_aplicacao', 0.0) or 0.0), 2),
+            'valor_pagamentos_pos_aplicacao': round(float(resumo_pagamentos.get('valor_pagamentos_pos_aplicacao', 0.0) or 0.0), 2),
+            'valor_residual_para_aplicacao_origem': round(
+                max(float(row.get('valor_original') or 0.0) - float(resumo_pagamentos.get('valor_pagamentos_pre_aplicacao', 0.0) or 0.0), 0.0),
+                2,
+            ) if lote_destino_id else 0.0,
+            'em_janela_pre_aplicacao_na_referencia': bool(
+                row.get('data_recebimento') is not None
+                and row.get('data_aplicacao') is not None
+                and row.get('data_recebimento') <= data_referencia < row.get('data_aplicacao')
+            ),
+        })
+
+    quadro = pd.DataFrame(registros)
+    if len(quadro) == 0:
+        auditoria = {
+            'validacao': {'ok': False, 'erros': ['recebidos_auditaveis_vazio'], 'avisos': []},
+            'resumo': {},
+        }
+        return PacoteRecebidosAuditaveis(quadro_recebidos_auditaveis=quadro, auditoria=auditoria)
+
+    quadro = quadro.sort_values(['data_recebimento', 'lote_id_origem'], kind='stable').reset_index(drop=True)
+    erros: list[str] = []
+    avisos: list[str] = []
+    if quadro['recebido_id'].duplicated().any():
+        erros.append('recebido_id_duplicado')
+    if quadro['data_recebimento'].isna().any():
+        erros.append('data_recebimento_nula')
+    if (quadro['valor_bruto'] <= 0).any():
+        erros.append('valor_bruto_nao_positivo')
+    if (quadro['valor_liquido'] <= 0).any():
+        erros.append('valor_liquido_nao_positivo')
+    if (quadro['status_recebido'] == 'misto').any():
+        avisos.append('existem_recebidos_com_destino_misto')
+    if (quadro['status_recebido'] == 'comprometido').any():
+        avisos.append('existem_recebidos_comprometidos_para_aplicacao_futura')
+    if (quadro['status_recebido'] == 'futuro').any():
+        avisos.append('existem_recebidos_futuros_nao_disponiveis')
+
+    auditoria = {
+        'validacao': {'ok': len(erros) == 0, 'erros': erros, 'avisos': avisos},
+        'resumo': {
+            'total_recebidos': int(len(quadro)),
+            'status_recebido': {str(k): int(v) for k, v in quadro['status_recebido'].value_counts(dropna=False).to_dict().items()},
+            'destino_potencial': {str(k): int(v) for k, v in quadro['destino_potencial'].value_counts(dropna=False).to_dict().items()},
+            'valor_total_bruto': round(float(quadro['valor_bruto'].sum()), 2),
+            'recebidos_com_pagamento_vinculado': int((quadro['qtd_pagamentos_vinculados'] > 0).sum()),
+            'recebidos_em_janela_pre_aplicacao': int(quadro['em_janela_pre_aplicacao_na_referencia'].sum()),
+            'recebidos_com_uso_misto_observado': int(((quadro['valor_pagamentos_pre_aplicacao'] > 0) & (quadro['lote_destino_id'].notna())).sum()),
+        },
+    }
+    return PacoteRecebidosAuditaveis(quadro_recebidos_auditaveis=quadro, auditoria=auditoria)

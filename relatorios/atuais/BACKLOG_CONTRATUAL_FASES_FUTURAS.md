@@ -16,7 +16,7 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 ## 3. Continuação da Frente F1
 
 6. Materializar `fonte_elegivel_pagamento` diretamente a partir dos dados canônicos e do estado do replay.
-7. Materializar `recebido_auditavel` com bruto/líquido, status e destino observável por evento.
+7. Refinar `recebido_auditavel` com leitura por evento e trilha mais explícita de destino observado versus destino elegível.
 8. Abrir a regra local v1 entre saldo disponível, caixa pré-aplicação, recebidos e resgate.
 9. Expor a trilha correspondente no console e no `.xlsx`.
 

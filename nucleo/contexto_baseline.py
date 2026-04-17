@@ -16,6 +16,7 @@ from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
 from nucleo.triagem_motor import carregar_triagem_motor
 from nucleo.config_utils import obter_config
+from nucleo.caixa_recebidos_auditaveis import materializar_recebidos_auditaveis
 
 
 @dataclass(slots=True)
@@ -26,6 +27,7 @@ class ContextoBaseline:
     pacote_planilha: PacotePlanilha
     carteira_canonica: Any
     dados_operacionais: Any
+    recebidos_auditaveis: Any
     cache_cdi: PacoteCacheCDIDiario
     switching_shadow: Any
     triagem_motor: Any
@@ -70,6 +72,10 @@ def carregar_contexto_baseline(
         data_referencia=contexto_execucao.data_referencia,
         carteira_canonica=carteira_canonica,
     )
+    recebidos_auditaveis = materializar_recebidos_auditaveis(
+        dados_operacionais,
+        data_referencia=contexto_execucao.data_referencia,
+    )
     cache_cdi = carregar_cache_cdi_diario(
         dados_operacionais,
         pacote_config.conteudo,
@@ -107,6 +113,7 @@ def carregar_contexto_baseline(
         pacote_planilha=pacote_planilha,
         carteira_canonica=carteira_canonica,
         dados_operacionais=dados_operacionais,
+        recebidos_auditaveis=recebidos_auditaveis,
         cache_cdi=cache_cdi,
         switching_shadow=switching_shadow,
         triagem_motor=triagem_motor,

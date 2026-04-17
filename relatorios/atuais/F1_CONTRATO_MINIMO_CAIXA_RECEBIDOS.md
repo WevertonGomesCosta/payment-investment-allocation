@@ -2,13 +2,13 @@
 
 ## Escopo desta etapa
 
-A Etapa 1 da F1 abre apenas o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre a decisão econômica real e **não** integra ainda a F1 ao fluxo principal do console ou da planilha operacional.
+A Etapa 2 da F1 preserva o **contrato mínimo canônico** da nova camada de caixa/recebidos auditáveis e materializa a primeira estrutura real: `recebido_auditavel`. Nesta etapa, o projeto **não** altera o motor financeiro, **não** abre a decisão econômica real e **não** integra ainda a F1 ao fluxo principal do console ou da planilha operacional.
 
 ## Objetivo
 
 Criar uma base formal, estável e auditável para que as próximas etapas possam materializar:
 - fontes elegíveis de pagamento por data;
-- recebidos auditáveis com destino explícito;
+- recebidos auditáveis com destino explícito e vínculo histórico observável;
 - decisão local v1 entre saldo disponível, caixa pré-aplicação, recebidos e resgate.
 
 ## Estruturas mínimas abertas nesta etapa
@@ -28,6 +28,8 @@ Campos mínimos:
 - `origem_status`
 - `observacao_auditavel`
 
+**Estado atual:** apenas contratual.
+
 ### 2. `recebido_auditavel`
 Representa o recebido com valor, status e destino auditável.
 
@@ -43,6 +45,8 @@ Campos mínimos:
 - `lote_destino_id`
 - `observacao_auditavel`
 
+**Estado atual:** contratual + materializado a partir do inventário canônico e dos vínculos históricos explícitos da aba `Todos os Gastos`.
+
 ### 3. `decisao_local_v1`
 Reserva a estrutura da futura decisão local entre caixa e resgate, ainda sem solver e sem switching.
 
@@ -55,13 +59,16 @@ Campos mínimos:
 - `custo_economico_proxy`
 - `observacao_auditavel`
 
+**Estado atual:** apenas contratual.
+
 ## Fora do escopo nesta etapa
 
 - alterar o motor financeiro;
 - alterar replay do passado;
 - alterar valuation dos lotes;
 - abrir switching econômico;
-- integrar a decisão local v1 ao fluxo principal.
+- integrar a decisão local v1 ao fluxo principal;
+- materializar `fonte_elegivel_pagamento`.
 
 ## Evidência observável desta etapa
 
@@ -71,8 +78,14 @@ O contrato mínimo pode ser inspecionado diretamente por:
 python scripts/diagnostico/inspecionar_contrato_f1.py
 ```
 
+A primeira estrutura real da F1 pode ser inspecionada por:
+
+```bash
+python scripts/diagnostico/inspecionar_recebidos_auditaveis.py
+```
+
 ou pelo wrapper de compatibilidade:
 
 ```bash
-python scripts/inspecionar_contrato_f1.py
+python scripts/inspecionar_recebidos_auditaveis.py
 ```

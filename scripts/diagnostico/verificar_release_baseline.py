@@ -3,6 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 
+VERSAO_VIGENTE = 'V61'
+VERSAO_ANTERIOR = 'V60'
+
+
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -26,9 +30,9 @@ def validar_indice_documental(base: Path) -> list[str]:
     esperado = [
         'relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md',
         'relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md',
-        'relatorios/atuais/BASELINE_FIXA_V60.md',
-        'relatorios/atuais/VALIDACAO_LOCAL_V60.md',
-        'relatorios/atuais/ESTRUTURA_REPOSITORIO_V60.md',
+        f'relatorios/atuais/BASELINE_FIXA_{VERSAO_VIGENTE}.md',
+        f'relatorios/atuais/VALIDACAO_LOCAL_{VERSAO_VIGENTE}.md',
+        f'relatorios/atuais/ESTRUTURA_REPOSITORIO_{VERSAO_VIGENTE}.md',
         'relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md',
     ]
     if not indice.exists():
@@ -52,16 +56,16 @@ def validar_referencias_ativas(base: Path) -> list[str]:
     padroes_bloqueados = [
         'ContextoBaselineMenos1Dia',
         'carregar_contexto_baseline_menos_1_dia',
-        'BASELINE_FIXA_V59.md',
-        'VALIDACAO_LOCAL_V59.md',
-        'ESTRUTURA_REPOSITORIO_V59.md',
+        f'BASELINE_FIXA_{VERSAO_ANTERIOR}.md',
+        f'VALIDACAO_LOCAL_{VERSAO_ANTERIOR}.md',
+        f'ESTRUTURA_REPOSITORIO_{VERSAO_ANTERIOR}.md',
     ]
     script_proprio = (base / 'scripts' / 'diagnostico' / 'verificar_release_baseline.py').resolve()
     ignorar = {
         script_proprio,
-        (base / 'relatorios' / 'historico' / 'baselines' / 'BASELINE_FIXA_V59.md').resolve(),
-        (base / 'relatorios' / 'historico' / 'validacoes' / 'VALIDACAO_LOCAL_V59.md').resolve(),
-        (base / 'relatorios' / 'historico' / 'estruturas' / 'ESTRUTURA_REPOSITORIO_V59.md').resolve(),
+        (base / 'relatorios' / 'historico' / 'baselines' / f'BASELINE_FIXA_{VERSAO_ANTERIOR}.md').resolve(),
+        (base / 'relatorios' / 'historico' / 'validacoes' / f'VALIDACAO_LOCAL_{VERSAO_ANTERIOR}.md').resolve(),
+        (base / 'relatorios' / 'historico' / 'estruturas' / f'ESTRUTURA_REPOSITORIO_{VERSAO_ANTERIOR}.md').resolve(),
     }
     for alvo in alvos:
         caminhos = [alvo] if alvo.is_file() else [p for p in alvo.rglob('*') if p.is_file() and p.suffix in {'.py', '.md'}]
@@ -84,11 +88,13 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_base.py',
         'scripts/diagnostico/verificar_release_baseline.py',
         'scripts/diagnostico/inspecionar_contrato_f1.py',
+        'scripts/diagnostico/inspecionar_recebidos_auditaveis.py',
         'scripts/gerar_planilha_operacional.py',
         'scripts/gerar_auditoria_diaria_lote.py',
         'scripts/inspecionar_base.py',
         'scripts/verificar_release_baseline.py',
         'scripts/inspecionar_contrato_f1.py',
+        'scripts/inspecionar_recebidos_auditaveis.py',
         'nucleo/caixa_recebidos_auditaveis.py',
     ]
     erros: list[str] = []
@@ -109,6 +115,7 @@ def main() -> int:
 
     print('=== CHECAGEM MÍNIMA DE RELEASE ===')
     print(f'raiz: {base}')
+    print(f'versao_vigente_esperada: {VERSAO_VIGENTE}')
     if problemas:
         print(f'status: FALHA ({len(problemas)} problema(s))')
         for item in problemas:
@@ -118,7 +125,7 @@ def main() -> int:
     print('- sem artefatos efêmeros')
     print('- índice documental vigente consistente')
     print('- sem referências ativas indevidas ao fluxo removido ou à documentação corrente anterior')
-    print('- caminhos canônicos, wrappers e contrato mínimo da F1 presentes')
+    print('- caminhos canônicos, wrappers e estruturas da F1 presentes')
     return 0
 
 
