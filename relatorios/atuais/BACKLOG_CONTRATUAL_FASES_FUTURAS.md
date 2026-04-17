@@ -13,34 +13,31 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 4. Formalizar a regra fiscal terminal híbrida dos lotes remanescentes.
 5. Trabalhar com múltiplos horizontes, incluindo horizonte principal e horizontes adicionais de sensibilidade.
 
-## 3. Decisão híbrida entre caixa disponível e resgate
+## 3. Continuação da Frente F1
 
-6. Implementar critério econômico explícito para decidir entre usar saldo disponível e resgatar lote.
-7. Substituir decisões locais simplistas por regra auditável de score econômico ou equivalente.
+6. Materializar `fonte_elegivel_pagamento` diretamente a partir dos dados canônicos e do estado do replay.
+7. Materializar `recebido_auditavel` com bruto/líquido, status e destino observável por evento.
+8. Abrir a regra local v1 entre saldo disponível, caixa pré-aplicação, recebidos e resgate.
+9. Expor a trilha correspondente no console e no `.xlsx`.
 
-## 4. Recebidos futuros e auditoria de recebidos
-
-8. Abrir camada auditável de recebidos com bruto/líquido, destino do valor e vínculo com pagamentos/aplicações.
-9. Tratar recebidos futuros de forma contingente, podendo virar caixa disponível ou candidato imediato à alocação em carteira.
-
-## 5. Saídas finais ainda não abertas
+## 4. Saídas finais ainda não abertas
 
 10. Evoluir o `.xlsx` para contemplar, quando a etapa for aberta:
     - auditoria formal de pagamentos;
     - auditoria formal de recebidos com bruto/líquido;
     - recomendação final por cenário integrado.
 
-## 6. Switching e busca mais pesada
+## 5. Switching e busca mais pesada
 
 11. Abrir switching econômico híbrido por lote e por grupos de lotes.
 12. Só depois disso abrir solver, MILP ou buscas mais pesadas, preservando auditabilidade.
 
-## 7. Parametrização intradiária mais explícita
+## 6. Parametrização intradiária mais explícita
 
 13. Tornar a precedência intradiária entre recebidos e pagamentos no mesmo dia uma regra central, explícita e auditável no `config`.
 14. Registrar essa ordem na trilha de eventos quando a camada correspondente for aberta.
 
-## 8. Critério de entrada no contrato executável
+## 7. Critério de entrada no contrato executável
 
 15. Um item deste backlog só deve migrar para o contrato executável quando estiver:
     - implementado de forma observável;

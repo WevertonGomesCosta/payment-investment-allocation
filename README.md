@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V59
+**Versão atual da baseline:** V60
 
-A V59 preserva a base funcional vigente, mantém a arquitetura reorganizada da baseline e fecha a higiene operacional/documental da release com uma checagem mínima automática.
+A V60 preserva a base funcional limpa da V59 e abre apenas a Etapa 1 da Frente F1, formalizando o contrato mínimo da nova camada de caixa/recebidos auditáveis sem alterar o motor financeiro.
 
-## Estrutura canônica da V59
+## Estrutura canônica da V60
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -24,7 +24,12 @@ A V59 preserva a base funcional vigente, mantém a arquitetura reorganizada da b
 - `scripts/auditoria/gerar_auditoria_diaria_lote.py`
 - `scripts/diagnostico/inspecionar_base.py`
 - `scripts/diagnostico/verificar_release_baseline.py`
+- `scripts/diagnostico/inspecionar_contrato_f1.py`
 - `scripts/*.py` → wrappers de compatibilidade
+
+### Nova camada contratual mínima da F1
+- `nucleo/caixa_recebidos_auditaveis.py`
+- `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 
 ### Dados canônicos
 - `dados/config_atualizado.json`
@@ -37,9 +42,16 @@ A V59 preserva a base funcional vigente, mantém a arquitetura reorganizada da b
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V59.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V59.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V59.md`
+- `relatorios/atuais/BASELINE_FIXA_V60.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V60.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V60.md`
+- `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
+
+## Gate obrigatório antes de cada entrega
+
+```bash
+python scripts/diagnostico/verificar_release_baseline.py
+```
 
 ## Comandos canônicos
 
@@ -49,6 +61,7 @@ python scripts/operacional/gerar_planilha_operacional.py
 python scripts/auditoria/gerar_auditoria_diaria_lote.py --lote "Lote 6630,64 fev."
 python scripts/diagnostico/inspecionar_base.py
 python scripts/diagnostico/verificar_release_baseline.py
+python scripts/diagnostico/inspecionar_contrato_f1.py
 ```
 
 ## Comandos antigos preservados
@@ -59,12 +72,12 @@ python scripts/gerar_planilha_operacional.py
 python scripts/gerar_auditoria_diaria_lote.py --lote "Lote 6630,64 fev."
 python scripts/inspecionar_base.py
 python scripts/verificar_release_baseline.py
+python scripts/inspecionar_contrato_f1.py
 ```
 
+## Atualização V60
 
-## Atualização V59
-
-- limpeza de artefatos efêmeros (`__pycache__` e `.pyc`) da entrega;
-- atualização da documentação vigente para a baseline atual;
-- remoção do ramo residual `menos_1_dia`;
-- adição de uma checagem mínima automática de release.
+- V59 consolidada como baseline oficial da nova fase;
+- checagem de release mantida como gate obrigatório;
+- abertura parcial da F1 por contrato mínimo observável;
+- nenhuma alteração do motor financeiro nesta etapa.
