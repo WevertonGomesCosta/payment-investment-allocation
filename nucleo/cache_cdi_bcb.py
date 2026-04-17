@@ -226,6 +226,7 @@ def carregar_cache_cdi_diario(
         'fonte_serie_cdi': fonte,
         'fetch_status': fetch_status,
         'qtd_datas_serie_cdi': len(serie),
+        'ultima_data_serie_cdi': max(serie.keys()).isoformat() if serie else None,
         'caminho_cache': str(caminho_cache),
     }
     avisos = []

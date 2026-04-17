@@ -6,11 +6,11 @@ O objetivo de longo prazo continua sendo evoluir esta base para um projeto únic
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V53
+**Versão atual da baseline:** V54
 
-A V53 reorganiza estruturalmente o repositório sem alterar a base funcional vigente.
+A V54 preserva a base funcional vigente e formaliza a regra de aquisição de dados com download primeiro e fallback controlado depois.
 
-## Estrutura canônica da V53
+## Estrutura canônica da V54
 
 ### Execução principal
 - `aplicacao/console/principal.py` → caminho canônico do console
@@ -33,9 +33,9 @@ A V53 reorganiza estruturalmente o repositório sem alterar a base funcional vig
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V53.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V53.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V53.md`
+- `relatorios/atuais/BASELINE_FIXA_V54.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V54.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V54.md`
 
 ## Comandos canônicos
 

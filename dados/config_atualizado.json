@@ -578,7 +578,9 @@
     "google_sheets_export_base": "https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx",
     "google_drive_download_base": "https://drive.google.com/uc?export=download&id={file_id}",
     "google_sheets_edit_base": "https://docs.google.com/spreadsheets/d/{file_id}/edit",
-    "bcb_sgs_12_url": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial={data_inicial}&dataFinal={data_final}"
+    "bcb_sgs_12_url": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial={data_inicial}&dataFinal={data_final}",
+    "planilha_financeira_url": "",
+    "fallback_dados_financeiros_url": ""
   },
   "exportacao": {
     "abas_oficiais": [

@@ -9,9 +9,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import tempfile
 from typing import Any, Iterable, Mapping, Optional
 
 import pandas as pd
+
+try:
+    import requests
+except Exception:  # pragma: no cover
+    requests = None  # type: ignore
 
 from nucleo.utilitarios_neutros import normalizar_texto
 
@@ -23,6 +29,69 @@ class PacotePlanilha:
     quadros_brutos: dict[str, pd.DataFrame]
     quadros_canonicos: dict[str, pd.DataFrame]
 
+
+
+
+
+def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
+    atual: Any = config
+    for chave in caminho:
+        if not isinstance(atual, Mapping) or chave not in atual:
+            return padrao
+        atual = atual[chave]
+    return atual
+
+
+def _montar_url_download_planilha(config: Mapping[str, Any]) -> Optional[str]:
+    url_direta = str(_cfg_get(config, 'urls', 'planilha_financeira_url', padrao='') or '').strip()
+    if url_direta:
+        return url_direta
+    file_id = str(_cfg_get(config, 'google_drive', 'sheets_file_id', padrao='') or '').strip()
+    if not file_id:
+        return None
+    base = str(_cfg_get(config, 'urls', 'google_sheets_export_base', padrao='') or '').strip()
+    if not base:
+        return None
+    try:
+        return base.format(file_id=file_id)
+    except Exception:
+        return None
+
+
+def _tentar_baixar_planilha(config: Mapping[str, Any], destino: Path) -> tuple[bool, Optional[str]]:
+    if requests is None:
+        return False, 'requests_indisponivel'
+    url = _montar_url_download_planilha(config)
+    if not url:
+        return False, 'url_planilha_ausente'
+    timeout = int(_cfg_get(config, 'rede', 'timeout_download_segundos', padrao=30) or 30)
+    verify = bool(_cfg_get(config, 'rede', 'verificar_ssl', padrao=False))
+    headers = {
+        'User-Agent': str(_cfg_get(config, 'rede', 'user_agent_download_planilha', padrao='Mozilla/5.0')),
+    }
+    try:
+        resp = requests.get(url, timeout=timeout, verify=verify, headers=headers)
+        resp.raise_for_status()
+        conteudo = resp.content
+        if not conteudo:
+            return False, 'download_vazio'
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx', dir=str(destino.parent)) as tmp:
+            tmp.write(conteudo)
+            tmp_path = Path(tmp.name)
+        # valida minimamente o arquivo antes de sobrescrever a planilha local
+        try:
+            pd.ExcelFile(tmp_path)
+        except Exception:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return False, 'arquivo_baixado_invalido'
+        tmp_path.replace(destino)
+        return True, None
+    except Exception as exc:  # pragma: no cover
+        return False, f'falha_download_planilha:{exc.__class__.__name__}'
 
 def construir_mapa_alias(mapa_alias: Mapping[str, Iterable[str]]) -> dict[str, str]:
     mapa: dict[str, str] = {}

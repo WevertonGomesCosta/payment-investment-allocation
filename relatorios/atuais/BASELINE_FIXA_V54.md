@@ -1,4 +1,4 @@
-# Baseline fixa V53
+# Baseline fixa V54
 
 ## Objetivo desta versão
 
@@ -27,3 +27,10 @@ Reorganizar estruturalmente todo o repositório sem alterar a base funcional vig
 ## Garantia de compatibilidade
 
 Os comandos antigos continuam válidos, mas os caminhos canônicos da baseline passam a ser os novos caminhos organizados.
+
+
+## Regra de aquisição de dados
+
+- planilha financeira: tentar download primeiro; falhando, usar fallback local em `dados/dados_financeiros.xlsx`;
+- cache BCB: tentar download primeiro; falhando, usar fallback local em `dados/cache_bcb.json`;
+- quando o BCB estiver desatualizado e o dia corrente for útil, a baseline pode usar o último fator útil disponível como fallback de fechamento econômico.
