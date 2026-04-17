@@ -110,9 +110,11 @@ def render_secao_replay(*, auditoria_replay, validacao_replay, severidade_replay
     imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
 
 
-def render_secao_situacao_atual(*, lotes_ativos, resumo_fechamento=None):
-    imprimir_titulo('SITUAÇÃO ATUAL — LOTES ATIVOS')
+def render_secao_situacao_atual(*, lotes_ativos, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
+    imprimir_titulo('SITUAÇÃO ATUAL — LOTES ATIVOS E RECEBIDOS')
     resumo_fechamento = resumo_fechamento or {}
+    resumo_recebidos = resumo_recebidos or {}
+    recebidos_atuais = recebidos_atuais or []
     if resumo_fechamento:
         imprimir_pares([
             ('data de referência', resumo_fechamento.get('data_referencia')),
@@ -126,9 +128,24 @@ def render_secao_situacao_atual(*, lotes_ativos, resumo_fechamento=None):
         if observacao:
             print(f'- leitura auditável: {observacao}')
     if lotes_ativos:
-        print('- identificação e tempo:')
+        print('- identificação e tempo dos lotes ativos:')
         imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_ativos)
-        print('\n- valores atuais:')
+        print('\n- valores atuais dos lotes ativos:')
         imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos)
     else:
         print('  [OK] sem lotes ativos acima do limiar nesta execução')
+    print('\n- resumo dos recebidos auditáveis (inclui exauridos):')
+    imprimir_pares([
+        ('total de recebidos', resumo_recebidos.get('total_recebidos', len(recebidos_atuais))),
+        ('valor total bruto', resumo_recebidos.get('valor_total_bruto', 0.0)),
+        ('status recebido', resumo_recebidos.get('status_recebido', {})),
+        ('destino potencial', resumo_recebidos.get('destino_potencial', {})),
+        ('recebidos com pagamento vinculado', resumo_recebidos.get('recebidos_com_pagamento_vinculado', 0)),
+        ('recebidos em janela pré-aplicação', resumo_recebidos.get('recebidos_em_janela_pre_aplicacao', 0)),
+        ('recebidos com uso misto observado', resumo_recebidos.get('recebidos_com_uso_misto_observado', 0)),
+    ])
+    if recebidos_atuais:
+        print('\n- situação atual de todos os recebidos (inclui exauridos):')
+        imprimir_tabela(['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref'], recebidos_atuais)
+    else:
+        print('  [OK] sem recebidos auditáveis materializados nesta execução')

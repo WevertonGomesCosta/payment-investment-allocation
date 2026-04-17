@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V63**.
-2. A V63 preserva a linha funcional consolidada até a V62, mantém aberta a **Etapa 3 da Frente F1** já materializada e atualiza o cache BCB/CDI do repositório para reduzir a dependência de fallback encadeado na situação atual, sem alterar o motor financeiro.
+1. A baseline atual é a **V64**.
+2. A V64 preserva a linha funcional consolidada até a V63, mantém aberta a **Etapa 3 da Frente F1** já materializada e amplia a seção `Situação atual` do console e da planilha operacional para incluir todos os recebidos auditáveis, inclusive os exauridos, sem alterar o motor financeiro.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -90,7 +90,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
     - `Melhores produtos`;
     - `Situação atual`.
 42. A aba `Situação atual` deve exibir os lotes ainda ativos com colunas auditáveis, incluindo pelo menos recebimento, aplicação, produto, valor original, dias corridos, dias úteis, bruto, líquido e saldo remanescente.
-43. A seção de top produtos deve permanecer separada da situação atual dos lotes.
+43. A seção `Situação atual` do console e da planilha deve incluir também a situação atual de todos os recebidos auditáveis, incluindo os exauridos, com status e destino observável.
+44. A seção de top produtos deve permanecer separada da situação atual dos lotes e recebidos.
 
 ## 9. Itens parcialmente implementados e observáveis na F1
 

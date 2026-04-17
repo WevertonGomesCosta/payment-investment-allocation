@@ -248,6 +248,31 @@ def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config,
     return linhas
 
 
+def _preparar_tabela_recebidos_situacao_atual(recebidos_auditaveis):
+    quadro = recebidos_auditaveis.quadro_recebidos_auditaveis.copy()
+    if len(quadro) == 0:
+        return []
+    quadro = quadro.sort_values(by=['data_recebimento', 'lote_id_origem', 'recebido_id'], kind='stable').reset_index(drop=True)
+    linhas = []
+    for _, row in quadro.iterrows():
+        linhas.append({
+            'Recebido': row.get('recebido_id'),
+            'Lote origem': row.get('lote_id_origem'),
+            'Recebimento': row.get('data_recebimento').isoformat() if hasattr(row.get('data_recebimento'), 'isoformat') else str(row.get('data_recebimento') or ''),
+            'Aplicação': row.get('data_aplicacao').isoformat() if hasattr(row.get('data_aplicacao'), 'isoformat') else str(row.get('data_aplicacao') or ''),
+            'Valor bruto': round(float(row.get('valor_bruto') or 0.0), 2),
+            'Valor líquido': round(float(row.get('valor_liquido') or 0.0), 2),
+            'Status': row.get('status_recebido'),
+            'Destino': row.get('destino_potencial'),
+            'Pagamentos vinculados': int(row.get('qtd_pagamentos_vinculados') or 0),
+            'Valor vinculado': round(float(row.get('valor_total_vinculado') or 0.0), 2),
+            'Residual aplicação': round(float(row.get('valor_residual_para_aplicacao_origem') or 0.0), 2),
+            'Disponível ref': 'sim' if bool(row.get('disponivel_na_data_referencia', False)) else 'não',
+            'Observação': row.get('observacao_auditavel') or '',
+        })
+    return linhas
+
+
 def main() -> None:
     contexto_baseline = carregar_contexto_baseline(raiz_repositorio=RAIZ_REPOSITORIO, instalar_automaticamente=False)
     pacote_config = contexto_baseline.pacote_config
@@ -376,12 +401,18 @@ def main() -> None:
     )
 
     lotes_ativos = _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
+    recebidos_situacao_atual = _preparar_tabela_recebidos_situacao_atual(contexto_baseline.recebidos_auditaveis)
     resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
         data_referencia=contexto.data_referencia,
         calendario_financeiro=calendario_financeiro,
         serie_cdi=cache_cdi.serie_cdi,
     )
-    render_secao_situacao_atual(lotes_ativos=lotes_ativos, resumo_fechamento=resumo_fechamento_situacao_atual)
+    render_secao_situacao_atual(
+        lotes_ativos=lotes_ativos,
+        recebidos_atuais=recebidos_situacao_atual,
+        resumo_fechamento=resumo_fechamento_situacao_atual,
+        resumo_recebidos=contexto_baseline.recebidos_auditaveis.auditoria.get('resumo', {}),
+    )
 
 
 

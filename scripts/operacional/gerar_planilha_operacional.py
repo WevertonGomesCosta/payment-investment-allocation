@@ -59,9 +59,9 @@ def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: i
         ws.freeze_panes = f'A{header_row + 1}'
     ws.auto_filter.ref = f"A{header_row}:{get_column_letter(len(headers))}{max(header_row + len(rows), header_row)}"
 
-    currency_cols = {'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Aplicação Mínima', 'Bruto Atual', 'Líquido Atual', 'Saldo rem', 'Score Final', 'Valor Original'}
+    currency_cols = {'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Aplicação Mínima', 'Bruto Atual', 'Líquido Atual', 'Saldo rem', 'Score Final', 'Valor Original', 'Valor bruto', 'Valor líquido', 'Valor vinculado', 'Residual aplicação'}
     percent_cols = {'Taxa Base CDI', 'Taxa Bônus CDI'}
-    int_cols = {'Dias Corridos', 'Dias Úteis', 'Dias até evento', 'Rank Global', 'Rank Família', 'Dias Bônus', 'Carência Dias'}
+    int_cols = {'Dias Corridos', 'Dias Úteis', 'Dias até evento', 'Rank Global', 'Rank Família', 'Dias Bônus', 'Carência Dias', 'Pagamentos vinculados'}
 
     for col_idx, header in enumerate(headers, start=1):
         letter = get_column_letter(col_idx)
@@ -162,6 +162,33 @@ def main() -> None:
     ]
     rows_atual_ident = []
     rows_atual_valores = []
+    rows_recebidos_resumo = [
+        ['Total de recebidos', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('total_recebidos', 0)],
+        ['Valor total bruto', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('valor_total_bruto', 0.0)],
+        ['Status recebido', str(contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('status_recebido', {}))],
+        ['Destino potencial', str(contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('destino_potencial', {}))],
+        ['Recebidos com pagamento vinculado', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('recebidos_com_pagamento_vinculado', 0)],
+        ['Recebidos em janela pré-aplicação', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('recebidos_em_janela_pre_aplicacao', 0)],
+        ['Recebidos com uso misto observado', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('recebidos_com_uso_misto_observado', 0)],
+    ]
+    rows_recebidos_detalhe = []
+    quadro_recebidos = contexto.recebidos_auditaveis.quadro_recebidos_auditaveis.copy().sort_values(by=['data_recebimento', 'lote_id_origem', 'recebido_id'], kind='stable')
+    for _, row in quadro_recebidos.iterrows():
+        rows_recebidos_detalhe.append([
+            row.get('recebido_id'),
+            row.get('lote_id_origem'),
+            row.get('data_recebimento'),
+            row.get('data_aplicacao'),
+            round(float(row.get('valor_bruto') or 0.0), 2),
+            round(float(row.get('valor_liquido') or 0.0), 2),
+            row.get('status_recebido'),
+            row.get('destino_potencial'),
+            int(row.get('qtd_pagamentos_vinculados') or 0),
+            round(float(row.get('valor_total_vinculado') or 0.0), 2),
+            round(float(row.get('valor_residual_para_aplicacao_origem') or 0.0), 2),
+            'sim' if bool(row.get('disponivel_na_data_referencia', False)) else 'não',
+            row.get('observacao_auditavel') or '',
+        ])
     data_economica = ctx.data_referencia
     for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
         saldo_bruto = round(float(lote.valor_bruto_em_data(
@@ -198,9 +225,12 @@ def main() -> None:
         ])
     headers_atual_ident = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis']
     headers_atual_valores = ['Lote', 'Valor Original', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
+    headers_recebidos = ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação']
     ultima_linha_fechamento = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=1, title='Fechamento econômico da situação atual', freeze=False)
-    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_atual_ident, start_row=ultima_linha_fechamento + 3, title='Identificação e tempo', freeze=True)
-    _apply_table_style(ws_atual, headers_atual_valores, rows_atual_valores, start_row=ultima_linha + 3, title='Valores atuais')
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_atual_ident, start_row=ultima_linha_fechamento + 3, title='Identificação e tempo dos lotes ativos', freeze=True)
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_atual_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes ativos')
+    ultima_linha = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_recebidos_resumo, start_row=ultima_linha + 3, title='Resumo dos recebidos auditáveis (inclui exauridos)')
+    _apply_table_style(ws_atual, headers_recebidos, rows_recebidos_detalhe, start_row=ultima_linha + 3, title='Situação atual de todos os recebidos (inclui exauridos)')
 
     SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
     wb.save(SAIDA_INTERNA)
