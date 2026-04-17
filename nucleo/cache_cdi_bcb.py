@@ -18,6 +18,7 @@ try:
 except Exception:  # pragma: no cover
     requests = None  # type: ignore
 
+from nucleo.config_utils import obter_config as _cfg_get
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
 from nucleo.utilitarios_neutros import para_data, para_float_monetario
 
@@ -30,15 +31,6 @@ class PacoteCacheCDIDiario:
     caminho_cache: Path
     auditoria: dict[str, Any]
     validacao: dict[str, Any]
-
-
-def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
-    atual: Any = config
-    for chave in caminho:
-        if not isinstance(atual, Mapping) or chave not in atual:
-            return padrao
-        atual = atual[chave]
-    return atual
 
 
 def _primeiro_dia_do_mes(dt: date) -> date:

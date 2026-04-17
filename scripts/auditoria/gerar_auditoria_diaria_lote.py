@@ -13,21 +13,10 @@ RAIZ = Path(__file__).resolve().parents[2]
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-from nucleo.carregador_config import carregar_config
-from nucleo.ambiente import bootstrap_ambiente
-from nucleo.leitor_planilha import carregar_planilha
-from nucleo.carteira_canonica import carregar_carteira_canonica
-from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
-from nucleo.calendario_financeiro import construir_calendario_financeiro, obter_taxa_dia_rendimento_lote
-from nucleo.cache_cdi_bcb import carregar_cache_cdi_diario
-from nucleo.nucleo_financeiro_minimo import (
-    carregar_nucleo_financeiro_minimo,
-    construir_faixas_ir,
-    construir_tabela_iof,
-    criar_lote_de_aporte,
-    Lote,
-)
-from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
+from nucleo.contexto_baseline import carregar_contexto_baseline
+from nucleo.identidade_baseline import caminho_saida_operacional, nome_auditoria_diaria_lote
+from nucleo.calendario_financeiro import obter_taxa_dia_rendimento_lote
+from nucleo.nucleo_financeiro_minimo import criar_lote_de_aporte, Lote
 from nucleo.utilitarios_neutros import arredondar_monetario
 
 
@@ -67,48 +56,16 @@ def _clone_lote(lote: Lote) -> Lote:
 
 
 def _carregar_contexto() -> ContextoAuditoria:
-    cfg = carregar_config(RAIZ / 'dados' / 'config_atualizado.json').conteudo
-    ctx = bootstrap_ambiente(cfg, grupos_extras=['financeiro'])
-    planilha = carregar_planilha(cfg, raiz_repositorio=ctx.raiz_repositorio)
-    carteira = carregar_carteira_canonica(planilha, cfg)
-    dados = carregar_dados_operacionais_canonicos(
-        planilha,
-        cfg,
-        data_referencia=ctx.data_referencia,
-        carteira_canonica=carteira,
-    )
-    calendario = construir_calendario_financeiro(cfg, data_referencia=ctx.data_referencia)
-    cache = carregar_cache_cdi_diario(
-        dados,
-        cfg,
-        data_referencia=ctx.data_referencia,
-        raiz_repositorio=ctx.raiz_repositorio,
-    )
-    nucleo = carregar_nucleo_financeiro_minimo(
-        dados,
-        carteira,
-        calendario,
-        cfg,
-        data_referencia=ctx.data_referencia,
-        serie_cdi=cache.serie_cdi,
-    )
-    replay = carregar_replay_passado_controlado(
-        dados,
-        nucleo,
-        calendario,
-        cfg,
-        data_referencia=ctx.data_referencia,
-        serie_cdi=cache.serie_cdi,
-    )
+    contexto = carregar_contexto_baseline(raiz_repositorio=RAIZ, instalar_automaticamente=False, incluir_switching_shadow=False, incluir_triagem=False)
     return ContextoAuditoria(
-        cfg=cfg,
-        data_referencia=ctx.data_referencia,
-        calendario=calendario,
-        serie_cdi=cache.serie_cdi,
-        tabela_iof=construir_tabela_iof(cfg),
-        faixas_ir=construir_faixas_ir(cfg),
-        replay=replay,
-        nucleo=nucleo,
+        cfg=contexto.pacote_config.conteudo,
+        data_referencia=contexto.execucao.data_referencia,
+        calendario=contexto.calendario_financeiro,
+        serie_cdi=contexto.cache_cdi.serie_cdi,
+        tabela_iof=contexto.tabela_iof,
+        faixas_ir=contexto.faixas_ir,
+        replay=contexto.replay_passado,
+        nucleo=contexto.nucleo_financeiro,
     )
 
 
@@ -275,8 +232,8 @@ def gerar_auditoria_diaria_lote(lote_id: str) -> pd.DataFrame:
 def main() -> None:
     parser = argparse.ArgumentParser(description='Gera auditoria diária de um lote usando a mesma convenção econômica da série CDI.')
     parser.add_argument('--lote', default='Lote 6630,64 fev.', help='ID do lote a auditar')
-    parser.add_argument('--xlsx', default=str(RAIZ / 'saidas' / 'operacional' / 'auditoria_diaria_lote_6630_64_fev_v55.xlsx'))
-    parser.add_argument('--csv', default=str(RAIZ / 'saidas' / 'operacional' / 'auditoria_diaria_lote_6630_64_fev_v55.csv'))
+    parser.add_argument('--xlsx', default=str(caminho_saida_operacional(RAIZ, nome_auditoria_diaria_lote('Lote 6630,64 fev.', 'xlsx'))))
+    parser.add_argument('--csv', default=str(caminho_saida_operacional(RAIZ, nome_auditoria_diaria_lote('Lote 6630,64 fev.', 'csv'))))
     args = parser.parse_args()
 
     df = gerar_auditoria_diaria_lote(args.lote)

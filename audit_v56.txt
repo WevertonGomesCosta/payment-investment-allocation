@@ -1,0 +1,2 @@
+Auditoria diária gerada: /tmp/pia_v55/saidas/operacional/auditoria_diaria_lote_6630_64_fev_v56.xlsx
+Auditoria diária gerada: /tmp/pia_v55/saidas/operacional/auditoria_diaria_lote_6630_64_fev_v56.csv

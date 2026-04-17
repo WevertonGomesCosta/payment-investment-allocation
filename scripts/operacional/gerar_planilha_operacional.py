@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import date
 from typing import Iterable
 import sys
 
@@ -13,46 +13,12 @@ RAIZ = Path(__file__).resolve().parents[2]
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-from nucleo.carregador_config import carregar_config
-from nucleo.ambiente import bootstrap_ambiente
-from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento
-from nucleo.leitor_planilha import carregar_planilha
-from nucleo.carteira_canonica import carregar_carteira_canonica
-from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
-from nucleo.cache_cdi_bcb import carregar_cache_cdi_diario
-from nucleo.triagem_motor import carregar_triagem_motor
-from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, construir_tabela_iof, construir_faixas_ir
-from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
+from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
+from nucleo.identidade_baseline import caminho_artifact, caminho_saida_operacional, nome_relatorio_operacional
+from nucleo.calendario_financeiro import contar_dias_rendimento
 
-
-SAIDA_INTERNA = RAIZ / 'saidas' / 'operacional' / 'relatorio_operacional_v55.xlsx'
-SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v55.xlsx')
-
-
-
-def _resolver_data_economica_situacao_atual(data_referencia, calendario_financeiro, serie_cdi=None):
-    data_fechamento = data_referencia - timedelta(days=1)
-    while data_fechamento > date(1900, 1, 1) and not eh_dia_util_bancario(data_fechamento, calendario_financeiro):
-        data_fechamento -= timedelta(days=1)
-    metadata = extrair_metadata_serie_cdi(serie_cdi) if serie_cdi else None
-    ultima_data_serie = getattr(metadata, 'data_final', None) if metadata is not None else None
-    if ultima_data_serie is not None and ultima_data_serie >= data_fechamento:
-        return data_fechamento
-    return data_referencia
-
-
-def _limiar(config: dict) -> float:
-    auditoria_cfg = config.get('auditoria') if isinstance(config.get('auditoria'), dict) else {}
-    replay_cfg = config.get('replay') if isinstance(config.get('replay'), dict) else {}
-    valor = auditoria_cfg.get('limiar_residuo_resolvido')
-    if valor is None:
-        valor = replay_cfg.get('valor_minimo_lote_ativo', 0.01)
-    try:
-        return float(valor)
-    except Exception:
-        return 0.01
-
-
+SAIDA_INTERNA = caminho_saida_operacional(RAIZ, nome_relatorio_operacional())
+SAIDA_EXTERNA = caminho_artifact(nome_relatorio_operacional())
 def _as_rows(iterable: Iterable[dict], columns: list[tuple[str, str]]):
     for item in iterable:
         yield [item.get(src) for src, _ in columns]
@@ -119,20 +85,20 @@ def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: i
 
 
 def main() -> None:
-    cfg = carregar_config(raiz_repositorio=RAIZ)
-    ctx = bootstrap_ambiente(cfg.conteudo, grupos_extras=['financeiro'], instalar_automaticamente=False)
-    cal = construir_calendario_financeiro(cfg.conteudo, data_referencia=ctx.data_referencia)
-    plan = carregar_planilha(cfg.conteudo, raiz_repositorio=cfg.raiz_repositorio)
-    cart = carregar_carteira_canonica(plan, cfg.conteudo)
-    dados = carregar_dados_operacionais_canonicos(plan, cfg.conteudo, data_referencia=ctx.data_referencia, carteira_canonica=cart)
-    cache = carregar_cache_cdi_diario(dados, cfg.conteudo, data_referencia=ctx.data_referencia, raiz_repositorio=cfg.raiz_repositorio)
-    tri = carregar_triagem_motor(cart, dados, cal, cfg.conteudo, data_referencia=ctx.data_referencia)
-    nuc = carregar_nucleo_financeiro_minimo(dados, cart, cal, cfg.conteudo, data_referencia=ctx.data_referencia, serie_cdi=cache.serie_cdi)
-    rep = carregar_replay_passado_controlado(dados, nuc, cal, cfg.conteudo, data_referencia=ctx.data_referencia, serie_cdi=cache.serie_cdi)
+    contexto = carregar_contexto_baseline(raiz_repositorio=RAIZ, instalar_automaticamente=False)
+    cfg = contexto.pacote_config
+    ctx = contexto.execucao
+    cal = contexto.calendario_financeiro
+    plan = contexto.pacote_planilha
+    cart = contexto.carteira_canonica
+    dados = contexto.dados_operacionais
+    cache = contexto.cache_cdi
+    tri = contexto.triagem_motor
+    rep = contexto.replay_passado
 
-    tabela_iof = construir_tabela_iof(cfg.conteudo)
-    faixas_ir = construir_faixas_ir(cfg.conteudo)
-    limiar = _limiar(cfg.conteudo)
+    tabela_iof = contexto.tabela_iof
+    faixas_ir = contexto.faixas_ir
+    limiar = obter_limiar_residuo_resolvido(cfg.conteudo)
 
     wb = Workbook()
     ws_passado = wb.active

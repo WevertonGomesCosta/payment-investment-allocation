@@ -13,82 +13,17 @@ RAIZ_REPOSITORIO = Path(__file__).resolve().parents[2]
 if str(RAIZ_REPOSITORIO) not in sys.path:
     sys.path.insert(0, str(RAIZ_REPOSITORIO))
 
-from nucleo.ambiente import bootstrap_ambiente
-from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento
-from nucleo.carregador_config import carregar_config
-from nucleo.cache_cdi_bcb import carregar_cache_cdi_diario
-from nucleo.carteira_canonica import carregar_carteira_canonica
-from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
-from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
-from nucleo.triagem_motor import carregar_triagem_motor
-from nucleo.leitor_planilha import carregar_planilha, construir_resumo_planilha
-from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, construir_faixas_ir, construir_tabela_iof
-from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
+from aplicacao.console.common import imprimir_itens_severidade as _imprimir_itens_severidade, imprimir_linha_status as _imprimir_linha_status, imprimir_pares as _imprimir_pares, imprimir_tabela as _imprimir_tabela, imprimir_titulo as _imprimir_titulo, normalizar_lista as _normalizar_lista, severidade as _severidade
+from aplicacao.console.secoes_canonicas import render_secao_canonicas
+from aplicacao.console.secoes_execucao import render_secao_execucao
+from aplicacao.console.secoes_financeiras import render_secao_nucleo, render_secao_replay, render_secao_situacao_atual
+from aplicacao.console.secoes_triagem import render_secao_triagem
+from nucleo.calendario_financeiro import contar_dias_rendimento
+from nucleo.identidade_baseline import VERSAO_BASELINE
+from nucleo.leitor_planilha import construir_resumo_planilha
+from nucleo.contexto_baseline import carregar_contexto_baseline, carregar_contexto_baseline_menos_1_dia, obter_limiar_residuo_resolvido
+from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabela_iof
 
-
-def _imprimir_titulo(texto: str) -> None:
-    print(f"\n=== {texto} ===")
-
-
-def _imprimir_pares(pares: Iterable[tuple[str, object]]) -> None:
-    for chave, valor in pares:
-        print(f"- {chave}: {valor}")
-
-
-def _normalizar_lista(itens: Iterable[object] | None) -> list[str]:
-    if not itens:
-        return []
-    return [str(item) for item in itens]
-
-
-def _severidade(*, erros: Iterable[object] | None = None, avisos: Iterable[object] | None = None, condicao_ok: bool = True) -> str:
-    erros_norm = _normalizar_lista(erros)
-    avisos_norm = _normalizar_lista(avisos)
-    if erros_norm:
-        return 'ERRO'
-    if avisos_norm or not condicao_ok:
-        return 'AVISO'
-    return 'OK'
-
-
-def _imprimir_linha_status(rotulo: str, severidade: str, detalhe: str = '') -> None:
-    sufixo = f" — {detalhe}" if detalhe else ''
-    print(f"[{severidade}] {rotulo}{sufixo}")
-
-
-def _imprimir_itens_severidade(rotulo: str, itens: Iterable[object] | None, severidade: str) -> None:
-    itens_norm = _normalizar_lista(itens)
-    if not itens_norm:
-        return
-    print(f"- {rotulo}:")
-    for item in itens_norm:
-        print(f"  [{severidade}] {item}")
-
-
-def _formatar_valor_tabela(valor: object) -> str:
-    if valor is None:
-        return ''
-    if isinstance(valor, float):
-        return f"{valor:.2f}"
-    return str(valor)
-
-
-def _imprimir_tabela(colunas: Sequence[str], linhas: Sequence[dict[str, object]], *, limite: int | None = None) -> None:
-    linhas_use = list(linhas[:limite] if limite is not None else linhas)
-    if not linhas_use:
-        print('  [OK] sem linhas para exibir')
-        return
-    larguras = {}
-    for col in colunas:
-        larguras[col] = len(col)
-        for linha in linhas_use:
-            larguras[col] = max(larguras[col], len(_formatar_valor_tabela(linha.get(col))))
-    cab = ' | '.join(col.ljust(larguras[col]) for col in colunas)
-    sep = '-+-'.join('-' * larguras[col] for col in colunas)
-    print(cab)
-    print(sep)
-    for linha in linhas_use:
-        print(' | '.join(_formatar_valor_tabela(linha.get(col)).ljust(larguras[col]) for col in colunas))
 
 
 def _extrair_data_auditoria_item(item, data_padrao):
@@ -109,23 +44,6 @@ def _extrair_data_auditoria_item(item, data_padrao):
 
 
 
-
-def _descrever_origem_planilha(pacote_planilha) -> str:
-    fonte = str((getattr(pacote_planilha, 'auditoria', {}) or {}).get('fonte_planilha') or '')
-    if fonte == 'download':
-        return 'download'
-    if fonte == 'caminho_explicito':
-        return 'caminho_explicito'
-    return 'fallback_local'
-
-
-def _descrever_origem_cdi(auditoria_cache_cdi: dict[str, object]) -> str:
-    fonte = str(auditoria_cache_cdi.get('fonte_serie_cdi') or '')
-    if fonte == 'bcb_online':
-        return 'download_bcb'
-    if fonte == 'cache_local':
-        return 'fallback_cache_local'
-    return fonte or 'indisponivel'
 
 def _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, config, data_referencia, serie_cdi=None):
     refs = (((config.get('auditoria') or {}).get('referencias_app_lotes')) or [])
@@ -190,25 +108,13 @@ def _preparar_resumo_delta_lotes(auditoria_lotes_vs_app):
     ]
 
 
-def _obter_limiar_residuo_resolvido(config):
-    auditoria_cfg = config.get('auditoria', {}) if isinstance(config.get('auditoria'), dict) else {}
-    replay_cfg = config.get('replay', {}) if isinstance(config.get('replay'), dict) else {}
-    valor = auditoria_cfg.get('limiar_residuo_resolvido')
-    if valor is None:
-        valor = replay_cfg.get('valor_minimo_lote_ativo', 0.01)
-    try:
-        return round(float(valor), 2)
-    except Exception:
-        return 0.01
-
-
 def _classificar_status_residuo(valor, limiar):
     return 'resolvido por limiar' if float(valor or 0.0) <= float(limiar or 0.0) else 'pendente para validação'
 
 
 def _preparar_auditoria_lotes_residuais(replay_passado, config):
     linhas = []
-    limiar = _obter_limiar_residuo_resolvido(config)
+    limiar = obter_limiar_residuo_resolvido(config)
     estado = replay_passado.estado_lotes_passado.copy()
     log = replay_passado.log_passado.copy()
     if len(estado):
@@ -261,7 +167,7 @@ def _preparar_auditoria_lotes_residuais(replay_passado, config):
 
 
 def _preparar_auditoria_detalhada_residuos(replay_passado, config, data_referencia):
-    limiar = _obter_limiar_residuo_resolvido(config)
+    limiar = obter_limiar_residuo_resolvido(config)
     tabela_iof = construir_tabela_iof(config)
     faixas_ir = construir_faixas_ir(config)
     lotes_por_id = {l.id: l for l in replay_passado.lotes_apos_replay}
@@ -412,7 +318,7 @@ def _comparar_auditoria_lotes(auditoria_atual, auditoria_menos_1_dia, replay_pas
 def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config, data_referencia, *, serie_cdi=None):
     tabela_iof = construir_tabela_iof(config)
     faixas_ir = construir_faixas_ir(config)
-    limiar = _obter_limiar_residuo_resolvido(config)
+    limiar = obter_limiar_residuo_resolvido(config)
     linhas = []
     data_economica = data_referencia
     for lote in sorted(replay_passado.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
@@ -457,72 +363,23 @@ def _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, config,
 
 
 def main() -> None:
-    pacote_config = carregar_config(raiz_repositorio=RAIZ_REPOSITORIO)
-    contexto = bootstrap_ambiente(pacote_config.conteudo, grupos_extras=['financeiro'], instalar_automaticamente=False)
-    calendario_financeiro = construir_calendario_financeiro(pacote_config.conteudo, data_referencia=contexto.data_referencia)
-    pacote_planilha = carregar_planilha(pacote_config.conteudo, raiz_repositorio=pacote_config.raiz_repositorio)
-    carteira_canonica = carregar_carteira_canonica(pacote_planilha, pacote_config.conteudo)
-    dados_operacionais = carregar_dados_operacionais_canonicos(
-        pacote_planilha,
-        pacote_config.conteudo,
-        data_referencia=contexto.data_referencia,
-        carteira_canonica=carteira_canonica,
-    )
-    cache_cdi = carregar_cache_cdi_diario(
-        dados_operacionais,
-        pacote_config.conteudo,
-        data_referencia=contexto.data_referencia,
-        raiz_repositorio=pacote_config.raiz_repositorio,
-    )
-    switching_shadow = carregar_switching_shadow_reconciliacao(dados_operacionais, carteira_canonica=carteira_canonica)
-    triagem_motor = carregar_triagem_motor(
-        carteira_canonica,
-        dados_operacionais,
-        calendario_financeiro,
-        pacote_config.conteudo,
-        data_referencia=contexto.data_referencia,
-    )
-    nucleo_financeiro = carregar_nucleo_financeiro_minimo(
-        dados_operacionais,
-        carteira_canonica,
-        calendario_financeiro,
-        pacote_config.conteudo,
-        data_referencia=contexto.data_referencia,
-        serie_cdi=cache_cdi.serie_cdi,
-    )
-    replay_passado = carregar_replay_passado_controlado(
-        dados_operacionais,
-        nucleo_financeiro,
-        calendario_financeiro,
-        pacote_config.conteudo,
-        data_referencia=contexto.data_referencia,
-        serie_cdi=cache_cdi.serie_cdi,
-    )
+    contexto_baseline = carregar_contexto_baseline(raiz_repositorio=RAIZ_REPOSITORIO, instalar_automaticamente=False)
+    pacote_config = contexto_baseline.pacote_config
+    contexto = contexto_baseline.execucao
+    calendario_financeiro = contexto_baseline.calendario_financeiro
+    pacote_planilha = contexto_baseline.pacote_planilha
+    carteira_canonica = contexto_baseline.carteira_canonica
+    dados_operacionais = contexto_baseline.dados_operacionais
+    cache_cdi = contexto_baseline.cache_cdi
+    switching_shadow = contexto_baseline.switching_shadow
+    triagem_motor = contexto_baseline.triagem_motor
+    nucleo_financeiro = contexto_baseline.nucleo_financeiro
+    replay_passado = contexto_baseline.replay_passado
 
-    data_referencia_menos_1_dia = contexto.data_referencia - timedelta(days=1)
-    calendario_financeiro_menos_1_dia = construir_calendario_financeiro(pacote_config.conteudo, data_referencia=data_referencia_menos_1_dia)
-    dados_operacionais_menos_1_dia = carregar_dados_operacionais_canonicos(
-        pacote_planilha,
-        pacote_config.conteudo,
-        data_referencia=data_referencia_menos_1_dia,
-        carteira_canonica=carteira_canonica,
-    )
-    nucleo_financeiro_menos_1_dia = carregar_nucleo_financeiro_minimo(
-        dados_operacionais_menos_1_dia,
-        carteira_canonica,
-        calendario_financeiro_menos_1_dia,
-        pacote_config.conteudo,
-        data_referencia=data_referencia_menos_1_dia,
-        serie_cdi=cache_cdi.serie_cdi,
-    )
-    replay_passado_menos_1_dia = carregar_replay_passado_controlado(
-        dados_operacionais_menos_1_dia,
-        nucleo_financeiro_menos_1_dia,
-        calendario_financeiro_menos_1_dia,
-        pacote_config.conteudo,
-        data_referencia=data_referencia_menos_1_dia,
-        serie_cdi=cache_cdi.serie_cdi,
-    )
+    contexto_menos_1_dia = carregar_contexto_baseline_menos_1_dia(contexto_baseline)
+    data_referencia_menos_1_dia = contexto_menos_1_dia.data_referencia_menos_1_dia
+    calendario_financeiro_menos_1_dia = contexto_menos_1_dia.calendario_financeiro
+    replay_passado_menos_1_dia = contexto_menos_1_dia.replay_passado
 
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
     resumo_por_aba = {item['nome_aba']: item for item in resumo_planilha}
@@ -561,7 +418,7 @@ def main() -> None:
     validacao_replay = replay_passado.validacao or {}
     auditoria_lotes_vs_app = _preparar_auditoria_lotes_vs_app(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
     auditoria_lotes_vs_app_menos_1_dia = _preparar_auditoria_lotes_vs_app(replay_passado_menos_1_dia, calendario_financeiro_menos_1_dia, pacote_config.conteudo, data_referencia_menos_1_dia, serie_cdi=cache_cdi.serie_cdi)
-    limiar_residuo_resolvido = _obter_limiar_residuo_resolvido(pacote_config.conteudo)
+    limiar_residuo_resolvido = obter_limiar_residuo_resolvido(pacote_config.conteudo)
     auditoria_residual_lotes = _preparar_auditoria_lotes_residuais(replay_passado, pacote_config.conteudo)
     auditoria_detalhada_residuos = _preparar_auditoria_detalhada_residuos(replay_passado, pacote_config.conteudo, contexto.data_referencia)
     auditoria_recebimento_aplicacao = _preparar_auditoria_recebimento_vs_aplicacao(dados_operacionais, replay_passado)
@@ -585,345 +442,61 @@ def main() -> None:
     severidade_cache_cdi = _severidade(erros=validacao_cache_cdi.get('erros'), avisos=validacao_cache_cdi.get('avisos'), condicao_ok=bool(validacao_cache_cdi.get('ok', True)))
     severidade_replay = _severidade(erros=validacao_replay.get('erros'), avisos=validacao_replay.get('avisos'), condicao_ok=bool(validacao_replay.get('ok', True)))
 
-    _imprimir_titulo('BASELINE')
-    _imprimir_pares([
-        ('versão', 'V55'),
-        ('raiz do repositório', pacote_config.raiz_repositorio),
-        ('config carregado', pacote_config.caminho),
-        ('planilha carregada', pacote_planilha.caminho),
-    ])
+    render_secao_execucao(
+        versao=VERSAO_BASELINE,
+        pacote_config=pacote_config,
+        pacote_planilha=pacote_planilha,
+        contexto=contexto,
+        severidade_dependencias=severidade_dependencias,
+        auditoria_cache_cdi=auditoria_cache_cdi,
+        data_ultimo_fator_cdi=data_ultimo_fator_cdi,
+        dias_rendimento_mes=dias_rendimento_mes,
+        resumo_por_aba=resumo_por_aba,
+        abas_primarias_reais=abas_primarias_reais,
+        abas_auxiliares=abas_auxiliares,
+    )
 
-    _imprimir_titulo('AMBIENTE')
-    _imprimir_pares([
-        ('timezone', contexto.timezone_nome),
-        ('data de referência', contexto.data_referencia.isoformat()),
-        ('colab', 'sim' if contexto.em_colab else 'não'),
-        ('warnings de rede configurados', 'sim' if contexto.warnings_configurados else 'não'),
-    ])
+    render_secao_canonicas(
+        carteira_canonica=carteira_canonica,
+        dados_operacionais=dados_operacionais,
+        switching_shadow=switching_shadow,
+        severidade_carteira=severidade_carteira,
+        severidade_inventario=severidade_inventario,
+        severidade_gastos=severidade_gastos,
+        severidade_lotes_shadow=severidade_lotes_shadow,
+        severidade_eventos_shadow=severidade_eventos_shadow,
+        severidade_triagem=severidade_triagem,
+        severidade_nucleo=severidade_nucleo,
+        resumo_inventario=resumo_inventario,
+        resumo_gastos=resumo_gastos,
+        validacao_carteira=validacao_carteira,
+        validacao_inventario=validacao_inventario,
+        validacao_gastos=validacao_gastos,
+        resumo_lotes_shadow=resumo_lotes_shadow,
+        auditoria_eventos_shadow=auditoria_eventos_shadow,
+        reconciliacao_shadow=reconciliacao_shadow,
+        auditoria_triagem=auditoria_triagem,
+        auditoria_nucleo=auditoria_nucleo,
+    )
 
-    _imprimir_titulo('ORIGEM DOS DADOS')
-    _imprimir_pares([
-        ('dados financeiros', _descrever_origem_planilha(pacote_planilha)),
-        ('status obtenção planilha', (getattr(pacote_planilha, 'auditoria', {}) or {}).get('fetch_status_planilha') or 'nao_tentado'),
-        ('dados CDI/BCB', _descrever_origem_cdi(auditoria_cache_cdi)),
-        ('status obtenção CDI/BCB', auditoria_cache_cdi.get('fetch_status') or ('cache_local' if auditoria_cache_cdi.get('fonte_serie_cdi') == 'cache_local' else 'nao_tentado')),
-    ])
+    render_secao_nucleo(
+        auditoria_nucleo=auditoria_nucleo,
+        validacao_nucleo=validacao_nucleo,
+        severidade_nucleo=severidade_nucleo,
+    )
 
-    _imprimir_titulo('DEPENDÊNCIAS')
-    _imprimir_linha_status('Dependências essenciais da baseline', severidade_dependencias, 'baseline mínima e auditoria estrutural')
-    _imprimir_pares([
-        ('instaladas', ', '.join(contexto.relatorio_dependencias.get('instaladas', [])) or 'nenhuma'),
-        ('ausentes', ', '.join(contexto.relatorio_dependencias.get('ausentes', [])) or 'nenhuma'),
-    ])
+    render_secao_replay(
+        auditoria_replay=auditoria_replay,
+        validacao_replay=validacao_replay,
+        severidade_replay=severidade_replay,
+        limiar_residuo_resolvido=limiar_residuo_resolvido,
+    )
 
-    _imprimir_titulo('CALENDÁRIO FINANCEIRO E TAXAS BASE')
-    _imprimir_linha_status('Camada neutra de calendário e taxas base', 'OK', 'sem fetch do BCB e sem aplicação econômica aos lotes')
-    _imprimir_pares([
-        ('CDI anual do modelo', f"{calendario_financeiro.cdi_anual_modelo:.6f}"),
-        ('convenção dias/ano CDI', calendario_financeiro.convencao_dias_ano_cdi),
-        ('taxa diária base', f"{calendario_financeiro.taxa_dia_base:.12f}"),
-        ('anos dias sem rendimento', f"{calendario_financeiro.ano_inicio_dias_sem_rendimento}-{calendario_financeiro.ano_fim_dias_sem_rendimento}"),
-        ('dias sem rendimento mapeados', len(calendario_financeiro.dias_sem_rendimento_bancario)),
-        ('workalendar disponível', 'sim' if calendario_financeiro.workalendar_disponivel else 'não'),
-        ('calendário Brasil disponível', 'sim' if calendario_financeiro.calendario_brasil_disponivel else 'não'),
-        ('dias de rendimento no mês até a data de referência', dias_rendimento_mes),
-    ])
-
-    _imprimir_titulo('CACHE CDI DIÁRIO (BCB)')
-    _imprimir_linha_status('Cache diário de CDI para auditoria e replay', severidade_cache_cdi, f"{auditoria_cache_cdi.get('qtd_datas_serie_cdi', 0)} datas")
-    _imprimir_pares([
-        ('data inicial da consulta', auditoria_cache_cdi.get('data_inicial_consulta')),
-        ('data final da consulta', auditoria_cache_cdi.get('data_final_consulta')),
-        ('última data com fator no cache', data_ultimo_fator_cdi),
-        ('fonte da série', auditoria_cache_cdi.get('fonte_serie_cdi')),
-        ('status do fetch', auditoria_cache_cdi.get('fetch_status')),
-        ('caminho do cache', auditoria_cache_cdi.get('caminho_cache')),
-    ])
-    _imprimir_itens_severidade('avisos do cache CDI', validacao_cache_cdi.get('avisos'), 'AVISO')
-
-    _imprimir_titulo('ABAS ENCONTRADAS')
-    for indice, nome_aba in enumerate(pacote_planilha.nomes_abas, start=1):
-        print(f"- [{indice}] {nome_aba}")
-
-    _imprimir_titulo('RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS')
-    for _, nome_aba in abas_primarias_reais:
-        info = resumo_por_aba.get(nome_aba)
-        if not info:
-            _imprimir_linha_status(nome_aba, 'ERRO', 'aba ausente')
-            continue
-        _imprimir_linha_status(nome_aba, 'OK', f"{info['n_linhas']} linhas, {info['n_colunas']} colunas")
-        colunas = info.get('colunas', [])
-        if colunas:
-            print(f"  colunas (primeiras 8): {', '.join(colunas[:8])}")
-
-    _imprimir_titulo('ABAS PRIMÁRIAS DO CONTRATO')
-    _imprimir_linha_status('Abas primárias do contrato', severidade_abas, f"{len(abas_primarias_reais)} blocos esperados")
-    for chave, nome_aba in abas_primarias_reais:
-        presente = nome_aba in pacote_planilha.nomes_abas
-        info = resumo_por_aba.get(nome_aba)
-        linhas = info['n_linhas'] if info else '-'
-        colunas = info['n_colunas'] if info else '-'
-        sev = 'OK' if presente else 'ERRO'
-        _imprimir_linha_status(f'Bloco {chave}', sev, nome_aba)
-        _imprimir_pares([('presente', 'sim' if presente else 'não'), ('linhas', linhas), ('colunas', colunas)])
-        print('')
-
-    if abas_auxiliares:
-        _imprimir_titulo('ABAS AUXILIARES / NÃO OPERACIONAIS')
-        _imprimir_linha_status('Abas auxiliares identificadas', 'OK', f"{len(abas_auxiliares)} abas fora do contrato operacional")
-        for nome_aba in abas_auxiliares:
-            info = resumo_por_aba.get(nome_aba)
-            linhas = info['n_linhas'] if info else '-'
-            colunas = info['n_colunas'] if info else '-'
-            print(f"- {nome_aba}: {linhas} linhas, {colunas} colunas")
-
-    _imprimir_titulo('RESUMO CONSOLIDADO DAS CAMADAS CANÔNICAS')
-    _imprimir_linha_status('Carteira canônica', severidade_carteira, f"{len(carteira_canonica.quadro_canonico)} produtos")
-    _imprimir_linha_status('Inventário canônico', severidade_inventario, f"{len(dados_operacionais.inventario_canonico)} lotes")
-    _imprimir_linha_status('Gastos canônicos', severidade_gastos, f"{len(dados_operacionais.gastos_canonicos)} despesas")
-    _imprimir_linha_status('Lotes shadow', severidade_lotes_shadow, f"{len(switching_shadow.lotes_shadow)} lotes técnicos")
-    _imprimir_linha_status('Trilha técnica de eventos', severidade_eventos_shadow, f"{len(switching_shadow.eventos_financeiros_ordenados)} eventos ordenados")
-    _imprimir_linha_status('Triagem programática do motor', severidade_triagem, f"{auditoria_triagem.get('qtd_candidatos_motor_v1', 0)} candidatos")
-    _imprimir_linha_status('Núcleo financeiro mínimo', severidade_nucleo, f"{auditoria_nucleo.get('qtd_lotes_financeiros', 0)} lotes financeiros")
-
-    _imprimir_titulo('CARTEIRA CANÔNICA')
-    _imprimir_linha_status('Validação estrutural da carteira', severidade_carteira)
-    _imprimir_pares([
-        ('aba', carteira_canonica.nome_aba),
-        ('produtos canônicos', len(carteira_canonica.quadro_canonico)),
-        ('produto_key únicos', len(carteira_canonica.mapa_produtos.get('by_key', {}))),
-        ('nomes normalizados únicos', len(carteira_canonica.mapa_produtos.get('by_nome_norm', {}))),
-        ('famílias de produto', len(carteira_canonica.auditoria.get('resumo_familia_produto', {}))),
-        ('regimes de taxa', len(carteira_canonica.auditoria.get('resumo_regime_taxa', {}))),
-        ('papéis de produto', len(carteira_canonica.auditoria.get('resumo_papel_produto', {}))),
-        ('linhas sem produto_id explícito', carteira_canonica.auditoria.get('sem_produto_id', 0)),
-        ('erros de validação', len(_normalizar_lista(validacao_carteira.get('erros')))),
-        ('avisos de validação', len(_normalizar_lista(validacao_carteira.get('avisos')))),
-    ])
-    print('- colunas resolvidas:')
-    for chave, valor in carteira_canonica.auditoria.get('colunas_resolvidas', {}).items():
-        if valor:
-            print(f"  [OK] {chave}: {valor}")
-    _imprimir_itens_severidade('erros de validação', validacao_carteira.get('erros'), 'ERRO')
-    _imprimir_itens_severidade('avisos de validação', validacao_carteira.get('avisos'), 'AVISO')
-
-    _imprimir_titulo('CARTEIRA CANÔNICA — OBSERVAÇÕES')
-    print('- observação estrutural: metadados derivados da carteira atuam como ponte transitória até maior estruturação explícita da planilha.')
-    print(f"- campos estruturais ainda sem coluna resolvida: {carteira_canonica.auditoria.get('qtd_campos_estruturais_sem_coluna_resolvida', 0)}")
-    if carteira_canonica.auditoria.get('campos_estruturais_sem_coluna_resolvida'):
-        print(f"  [AVISO] pendentes na planilha: {', '.join(carteira_canonica.auditoria.get('campos_estruturais_sem_coluna_resolvida', []))}")
-    print('- fontes dos metadados estruturais:')
-    for campo, resumo in carteira_canonica.auditoria.get('resumo_fontes_metadados', {}).items():
-        cobertura_planilha = carteira_canonica.auditoria.get('resumo_cobertura_metadados_planilha', {}).get(campo, 0)
-        cobertura_derivada = carteira_canonica.auditoria.get('resumo_cobertura_metadados_derivados', {}).get(campo, 0)
-        print(f"  [OK] {campo}: {resumo} | planilha={cobertura_planilha} | derivado={cobertura_derivada}")
-
-    _imprimir_titulo('INVENTÁRIO CANÔNICO')
-    _imprimir_linha_status('Validação estrutural do inventário', severidade_inventario)
-    _imprimir_pares([
-        ('aba', dados_operacionais.nome_aba_lotes),
-        ('lotes canônicos', len(dados_operacionais.inventario_canonico)),
-        ('aportados', resumo_inventario.get('aportados', 0)),
-        ('não aportados disponíveis', resumo_inventario.get('nao_aportados_disponiveis', 0)),
-        ('não aportados exauridos', resumo_inventario.get('nao_aportados_exauridos', 0)),
-        ('recebidos futuros', resumo_inventario.get('recebidos_futuros', 0)),
-        ('aportados com match', resumo_inventario.get('aportados_com_match', 0)),
-        ('aportados sem match', resumo_inventario.get('aportados_sem_match', 0)),
-        ('erros de validação', len(_normalizar_lista(validacao_inventario.get('erros')))),
-        ('avisos de validação', len(_normalizar_lista(validacao_inventario.get('avisos')))),
-    ])
-    print('- colunas resolvidas:')
-    for chave, valor in dados_operacionais.auditoria_inventario.get('colunas_resolvidas', {}).items():
-        if valor:
-            print(f"  [OK] {chave}: {valor}")
-    _imprimir_itens_severidade('erros de validação', validacao_inventario.get('erros'), 'ERRO')
-    _imprimir_itens_severidade('avisos de validação', validacao_inventario.get('avisos'), 'AVISO')
-
-    _imprimir_titulo('GASTOS CANÔNICOS')
-    _imprimir_linha_status('Validação estrutural dos gastos', severidade_gastos)
-    _imprimir_pares([
-        ('aba', dados_operacionais.nome_aba_despesas),
-        ('despesas canônicas', len(dados_operacionais.gastos_canonicos)),
-        ('pagas até data de referência', resumo_gastos.get('pagas_ate_data_referencia', 0)),
-        ('futuras ou pendentes', resumo_gastos.get('futuras_ou_pendentes', 0)),
-        ('com lote informado', resumo_gastos.get('com_lote_informado', 0)),
-        ('erros de validação', len(_normalizar_lista(validacao_gastos.get('erros')))),
-        ('avisos de validação', len(_normalizar_lista(validacao_gastos.get('avisos')))),
-    ])
-    print('- colunas resolvidas:')
-    for chave, valor in dados_operacionais.auditoria_gastos.get('colunas_resolvidas', {}).items():
-        if valor:
-            print(f"  [OK] {chave}: {valor}")
-    _imprimir_itens_severidade('erros de validação', validacao_gastos.get('erros'), 'ERRO')
-    _imprimir_itens_severidade('avisos de validação', validacao_gastos.get('avisos'), 'AVISO')
-
-    _imprimir_titulo('SWITCHING SHADOW E RECONCILIAÇÃO')
-    _imprimir_linha_status('Normalização shadow dos lotes', severidade_lotes_shadow)
-    _imprimir_pares([
-        ('lotes shadow', len(switching_shadow.lotes_shadow)),
-        ('produto reconhecido', resumo_lotes_shadow.get('qtd_produto_reconhecido', 0)),
-        ('produto não reconhecido', resumo_lotes_shadow.get('qtd_produto_nao_reconhecido', 0)),
-        ('fração produto reconhecido', resumo_lotes_shadow.get('fracao_produto_reconhecido', 0.0)),
-        ('caixa disponível', resumo_lotes_shadow.get('qtd_caixa_disponivel', 0)),
-        ('caixa futuro', resumo_lotes_shadow.get('qtd_caixa_futuro', 0)),
-        ('caixa exaurido', resumo_lotes_shadow.get('qtd_caixa_exaurido', 0)),
-        ('eventos aporte shadow', auditoria_eventos_shadow.get('qtd_eventos_aporte', 0)),
-        ('reconciliação equivalente', 'sim' if reconciliacao_shadow.get('equivalentes_essenciais') else 'não'),
-        ('ids somente shadow', len(reconciliacao_shadow.get('ids_somente_shadow', []))),
-        ('ids somente observado', len(reconciliacao_shadow.get('ids_somente_observado', []))),
-        ('cobertura ids observado', reconciliacao_shadow.get('fracao_ids_observado_cobertos', 0.0)),
-        ('cobertura ids shadow', reconciliacao_shadow.get('fracao_ids_shadow_cobertos', 0.0)),
-    ])
-    if resumo_lotes_shadow.get('resumo_tipos_match_produto'):
-        print('- tipos de match de produto no shadow:')
-        for chave, valor in resumo_lotes_shadow.get('resumo_tipos_match_produto', {}).items():
-            print(f"  [OK] {chave}: {valor}")
-    amostras_sem_match = resumo_lotes_shadow.get('amostras_produto_nao_reconhecido', [])
-    if amostras_sem_match:
-        print('- amostras de lotes shadow sem match canônico:')
-        for item in amostras_sem_match[:5]:
-            print(f"  [AVISO] lote={item.get('lote_id')} | investimento={item.get('investimento_bruto')} | match={item.get('tipo_match_produto')}")
-
-    _imprimir_titulo('NÚCLEO FINANCEIRO MÍNIMO')
-    _imprimir_linha_status('Primitivas financeiras irreduzíveis do lote', severidade_nucleo, 'sem solver, sem replay, sem switching econômico e sem relatório financeiro atual')
-    _imprimir_pares([
-        ('lotes financeiros', auditoria_nucleo.get('qtd_lotes_financeiros', 0)),
-        ('lotes aportados', auditoria_nucleo.get('qtd_lotes_aportados', 0)),
-        ('caixa disponível', auditoria_nucleo.get('qtd_caixa_disponivel', 0)),
-        ('recebidos futuros', auditoria_nucleo.get('qtd_recebidos_futuros', 0)),
-        ('lotes não disponíveis para aporte', auditoria_nucleo.get('qtd_lotes_nao_disponiveis_para_aporte', 0)),
-        ('lotes com produto mapeado', auditoria_nucleo.get('qtd_lotes_produto_mapeado', 0)),
-        ('lotes sem produto', auditoria_nucleo.get('qtd_lotes_sem_produto', 0)),
-        ('lotes com taxa default', auditoria_nucleo.get('qtd_lotes_com_taxa_default', 0)),
-        ('lotes com carência', auditoria_nucleo.get('qtd_lotes_com_carencia', 0)),
-        ('lotes exauridos ignorados', auditoria_nucleo.get('qtd_lotes_ignorados_exauridos', 0)),
-    ])
-    _imprimir_itens_severidade('erros de validação', validacao_nucleo.get('erros'), 'ERRO')
-    _imprimir_itens_severidade('avisos de validação', validacao_nucleo.get('avisos'), 'AVISO')
-
-    _imprimir_titulo('NÚCLEO FINANCEIRO MÍNIMO — VALUATION')
-    _imprimir_pares([
-        ('data final valuation ref. completa', auditoria_nucleo.get('data_final_valuation_referencia')),
-        ('fechamentos da referência com fallback CDI', auditoria_nucleo.get('qtd_fechamentos_referencia_com_fallback_cdi', 0)),
-        ('saldo bruto ref. sem replay', auditoria_nucleo.get('saldo_bruto_total_referencia_sem_replay', 0.0)),
-        ('saldo líquido ref. sem replay', auditoria_nucleo.get('saldo_liquido_total_referencia_sem_replay', 0.0)),
-    ])
-
-    _imprimir_titulo('NÚCLEO FINANCEIRO MÍNIMO — AMOSTRAS')
-    amostra_saque = auditoria_nucleo.get('amostra_movimento_saque') or {}
-    if amostra_saque:
-        print('- amostra de saque no núcleo mínimo (auditoria técnica):')
-        print(f"  [OK] lote={amostra_saque.get('lote_id')} | bruto={amostra_saque.get('bruto')} | liquido={amostra_saque.get('liquido')} | imposto={amostra_saque.get('imposto')} | saldo_remanescente={amostra_saque.get('saldo_remanescente')}")
-    amostra_fechamento_nucleo = auditoria_nucleo.get('amostra_fechamento_referencia') or {}
-    if amostra_fechamento_nucleo:
-        print('- amostra de fechamento da referência no núcleo mínimo:')
-        print(f"  [OK] data_valuation={amostra_fechamento_nucleo.get('data_valuation')} | data_fator_utilizado={amostra_fechamento_nucleo.get('data_fator_utilizado')} | fonte={amostra_fechamento_nucleo.get('fonte')} | lotes_atualizados={amostra_fechamento_nucleo.get('qtd_lotes_atualizados')}")
-    if not amostra_saque and not amostra_fechamento_nucleo:
-        print('  [OK] nenhuma amostra disponível nesta execução')
-
-    _imprimir_titulo('REPLAY CONTROLADO DO PASSADO')
-    _imprimir_linha_status('Reconciliacao de pagamentos historicos com lotes informados', severidade_replay, 'consome o nucleo financeiro minimo sem abrir switching economico, score final, solver ou relatorio financeiro atual')
-    _imprimir_pares([
-        ('contas historicas', auditoria_replay.get('qtd_contas_historicas', 0)),
-        ('contas com lote informado', auditoria_replay.get('qtd_contas_com_lote_informado', 0)),
-        ('contas processadas', auditoria_replay.get('qtd_contas_processadas', 0)),
-        ('cobertas integralmente', auditoria_replay.get('qtd_contas_cobertas_integralmente', 0)),
-        ('parcialmente cobertas', auditoria_replay.get('qtd_contas_parcialmente_cobertas', 0)),
-        ('nao cobertas', auditoria_replay.get('qtd_contas_nao_cobertas', 0)),
-        ('contas sem lote informado', auditoria_replay.get('qtd_contas_sem_lote_informado', 0)),
-        ('lotes historicos nao aportados materializados', auditoria_replay.get('qtd_lotes_historicos_nao_aportados_materializados', 0)),
-        ('aliases historicos resolvidos', auditoria_replay.get('qtd_lotes_historicos_alias_resolvidos', 0)),
-        ('lotes informados nao encontrados', auditoria_replay.get('qtd_lotes_informados_nao_encontrados', 0)),
-        ('movimentos no log', auditoria_replay.get('qtd_movimentos_log', 0)),
-        ('lotes remanescentes ativos', auditoria_replay.get('qtd_lotes_remanescentes_ativos', 0)),
-        ('data final histórica do replay', auditoria_replay.get('data_final_historico_replay')),
-        ('valor contas historicas', auditoria_replay.get('total_valor_contas_historicas', 0.0)),
-        ('liquido coberto', auditoria_replay.get('total_liquido_coberto', 0.0)),
-        ('saldo bruto pos replay', auditoria_replay.get('saldo_bruto_total_pos_replay', 0.0)),
-        ('saldo liquido pos replay', auditoria_replay.get('saldo_liquido_total_pos_replay', 0.0)),
-    ])
-
-    _imprimir_titulo('REPLAY CONTROLADO DO PASSADO — VALUATION')
-    _imprimir_pares([
-        ('data final valuation ref. completa', auditoria_replay.get('data_final_valuation_referencia')),
-        ('fechamentos da referência com fallback CDI', auditoria_replay.get('qtd_fechamentos_referencia_com_fallback_cdi', 0)),
-    ])
-
-    _imprimir_titulo('REPLAY CONTROLADO DO PASSADO — AMOSTRAS')
-    amostra_replay = auditoria_replay.get('amostra_log_passado') or {}
-    if amostra_replay:
-        print('- amostra do log de replay do passado:')
-        print(f"  [OK] data={amostra_replay.get('Data')} | lote={amostra_replay.get('Lote')} | conta={amostra_replay.get('Conta')} | bruto={amostra_replay.get('Bruto')} | liquido={amostra_replay.get('Liquido')} | saldo_remanescente={amostra_replay.get('Saldo Remanescente')}")
-    amostra_fechamento_replay = auditoria_replay.get('amostra_fechamento_referencia') or {}
-    if amostra_fechamento_replay:
-        print('- amostra de fechamento da referência no replay:')
-        print(f"  [OK] data_valuation={amostra_fechamento_replay.get('data_valuation')} | data_fator_utilizado={amostra_fechamento_replay.get('data_fator_utilizado')} | fonte={amostra_fechamento_replay.get('fonte')} | lotes_atualizados={amostra_fechamento_replay.get('qtd_lotes_atualizados')}")
-    amostras_alias_replay = auditoria_replay.get('amostra_alias_historicos_resolvidos') or []
-    if amostras_alias_replay:
-        print('- amostras de aliases historicos resolvidos no replay:')
-        for item in amostras_alias_replay[:5]:
-            print(f"  [OK] informado={item.get('lote_informado')} | resolvido={item.get('lote_resolvido')} | despesa={item.get('despesa_id')} | data={item.get('data_conta')}")
-    amostra_inconsistencias_replay = auditoria_replay.get('amostra_inconsistencias_materiais') or []
-    if amostra_inconsistencias_replay:
-        print(f"- tabela de inconsistências materiais do replay controlado (> limiar {auditoria_replay.get('limiar_materialidade_replay', limiar_residuo_resolvido):.2f}):")
-        colunas_inc = ['Data', 'Despesa', 'Despesa ID', 'Valor', 'Lotes informados', 'Motivo', 'Valor restante']
-        linhas_inc = []
-        for item in amostra_inconsistencias_replay[:10]:
-            data = item.get('data')
-            if hasattr(data, 'isoformat'):
-                data = data.isoformat()
-            linhas_inc.append({
-                'Data': data,
-                'Despesa': item.get('descricao') or '',
-                'Despesa ID': item.get('despesa_id') or '',
-                'Valor': item.get('valor_conta'),
-                'Lotes informados': item.get('lotes_informados') or item.get('lote_id') or '',
-                'Motivo': item.get('motivo') or '',
-                'Valor restante': item.get('valor_restante'),
-            })
-    if amostra_inconsistencias_replay:
-        _imprimir_tabela(colunas_inc, linhas_inc)
-    if not amostra_replay and not amostra_fechamento_replay and not amostras_alias_replay and not amostra_inconsistencias_replay:
-        print('  [OK] nenhuma amostra disponível nesta execução')
-    _imprimir_itens_severidade('erros de validação', validacao_replay.get('erros'), 'ERRO')
-    _imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
-
-    _imprimir_titulo('TRIAGEM PRELIMINAR PROXY DO MOTOR — SCORE V1')
-    _imprimir_linha_status('Seleção contextual preliminar de candidatos', severidade_triagem, 'proxy de triagem; nao e decisao final do motor, sem replay, sem nucleo financeiro e sem switching economico; calibracao conservadora nesta fase')
-    _imprimir_pares([
-        ('produtos totais no universo', auditoria_triagem.get('qtd_total_produtos', 0)),
-        ('elegíveis brutos', auditoria_triagem.get('qtd_elegiveis_brutos', 0)),
-        ('candidatos motor v1', auditoria_triagem.get('qtd_candidatos_motor_v1', 0)),
-        ('top_k global', auditoria_triagem.get('top_k_global', 0)),
-        ('top_k por família', auditoria_triagem.get('top_k_por_familia', 0)),
-        ('score mínimo seleção', auditoria_triagem.get('score_minimo_selecao', 0.0)),
-        ('modo de calibração', auditoria_triagem.get('modo_calibracao', 'nao informado')),
-        ('fração elegíveis selecionados', auditoria_triagem.get('fracao_elegiveis_selecionados', 0.0)),
-        ('elegíveis não selecionados', auditoria_triagem.get('qtd_elegiveis_nao_selecionados', 0)),
-        ('recursos disponíveis para aporte', contexto_triagem.get('recursos_disponiveis_para_aporte', 0.0)),
-        ('recursos aportados observados', contexto_triagem.get('recursos_aportados_observados', 0.0)),
-        ('despesas futuras 30 dias', contexto_triagem.get('despesas_futuras_30_dias', 0.0)),
-        ('cobertura caixa 30 dias', round(float(contexto_triagem.get('cobertura_caixa_30_dias', 0.0) or 0.0), 4)),
-    ])
-    if auditoria_triagem.get('resumo_familia_produto'):
-        print('- famílias no universo único da carteira:')
-        for chave, valor in auditoria_triagem.get('resumo_familia_produto', {}).items():
-            print(f"  [OK] {chave}: {valor}")
-
-    _imprimir_titulo('TOP PRODUTOS SELECIONADOS — SCORE V1')
-    if auditoria_triagem.get('amostra_top_produtos'):
-        linhas_top = []
-        for idx, item in enumerate(auditoria_triagem.get('amostra_top_produtos', []), start=1):
-            linhas_top.append({
-                'Rank': idx,
-                'Produto': item.get('nome'),
-                'Score': round(float(item.get('score_final') or 0.0), 2),
-                'Família': item.get('familia_produto'),
-                'Regime': item.get('regime_taxa'),
-            })
-        _imprimir_tabela(['Rank', 'Produto', 'Score', 'Família', 'Regime'], linhas_top, limite=10)
-    else:
-        print('  [OK] sem produtos selecionados nesta execução')
+    render_secao_triagem(
+        auditoria_triagem=auditoria_triagem,
+        contexto_triagem=contexto_triagem,
+        severidade_triagem=severidade_triagem,
+    )
 
     if bool(((pacote_config.conteudo.get('auditoria') or {}).get('mostrar_teste_menos_1_dia', False))):
         _imprimir_titulo('TESTE DE -1 DIA DE RENDIMENTO')
@@ -934,22 +507,7 @@ def main() -> None:
         )
 
     lotes_ativos = _preparar_tabela_lotes_ativos(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
-
-    _imprimir_titulo('SITUAÇÃO ATUAL — LOTES ATIVOS')
-    if lotes_ativos:
-        print('- identificação e tempo:')
-        _imprimir_tabela(
-            ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'],
-            lotes_ativos,
-        )
-        print('\n- valores atuais:')
-        _imprimir_tabela(
-            ['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'],
-            lotes_ativos,
-        )
-    else:
-        print('  [OK] sem lotes ativos acima do limiar nesta execução')
-
+    render_secao_situacao_atual(lotes_ativos=lotes_ativos)
 
 
 

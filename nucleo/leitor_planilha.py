@@ -19,6 +19,7 @@ try:
 except Exception:  # pragma: no cover
     requests = None  # type: ignore
 
+from nucleo.config_utils import obter_config as _cfg_get
 from nucleo.utilitarios_neutros import normalizar_texto
 
 
@@ -30,15 +31,6 @@ class PacotePlanilha:
     quadros_canonicos: dict[str, pd.DataFrame]
     auditoria: dict[str, Any]
     validacao: dict[str, Any]
-
-
-def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
-    atual: Any = config
-    for chave in caminho:
-        if not isinstance(atual, Mapping) or chave not in atual:
-            return padrao
-        atual = atual[chave]
-    return atual
 
 
 def _montar_url_download_planilha(config: Mapping[str, Any]) -> Optional[str]:

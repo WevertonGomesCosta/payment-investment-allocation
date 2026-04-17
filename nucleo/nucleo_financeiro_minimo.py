@@ -24,6 +24,8 @@ from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Mapping, Optional
 
+from nucleo.config_utils import obter_config as _cfg_get
+
 from nucleo.calendario_financeiro import (
     PacoteCalendarioFinanceiro,
     eh_dia_util_bancario,
@@ -246,15 +248,6 @@ class Lote:
         self.vezes_usado += 1
         self.total_bruto_sacado += valor_bruto
         return valor_bruto
-
-
-def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
-    atual: Any = config
-    for chave in caminho:
-        if not isinstance(atual, Mapping) or chave not in atual:
-            return padrao
-        atual = atual[chave]
-    return atual
 
 
 def _money_round_half_up(valor: float) -> float:

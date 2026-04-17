@@ -1,0 +1,28 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+VERSAO_BASELINE = "V56"
+VERSAO_SLUG = VERSAO_BASELINE.lower()
+
+
+def nome_relatorio_operacional() -> str:
+    return f"relatorio_operacional_{VERSAO_SLUG}.xlsx"
+
+
+def slug_lote(lote_id: str) -> str:
+    texto = re.sub(r"[^a-zA-Z0-9]+", "_", str(lote_id).strip().lower()).strip('_')
+    return texto or 'lote'
+
+
+def nome_auditoria_diaria_lote(lote_id: str, extensao: str) -> str:
+    return f"auditoria_diaria_{slug_lote(lote_id)}_{VERSAO_SLUG}.{extensao.lstrip('.')}"
+
+
+def caminho_saida_operacional(raiz: Path, nome_arquivo: str) -> Path:
+    return raiz / 'saidas' / 'operacional' / nome_arquivo
+
+
+def caminho_artifact(nome_arquivo: str) -> Path:
+    return Path('/mnt/data') / f"payment-investment-allocation_{nome_arquivo}" if nome_arquivo.startswith('relatorio_operacional_') else Path('/mnt/data') / nome_arquivo

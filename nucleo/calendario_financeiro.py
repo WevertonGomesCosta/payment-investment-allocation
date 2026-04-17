@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, Mapping, Optional
 
+from nucleo.config_utils import obter_config as _cfg_get
+
 try:
     from workalendar.america import Brazil
 except Exception:  # pragma: no cover
@@ -47,15 +49,6 @@ class MetadataSerieCDI:
     data_inicial: Optional[date]
     data_final: Optional[date]
     qtd_observacoes: int
-
-
-def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
-    atual: Any = config
-    for chave in caminho:
-        if not isinstance(atual, Mapping) or chave not in atual:
-            return padrao
-        atual = atual[chave]
-    return atual
 
 
 def obter_cdi_anual_modelo(config: Mapping[str, Any]) -> float:
