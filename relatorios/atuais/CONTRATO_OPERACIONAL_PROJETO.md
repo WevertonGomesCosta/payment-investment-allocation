@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V62**.
-2. A V62 preserva a linha funcional consolidada até a V61 e abre a **Etapa 3 da Frente F1**, materializando `fonte_elegivel_pagamento` a partir do inventário canônico, da data de referência corrente, dos recebidos auditáveis e do estado mínimo observável do replay, sem alterar o motor financeiro.
+1. A baseline atual é a **V63**.
+2. A V63 preserva a linha funcional consolidada até a V62, mantém aberta a **Etapa 3 da Frente F1** já materializada e atualiza o cache BCB/CDI do repositório para reduzir a dependência de fallback encadeado na situação atual, sem alterar o motor financeiro.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 

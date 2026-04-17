@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V62
+**Versão atual da baseline:** V63
 
-A V62 preserva a base funcional limpa da V61 e abre a **Etapa 3 da Frente F1**, materializando a segunda estrutura real de caixa/recebidos auditáveis: `fonte_elegivel_pagamento`, derivada do inventário canônico, da data de referência corrente, dos recebidos auditáveis e do estado mínimo observável do replay, sem alterar o motor financeiro nem integrar ainda a F1 ao fluxo principal.
+A V63 preserva a base funcional da V62 e atualiza `dados/cache_bcb.json` com a série BCB/CDI enviada pelo usuário, estendendo a série explícita até 2026-04-16, regenerando o artefato operacional vigente e mantendo intactos o motor financeiro e a etapa funcional da F1 já aberta.
 
-## Estrutura canônica da V62
+## Estrutura canônica da V63
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -44,9 +44,9 @@ A V62 preserva a base funcional limpa da V61 e abre a **Etapa 3 da Frente F1**, 
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V62.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V62.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V62.md`
+- `relatorios/atuais/BASELINE_FIXA_V63.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V63.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V63.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 
 ## Gate obrigatório antes de cada entrega
@@ -81,7 +81,7 @@ python scripts/inspecionar_recebidos_auditaveis.py
 python scripts/inspecionar_fontes_elegiveis_pagamento.py
 ```
 
-## Atualização V62
+## Atualização V63
 
 - V61 consolidada como baseline oficial da fase F1;
 - checagem de release mantida como gate obrigatório;
