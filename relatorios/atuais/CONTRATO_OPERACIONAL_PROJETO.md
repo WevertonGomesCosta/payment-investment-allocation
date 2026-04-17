@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V58**.
-2. A V58 preserva a linha funcional consolidada, incorpora a regra operacional de aquisição de dados com tentativa de download primeiro e fallback controlado depois, centraliza a montagem da baseline em `nucleo/contexto_baseline.py`, centraliza a identidade da versão em `nucleo/identidade_baseline.py` e modulariza o console por seções, sem abertura de solver, switching econômico, score econômico final ou engine conjunta completa.
+1. A baseline atual é a **V59**.
+2. A V59 preserva a linha funcional consolidada, incorpora a regra operacional de aquisição de dados com tentativa de download primeiro e fallback controlado depois, mantém a montagem da baseline centralizada em `nucleo/contexto_baseline.py`, centraliza a identidade da versão em `nucleo/identidade_baseline.py`, modulariza o console por seções e adiciona uma checagem mínima automática de release, sem abertura de solver, switching econômico, score econômico final ou engine conjunta completa.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -129,3 +129,5 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 58. Wrappers de compatibilidade antigos podem permanecer, desde que não substituam os caminhos canônicos da baseline.
 
 59. A seção e a aba `Situação atual` devem rotular explicitamente se o fechamento econômico foi confirmado pela série CDI ou estimado por fallback.
+60. A baseline deve disponibilizar uma checagem mínima automática de release para validar, no mínimo, higiene de artefatos, consistência documental vigente e integridade dos caminhos canônicos.
+61. A checagem mínima automática de release deve permanecer fora do motor financeiro, atuando apenas sobre governança, estrutura e consistência operacional da entrega.

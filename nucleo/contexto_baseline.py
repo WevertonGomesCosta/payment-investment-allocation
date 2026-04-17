@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -34,15 +33,6 @@ class ContextoBaseline:
     replay_passado: Any
     tabela_iof: list[float]
     faixas_ir: list[dict[str, Any]]
-
-
-@dataclass(slots=True)
-class ContextoBaselineMenos1Dia:
-    data_referencia_menos_1_dia: Any
-    calendario_financeiro: Any
-    dados_operacionais: Any
-    nucleo_financeiro: Any
-    replay_passado: Any
 
 
 def obter_limiar_residuo_resolvido(config: dict[str, Any]) -> float:
@@ -124,38 +114,4 @@ def carregar_contexto_baseline(
         replay_passado=replay_passado,
         tabela_iof=construir_tabela_iof(pacote_config.conteudo),
         faixas_ir=construir_faixas_ir(pacote_config.conteudo),
-    )
-
-
-def carregar_contexto_baseline_menos_1_dia(contexto: ContextoBaseline) -> ContextoBaselineMenos1Dia:
-    data_referencia_menos_1_dia = contexto.execucao.data_referencia - timedelta(days=1)
-    calendario_financeiro = construir_calendario_financeiro(contexto.pacote_config.conteudo, data_referencia=data_referencia_menos_1_dia)
-    dados_operacionais = carregar_dados_operacionais_canonicos(
-        contexto.pacote_planilha,
-        contexto.pacote_config.conteudo,
-        data_referencia=data_referencia_menos_1_dia,
-        carteira_canonica=contexto.carteira_canonica,
-    )
-    nucleo_financeiro = carregar_nucleo_financeiro_minimo(
-        dados_operacionais,
-        contexto.carteira_canonica,
-        calendario_financeiro,
-        contexto.pacote_config.conteudo,
-        data_referencia=data_referencia_menos_1_dia,
-        serie_cdi=contexto.cache_cdi.serie_cdi,
-    )
-    replay_passado = carregar_replay_passado_controlado(
-        dados_operacionais,
-        nucleo_financeiro,
-        calendario_financeiro,
-        contexto.pacote_config.conteudo,
-        data_referencia=data_referencia_menos_1_dia,
-        serie_cdi=contexto.cache_cdi.serie_cdi,
-    )
-    return ContextoBaselineMenos1Dia(
-        data_referencia_menos_1_dia=data_referencia_menos_1_dia,
-        calendario_financeiro=calendario_financeiro,
-        dados_operacionais=dados_operacionais,
-        nucleo_financeiro=nucleo_financeiro,
-        replay_passado=replay_passado,
     )
