@@ -28,6 +28,7 @@ from nucleo.calendario_financeiro import (
     PacoteCalendarioFinanceiro,
     eh_dia_util_bancario,
     obter_taxa_dia_rendimento,
+    obter_taxa_dia_rendimento_lote,
     proximo_dia_util_bancario_em_ou_apos,
 )
 from nucleo.carteira_canonica import PacoteCarteiraCanonica
@@ -102,8 +103,27 @@ class Lote:
 
         return float(self.taxa_base_cdi)
 
-    def atualizar_juros(self, data_atual: date, taxa_diaria_decimal: float, pacote_calendario: Optional[PacoteCalendarioFinanceiro] = None) -> None:
-        if self.esgotado or data_atual <= self.data_aplicacao:
+    def atualizar_juros(
+        self,
+        data_atual: date,
+        taxa_diaria_decimal: float,
+        pacote_calendario: Optional[PacoteCalendarioFinanceiro] = None,
+        *,
+        serie_cdi: Optional[Mapping[date, Any]] = None,
+        data_fechamento_referencia: Optional[date] = None,
+    ) -> None:
+        if self.esgotado or pacote_calendario is None:
+            return
+        aplicar, _, _ = obter_taxa_dia_rendimento_lote(
+            data_atual,
+            self.data_aplicacao,
+            pacote_calendario,
+            data_recebimento=self.data_recebimento,
+            serie_cdi=serie_cdi,
+            taxa_proj=float(taxa_diaria_decimal),
+            data_fechamento_referencia=data_fechamento_referencia,
+        )
+        if not aplicar:
             return
         mult = self.get_taxa_dia(data_atual, pacote_calendario)
         if mult <= 0.0:
@@ -146,14 +166,16 @@ class Lote:
             return saldo, fator
         data_cursor = base
         while data_cursor > data_alvo:
-            aplicar, taxa_dia, _ = obter_taxa_dia_rendimento(
+            aplicar, taxa_dia, _ = obter_taxa_dia_rendimento_lote(
                 data_cursor,
+                self.data_aplicacao,
                 pacote_calendario,
+                data_recebimento=self.data_recebimento,
                 serie_cdi=serie_cdi,
                 taxa_proj=float(pacote_calendario.taxa_dia_base),
                 data_fechamento_referencia=data_cursor,
             )
-            if aplicar and taxa_dia is not None and data_cursor > self.data_aplicacao:
+            if aplicar and taxa_dia is not None:
                 mult = self.get_taxa_dia(data_cursor, pacote_calendario)
                 if mult > 0.0:
                     fator_dia = (1.0 + float(taxa_dia)) ** mult

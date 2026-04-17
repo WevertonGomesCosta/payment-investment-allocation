@@ -263,6 +263,30 @@ def obter_taxa_dia_rendimento(
     return False, None, {'fonte': 'nao_eh_dia_util_bancario', 'data_fator': None, 'fallback': False}
 
 
+def obter_taxa_dia_rendimento_lote(
+    data_atual: date,
+    data_aplicacao: date,
+    pacote: PacoteCalendarioFinanceiro,
+    *,
+    data_recebimento: Optional[date] = None,
+    serie_cdi: Optional[Mapping[date, Any]] = None,
+    taxa_proj: Optional[float] = None,
+    data_fechamento_referencia: Optional[date] = None,
+) -> tuple[bool, Optional[float], dict[str, Any]]:
+    data_recebimento_efetiva = data_aplicacao if data_recebimento is None else data_recebimento
+    if data_atual < data_recebimento_efetiva:
+        return False, None, {'fonte': 'antes_do_recebimento', 'data_fator': None, 'fallback': False}
+    if data_atual <= data_aplicacao:
+        return False, None, {'fonte': 'dia_aplicacao_sem_rendimento', 'data_fator': None, 'fallback': False}
+    return obter_taxa_dia_rendimento(
+        data_atual,
+        pacote,
+        serie_cdi=serie_cdi,
+        taxa_proj=taxa_proj,
+        data_fechamento_referencia=data_fechamento_referencia,
+    )
+
+
 def is_dia_rendimento(
     data_atual: date,
     pacote: PacoteCalendarioFinanceiro,
