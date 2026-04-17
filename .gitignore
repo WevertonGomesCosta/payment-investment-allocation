@@ -118,3 +118,8 @@ relatorios/_log_validacao_*.txt
 
 !saidas/operacional/
 !saidas/operacional/.gitkeep
+
+
+Script 1.txt
+Script 2.txt
+code/
