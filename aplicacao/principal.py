@@ -568,7 +568,7 @@ def main() -> None:
 
     _imprimir_titulo('BASELINE')
     _imprimir_pares([
-        ('versão', 'V51'),
+        ('versão', 'V52'),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
@@ -910,7 +910,16 @@ def main() -> None:
 
     _imprimir_titulo('SITUAÇÃO ATUAL — LOTES ATIVOS')
     if lotes_ativos:
-        _imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Valor original', 'Dias corridos', 'Dias úteis', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos)
+        print('- identificação e tempo:')
+        _imprimir_tabela(
+            ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'],
+            lotes_ativos,
+        )
+        print('\n- valores atuais:')
+        _imprimir_tabela(
+            ['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'],
+            lotes_ativos,
+        )
     else:
         print('  [OK] sem lotes ativos acima do limiar nesta execução')
 

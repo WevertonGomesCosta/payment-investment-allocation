@@ -25,8 +25,8 @@ from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, c
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 
 
-SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v51.xlsx'
-SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v51.xlsx')
+SAIDA_INTERNA = RAIZ / 'saidas' / 'relatorio_operacional_v52.xlsx'
+SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v52.xlsx')
 
 
 
@@ -58,35 +58,48 @@ def _as_rows(iterable: Iterable[dict], columns: list[tuple[str, str]]):
         yield [item.get(src) for src, _ in columns]
 
 
-def _apply_table_style(ws, headers: list[str], rows: list[list]):
+def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: int = 1, title: str | None = None, freeze: bool = False):
     ws.sheet_view.showGridLines = False
     header_fill = PatternFill('solid', fgColor='1F4E78')
     header_font = Font(color='FFFFFF', bold=True)
+    title_fill = PatternFill('solid', fgColor='D9EAF7')
+    title_font = Font(color='1F1F1F', bold=True)
     thin_gray = Side(style='thin', color='D9E1F2')
+
+    header_row = start_row
+    if title:
+        title_row = start_row
+        ws.cell(row=title_row, column=1, value=title).fill = title_fill
+        ws.cell(row=title_row, column=1).font = title_font
+        header_row = start_row + 1
+
     for col_idx, header in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell = ws.cell(row=header_row, column=col_idx, value=header)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal='center', vertical='center')
         cell.border = Border(bottom=thin_gray)
-    for row_idx, row in enumerate(rows, start=2):
+    for row_offset, row in enumerate(rows, start=1):
+        row_idx = header_row + row_offset
         for col_idx, value in enumerate(row, start=1):
             cell = ws.cell(row=row_idx, column=col_idx, value=value)
             if isinstance(value, (int, float)):
                 cell.alignment = Alignment(horizontal='right')
             else:
                 cell.alignment = Alignment(horizontal='left')
-    ws.freeze_panes = 'A2'
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{max(len(rows)+1, 2)}"
 
-    currency_cols = {'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Aplicação Mínima', 'Bruto Atual', 'Líquido Atual', 'Saldo rem', 'Score Final'}
+    if freeze:
+        ws.freeze_panes = f'A{header_row + 1}'
+    ws.auto_filter.ref = f"A{header_row}:{get_column_letter(len(headers))}{max(header_row + len(rows), header_row)}"
+
+    currency_cols = {'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Aplicação Mínima', 'Bruto Atual', 'Líquido Atual', 'Saldo rem', 'Score Final', 'Valor Original'}
     percent_cols = {'Taxa Base CDI', 'Taxa Bônus CDI'}
     int_cols = {'Dias Corridos', 'Dias Úteis', 'Dias até evento', 'Rank Global', 'Rank Família', 'Dias Bônus', 'Carência Dias'}
 
     for col_idx, header in enumerate(headers, start=1):
         letter = get_column_letter(col_idx)
         max_len = len(header)
-        for row_idx in range(2, ws.max_row + 1):
+        for row_idx in range(header_row + 1, ws.max_row + 1):
             cell = ws.cell(row=row_idx, column=col_idx)
             value = cell.value
             if value is None:
@@ -101,6 +114,8 @@ def _apply_table_style(ws, headers: list[str], rows: list[list]):
             elif 'Data' in header and hasattr(value, 'year'):
                 cell.number_format = 'dd/mm/yyyy'
         ws.column_dimensions[letter].width = min(max_len + 2, 32)
+
+    return header_row + len(rows)
 
 
 def main() -> None:
@@ -164,7 +179,8 @@ def main() -> None:
     _apply_table_style(ws_melhores, headers_melhores, rows_melhores)
 
     ws_atual = wb.create_sheet('Situação atual')
-    rows_atual = []
+    rows_atual_ident = []
+    rows_atual_valores = []
     data_economica = ctx.data_referencia
     for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
         saldo_bruto = round(float(lote.valor_bruto_em_data(
@@ -192,12 +208,17 @@ def main() -> None:
             serie_cdi=cache.serie_cdi,
             data_fechamento_referencia=data_economica,
         )
-        rows_atual.append([
-            lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2), dias_corridos, dias_uteis,
-            saldo_bruto, saldo_liquido, saldo_rem
+        valor_original = round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2)
+        rows_atual_ident.append([
+            lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, dias_corridos, dias_uteis,
         ])
-    headers_atual = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Valor Original', 'Dias Corridos', 'Dias Úteis', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
-    _apply_table_style(ws_atual, headers_atual, rows_atual)
+        rows_atual_valores.append([
+            lote.id, valor_original, saldo_bruto, saldo_liquido, saldo_rem,
+        ])
+    headers_atual_ident = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis']
+    headers_atual_valores = ['Lote', 'Valor Original', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_atual_ident, start_row=1, title='Identificação e tempo', freeze=True)
+    _apply_table_style(ws_atual, headers_atual_valores, rows_atual_valores, start_row=ultima_linha + 3, title='Valores atuais')
 
     SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
     wb.save(SAIDA_INTERNA)
