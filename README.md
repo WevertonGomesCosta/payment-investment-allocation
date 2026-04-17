@@ -2,86 +2,59 @@
 
 Repositório controlado para a unificação incremental de dois scripts financeiros: um de otimização de pagamentos e resgates, e outro de switching para lotes já investidos e lotes disponíveis.
 
-O objetivo de longo prazo é evoluir esta base para um projeto único, auditável e modular de alocação conjunta de recebidos entre pagamentos, investimentos e decisões de switching, maximizando o patrimônio líquido final com matemática financeira correta.
+O objetivo de longo prazo continua sendo evoluir esta base para um projeto único, auditável e modular de alocação conjunta de recebidos entre pagamentos, investimentos e decisões de switching.
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V45
+**Versão atual da baseline:** V53
 
-A baseline atual consolida:
+A V53 reorganiza estruturalmente o repositório sem alterar a base funcional vigente.
 
-- leitura canônica das abas `Carteira`, `Inventário de Lotes` e `Todos os Gastos`;
-- coluna `Data Recebimento` integrada ao contrato operacional dos lotes;
-- cache diário de CDI com fallback controlado;
-- núcleo financeiro mínimo e replay controlado do passado;
-- regra geral de transição entre `Data Recebimento` e `Data Aplicação`;
-- documentação vigente concentrada em `relatorios/atuais/`;
-- backlog contratual futuro separado do contrato executável;
-- pacote final limpo, sem resíduos temporários de versões anteriores;
-- geração da planilha operacional atual em `saidas/relatorio_operacional_v45.xlsx`.
+## Estrutura canônica da V53
 
-## Regra canônica ativa da baseline
+### Execução principal
+- `aplicacao/console/principal.py` → caminho canônico do console
+- `aplicacao/principal.py` → wrapper de compatibilidade
 
-> Quando um lote possuir `Data Recebimento` e `Data Aplicação` distintas, o valor deve ser tratado como **caixa pré-aplicação** no intervalo entre essas datas. Nessa janela, o lote já pode ser usado para pagamentos, mas ainda **não rende**, **não sofre tributação de investimento** e **não obedece à carência do produto**. O regime financeiro do investimento só passa a valer a partir da efetiva `Data Aplicação`.
+### Scripts auxiliares
+- `scripts/operacional/gerar_planilha_operacional.py` → geração da planilha operacional
+- `scripts/auditoria/gerar_auditoria_diaria_lote.py` → auditoria diária de lote
+- `scripts/diagnostico/inspecionar_base.py` → inspeção rápida da baseline
+- `scripts/*.py` → wrappers de compatibilidade para os comandos antigos
 
-A regra de trabalho do projeto continua sendo:
-
-> a estrutura física dos módulos dos scripts-base não é tratada como fronteira semântica confiável; as decisões de migração e unificação devem seguir a responsabilidade real das funções.
-
-## Documentação oficial
-
-Documentos vigentes da baseline atual:
-
-- `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V45.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V45.md`
-
-Mapa da documentação:
-
-- `relatorios/INDICE_RELATORIOS.md`
-
-## Entradas canônicas atuais
-
-A baseline atual utiliza como entradas principais:
-
+### Dados canônicos
 - `dados/config_atualizado.json`
 - `dados/dados_financeiros.xlsx`
 - `dados/cache_bcb.json`
 
-## Uso mínimo
+### Saídas
+- `saidas/operacional/` → artefatos gerados da baseline atual
 
-Instale as dependências atuais:
+### Documentação vigente
+- `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
+- `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
+- `relatorios/atuais/BASELINE_FIXA_V53.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V53.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V53.md`
+
+## Comandos canônicos
 
 ```bash
-pip install -r requirements.txt
+python aplicacao/console/principal.py
+python scripts/operacional/gerar_planilha_operacional.py
+python scripts/auditoria/gerar_auditoria_diaria_lote.py --lote "Lote 6630,64 fev."
+python scripts/diagnostico/inspecionar_base.py
 ```
 
-Execute a inspeção mínima da baseline:
+## Comandos antigos preservados
 
 ```bash
 python aplicacao/principal.py
-```
-
-Gere a planilha operacional atual:
-
-```bash
 python scripts/gerar_planilha_operacional.py
+python scripts/gerar_auditoria_diaria_lote.py --lote "Lote 6630,64 fev."
+python scripts/inspecionar_base.py
 ```
 
-## Princípios mantidos nesta baseline
+## Regra canônica ativa da baseline
 
-- config canônico único;
-- interpretação canônica única da planilha;
-- modularização incremental;
-- auditoria por responsabilidade real;
-- separação entre contrato executável e backlog futuro;
-- reauditoria da base antes de cada nova migração;
-- entrega do repositório completo em `.zip` a cada versão.
-
-
-## Auditoria diária de lote
-
-Para gerar a auditoria diária de um lote com a mesma convenção econômica da série CDI:
-
-`python scripts/gerar_auditoria_diaria_lote.py --lote "Lote 6630,64 fev."`
+> Quando um lote possuir `Data Recebimento` e `Data Aplicação` distintas, o valor deve ser tratado como **caixa pré-aplicação** no intervalo entre essas datas. Nessa janela, o lote já pode ser usado para pagamentos, mas ainda **não rende**, **não sofre tributação de investimento** e **não obedece à carência do produto**. O regime financeiro do investimento só passa a valer a partir da efetiva `Data Aplicação`.

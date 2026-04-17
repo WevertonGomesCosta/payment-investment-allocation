@@ -1,16 +1,11 @@
-"""Atalho de execução para inspecionar a baseline atual."""
-
+"""Wrapper de compatibilidade para a inspeção da baseline."""
 from __future__ import annotations
-
 import sys
 from pathlib import Path
-
-RAIZ_REPOSITORIO = Path(__file__).resolve().parents[1]
-if str(RAIZ_REPOSITORIO) not in sys.path:
-    sys.path.insert(0, str(RAIZ_REPOSITORIO))
-
-from aplicacao.principal import main
-
+RAIZ = Path(__file__).resolve().parents[1]
+if str(RAIZ) not in sys.path:
+    sys.path.insert(0, str(RAIZ))
+from scripts.diagnostico.inspecionar_base import main
 
 if __name__ == "__main__":
     main()

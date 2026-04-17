@@ -3,8 +3,9 @@
 ## Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V45.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V45.md`
+- `relatorios/atuais/BASELINE_FIXA_V53.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V53.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V53.md`
 
 ## Histórico preservado
 - `relatorios/historico/baselines/`
@@ -13,6 +14,5 @@
 
 ## Critério documental atual
 - `relatorios/atuais/` contém apenas os documentos vigentes da baseline atual.
-- o contrato executável da baseline e o backlog contratual futuro ficam separados em arquivos diferentes.
-- `relatorios/historico/` preserva trilhas anteriores por tipo documental.
-- o pacote final não deve incluir logs brutos, artefatos efêmeros nem resíduos de versões antigas fora dessas trilhas.
+- `relatorios/historico/` preserva a trilha evolutiva sem contaminar a leitura operacional do presente.
+- wrappers de compatibilidade não alteram o caminho canônico dos documentos nem dos scripts.

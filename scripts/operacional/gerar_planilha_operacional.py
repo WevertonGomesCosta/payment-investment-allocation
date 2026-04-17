@@ -1,0 +1,231 @@
+from __future__ import annotations
+
+from pathlib import Path
+from datetime import date, timedelta
+from typing import Iterable
+import sys
+
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+from openpyxl.utils import get_column_letter
+
+RAIZ = Path(__file__).resolve().parents[2]
+if str(RAIZ) not in sys.path:
+    sys.path.insert(0, str(RAIZ))
+
+from nucleo.carregador_config import carregar_config
+from nucleo.ambiente import bootstrap_ambiente
+from nucleo.calendario_financeiro import construir_calendario_financeiro, contar_dias_rendimento
+from nucleo.leitor_planilha import carregar_planilha
+from nucleo.carteira_canonica import carregar_carteira_canonica
+from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
+from nucleo.cache_cdi_bcb import carregar_cache_cdi_diario
+from nucleo.triagem_motor import carregar_triagem_motor
+from nucleo.nucleo_financeiro_minimo import carregar_nucleo_financeiro_minimo, construir_tabela_iof, construir_faixas_ir
+from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
+
+
+SAIDA_INTERNA = RAIZ / 'saidas' / 'operacional' / 'relatorio_operacional_v53.xlsx'
+SAIDA_EXTERNA = Path('/mnt/data/payment-investment-allocation_relatorio_operacional_v53.xlsx')
+
+
+
+def _resolver_data_economica_situacao_atual(data_referencia, calendario_financeiro, serie_cdi=None):
+    data_fechamento = data_referencia - timedelta(days=1)
+    while data_fechamento > date(1900, 1, 1) and not eh_dia_util_bancario(data_fechamento, calendario_financeiro):
+        data_fechamento -= timedelta(days=1)
+    metadata = extrair_metadata_serie_cdi(serie_cdi) if serie_cdi else None
+    ultima_data_serie = getattr(metadata, 'data_final', None) if metadata is not None else None
+    if ultima_data_serie is not None and ultima_data_serie >= data_fechamento:
+        return data_fechamento
+    return data_referencia
+
+
+def _limiar(config: dict) -> float:
+    auditoria_cfg = config.get('auditoria') if isinstance(config.get('auditoria'), dict) else {}
+    replay_cfg = config.get('replay') if isinstance(config.get('replay'), dict) else {}
+    valor = auditoria_cfg.get('limiar_residuo_resolvido')
+    if valor is None:
+        valor = replay_cfg.get('valor_minimo_lote_ativo', 0.01)
+    try:
+        return float(valor)
+    except Exception:
+        return 0.01
+
+
+def _as_rows(iterable: Iterable[dict], columns: list[tuple[str, str]]):
+    for item in iterable:
+        yield [item.get(src) for src, _ in columns]
+
+
+def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: int = 1, title: str | None = None, freeze: bool = False):
+    ws.sheet_view.showGridLines = False
+    header_fill = PatternFill('solid', fgColor='1F4E78')
+    header_font = Font(color='FFFFFF', bold=True)
+    title_fill = PatternFill('solid', fgColor='D9EAF7')
+    title_font = Font(color='1F1F1F', bold=True)
+    thin_gray = Side(style='thin', color='D9E1F2')
+
+    header_row = start_row
+    if title:
+        title_row = start_row
+        ws.cell(row=title_row, column=1, value=title).fill = title_fill
+        ws.cell(row=title_row, column=1).font = title_font
+        header_row = start_row + 1
+
+    for col_idx, header in enumerate(headers, start=1):
+        cell = ws.cell(row=header_row, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = Border(bottom=thin_gray)
+    for row_offset, row in enumerate(rows, start=1):
+        row_idx = header_row + row_offset
+        for col_idx, value in enumerate(row, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            if isinstance(value, (int, float)):
+                cell.alignment = Alignment(horizontal='right')
+            else:
+                cell.alignment = Alignment(horizontal='left')
+
+    if freeze:
+        ws.freeze_panes = f'A{header_row + 1}'
+    ws.auto_filter.ref = f"A{header_row}:{get_column_letter(len(headers))}{max(header_row + len(rows), header_row)}"
+
+    currency_cols = {'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Aplicação Mínima', 'Bruto Atual', 'Líquido Atual', 'Saldo rem', 'Score Final', 'Valor Original'}
+    percent_cols = {'Taxa Base CDI', 'Taxa Bônus CDI'}
+    int_cols = {'Dias Corridos', 'Dias Úteis', 'Dias até evento', 'Rank Global', 'Rank Família', 'Dias Bônus', 'Carência Dias'}
+
+    for col_idx, header in enumerate(headers, start=1):
+        letter = get_column_letter(col_idx)
+        max_len = len(header)
+        for row_idx in range(header_row + 1, ws.max_row + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            value = cell.value
+            if value is None:
+                continue
+            max_len = max(max_len, len(str(value)))
+            if header in currency_cols and isinstance(value, (int, float)):
+                cell.number_format = 'R$ #,##0.00;[Red](R$ #,##0.00);-'
+            elif header in percent_cols and isinstance(value, (int, float)):
+                cell.number_format = '0.0%'
+            elif header in int_cols and isinstance(value, (int, float)):
+                cell.number_format = '0'
+            elif 'Data' in header and hasattr(value, 'year'):
+                cell.number_format = 'dd/mm/yyyy'
+        ws.column_dimensions[letter].width = min(max_len + 2, 32)
+
+    return header_row + len(rows)
+
+
+def main() -> None:
+    cfg = carregar_config(raiz_repositorio=RAIZ)
+    ctx = bootstrap_ambiente(cfg.conteudo, grupos_extras=['financeiro'], instalar_automaticamente=False)
+    cal = construir_calendario_financeiro(cfg.conteudo, data_referencia=ctx.data_referencia)
+    plan = carregar_planilha(cfg.conteudo, raiz_repositorio=cfg.raiz_repositorio)
+    cart = carregar_carteira_canonica(plan, cfg.conteudo)
+    dados = carregar_dados_operacionais_canonicos(plan, cfg.conteudo, data_referencia=ctx.data_referencia, carteira_canonica=cart)
+    cache = carregar_cache_cdi_diario(dados, cfg.conteudo, data_referencia=ctx.data_referencia, raiz_repositorio=cfg.raiz_repositorio)
+    tri = carregar_triagem_motor(cart, dados, cal, cfg.conteudo, data_referencia=ctx.data_referencia)
+    nuc = carregar_nucleo_financeiro_minimo(dados, cart, cal, cfg.conteudo, data_referencia=ctx.data_referencia, serie_cdi=cache.serie_cdi)
+    rep = carregar_replay_passado_controlado(dados, nuc, cal, cfg.conteudo, data_referencia=ctx.data_referencia, serie_cdi=cache.serie_cdi)
+
+    tabela_iof = construir_tabela_iof(cfg.conteudo)
+    faixas_ir = construir_faixas_ir(cfg.conteudo)
+    limiar = _limiar(cfg.conteudo)
+
+    wb = Workbook()
+    ws_passado = wb.active
+    ws_passado.title = 'Extrato passado'
+    log = rep.log_passado.copy().sort_values(by=['Data', 'Sequencia Saque'], kind='stable')
+    cols_passado = [
+        ('Data', 'Data'), ('Conta', 'Conta'), ('Despesa ID', 'Despesa ID'), ('Lote', 'Lote'),
+        ('Saldo Antes', 'Saldo Antes'), ('Bruto', 'Bruto'), ('Imposto', 'Imposto'), ('Liquido', 'Líquido'),
+        ('Dias Corridos', 'Dias Corridos'), ('Dias Úteis', 'Dias Úteis'), ('Saldo Remanescente', 'Saldo Remanescente'),
+        ('Fase Operacional Lote', 'Fase')
+    ]
+    rows_passado = list(_as_rows(log.to_dict('records'), cols_passado))
+    _apply_table_style(ws_passado, [dst for _, dst in cols_passado], rows_passado)
+
+    ws_futuro = wb.create_sheet('Extrato futuro')
+    gastos_futuros = dados.gastos_canonicos[dados.gastos_canonicos['futuro_ou_pendente_na_data_referencia'] == True].copy().sort_values(by=['data', 'despesa_id'], kind='stable')
+    rows_futuro = []
+    for item in gastos_futuros.to_dict('records'):
+        data_evt = item.get('data')
+        dias_ate = max((data_evt - ctx.data_referencia).days, 0) if isinstance(data_evt, date) else None
+        rows_futuro.append([
+            data_evt,
+            item.get('descricao'),
+            item.get('despesa_id'),
+            item.get('valor'),
+            item.get('pago'),
+            item.get('lote_usado_1'),
+            item.get('lote_usado_2'),
+            dias_ate,
+            'futuro/pendente',
+        ])
+    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote usado 1', 'Lote usado 2', 'Dias até evento', 'Status']
+    _apply_table_style(ws_futuro, headers_futuro, rows_futuro)
+
+    ws_melhores = wb.create_sheet('Melhores produtos')
+    candidatos = tri.quadro_candidatos.copy().sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')
+    rows_melhores = []
+    for _, row in candidatos.iterrows():
+        rows_melhores.append([
+            row.get('nome'), row.get('familia_produto'), row.get('regime_taxa'), row.get('taxa_base_cdi'), row.get('taxa_bonus_cdi'),
+            row.get('dias_bonus'), row.get('carencia_dias'), row.get('aplicacao_minima'), row.get('score_final'), row.get('rank_global'), row.get('rank_familia')
+        ])
+    headers_melhores = ['Produto', 'Família', 'Regime', 'Taxa Base CDI', 'Taxa Bônus CDI', 'Dias Bônus', 'Carência Dias', 'Aplicação Mínima', 'Score Final', 'Rank Global', 'Rank Família']
+    _apply_table_style(ws_melhores, headers_melhores, rows_melhores)
+
+    ws_atual = wb.create_sheet('Situação atual')
+    rows_atual_ident = []
+    rows_atual_valores = []
+    data_economica = ctx.data_referencia
+    for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
+        saldo_bruto = round(float(lote.valor_bruto_em_data(
+            data_economica,
+            cal,
+            serie_cdi=cache.serie_cdi,
+            data_base_referencia=ctx.data_referencia,
+        ) or 0.0), 2)
+        if lote.esgotado or saldo_bruto <= limiar:
+            continue
+        saldo_liquido = round(float(lote.valor_liquido_em_data(
+            data_economica,
+            cal,
+            tabela_iof=tabela_iof,
+            faixas_ir=faixas_ir,
+            serie_cdi=cache.serie_cdi,
+            data_base_referencia=ctx.data_referencia,
+        ) or 0.0), 2)
+        saldo_rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
+        dias_corridos = max((ctx.data_referencia - lote.data_recebimento).days, 0)
+        dias_uteis = 0 if data_economica < lote.data_aplicacao else contar_dias_rendimento(
+            lote.data_base_fiscal,
+            data_economica,
+            cal,
+            serie_cdi=cache.serie_cdi,
+            data_fechamento_referencia=data_economica,
+        )
+        valor_original = round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2)
+        rows_atual_ident.append([
+            lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, dias_corridos, dias_uteis,
+        ])
+        rows_atual_valores.append([
+            lote.id, valor_original, saldo_bruto, saldo_liquido, saldo_rem,
+        ])
+    headers_atual_ident = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis']
+    headers_atual_valores = ['Lote', 'Valor Original', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_atual_ident, start_row=1, title='Identificação e tempo', freeze=True)
+    _apply_table_style(ws_atual, headers_atual_valores, rows_atual_valores, start_row=ultima_linha + 3, title='Valores atuais')
+
+    SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(SAIDA_INTERNA)
+    wb.save(SAIDA_EXTERNA)
+    print(SAIDA_INTERNA)
+    print(SAIDA_EXTERNA)
+
+
+if __name__ == '__main__':
+    main()
