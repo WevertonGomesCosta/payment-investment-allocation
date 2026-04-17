@@ -152,7 +152,7 @@ def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos
         ('destino potencial', resumo_recebidos.get('destino_potencial', {})),
         ('recebidos com pagamento vinculado', resumo_recebidos.get('recebidos_com_pagamento_vinculado', 0)),
         ('recebidos em janela pré-aplicação', resumo_recebidos.get('recebidos_em_janela_pre_aplicacao', 0)),
-        ('recebidos com uso misto observado', resumo_recebidos.get('recebidos_com_uso_misto_observado', 0)),
+        ('recebidos usados antes da aplicação', resumo_recebidos.get('recebidos_usados_antes_da_aplicacao_observado', 0)),
     ])
     if not recebidos_atuais:
         print('  [OK] sem recebidos auditáveis materializados nesta execução')

@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V65**.
-2. A V65 preserva a linha funcional consolidada até a V64, mantém aberta a **Etapa 3 da Frente F1** já materializada e reorganiza a seção `Situação atual` do console e da planilha operacional em blocos explícitos de lotes exauridos e lotes ativos, preservando a leitura de todos os recebidos auditáveis, inclusive os exauridos, sem alterar o motor financeiro.
+1. A baseline atual é a **V67**.
+2. A V67 preserva a linha funcional consolidada até a V66, mantém aberta a **Etapa 3 da Frente F1** já materializada e atualiza a semântica dos recebidos/lotes usados antes da aplicação, substituindo o rótulo `misto` por uma classificação operacional mais explicativa, sem alterar o motor financeiro.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -126,3 +126,5 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 53. A documentação vigente deve ficar concentrada em `relatorios/atuais/`.
 54. Relatórios de versões anteriores devem permanecer preservados em `relatorios/historico/`, organizados por tipo documental.
 55. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como mapa oficial de navegação documental.
+
+

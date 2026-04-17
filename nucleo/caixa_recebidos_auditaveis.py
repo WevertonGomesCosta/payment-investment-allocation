@@ -9,6 +9,9 @@ import pandas as pd
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
 from nucleo.utilitarios_neutros import limpar_texto, normalizar_identificador, normalizar_texto
 
+STATUS_USO_PRE_APLICACAO_COM_APORTE_POSTERIOR = 'uso_pre_aplicacao_com_aporte_posterior'
+DESTINO_PAGAMENTO_E_APLICACAO = 'pagamento_e_aplicacao'
+
 
 @dataclass(frozen=True, slots=True)
 class CampoContrato:
@@ -66,8 +69,8 @@ def _campos_recebido_auditavel() -> tuple[CampoContrato, ...]:
         CampoContrato('data_aplicacao', 'date|None', False, 'Data em que o recurso passa a render, se houver aplicação.'),
         CampoContrato('valor_bruto', 'float', True, 'Valor bruto do recebido.'),
         CampoContrato('valor_liquido', 'float', True, 'Valor líquido auditável do recebido na origem.'),
-        CampoContrato('status_recebido', 'str', True, 'Situação operacional: futuro, disponivel, comprometido, aplicado, exaurido ou misto.'),
-        CampoContrato('destino_potencial', 'str', True, 'Destino potencial observado ou elegível: caixa, pagamento, aplicacao ou misto.'),
+        CampoContrato('status_recebido', 'str', True, 'Situação operacional: futuro, disponivel, comprometido, aplicado, exaurido ou uso_pre_aplicacao_com_aporte_posterior.'),
+        CampoContrato('destino_potencial', 'str', True, 'Destino potencial observado ou elegível: caixa, pagamento, aplicacao ou pagamento_e_aplicacao.'),
         CampoContrato('pagamento_vinculado_id', 'str|None', False, 'Pagamento explicitamente associado, quando já existir vínculo auditável.'),
         CampoContrato('lote_destino_id', 'str|None', False, 'Lote de destino, quando o recebido já foi ou será convertido em lote.'),
         CampoContrato('observacao_auditavel', 'str', False, 'Texto curto para registrar a leitura econômica do recebido.'),
@@ -274,10 +277,10 @@ def _classificar_recebido(row: pd.Series, data_referencia: date, resumo_pagament
         if data_aplicacao is not None and data_referencia < data_aplicacao:
             if qtd_pagamentos > 0:
                 return (
-                    'misto',
-                    'misto',
+                    STATUS_USO_PRE_APLICACAO_COM_APORTE_POSTERIOR,
+                    DESTINO_PAGAMENTO_E_APLICACAO,
                     lote_id,
-                    'recebido em janela pré-aplicação com pagamentos já vinculados antes do aporte final.',
+                    'recebido usado em pagamentos antes da aplicação, com aporte final posterior ainda pendente.',
                 )
             return (
                 'comprometido',
@@ -287,14 +290,14 @@ def _classificar_recebido(row: pd.Series, data_referencia: date, resumo_pagament
             )
         if valor_pre > 0:
             return (
-                'misto',
-                'misto',
+                STATUS_USO_PRE_APLICACAO_COM_APORTE_POSTERIOR,
+                DESTINO_PAGAMENTO_E_APLICACAO,
                 lote_id,
-                'recebido com uso misto: parte financiou pagamentos antes da aplicação e o residual foi aportado.',
+                'recebido usado em pagamentos antes da aplicação; o valor residual foi aportado posteriormente.',
             )
         return ('aplicado', 'aplicacao', lote_id, 'recebido integralmente associado a lote aportado.')
 
-    return ('disponivel', 'misto', lote_id or None, 'classificação econômica provisória para recebido não enquadrado nas regras principais.')
+    return ('disponivel', 'caixa', lote_id or None, 'classificação econômica provisória para recebido não enquadrado nas regras principais.')
 
 
 def materializar_recebidos_auditaveis(
@@ -363,8 +366,8 @@ def materializar_recebidos_auditaveis(
         erros.append('valor_bruto_nao_positivo')
     if (quadro['valor_liquido'] <= 0).any():
         erros.append('valor_liquido_nao_positivo')
-    if (quadro['status_recebido'] == 'misto').any():
-        avisos.append('existem_recebidos_com_destino_misto')
+    if (quadro['status_recebido'] == STATUS_USO_PRE_APLICACAO_COM_APORTE_POSTERIOR).any():
+        avisos.append('existem_recebidos_usados_antes_da_aplicacao_com_aporte_posterior')
     if (quadro['status_recebido'] == 'comprometido').any():
         avisos.append('existem_recebidos_comprometidos_para_aplicacao_futura')
     if (quadro['status_recebido'] == 'futuro').any():
@@ -379,7 +382,7 @@ def materializar_recebidos_auditaveis(
             'valor_total_bruto': round(float(quadro['valor_bruto'].sum()), 2),
             'recebidos_com_pagamento_vinculado': int((quadro['qtd_pagamentos_vinculados'] > 0).sum()),
             'recebidos_em_janela_pre_aplicacao': int(quadro['em_janela_pre_aplicacao_na_referencia'].sum()),
-            'recebidos_com_uso_misto_observado': int(((quadro['valor_pagamentos_pre_aplicacao'] > 0) & (quadro['lote_destino_id'].notna())).sum()),
+            'recebidos_usados_antes_da_aplicacao_observado': int(((quadro['valor_pagamentos_pre_aplicacao'] > 0) & (quadro['lote_destino_id'].notna())).sum()),
         },
     }
     return PacoteRecebidosAuditaveis(quadro_recebidos_auditaveis=quadro, auditoria=auditoria)
@@ -437,7 +440,7 @@ def _materializar_fontes_de_recebidos(
         if bool(row.get('em_janela_pre_aplicacao_na_referencia')):
             valor_residual = round(float(row.get('valor_residual_para_aplicacao_origem') or 0.0), 2)
             if valor_residual > limiar_valor:
-                origem_status = 'parcial' if status_recebido == 'misto' else 'confirmado'
+                origem_status = 'parcial' if status_recebido == STATUS_USO_PRE_APLICACAO_COM_APORTE_POSTERIOR else 'confirmado'
                 observacao = observacao_origem or 'valor disponível em caixa pré-aplicação na data de referência.'
                 if origem_status == 'parcial':
                     observacao = f'{observacao} Residual remanescente após uso parcial em pagamentos antes da aplicação.'
