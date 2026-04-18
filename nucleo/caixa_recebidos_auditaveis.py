@@ -2007,3 +2007,156 @@ def auditar_divergencias_residuais_proxy_v3_vs_hibrido_shadow(
         'quadro_estruturais': quadro_estruturais,
         'auditoria': {'validacao': {'ok': True, 'erros': [], 'avisos': avisos}, 'resumo': resumo},
     }
+
+
+def auditar_casos_reaproveitaveis_proxy_v3_vs_hibrido_shadow(
+    dados_operacionais: PacoteDadosOperacionaisCanonicos,
+    fontes_elegiveis_pagamento: PacoteFontesElegiveisPagamento,
+    saldo_disponivel_geral: PacoteSaldoDisponivelGeral,
+    decisao_local_v1: PacoteDecisaoLocalV1,
+    resolver_hibrido_5p_shadow: Any,
+    *,
+    data_referencia: date,
+    carteira_canonica: Any,
+) -> dict[str, Any]:
+    residual = auditar_divergencias_residuais_proxy_v3_vs_hibrido_shadow(
+        dados_operacionais,
+        fontes_elegiveis_pagamento,
+        saldo_disponivel_geral,
+        decisao_local_v1,
+        resolver_hibrido_5p_shadow,
+        data_referencia=data_referencia,
+        carteira_canonica=carteira_canonica,
+    )
+    casos = residual['quadro_reaproveitaveis'].copy()
+    if len(casos) == 0:
+        resumo = {
+            'total_pagamentos': int(len(residual['comparativo_base']['quadro_comparativo'])),
+            'total_casos_cirurgicos': 0,
+            'transicao_dominante': None,
+            'qtd_transicao_dominante': 0,
+            'pct_transicao_dominante': 0.0,
+            'prioridade_cirurgica': {},
+            'bucket_valor_pagamento': {},
+            'bucket_horizonte': {},
+            'conclusao_cirurgica': 'sem_casos_reaproveitaveis_identificados',
+        }
+        return {
+            'auditoria_residual_base': residual,
+            'quadro_casos_cirurgicos': casos,
+            'quadro_resumo_transicoes': pd.DataFrame(),
+            'quadro_resumo_buckets': pd.DataFrame(),
+            'quadro_prioridades': pd.DataFrame(),
+            'quadro_transicao_dominante': pd.DataFrame(),
+            'auditoria': {'validacao': {'ok': True, 'erros': [], 'avisos': []}, 'resumo': resumo},
+        }
+
+    casos = casos.copy()
+    casos['data_pagamento'] = pd.to_datetime(casos['data_pagamento'], errors='coerce')
+
+    transicoes = casos['transicao_lote_principal'].fillna('sem_transicao').value_counts(dropna=False)
+    transicao_dominante = str(transicoes.index[0]) if len(transicoes) else 'sem_transicao'
+    qtd_transicao_dominante = int(transicoes.iloc[0]) if len(transicoes) else 0
+    pct_transicao_dominante = round((qtd_transicao_dominante / max(len(casos), 1)) * 100.0, 2)
+
+    def _classificar_padrao(row: pd.Series) -> str:
+        if bool(row.get('benchmark_multifonte_shadow')):
+            return 'caso_multifonte_benchmark'
+        if str(row.get('transicao_lote_principal')) == transicao_dominante:
+            return 'transicao_dominante_reaproveitavel'
+        return 'caso_isolado_reaproveitavel'
+
+    def _classificar_prioridade(row: pd.Series) -> str:
+        delta_score = float(row.get('delta_score_proxy_v3_principal_benchmark_vs_local') or 0.0)
+        delta_excesso = float(row.get('delta_excesso_liquido_benchmark_vs_local') or 0.0)
+        valor = float(row.get('valor_pagamento') or 0.0)
+        dominante = str(row.get('transicao_lote_principal')) == transicao_dominante
+        if dominante and delta_score <= -25.0 and delta_excesso <= -50.0:
+            return 'alta'
+        if dominante and (delta_score <= -1.0 or valor >= 250.0):
+            return 'media'
+        return 'baixa'
+
+    casos['padrao_cirurgico'] = casos.apply(_classificar_padrao, axis=1)
+    casos['prioridade_cirurgica'] = casos.apply(_classificar_prioridade, axis=1)
+    casos['ordem_prioridade_cirurgica'] = casos['prioridade_cirurgica'].map({'alta': 1, 'media': 2, 'baixa': 3}).fillna(9).astype(int)
+    casos['potencial_patch_proxy_v3'] = casos['padrao_cirurgico'].eq('transicao_dominante_reaproveitavel')
+
+    quadro_resumo_transicoes = (
+        casos.groupby(['transicao_lote_principal', 'prioridade_cirurgica', 'padrao_cirurgico'], dropna=False, as_index=False)
+        .agg(
+            qtd_pagamentos=('pagamento_id', 'count'),
+            valor_pagamento_total=('valor_pagamento', 'sum'),
+            valor_pagamento_medio=('valor_pagamento', 'mean'),
+            delta_score_proxy_v3_medio=('delta_score_proxy_v3_principal_benchmark_vs_local', 'mean'),
+            delta_excesso_liquido_medio=('delta_excesso_liquido_benchmark_vs_local', 'mean'),
+        )
+        .sort_values(['qtd_pagamentos', 'valor_pagamento_total'], ascending=[False, False], kind='stable')
+        .reset_index(drop=True)
+    )
+    for col in ['valor_pagamento_total', 'valor_pagamento_medio', 'delta_excesso_liquido_medio']:
+        if col in quadro_resumo_transicoes.columns:
+            quadro_resumo_transicoes[col] = quadro_resumo_transicoes[col].astype(float).round(2)
+    if 'delta_score_proxy_v3_medio' in quadro_resumo_transicoes.columns:
+        quadro_resumo_transicoes['delta_score_proxy_v3_medio'] = quadro_resumo_transicoes['delta_score_proxy_v3_medio'].astype(float).round(4)
+
+    quadro_resumo_buckets = (
+        casos.groupby(['bucket_valor_pagamento', 'bucket_horizonte', 'prioridade_cirurgica'], dropna=False, as_index=False)
+        .agg(
+            qtd_pagamentos=('pagamento_id', 'count'),
+            valor_pagamento_total=('valor_pagamento', 'sum'),
+            delta_score_proxy_v3_medio=('delta_score_proxy_v3_principal_benchmark_vs_local', 'mean'),
+            delta_excesso_liquido_medio=('delta_excesso_liquido_benchmark_vs_local', 'mean'),
+        )
+        .sort_values(['qtd_pagamentos', 'valor_pagamento_total'], ascending=[False, False], kind='stable')
+        .reset_index(drop=True)
+    )
+    for col in ['valor_pagamento_total', 'delta_excesso_liquido_medio']:
+        if col in quadro_resumo_buckets.columns:
+            quadro_resumo_buckets[col] = quadro_resumo_buckets[col].astype(float).round(2)
+    if 'delta_score_proxy_v3_medio' in quadro_resumo_buckets.columns:
+        quadro_resumo_buckets['delta_score_proxy_v3_medio'] = quadro_resumo_buckets['delta_score_proxy_v3_medio'].astype(float).round(4)
+
+    quadro_prioridades = casos.sort_values(
+        ['ordem_prioridade_cirurgica', 'delta_score_proxy_v3_principal_benchmark_vs_local', 'delta_excesso_liquido_benchmark_vs_local', 'valor_pagamento'],
+        ascending=[True, True, True, False],
+        kind='stable',
+    ).reset_index(drop=True)
+
+    quadro_transicao_dominante = casos[casos['transicao_lote_principal'] == transicao_dominante].copy()
+    quadro_transicao_dominante = quadro_transicao_dominante.sort_values(
+        ['delta_score_proxy_v3_principal_benchmark_vs_local', 'delta_excesso_liquido_benchmark_vs_local', 'valor_pagamento'],
+        ascending=[True, True, False],
+        kind='stable',
+    ).reset_index(drop=True)
+
+    bucket_valor_dominante = str(casos['bucket_valor_pagamento'].value_counts(dropna=False).index[0]) if len(casos) else None
+    bucket_horizonte_dominante = str(casos['bucket_horizonte'].value_counts(dropna=False).index[0]) if len(casos) else None
+
+    resumo = {
+        'total_pagamentos': int(len(residual['comparativo_base']['quadro_comparativo'])),
+        'total_casos_cirurgicos': int(len(casos)),
+        'transicao_dominante': transicao_dominante,
+        'qtd_transicao_dominante': qtd_transicao_dominante,
+        'pct_transicao_dominante': pct_transicao_dominante,
+        'bucket_valor_dominante': bucket_valor_dominante,
+        'bucket_horizonte_dominante': bucket_horizonte_dominante,
+        'prioridade_cirurgica': {str(k): int(v) for k, v in casos['prioridade_cirurgica'].value_counts(dropna=False).to_dict().items()},
+        'padrao_cirurgico': {str(k): int(v) for k, v in casos['padrao_cirurgico'].value_counts(dropna=False).to_dict().items()},
+        'bucket_valor_pagamento': {str(k): int(v) for k, v in casos['bucket_valor_pagamento'].value_counts(dropna=False).to_dict().items()},
+        'bucket_horizonte': {str(k): int(v) for k, v in casos['bucket_horizonte'].value_counts(dropna=False).to_dict().items()},
+        'conclusao_cirurgica': 'os_casos_reaproveitaveis_estao_concentrados_em_um_padrao_dominante_e_podem_orientar_auditoria_fina_sem_reabrir_o_proxy_v3_de_forma_ampla',
+    }
+    avisos = ['auditoria_cirurgica_permanece_externa_ao_fluxo_principal']
+    if qtd_transicao_dominante > 0:
+        avisos.append('transicao_dominante_concentra_a_maior_parte_do_sinal_reaproveitavel')
+
+    return {
+        'auditoria_residual_base': residual,
+        'quadro_casos_cirurgicos': quadro_prioridades,
+        'quadro_resumo_transicoes': quadro_resumo_transicoes,
+        'quadro_resumo_buckets': quadro_resumo_buckets,
+        'quadro_prioridades': quadro_prioridades,
+        'quadro_transicao_dominante': quadro_transicao_dominante,
+        'auditoria': {'validacao': {'ok': True, 'erros': [], 'avisos': avisos}, 'resumo': resumo},
+    }

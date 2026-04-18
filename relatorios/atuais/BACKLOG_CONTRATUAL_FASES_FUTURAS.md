@@ -57,4 +57,10 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
     - documentado de forma estável.
 
 
-15. Prioridade imediata pós-V77/V79: auditoria comparativa entre `proxy v3` vigente e benchmark shadow do `resolver_hibrido_5p`, antes de qualquer tentativa de acoplamento funcional do benchmark ao fluxo principal.
+15. Prioridade imediata pós-V77/V80: auditoria comparativa entre `proxy v3` vigente e benchmark shadow do `resolver_hibrido_5p`, antes de qualquer tentativa de acoplamento funcional do benchmark ao fluxo principal.
+
+
+## 9. Continuação possível após a V80
+
+20. Só considerar refino do `proxy v3` se a auditoria cirúrgica da V80 mostrar padrão suficientemente concentrado e estável.
+21. Se isso ocorrer, abrir primeiro uma auditoria fina apenas da transição dominante, antes de qualquer ajuste amplo no proxy local.
