@@ -242,9 +242,14 @@ def main() -> None:
 
     SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
     wb.save(SAIDA_INTERNA)
-    wb.save(SAIDA_EXTERNA)
     print(SAIDA_INTERNA)
-    print(SAIDA_EXTERNA)
+    try:
+        if SAIDA_EXTERNA.parent.exists():
+            wb.save(SAIDA_EXTERNA)
+            print(SAIDA_EXTERNA)
+    except Exception as exc:
+        print(f"[AVISO] cópia externa não gerada: {type(exc).__name__}:{exc}")
+    return SAIDA_INTERNA
 
 
 if __name__ == '__main__':
