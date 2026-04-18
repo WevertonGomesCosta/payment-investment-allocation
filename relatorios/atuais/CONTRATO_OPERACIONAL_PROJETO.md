@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V84**.
-2. A V84 preserva integralmente a baseline funcional imediatamente anterior e abre apenas uma auditoria estrutural de redundância e compatibilidade, sem alterar o fluxo principal, o replay, o `proxy econômico v3` congelado ou os benchmarks shadow.
+1. A baseline atual é a **V85**.
+2. A V85 preserva integralmente a baseline funcional imediatamente anterior e corrige os wrappers raiz quebrados identificados na auditoria estrutural da V84, sem alterar o fluxo principal, o replay, o `proxy econômico v3` congelado ou os benchmarks shadow.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -158,27 +158,27 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 14. Auditoria comparativa vigente do benchmark híbrido
 
-94. A baseline V84 mantém uma auditoria comparativa reproduzível entre a `decisao_local_v1` vigente (proxy v3) e o `resolver_hibrido_5p_shadow`.
+94. A baseline V85 mantém uma auditoria comparativa reproduzível entre a `decisao_local_v1` vigente (proxy v3) e o `resolver_hibrido_5p_shadow`.
 95. Essa auditoria usa métricas comuns e não compara diretamente scores brutos de escalas diferentes.
-96. A baseline V84 também mantém uma auditoria residual específica dos casos de divergência material entre essas duas réguas.
+96. A baseline V85 também mantém uma auditoria residual específica dos casos de divergência material entre essas duas réguas.
 97. O benchmark híbrido permanece diagnóstico; divergência em relação ao proxy v3 não implica substituição automática da decisão vigente.
 98. A auditoria residual atual mostra que o benchmark reduz excesso sistematicamente, mas que a maioria das divergências materiais não melhora a métrica comum do `proxy v3`.
 
 
 ## 15. Auditoria cirúrgica vigente dos casos reaproveitáveis
 
-99. A baseline V84 mantém uma auditoria cirúrgica específica apenas sobre os 42 casos já classificados como `potencial_reaproveitamento_proxy_v3`.
+99. A baseline V85 mantém uma auditoria cirúrgica específica apenas sobre os 42 casos já classificados como `potencial_reaproveitamento_proxy_v3`.
 100. Essa auditoria não reabre o `proxy v3`; ela apenas organiza transições dominantes, buckets e prioridades cirúrgicas para eventual auditoria fina futura.
 101. Enquanto não houver evidência nova, o benchmark híbrido continua shadow e o `proxy v3` permanece a decisão monofonte vigente.
 
 
 ## 16. Auditoria fina vigente da transição dominante
 
-102. A baseline V84 mantém uma auditoria fina específica apenas da transição `Lote 3000 mar. B -> Lote 8500 mar.`.
+102. A baseline V85 mantém uma auditoria fina específica apenas da transição `Lote 3000 mar. B -> Lote 8500 mar.`.
 103. Essa auditoria fina permanece diagnóstica e externa ao fluxo principal; ela não altera o `proxy v3` nem substitui a decisão local vigente.
 104. Qualquer ajuste futuro no `proxy v3` só pode ser considerado se essa auditoria fina mostrar padrão estável e localizado em pagamentos pequenos ou médios no horizonte entre 91 e 365 dias.
 
-103. A baseline V84 abre uma auditoria estrutural leve de redundância e compatibilidade focada em wrappers de compatibilidade, helpers duplicados e crescimento da superfície diagnóstica.
-104. A auditoria estrutural da V84 identificou cinco wrappers raiz com falha de execução direta por bootstrap inconsistente ou ausente.
-105. A auditoria estrutural da V84 identificou duplicação localizada de helpers como `_cfg`, `_iterar_datas`, `_simular_lote_ate_data`, `_normalizar_valores_situacao_atual_exaurida` e `obter_config`.
-106. A auditoria estrutural da V84 é diagnóstica; ela não corrige automaticamente esses pontos nesta baseline.
+103. A baseline V85 mantém a auditoria estrutural leve de redundância e compatibilidade focada em wrappers de compatibilidade, helpers duplicados e crescimento da superfície diagnóstica.
+104. A V85 corrige os cinco wrappers raiz com falha de execução direta por bootstrap inconsistente ou ausente, restaurando sua execução direta em máquina local.
+105. A duplicação localizada de helpers como `_cfg`, `_iterar_datas`, `_simular_lote_ate_data`, `_normalizar_valores_situacao_atual_exaurida` e `obter_config` permanece apenas como item de auditoria estrutural futura.
+106. A V85 continua sem refatorar o motor; ela apenas corrige a camada de compatibilidade quebrada identificada na V84.
