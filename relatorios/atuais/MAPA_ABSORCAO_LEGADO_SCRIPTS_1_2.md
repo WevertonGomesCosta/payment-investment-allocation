@@ -77,3 +77,9 @@ A V78 usa este mapa como referência obrigatória antes de qualquer nova migraç
 
 
 3. **Auditoria comparativa do benchmark `resolver_hibrido_5p_shadow` vs. decisão local vigente** — **aberta na V78**.
+
+
+## Execução principal do Script 2
+
+A execução principal do Script 2 passou a ter um mapa próprio em `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`.
+Esse runner legado não deve ser absorvido de forma bruta; suas partes úteis devem seguir a classificação específica aberta na V87.

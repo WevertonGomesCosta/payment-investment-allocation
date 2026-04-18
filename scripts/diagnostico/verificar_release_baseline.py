@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V86'
-VERSAO_ANTERIOR = 'V84'
+VERSAO_VIGENTE = 'V87'
+VERSAO_ANTERIOR = 'V86'
 
 
 def repo_root() -> Path:
@@ -35,6 +35,7 @@ def validar_indice_documental(base: Path) -> list[str]:
         f'relatorios/atuais/ESTRUTURA_REPOSITORIO_{VERSAO_VIGENTE}.md',
         'relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md',
         'relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md',
+        'relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md',
         'relatorios/atuais/AUDITORIA_RESIDUAL_DIVERGENCIAS_PROXY_V3_VS_HIBRIDO.md',
         'relatorios/atuais/AUDITORIA_CIRURGICA_42_CASOS_REAPROVEITAVEIS.md',
         'relatorios/atuais/AUDITORIA_FINA_TRANSICAO_DOMINANTE_3000B_8500MAR.md',
@@ -100,6 +101,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_decisao_local_v1.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py',
         'scripts/diagnostico/inspecionar_mapa_absorcao_legado.py',
+        'scripts/diagnostico/inspecionar_mapa_execucao_principal_script2.py',
         'scripts/diagnostico/inspecionar_switching_economico_shadow.py',
         'scripts/diagnostico/inspecionar_resolver_hibrido_5p_shadow.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
@@ -119,6 +121,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_decisao_local_v1.py',
         'scripts/inspecionar_comparativo_proxy_v2_v3.py',
         'scripts/inspecionar_mapa_absorcao_legado.py',
+        'scripts/inspecionar_mapa_execucao_principal_script2.py',
         'scripts/inspecionar_switching_economico_shadow.py',
         'scripts/inspecionar_resolver_hibrido_5p_shadow.py',
         'scripts/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',

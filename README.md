@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V86
+**Versão atual da baseline:** V87
 
-A V86 preserva integralmente a base funcional imediatamente anterior e consolida helpers duplicados de baixo risco, sem alterar o motor financeiro, o replay, o `proxy v3` congelado ou os benchmarks shadow.
+A V87 preserva integralmente a baseline funcional imediatamente anterior e abre o mapa de absorção da execução principal do Script 2, sem alterar o motor financeiro, o replay, o `proxy v3` congelado ou os benchmarks shadow.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -29,6 +29,7 @@ python scripts/diagnostico/inspecionar_saldo_disponivel_geral.py
 python scripts/diagnostico/inspecionar_decisao_local_v1.py
 python scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py
 python scripts/diagnostico/inspecionar_mapa_absorcao_legado.py
+python scripts/diagnostico/inspecionar_mapa_execucao_principal_script2.py
 python scripts/diagnostico/inspecionar_switching_economico_shadow.py
 python scripts/diagnostico/inspecionar_resolver_hibrido_5p_shadow.py
 python scripts/diagnostico/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py
@@ -42,20 +43,22 @@ python scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V86.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V86.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V86.md`
+- `relatorios/atuais/BASELINE_FIXA_V87.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V87.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V87.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
+- `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
 - `relatorios/atuais/AUDITORIA_RESIDUAL_DIVERGENCIAS_PROXY_V3_VS_HIBRIDO.md`
 - `relatorios/atuais/AUDITORIA_CIRURGICA_42_CASOS_REAPROVEITAVEIS.md`
 - `relatorios/atuais/AUDITORIA_FINA_TRANSICAO_DOMINANTE_3000B_8500MAR.md`
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
 
-## Resumo operacional da V86
+## Resumo operacional da V87
 
+- o runner principal legado do Script 2 foi classificado em mapa de absorção e não entra funcionalmente na baseline atual;
 - `proxy econômico v3` permanece congelado como decisão monofonte vigente;
 - `multifonte v1` continua fora do fluxo principal e condicionada à evidência;
 - `switching_economico_shadow` e `resolver_hibrido_5p_shadow` continuam camadas diagnósticas;
-- a V86 consolida helpers duplicados de baixo risco sem alterar o comportamento do motor financeiro nem a decisão local vigente.
+- a V87 não absorve funcionalmente o runner legado do Script 2; ela apenas registra sua orquestração em mapa de absorção próprio.
