@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V88
+**Versão atual da baseline:** V89
 
-A V88 preserva integralmente a baseline funcional imediatamente anterior e abre o mapa de absorção da execução principal do Script 2, sem alterar o motor financeiro, o replay, o `proxy v3` congelado ou os benchmarks shadow.
+A V89 preserva integralmente a baseline funcional imediatamente anterior, atualiza os arquivos canônicos `dados/dados_financeiros.xlsx` e `dados/cache_bcb.json`, ajusta o `.gitignore` e revalida o benchmark shadow agrupado vs individual, sem alterar o motor financeiro, o replay ou o `proxy v3` congelado.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -43,9 +43,9 @@ python scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V88.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V88.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V88.md`
+- `relatorios/atuais/BASELINE_FIXA_V89.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V89.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V89.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -55,10 +55,10 @@ python scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
 
-## Resumo operacional da V88
+## Resumo operacional da V89
 
 - o runner principal legado do Script 2 foi classificado em mapa de absorção e não entra funcionalmente na baseline atual;
 - `proxy econômico v3` permanece congelado como decisão monofonte vigente;
 - `multifonte v1` continua fora do fluxo principal e condicionada à evidência;
 - `switching_economico_shadow` e `resolver_hibrido_5p_shadow` continuam camadas diagnósticas;
-- a V88 não absorve funcionalmente o runner legado do Script 2; ela apenas registra sua orquestração em mapa de absorção próprio.
+- a V89 atualiza os arquivos canônicos de dados e confirma que o benchmark shadow agrupado vs individual mantém 9 datas com mudança de lote dominante e recomendação de modo `individual`.
