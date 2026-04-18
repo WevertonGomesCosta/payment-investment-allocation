@@ -31,7 +31,8 @@ from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro, obter_taxa_
 from nucleo.caixa_recebidos_auditaveis import PacoteDecisaoLocalV1, PacoteFontesElegiveisPagamento
 from nucleo.config_utils import obter_config
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
-from nucleo.nucleo_financeiro_minimo import Lote, _taxa_iof, _taxa_ir, criar_lote_de_aporte
+from nucleo.helpers_shadow_compartilhados import simular_lote_ate_data_shadow
+from nucleo.nucleo_financeiro_minimo import Lote, _taxa_iof, _taxa_ir
 from nucleo.replay_passado_controlado import PacoteReplayPassadoControlado
 from nucleo.utilitarios_neutros import arredondar_monetario, limpar_texto, normalizar_identificador, para_float_monetario
 
@@ -43,14 +44,6 @@ class PacoteResolverHibrido5PShadow:
     auditoria: dict[str, Any]
     validacao: dict[str, Any]
 
-
-def _cfg(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
-    atual: Any = config
-    for chave in caminho:
-        if not isinstance(atual, Mapping) or chave not in atual:
-            return padrao
-        atual = atual[chave]
-    return atual
 
 
 def _pagamentos_alvo(gastos_canonicos: pd.DataFrame, *, data_referencia: date) -> pd.DataFrame:
@@ -67,63 +60,6 @@ def _pagamentos_alvo(gastos_canonicos: pd.DataFrame, *, data_referencia: date) -
     return quadro.sort_values(['data', 'despesa_id'], kind='stable').reset_index(drop=True)
 
 
-def _iterar_datas(inicio: date, fim: date):
-    atual = inicio + timedelta(days=1)
-    while atual <= fim:
-        yield atual
-        atual += timedelta(days=1)
-
-
-def _simular_lote_ate_data(
-    lote: Lote,
-    data_inicio: date,
-    data_fim: date,
-    calendario_financeiro: PacoteCalendarioFinanceiro,
-    *,
-    serie_cdi: Mapping[date, float] | None,
-    taxa_proj: float,
-) -> Lote:
-    clone = criar_lote_de_aporte(
-        data_inicio,
-        float(lote.saldo_bruto),
-        lote.id,
-        {
-            'investimento': lote.investimento,
-            'produto_key': lote.produto_key,
-            'data_base_fiscal': lote.data_base_fiscal,
-            'data_recebimento': lote.data_recebimento,
-            'fator_acumulado_inicial': lote.fator_acumulado,
-            'taxa_base_cdi': lote.taxa_base_cdi,
-            'taxa_bonus_cdi': lote.taxa_bonus_cdi,
-            'dias_bonus': lote.dias_bonus,
-            'principal_remanescente': lote.principal_remanescente,
-            'produto_isento_ir': lote.produto_isento_ir,
-            'carencia_ate': lote.carencia_ate,
-            'nao_disponivel_para_aporte': lote.nao_disponivel_para_aporte,
-            'situacao_investimento': lote.situacao_investimento,
-        },
-    )
-    if data_fim <= data_inicio:
-        return clone
-    for data_cur in _iterar_datas(data_inicio, data_fim):
-        aplicar, taxa_dia, _ = obter_taxa_dia_rendimento_lote(
-            data_cur,
-            clone.data_aplicacao,
-            calendario_financeiro,
-            data_recebimento=clone.data_recebimento,
-            serie_cdi=serie_cdi,
-            taxa_proj=taxa_proj,
-            data_fechamento_referencia=data_cur,
-        )
-        if aplicar and taxa_dia is not None:
-            clone.atualizar_juros(
-                data_cur,
-                taxa_dia,
-                calendario_financeiro,
-                serie_cdi=serie_cdi,
-                data_fechamento_referencia=data_cur,
-            )
-    return clone
 
 
 def _lotes_ativos(replay_passado: PacoteReplayPassadoControlado | None) -> dict[str, Lote]:
@@ -151,7 +87,7 @@ def _params_hibrido_shadow(config: Mapping[str, Any]) -> dict[str, float]:
         'peso_cliff': 1000.0,
         'peso_vpl': 250.0,
     }
-    cfg = _cfg(config, 'hibrido_shadow', padrao={}) or {}
+    cfg = obter_config(config, 'hibrido_shadow', padrao={}) or {}
     for chave in list(base.keys()):
         valor = cfg.get(chave)
         if valor is None:
@@ -185,7 +121,7 @@ def _candidato_lote_para_pagamento(
     params: Mapping[str, float],
 ) -> dict[str, Any]:
     taxa_proj = float(calendario_financeiro.taxa_dia_base)
-    lote_pag = _simular_lote_ate_data(
+    lote_pag = simular_lote_ate_data_shadow(
         lote,
         calendario_financeiro.data_referencia,
         data_pagamento,
@@ -204,7 +140,7 @@ def _candidato_lote_para_pagamento(
 
     oportunidade_vpl = 0.0
     if data_horizonte > data_pagamento and bruto_disp > 0.0 and params.get('peso_vpl', 0.0) > 0.0:
-        lote_horizonte = _simular_lote_ate_data(
+        lote_horizonte = simular_lote_ate_data_shadow(
             lote_pag,
             data_pagamento,
             data_horizonte,
@@ -327,8 +263,8 @@ def carregar_resolver_hibrido_5p_shadow(
         return PacoteResolverHibrido5PShadow(vazio_pag, vazio_aloc, auditoria, validacao)
 
     params = _params_hibrido_shadow(config)
-    horizonte_dias = int(_cfg(config, 'simulacao', 'horizonte_alocacao_dias', padrao=180) or 180)
-    valor_minimo_resgate_bruto = float(_cfg(config, 'pagamento', 'valor_minimo_resgate_bruto', padrao=0.01) or 0.01)
+    horizonte_dias = int(obter_config(config, 'simulacao', 'horizonte_alocacao_dias', padrao=180) or 180)
+    valor_minimo_resgate_bruto = float(obter_config(config, 'pagamento', 'valor_minimo_resgate_bruto', padrao=0.01) or 0.01)
     data_horizonte_base = data_referencia + timedelta(days=horizonte_dias)
     lotes_ativos = _lotes_ativos(replay_passado)
     quadro_fontes = fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy()

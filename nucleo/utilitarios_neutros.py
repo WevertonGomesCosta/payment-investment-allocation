@@ -137,6 +137,13 @@ def arredondar_monetario(valor: Any, casas: int = 2) -> float:
     return float(Decimal(str(valor)).quantize(Decimal(quant), rounding=ROUND_HALF_UP))
 
 
+
+def normalizar_valores_situacao_atual_exaurida(*, saldo_bruto: float, saldo_liquido: float, saldo_rem: float, exaurido: bool) -> tuple[float, float, float]:
+    if not exaurido:
+        return saldo_bruto, saldo_liquido, saldo_rem
+    return 0.0, 0.0, 0.0
+
+
 def tokenizar_texto_normalizado(valor: Any) -> list[str]:
     texto = normalizar_texto(valor)
     return [parte for parte in texto.split() if parte]

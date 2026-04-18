@@ -20,6 +20,7 @@ import pandas as pd
 
 from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro
 from nucleo.carteira_canonica import PacoteCarteiraCanonica
+from nucleo.config_utils import obter_config
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
 from nucleo.utilitarios_neutros import limitar_intervalo, normalizar_texto, para_float_monetario, para_int
 
@@ -31,14 +32,6 @@ class PacoteTriagemMotor:
     quadro_candidatos: pd.DataFrame
     auditoria: dict[str, Any]
 
-
-def _cfg(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
-    atual: Any = config
-    for chave in caminho:
-        if not isinstance(atual, Mapping) or chave not in atual:
-            return padrao
-        atual = atual[chave]
-    return atual
 
 
 def _mapa_risco(valor: str) -> float:
@@ -58,12 +51,12 @@ def _proxy_retorno_anual(row: pd.Series, config: Mapping[str, Any]) -> float:
     base = float(para_float_monetario(row.get('taxa_base_cdi'), 0.0))
     bonus = float(para_float_monetario(row.get('taxa_bonus_cdi'), 0.0))
     dias_bonus = int(para_int(row.get('dias_bonus'), 0))
-    horizonte = int(_cfg(config, 'simulacao', 'horizonte_alocacao_dias', padrao=180) or 180)
-    cdi = float(_cfg(config, 'premissas_mercado', 'cdi_anual_modelo', padrao=0.149) or 0.149)
-    selic = float(_cfg(config, 'premissas_mercado', 'selic_anual_modelo', padrao=cdi) or cdi)
-    ipca = float(_cfg(config, 'premissas_mercado', 'ipca_anual_modelo', padrao=0.045) or 0.045)
-    cap_var = float(_cfg(config, 'triagem_motor', 'cap_anual_variavel', padrao=1.0) or 1.0)
-    cap_mult = float(_cfg(config, 'triagem_motor', 'cap_anual_cdi_multiplicador', padrao=1.5) or 1.5)
+    horizonte = int(obter_config(config, 'simulacao', 'horizonte_alocacao_dias', padrao=180) or 180)
+    cdi = float(obter_config(config, 'premissas_mercado', 'cdi_anual_modelo', padrao=0.149) or 0.149)
+    selic = float(obter_config(config, 'premissas_mercado', 'selic_anual_modelo', padrao=cdi) or cdi)
+    ipca = float(obter_config(config, 'premissas_mercado', 'ipca_anual_modelo', padrao=0.045) or 0.045)
+    cap_var = float(obter_config(config, 'triagem_motor', 'cap_anual_variavel', padrao=1.0) or 1.0)
+    cap_mult = float(obter_config(config, 'triagem_motor', 'cap_anual_cdi_multiplicador', padrao=1.5) or 1.5)
 
     if regime == 'combo':
         retorno = (1.0 + cdi) ** max(min(base, cap_mult), 0.0) - 1.0
@@ -193,8 +186,8 @@ def _construir_contexto_triagem(
 
     return {
         'data_referencia': data_referencia,
-        'horizonte_principal_dias': int(_cfg(config, 'simulacao', 'horizonte_alocacao_dias', padrao=180) or 180),
-        'horizonte_minimo_dias': int(_cfg(config, 'simulacao', 'horizonte_minimo_dias', padrao=30) or 30),
+        'horizonte_principal_dias': int(obter_config(config, 'simulacao', 'horizonte_alocacao_dias', padrao=180) or 180),
+        'horizonte_minimo_dias': int(obter_config(config, 'simulacao', 'horizonte_minimo_dias', padrao=30) or 30),
         'recursos_disponiveis_para_aporte': recursos_disponiveis,
         'recursos_aportados_observados': recursos_aportados,
         'recursos_futuros_nao_disponiveis': recursos_futuros,
@@ -244,10 +237,10 @@ def carregar_triagem_motor(
     df['score_viabilidade'] = df.apply(lambda r: _score_viabilidade(r, contexto), axis=1)
     df['score_risco'] = df.apply(_score_risco, axis=1)
 
-    w_ret = float(_cfg(config, 'triagem_motor', 'peso_retorno', padrao=0.35) or 0.35)
-    w_liq = float(_cfg(config, 'triagem_motor', 'peso_liquidez', padrao=0.30) or 0.30)
-    w_via = float(_cfg(config, 'triagem_motor', 'peso_viabilidade', padrao=0.20) or 0.20)
-    w_ris = float(_cfg(config, 'triagem_motor', 'peso_risco', padrao=0.15) or 0.15)
+    w_ret = float(obter_config(config, 'triagem_motor', 'peso_retorno', padrao=0.35) or 0.35)
+    w_liq = float(obter_config(config, 'triagem_motor', 'peso_liquidez', padrao=0.30) or 0.30)
+    w_via = float(obter_config(config, 'triagem_motor', 'peso_viabilidade', padrao=0.20) or 0.20)
+    w_ris = float(obter_config(config, 'triagem_motor', 'peso_risco', padrao=0.15) or 0.15)
     df['score_final'] = (
         (df['score_retorno'] * w_ret)
         + (df['score_liquidez'] * w_liq)
@@ -267,9 +260,9 @@ def carregar_triagem_motor(
         for rank, idx in enumerate(sub.sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable').index.tolist(), start=1):
             df.at[idx, 'rank_familia'] = rank
 
-    top_k_global = int(_cfg(config, 'triagem_motor', 'top_k_global', padrao=48) or 48)
-    top_k_familia = int(_cfg(config, 'triagem_motor', 'top_k_por_familia', padrao=8) or 8)
-    score_minimo = float(_cfg(config, 'triagem_motor', 'score_minimo_selecao', padrao=20.0) or 20.0)
+    top_k_global = int(obter_config(config, 'triagem_motor', 'top_k_global', padrao=48) or 48)
+    top_k_familia = int(obter_config(config, 'triagem_motor', 'top_k_por_familia', padrao=8) or 8)
+    score_minimo = float(obter_config(config, 'triagem_motor', 'score_minimo_selecao', padrao=20.0) or 20.0)
 
     df['selecionado_motor_v1'] = (
         df['elegivel_bruto']
@@ -288,7 +281,7 @@ def carregar_triagem_motor(
         'qtd_total_produtos': int(len(df)),
         'qtd_elegiveis_brutos': int(df['elegivel_bruto'].sum()),
         'natureza_triagem': 'proxy_preliminar',
-        'modo_calibracao': str(_cfg(config, 'triagem_motor', 'modo_calibracao', padrao='conservadora_transitoria') or 'conservadora_transitoria'),
+        'modo_calibracao': str(obter_config(config, 'triagem_motor', 'modo_calibracao', padrao='conservadora_transitoria') or 'conservadora_transitoria'),
         'qtd_candidatos_motor_v1': int(df['selecionado_motor_v1'].sum()),
         'qtd_produtos_padrao': int(df['produto_padrao'].sum()),
         'pesos_score_v1': {'retorno': w_ret, 'liquidez': w_liq, 'viabilidade': w_via, 'risco': w_ris},

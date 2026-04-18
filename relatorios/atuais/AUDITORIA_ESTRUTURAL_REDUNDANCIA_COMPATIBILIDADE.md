@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Auditoria leve e diagnóstica originalmente aberta na V84 e atualizada na V85 focada em três frentes:
+Auditoria leve e diagnóstica originalmente aberta na V84 e atualizada na V86 focada em três frentes:
 
 1. wrappers de compatibilidade em `scripts/`;
 2. helpers duplicados em módulos do núcleo e da apresentação;
@@ -55,6 +55,6 @@ Abrir uma etapa corretiva leve e isolada para:
 - só depois decidir se vale consolidar helpers duplicados.
 
 
-## Desdobramento na V85
+## Desdobramento na V86
 
-A V85 corrigiu os wrappers raiz com bootstrap ausente ou inconsistente identificados nesta auditoria, restaurando a execução direta desses atalhos de compatibilidade. A parte restante desta auditoria continua válida apenas para o mapeamento de helpers duplicados e da superfície diagnóstica.
+A V86 corrigiu os wrappers raiz com bootstrap ausente ou inconsistente identificados nesta auditoria, restaurando a execução direta desses atalhos de compatibilidade. A parte restante desta auditoria continua válida apenas para o mapeamento de helpers duplicados e da superfície diagnóstica.

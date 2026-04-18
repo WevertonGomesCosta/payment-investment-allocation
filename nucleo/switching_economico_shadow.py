@@ -29,7 +29,9 @@ import pandas as pd
 
 from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro, obter_taxa_dia_rendimento_lote
 from nucleo.carteira_canonica import PacoteCarteiraCanonica
+from nucleo.config_utils import obter_config
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
+from nucleo.helpers_shadow_compartilhados import simular_lote_ate_data_shadow
 from nucleo.nucleo_financeiro_minimo import Lote, PacoteNucleoFinanceiroMinimo, criar_lote_de_aporte
 from nucleo.replay_passado_controlado import PacoteReplayPassadoControlado
 from nucleo.triagem_motor import PacoteTriagemMotor
@@ -45,20 +47,6 @@ class PacoteSwitchingEconomicoShadow:
     validacao: dict[str, Any]
 
 
-def _cfg(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
-    atual: Any = config
-    for chave in caminho:
-        if not isinstance(atual, Mapping) or chave not in atual:
-            return padrao
-        atual = atual[chave]
-    return atual
-
-
-def _iterar_datas(inicio: date, fim: date):
-    atual = inicio + timedelta(days=1)
-    while atual <= fim:
-        yield atual
-        atual += timedelta(days=1)
 
 
 def _produto_meta_por_key(carteira_canonica: PacoteCarteiraCanonica, produto_key: Any) -> dict[str, Any]:
@@ -121,47 +109,6 @@ def _data_primeira_despesa_futura(dados_operacionais: PacoteDadosOperacionaisCan
     datas_validas = [d for d in datas[mask].tolist() if isinstance(d, date)]
     return min(datas_validas) if datas_validas else None
 
-
-def _simular_lote_ate_data(
-    lote: Lote,
-    data_inicio: date,
-    data_fim: date,
-    calendario_financeiro: PacoteCalendarioFinanceiro,
-    *,
-    taxa_proj: float,
-) -> Lote:
-    clone = criar_lote_de_aporte(
-        data_inicio,
-        float(lote.saldo_bruto),
-        lote.id,
-        {
-            'investimento': lote.investimento,
-            'produto_key': lote.produto_key,
-            'data_base_fiscal': lote.data_base_fiscal,
-            'data_recebimento': lote.data_recebimento,
-            'fator_acumulado_inicial': lote.fator_acumulado,
-            'taxa_base_cdi': lote.taxa_base_cdi,
-            'taxa_bonus_cdi': lote.taxa_bonus_cdi,
-            'dias_bonus': lote.dias_bonus,
-            'principal_remanescente': lote.principal_remanescente,
-            'produto_isento_ir': lote.produto_isento_ir,
-            'carencia_ate': lote.carencia_ate,
-            'nao_disponivel_para_aporte': lote.nao_disponivel_para_aporte,
-            'situacao_investimento': lote.situacao_investimento,
-        },
-    )
-    for data_cur in _iterar_datas(data_inicio, data_fim):
-        aplicar, taxa_dia, _ = obter_taxa_dia_rendimento_lote(
-            data_cur,
-            clone.data_aplicacao,
-            calendario_financeiro,
-            data_recebimento=clone.data_recebimento,
-            taxa_proj=taxa_proj,
-            data_fechamento_referencia=data_cur,
-        )
-        if aplicar and taxa_dia is not None:
-            clone.atualizar_juros(data_cur, taxa_dia, calendario_financeiro)
-    return clone
 
 
 def _criar_lote_destino_shadow(produto_row: Mapping[str, Any], valor_inicial: float, data_referencia: date) -> Lote:
@@ -254,8 +201,8 @@ def carregar_switching_economico_shadow(
     tabela_iof: list[float],
     faixas_ir: list[dict[str, Any]],
 ) -> PacoteSwitchingEconomicoShadow:
-    horizonte_dias = int(_cfg(config, 'simulacao', 'horizonte_alocacao_dias', padrao=180) or 180)
-    ganho_minimo = float(_cfg(config, 'switching_shadow', 'ganho_minimo_absoluto', padrao=5.0) or 5.0)
+    horizonte_dias = int(obter_config(config, 'simulacao', 'horizonte_alocacao_dias', padrao=180) or 180)
+    ganho_minimo = float(obter_config(config, 'switching_shadow', 'ganho_minimo_absoluto', padrao=5.0) or 5.0)
     taxa_proj = float(calendario_financeiro.taxa_dia_base)
     data_horizonte = data_referencia + timedelta(days=horizonte_dias)
     primeira_despesa_futura = _data_primeira_despesa_futura(dados_operacionais, data_referencia)
@@ -266,7 +213,7 @@ def carregar_switching_economico_shadow(
 
     for lote in lotes:
         valor_liquido_resgatavel = _valor_liquido_lote(lote, data_referencia, tabela_iof, faixas_ir)
-        lote_projetado = _simular_lote_ate_data(lote, data_referencia, data_horizonte, calendario_financeiro, taxa_proj=taxa_proj)
+        lote_projetado = simular_lote_ate_data_shadow(lote, data_referencia, data_horizonte, calendario_financeiro, taxa_proj=taxa_proj, serie_cdi=None)
         manter_liquido_horizonte = _valor_liquido_lote(lote_projetado, data_horizonte, tabela_iof, faixas_ir)
         produto_origem_meta = _produto_meta_por_key(carteira_canonica, lote.produto_key)
         produto_origem_nome = limpar_texto(produto_origem_meta.get('nome')) or limpar_texto(lote.investimento) or lote.produto_key
@@ -311,7 +258,7 @@ def carregar_switching_economico_shadow(
             }
             if elegivel:
                 lote_destino = _criar_lote_destino_shadow(produto_row, valor_liquido_resgatavel, data_referencia)
-                lote_destino_proj = _simular_lote_ate_data(lote_destino, data_referencia, data_horizonte, calendario_financeiro, taxa_proj=taxa_proj)
+                lote_destino_proj = simular_lote_ate_data_shadow(lote_destino, data_referencia, data_horizonte, calendario_financeiro, taxa_proj=taxa_proj)
                 riqueza_switch = _valor_liquido_lote(lote_destino_proj, data_horizonte, tabela_iof, faixas_ir)
                 ganho = round(float(riqueza_switch) - float(manter_liquido_horizonte), 2)
                 score = _score_shadow(

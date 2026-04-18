@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence
 
 from nucleo.ambiente import detectar_raiz_repositorio
+from nucleo.config_utils import obter_config as obter_config_compartilhado
 
 ARQUIVOS_CONFIG_PADRAO: tuple[str, ...] = (
     "config_atualizado_revisado_v7_populacao_inicial.json",
@@ -128,12 +129,7 @@ def carregar_config(
 
 
 def obter_config(config: dict[str, Any], *caminho: str, padrao: Any = None) -> Any:
-    atual: Any = config
-    for chave in caminho:
-        if not isinstance(atual, dict) or chave not in atual:
-            return padrao
-        atual = atual[chave]
-    return atual
+    return obter_config_compartilhado(config, *caminho, padrao=padrao)
 
 
 def obter_config_obrigatorio(config: dict[str, Any], *caminho: str) -> Any:

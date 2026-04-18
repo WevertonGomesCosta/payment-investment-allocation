@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V85
+**Versão atual da baseline:** V86
 
-A V85 preserva integralmente a base funcional imediatamente anterior e corrige os wrappers raiz quebrados identificados na auditoria estrutural, sem alterar o motor financeiro, o replay, o `proxy v3` congelado ou os benchmarks shadow.
+A V86 preserva integralmente a base funcional imediatamente anterior e consolida helpers duplicados de baixo risco, sem alterar o motor financeiro, o replay, o `proxy v3` congelado ou os benchmarks shadow.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -42,19 +42,20 @@ python scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V85.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V85.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V85.md`
+- `relatorios/atuais/BASELINE_FIXA_V86.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V86.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V86.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/AUDITORIA_RESIDUAL_DIVERGENCIAS_PROXY_V3_VS_HIBRIDO.md`
 - `relatorios/atuais/AUDITORIA_CIRURGICA_42_CASOS_REAPROVEITAVEIS.md`
 - `relatorios/atuais/AUDITORIA_FINA_TRANSICAO_DOMINANTE_3000B_8500MAR.md`
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
+- `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
 
-## Resumo operacional da V85
+## Resumo operacional da V86
 
 - `proxy econômico v3` permanece congelado como decisão monofonte vigente;
 - `multifonte v1` continua fora do fluxo principal e condicionada à evidência;
 - `switching_economico_shadow` e `resolver_hibrido_5p_shadow` continuam camadas diagnósticas;
-- a V85 restaura a execução direta dos wrappers raiz quebrados, sem alterar o comportamento do motor financeiro nem a decisão local vigente.
+- a V86 consolida helpers duplicados de baixo risco sem alterar o comportamento do motor financeiro nem a decisão local vigente.

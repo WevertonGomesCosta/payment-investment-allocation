@@ -23,6 +23,7 @@ from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
 from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabela_iof
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
+from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
 
 
 
@@ -201,11 +202,6 @@ def _preparar_resumo_auditoria_detalhada_residuos(auditoria_detalhada, limiar):
     return pares
 
 
-def _normalizar_valores_situacao_atual_exaurida(*, saldo_bruto: float, saldo_liquido: float, saldo_rem: float, exaurido: bool) -> tuple[float, float, float]:
-    if not exaurido:
-        return saldo_bruto, saldo_liquido, saldo_rem
-    return 0.0, 0.0, 0.0
-
 
 def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro, config, data_referencia, *, serie_cdi=None):
     tabela_iof = construir_tabela_iof(config)
@@ -239,7 +235,7 @@ def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro,
             data_fechamento_referencia=data_economica,
         )
         lote_exaurido_na_situacao = bool(lote.esgotado or saldo_bruto <= limiar)
-        saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao = _normalizar_valores_situacao_atual_exaurida(
+        saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao = normalizar_valores_situacao_atual_exaurida(
             saldo_bruto=saldo_bruto,
             saldo_liquido=saldo_liquido,
             saldo_rem=saldo_rem,
