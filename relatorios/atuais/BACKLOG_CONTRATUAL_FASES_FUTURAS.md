@@ -60,7 +60,11 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 15. Prioridade imediata pós-V77/V80: auditoria comparativa entre `proxy v3` vigente e benchmark shadow do `resolver_hibrido_5p`, antes de qualquer tentativa de acoplamento funcional do benchmark ao fluxo principal.
 
 
-## 9. Continuação possível após a V83
+## 9. Continuação possível após a V84
 
-20. Só considerar refino do `proxy v3` se a auditoria fina da V83 mostrar padrão suficientemente concentrado, localizado e economicamente coerente.
+20. Só considerar refino do `proxy v3` se a auditoria fina mantida na V84 mostrar padrão suficientemente concentrado, localizado e economicamente coerente.
 21. Se isso ocorrer, abrir apenas um eventual microajuste local restrito à transição dominante, antes de qualquer ajuste amplo no proxy local.
+
+22. Corrigir os wrappers raiz com bootstrap inconsistente ou ausente antes de qualquer nova limpeza arquitetural ampla.
+23. Consolidar helpers duplicados de baixo risco em um módulo neutro compartilhado apenas depois da correção dos wrappers.
+24. Classificar a superfície diagnóstica em canônica, histórica e experimental antes de qualquer poda de scripts.
