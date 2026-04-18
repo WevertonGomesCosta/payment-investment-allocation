@@ -29,3 +29,8 @@ Este benchmark reproduz, em modo shadow e auditável, a camada de governança do
 ## Decisão da V88
 
 A V88 **abre apenas o benchmark shadow** do teste agrupado vs individual do Script 2, sem absorver funcionalmente a orquestração legada.
+
+
+## Atualização da V89
+
+Com os arquivos canônicos `dados/dados_financeiros.xlsx` e `dados/cache_bcb.json` atualizados, o benchmark shadow agrupado vs individual foi rerodado e manteve o mesmo veredito operacional: `individual` segue como modo recomendado e permanecem **9 datas com mudança de lote dominante**, o que mantém válida a hipótese de uma auditoria fina apenas dessas datas.

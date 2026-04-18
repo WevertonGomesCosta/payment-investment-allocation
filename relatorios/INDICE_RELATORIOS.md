@@ -25,6 +25,6 @@
 
 - relatorios/atuais/BENCHMARK_SHADOW_AGRUPADO_VS_INDIVIDUAL_SCRIPT2.md
 
-- relatorios/atuais/BASELINE_FIXA_V88.md
-- relatorios/atuais/VALIDACAO_LOCAL_V88.md
-- relatorios/atuais/ESTRUTURA_REPOSITORIO_V88.md
+- relatorios/atuais/BASELINE_FIXA_V89.md
+- relatorios/atuais/VALIDACAO_LOCAL_V89.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V89.md

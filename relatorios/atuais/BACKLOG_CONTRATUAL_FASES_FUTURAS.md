@@ -60,17 +60,17 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 15. Prioridade imediata pós-V77/V80: auditoria comparativa entre `proxy v3` vigente e benchmark shadow do `resolver_hibrido_5p`, antes de qualquer tentativa de acoplamento funcional do benchmark ao fluxo principal.
 
 
-## 9. Continuação possível após a V88
+## 9. Continuação possível após a V89
 
-20. Só considerar refino do `proxy v3` se a auditoria fina mantida na V88 mostrar padrão suficientemente concentrado, localizado e economicamente coerente.
+20. Só considerar refino do `proxy v3` se a auditoria fina mantida na V89 mostrar padrão suficientemente concentrado, localizado e economicamente coerente.
 21. Se isso ocorrer, abrir apenas um eventual microajuste local restrito à transição dominante, antes de qualquer ajuste amplo no proxy local.
 
-22. Com a consolidação dos helpers duplicados de baixo risco na V88, a próxima limpeza arquitetural ampla só deve ocorrer se restarem grupos duplicados com ganho real de manutenção.
+22. Com a consolidação dos helpers duplicados de baixo risco na V89, a próxima limpeza arquitetural ampla só deve ocorrer se restarem grupos duplicados com ganho real de manutenção.
 23. Consolidar helpers duplicados de baixo risco em um módulo neutro compartilhado apenas depois da estabilização da compatibilidade restaurada.
 24. Classificar a superfície diagnóstica em canônica, histórica e experimental antes de qualquer poda de scripts.
 
 
-## 10. Prioridade imediata pós-V88
+## 10. Prioridade imediata pós-V89
 
 25. Considerar, se necessário, um benchmark shadow do teste agrupado vs. individual do Script 2 antes de qualquer migração funcional do runner legado.
 26. Só depois disso avaliar uma competição final shadow entre estratégias legadas.
