@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V87
+**Versão atual da baseline:** V88
 
-A V87 preserva integralmente a baseline funcional imediatamente anterior e abre o mapa de absorção da execução principal do Script 2, sem alterar o motor financeiro, o replay, o `proxy v3` congelado ou os benchmarks shadow.
+A V88 preserva integralmente a baseline funcional imediatamente anterior e abre o mapa de absorção da execução principal do Script 2, sem alterar o motor financeiro, o replay, o `proxy v3` congelado ou os benchmarks shadow.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -43,9 +43,9 @@ python scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V87.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V87.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V87.md`
+- `relatorios/atuais/BASELINE_FIXA_V88.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V88.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V88.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -55,10 +55,10 @@ python scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
 
-## Resumo operacional da V87
+## Resumo operacional da V88
 
 - o runner principal legado do Script 2 foi classificado em mapa de absorção e não entra funcionalmente na baseline atual;
 - `proxy econômico v3` permanece congelado como decisão monofonte vigente;
 - `multifonte v1` continua fora do fluxo principal e condicionada à evidência;
 - `switching_economico_shadow` e `resolver_hibrido_5p_shadow` continuam camadas diagnósticas;
-- a V87 não absorve funcionalmente o runner legado do Script 2; ela apenas registra sua orquestração em mapa de absorção próprio.
+- a V88 não absorve funcionalmente o runner legado do Script 2; ela apenas registra sua orquestração em mapa de absorção próprio.

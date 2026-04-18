@@ -82,4 +82,4 @@ A V78 usa este mapa como referência obrigatória antes de qualquer nova migraç
 ## Execução principal do Script 2
 
 A execução principal do Script 2 passou a ter um mapa próprio em `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`.
-Esse runner legado não deve ser absorvido de forma bruta; suas partes úteis devem seguir a classificação específica aberta na V87.
+Esse runner legado não deve ser absorvido de forma bruta; suas partes úteis devem seguir a classificação específica aberta na V88.

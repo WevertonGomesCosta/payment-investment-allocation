@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V87**.
-2. A V87 preserva integralmente a baseline funcional imediatamente anterior e abre o mapa de absorção da execução principal do Script 2, sem alterar o fluxo principal, o replay, o `proxy econômico v3` congelado ou os benchmarks shadow.
+1. A baseline atual é a **V88**.
+2. A V88 preserva integralmente a baseline funcional imediatamente anterior e abre o mapa de absorção da execução principal do Script 2, sem alterar o fluxo principal, o replay, o `proxy econômico v3` congelado ou os benchmarks shadow.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -159,31 +159,34 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 14. Auditoria comparativa vigente do benchmark híbrido
 
-94. A baseline V87 mantém uma auditoria comparativa reproduzível entre a `decisao_local_v1` vigente (proxy v3) e o `resolver_hibrido_5p_shadow`.
+94. A baseline V88 mantém uma auditoria comparativa reproduzível entre a `decisao_local_v1` vigente (proxy v3) e o `resolver_hibrido_5p_shadow`.
 95. Essa auditoria usa métricas comuns e não compara diretamente scores brutos de escalas diferentes.
-96. A baseline V87 também mantém uma auditoria residual específica dos casos de divergência material entre essas duas réguas.
+96. A baseline V88 também mantém uma auditoria residual específica dos casos de divergência material entre essas duas réguas.
 97. O benchmark híbrido permanece diagnóstico; divergência em relação ao proxy v3 não implica substituição automática da decisão vigente.
 98. A auditoria residual atual mostra que o benchmark reduz excesso sistematicamente, mas que a maioria das divergências materiais não melhora a métrica comum do `proxy v3`.
 
 
 ## 15. Auditoria cirúrgica vigente dos casos reaproveitáveis
 
-99. A baseline V87 mantém uma auditoria cirúrgica específica apenas sobre os 42 casos já classificados como `potencial_reaproveitamento_proxy_v3`.
+99. A baseline V88 mantém uma auditoria cirúrgica específica apenas sobre os 42 casos já classificados como `potencial_reaproveitamento_proxy_v3`.
 100. Essa auditoria não reabre o `proxy v3`; ela apenas organiza transições dominantes, buckets e prioridades cirúrgicas para eventual auditoria fina futura.
 101. Enquanto não houver evidência nova, o benchmark híbrido continua shadow e o `proxy v3` permanece a decisão monofonte vigente.
 
 
 ## 16. Auditoria fina vigente da transição dominante
 
-102. A baseline V87 mantém uma auditoria fina específica apenas da transição `Lote 3000 mar. B -> Lote 8500 mar.`.
-103. A baseline V87 mantém a auditoria estrutural leve de redundância e compatibilidade focada em wrappers de compatibilidade, helpers duplicados e crescimento da superfície diagnóstica.
-104. A V87 consolida helpers duplicados de baixo risco em três frentes: normalização de valores exauridos na apresentação, leitura simples de configuração e simulação temporal compartilhada das camadas shadow.
-105. A V87 preserva a compatibilidade de `nucleo.carregador_config.obter_config` por delegação à fonte única `nucleo.config_utils.obter_config`.
-106. A V87 não altera o motor; ela apenas reduz risco de divergência futura na camada estrutural leve.
+102. A baseline V88 mantém uma auditoria fina específica apenas da transição `Lote 3000 mar. B -> Lote 8500 mar.`.
+103. A baseline V88 mantém a auditoria estrutural leve de redundância e compatibilidade focada em wrappers de compatibilidade, helpers duplicados e crescimento da superfície diagnóstica.
+104. A V88 consolida helpers duplicados de baixo risco em três frentes: normalização de valores exauridos na apresentação, leitura simples de configuração e simulação temporal compartilhada das camadas shadow.
+105. A V88 preserva a compatibilidade de `nucleo.carregador_config.obter_config` por delegação à fonte única `nucleo.config_utils.obter_config`.
+106. A V88 não altera o motor; ela apenas reduz risco de divergência futura na camada estrutural leve.
 
 
 ## 17. Mapa vigente da execução principal do Script 2
 
-107. A baseline V87 mantém um mapa específico da execução principal do Script 2 legado, sem absorção funcional direta do runner original.
+107. A baseline V88 mantém um mapa específico da execução principal do Script 2 legado, sem absorção funcional direta do runner original.
 108. Esse mapa classifica o teste agrupado vs. individual, a competição final entre estratégias e a exportação por estratégia em termos de absorção imediata, posterior ou não absorção.
 109. Enquanto não houver nova decisão explícita, o runner legado do Script 2 continua apenas como referência documental e diagnóstica.
+
+
+109. A baseline V88 materializa o benchmark shadow do teste agrupado vs. individual do Script 2 como camada diagnóstica, sem substituir o fluxo principal.

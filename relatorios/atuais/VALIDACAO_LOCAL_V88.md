@@ -1,4 +1,4 @@
-# Validação local V87
+# Validação local V88
 
 ## Bateria executada
 
@@ -12,7 +12,7 @@ PYTHONDONTWRITEBYTECODE=1 python scripts/diagnostico/verificar_release_baseline.
 
 ## Resultado
 
-- baseline V87 compilando e executando;
+- baseline V88 compilando e executando;
 - relatório operacional vigente gerado;
 - diagnóstico do mapa da execução principal do Script 2 executando;
 - release checker fechando em `OK` no pacote final limpo.

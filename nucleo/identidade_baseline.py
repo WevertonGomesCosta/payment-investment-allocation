@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-VERSAO_BASELINE = "V87"
+VERSAO_BASELINE = "V88"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
 
@@ -51,3 +51,7 @@ def nome_auditoria_fina_transicao_dominante_proxy_v3_vs_hibrido_shadow(extensao:
 
 def nome_auditoria_mapa_execucao_principal_script2(extensao: str) -> str:
     return f"auditoria_mapa_execucao_principal_script2_{VERSAO_SLUG}.{extensao.lstrip('.')}"
+
+
+def nome_auditoria_benchmark_agrupado_individual_shadow(extensao: str) -> str:
+    return f"auditoria_benchmark_agrupado_individual_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"

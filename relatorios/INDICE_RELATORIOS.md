@@ -22,3 +22,9 @@
 - `relatorios/historico/estruturas/`
 - `relatorios/historico/auditorias_especificas/`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
+
+- relatorios/atuais/BENCHMARK_SHADOW_AGRUPADO_VS_INDIVIDUAL_SCRIPT2.md
+
+- relatorios/atuais/BASELINE_FIXA_V88.md
+- relatorios/atuais/VALIDACAO_LOCAL_V88.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V88.md

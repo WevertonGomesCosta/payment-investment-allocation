@@ -62,12 +62,12 @@ A base desta classificação é o bloco `if __name__ == "__main__":` do Script 2
    - `resolver_hibrido_5p_shadow`
    - auditorias comparativas do `proxy v3` vigente
 
-## Decisão operacional da V87
+## Decisão operacional da V88
 
-A V87 **não absorve funcionalmente** a execução principal do Script 2. Ela apenas registra o mapa de absorção dessa orquestração e define a prioridade correta de futura migração.
+A V88 **não absorve funcionalmente** a execução principal do Script 2. Ela apenas registra o mapa de absorção dessa orquestração e define a prioridade correta de futura migração.
 
-## Prioridade pós-V87
+## Prioridade pós-V88
 
-1. Abrir, se necessário, um **benchmark shadow do teste agrupado vs. individual**.
-2. Depois, abrir uma **competição final shadow entre estratégias legadas**.
+1. **Aberto na V88:** benchmark shadow do teste agrupado vs. individual.
+2. Próxima prioridade potencial: competição final shadow entre estratégias legadas.
 3. Só então avaliar se alguma parte do runner legado merece migração funcional.
