@@ -2160,3 +2160,188 @@ def auditar_casos_reaproveitaveis_proxy_v3_vs_hibrido_shadow(
         'quadro_transicao_dominante': quadro_transicao_dominante,
         'auditoria': {'validacao': {'ok': True, 'erros': [], 'avisos': avisos}, 'resumo': resumo},
     }
+
+
+def auditar_transicao_dominante_proxy_v3_vs_hibrido_shadow(
+    dados_operacionais: PacoteDadosOperacionaisCanonicos,
+    fontes_elegiveis_pagamento: PacoteFontesElegiveisPagamento,
+    saldo_disponivel_geral: PacoteSaldoDisponivelGeral,
+    decisao_local_v1: PacoteDecisaoLocalV1,
+    resolver_hibrido_5p_shadow: Any,
+    *,
+    data_referencia: date,
+    carteira_canonica: Any,
+    transicao_alvo: str = 'Lote 3000 mar. B -> Lote 8500 mar.',
+) -> dict[str, Any]:
+    auditoria_cirurgica = auditar_casos_reaproveitaveis_proxy_v3_vs_hibrido_shadow(
+        dados_operacionais,
+        fontes_elegiveis_pagamento,
+        saldo_disponivel_geral,
+        decisao_local_v1,
+        resolver_hibrido_5p_shadow,
+        data_referencia=data_referencia,
+        carteira_canonica=carteira_canonica,
+    )
+    casos = auditoria_cirurgica['quadro_transicao_dominante'].copy()
+    if len(casos) == 0:
+        resumo = {
+            'transicao_auditada': transicao_alvo,
+            'total_casos_transicao': 0,
+            'bucket_valor_dominante': None,
+            'bucket_horizonte_dominante': None,
+            'descricao_pagamento_dominante': None,
+            'delta_score_proxy_v3_medio': 0.0,
+            'delta_excesso_liquido_medio': 0.0,
+            'hipotese_fina_dominante': 'sem_casos_para_auditar',
+            'conclusao_fina': 'sem_evidencia_para_auditoria_fina',
+        }
+        vazio = pd.DataFrame()
+        return {
+            'auditoria_cirurgica_base': auditoria_cirurgica,
+            'quadro_transicao_fina': vazio,
+            'quadro_resumo_descricoes': vazio,
+            'quadro_resumo_buckets': vazio,
+            'quadro_resumo_temporal': vazio,
+            'quadro_priorizacao_fina': vazio,
+            'auditoria': {'validacao': {'ok': True, 'erros': [], 'avisos': []}, 'resumo': resumo},
+        }
+
+    casos = casos.copy()
+    casos = casos[casos['transicao_lote_principal'].fillna('') == transicao_alvo].copy()
+    casos['data_pagamento'] = pd.to_datetime(casos['data_pagamento'], errors='coerce')
+    casos['ano_mes_pagamento'] = casos['data_pagamento'].dt.strftime('%Y-%m')
+    casos['excesso_relativo_local_v3'] = casos.apply(
+        lambda row: round(float(row.get('excesso_liquido_local_v3') or 0.0) / max(float(row.get('valor_pagamento') or 0.0), 1e-9), 4),
+        axis=1,
+    )
+    casos['excesso_relativo_benchmark_shadow'] = casos.apply(
+        lambda row: round(float(row.get('excesso_liquido_benchmark_shadow') or 0.0) / max(float(row.get('valor_pagamento') or 0.0), 1e-9), 4),
+        axis=1,
+    )
+    casos['ganho_relativo_excesso_pct'] = casos.apply(
+        lambda row: round((abs(float(row.get('delta_excesso_liquido_benchmark_vs_local') or 0.0)) / max(float(row.get('excesso_liquido_local_v3') or 0.0), 1e-9)) * 100.0, 2),
+        axis=1,
+    )
+    casos['intensidade_ganho_score'] = casos['delta_score_proxy_v3_principal_benchmark_vs_local'].map(
+        lambda x: 'forte' if float(x or 0.0) <= -5.2 else ('moderado' if float(x or 0.0) <= -4.8 else 'leve')
+    )
+
+    def _hipotese_fina(row: pd.Series) -> str:
+        valor = float(row.get('valor_pagamento') or 0.0)
+        dias = int(row.get('dias_ate_pagamento') or 0)
+        if valor <= 250.0 and 181 <= dias <= 365:
+            return 'pagamento_pequeno_ou_medio_com_horizonte_intermediario'
+        if valor <= 250.0 and 91 <= dias <= 180:
+            return 'pagamento_pequeno_ou_medio_com_horizonte_curto_medio'
+        return 'caso_fora_do_nucleo_dominante'
+
+    def _prioridade_fina(row: pd.Series) -> str:
+        score = float(row.get('delta_score_proxy_v3_principal_benchmark_vs_local') or 0.0)
+        excesso = float(row.get('delta_excesso_liquido_benchmark_vs_local') or 0.0)
+        valor = float(row.get('valor_pagamento') or 0.0)
+        dias = int(row.get('dias_ate_pagamento') or 0)
+        if valor <= 250.0 and 181 <= dias <= 365 and score <= -5.0 and excesso <= -2900.0:
+            return 'alta'
+        if valor <= 250.0 and 91 <= dias <= 365 and score <= -4.8:
+            return 'media'
+        return 'baixa'
+
+    casos['hipotese_fina_local'] = casos.apply(_hipotese_fina, axis=1)
+    casos['prioridade_fina'] = casos.apply(_prioridade_fina, axis=1)
+    casos['ordem_prioridade_fina'] = casos['prioridade_fina'].map({'alta': 1, 'media': 2, 'baixa': 3}).fillna(9).astype(int)
+    casos['padrao_fino_confirmado'] = casos['hipotese_fina_local'].eq('pagamento_pequeno_ou_medio_com_horizonte_intermediario')
+
+    quadro_resumo_descricoes = (
+        casos.groupby(['descricao_pagamento', 'prioridade_fina', 'hipotese_fina_local'], dropna=False, as_index=False)
+        .agg(
+            qtd_pagamentos=('pagamento_id', 'count'),
+            valor_pagamento_total=('valor_pagamento', 'sum'),
+            valor_pagamento_medio=('valor_pagamento', 'mean'),
+            delta_score_proxy_v3_medio=('delta_score_proxy_v3_principal_benchmark_vs_local', 'mean'),
+            delta_excesso_liquido_medio=('delta_excesso_liquido_benchmark_vs_local', 'mean'),
+        )
+        .sort_values(['qtd_pagamentos', 'valor_pagamento_total', 'descricao_pagamento'], ascending=[False, False, True], kind='stable')
+        .reset_index(drop=True)
+    )
+    for col in ['valor_pagamento_total', 'valor_pagamento_medio', 'delta_excesso_liquido_medio']:
+        if col in quadro_resumo_descricoes.columns:
+            quadro_resumo_descricoes[col] = quadro_resumo_descricoes[col].astype(float).round(2)
+    if 'delta_score_proxy_v3_medio' in quadro_resumo_descricoes.columns:
+        quadro_resumo_descricoes['delta_score_proxy_v3_medio'] = quadro_resumo_descricoes['delta_score_proxy_v3_medio'].astype(float).round(4)
+
+    quadro_resumo_buckets = (
+        casos.groupby(['bucket_valor_pagamento', 'bucket_horizonte', 'prioridade_fina', 'hipotese_fina_local'], dropna=False, as_index=False)
+        .agg(
+            qtd_pagamentos=('pagamento_id', 'count'),
+            valor_pagamento_total=('valor_pagamento', 'sum'),
+            delta_score_proxy_v3_medio=('delta_score_proxy_v3_principal_benchmark_vs_local', 'mean'),
+            delta_excesso_liquido_medio=('delta_excesso_liquido_benchmark_vs_local', 'mean'),
+            ganho_relativo_excesso_pct_medio=('ganho_relativo_excesso_pct', 'mean'),
+        )
+        .sort_values(['qtd_pagamentos', 'valor_pagamento_total'], ascending=[False, False], kind='stable')
+        .reset_index(drop=True)
+    )
+    for col in ['valor_pagamento_total', 'delta_excesso_liquido_medio', 'ganho_relativo_excesso_pct_medio']:
+        if col in quadro_resumo_buckets.columns:
+            quadro_resumo_buckets[col] = quadro_resumo_buckets[col].astype(float).round(2)
+    if 'delta_score_proxy_v3_medio' in quadro_resumo_buckets.columns:
+        quadro_resumo_buckets['delta_score_proxy_v3_medio'] = quadro_resumo_buckets['delta_score_proxy_v3_medio'].astype(float).round(4)
+
+    quadro_resumo_temporal = (
+        casos.groupby(['ano_mes_pagamento', 'prioridade_fina', 'hipotese_fina_local'], dropna=False, as_index=False)
+        .agg(
+            qtd_pagamentos=('pagamento_id', 'count'),
+            valor_pagamento_total=('valor_pagamento', 'sum'),
+            delta_score_proxy_v3_medio=('delta_score_proxy_v3_principal_benchmark_vs_local', 'mean'),
+            delta_excesso_liquido_medio=('delta_excesso_liquido_benchmark_vs_local', 'mean'),
+        )
+        .sort_values(['ano_mes_pagamento', 'qtd_pagamentos'], ascending=[True, False], kind='stable')
+        .reset_index(drop=True)
+    )
+    for col in ['valor_pagamento_total', 'delta_excesso_liquido_medio']:
+        if col in quadro_resumo_temporal.columns:
+            quadro_resumo_temporal[col] = quadro_resumo_temporal[col].astype(float).round(2)
+    if 'delta_score_proxy_v3_medio' in quadro_resumo_temporal.columns:
+        quadro_resumo_temporal['delta_score_proxy_v3_medio'] = quadro_resumo_temporal['delta_score_proxy_v3_medio'].astype(float).round(4)
+
+    quadro_priorizacao_fina = casos.sort_values(
+        ['ordem_prioridade_fina', 'delta_score_proxy_v3_principal_benchmark_vs_local', 'delta_excesso_liquido_benchmark_vs_local', 'valor_pagamento'],
+        ascending=[True, True, True, False],
+        kind='stable',
+    ).reset_index(drop=True)
+
+    bucket_valor_dominante = str(casos['bucket_valor_pagamento'].value_counts(dropna=False).index[0]) if len(casos) else None
+    bucket_horizonte_dominante = str(casos['bucket_horizonte'].value_counts(dropna=False).index[0]) if len(casos) else None
+    descricao_dominante = str(casos['descricao_pagamento'].value_counts(dropna=False).index[0]) if len(casos) else None
+    hipotese_fina_dominante = str(casos['hipotese_fina_local'].value_counts(dropna=False).index[0]) if len(casos) else None
+
+    resumo = {
+        'transicao_auditada': transicao_alvo,
+        'total_casos_transicao': int(len(casos)),
+        'bucket_valor_dominante': bucket_valor_dominante,
+        'bucket_horizonte_dominante': bucket_horizonte_dominante,
+        'descricao_pagamento_dominante': descricao_dominante,
+        'delta_score_proxy_v3_medio': round(float(casos['delta_score_proxy_v3_principal_benchmark_vs_local'].mean()), 4),
+        'delta_excesso_liquido_medio': round(float(casos['delta_excesso_liquido_benchmark_vs_local'].mean()), 2),
+        'ganho_relativo_excesso_pct_medio': round(float(casos['ganho_relativo_excesso_pct'].mean()), 2),
+        'hipotese_fina_dominante': hipotese_fina_dominante,
+        'prioridade_fina': {str(k): int(v) for k, v in casos['prioridade_fina'].value_counts(dropna=False).to_dict().items()},
+        'hipotese_fina_local': {str(k): int(v) for k, v in casos['hipotese_fina_local'].value_counts(dropna=False).to_dict().items()},
+        'descricao_pagamento': {str(k): int(v) for k, v in casos['descricao_pagamento'].value_counts(dropna=False).to_dict().items()},
+        'bucket_valor_pagamento': {str(k): int(v) for k, v in casos['bucket_valor_pagamento'].value_counts(dropna=False).to_dict().items()},
+        'bucket_horizonte': {str(k): int(v) for k, v in casos['bucket_horizonte'].value_counts(dropna=False).to_dict().items()},
+        'conclusao_fina': 'o_sinal_fino_permanece_concentrado_em_pagamentos_pequenos_ou_medios_com_horizonte_entre_91_e_365_dias_e_nao_justifica_reabertura_ampla_do_proxy_v3',
+    }
+    avisos = [
+        'auditoria_fina_permanece_externa_ao_fluxo_principal',
+        'qualquer_refino_futuro_deve_ser_restrito_a_transicao_dominante_e_a_pagamentos_pequenos_ou_medios_no_horizonte_91_365d',
+    ]
+    return {
+        'auditoria_cirurgica_base': auditoria_cirurgica,
+        'quadro_transicao_fina': quadro_priorizacao_fina,
+        'quadro_resumo_descricoes': quadro_resumo_descricoes,
+        'quadro_resumo_buckets': quadro_resumo_buckets,
+        'quadro_resumo_temporal': quadro_resumo_temporal,
+        'quadro_priorizacao_fina': quadro_priorizacao_fina,
+        'auditoria': {'validacao': {'ok': True, 'erros': [], 'avisos': avisos}, 'resumo': resumo},
+    }

@@ -4,13 +4,14 @@
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V80.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V80.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V80.md`
+- `relatorios/atuais/BASELINE_FIXA_V81.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V81.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V81.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/AUDITORIA_RESIDUAL_DIVERGENCIAS_PROXY_V3_VS_HIBRIDO.md`
 - `relatorios/atuais/AUDITORIA_CIRURGICA_42_CASOS_REAPROVEITAVEIS.md`
+- `relatorios/atuais/AUDITORIA_FINA_TRANSICAO_DOMINANTE_3000B_8500MAR.md`
 
 ## Histórico documental
 
