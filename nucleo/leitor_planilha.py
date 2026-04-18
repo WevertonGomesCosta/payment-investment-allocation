@@ -72,14 +72,25 @@ def _tentar_baixar_planilha(config: Mapping[str, Any], destino: Path) -> tuple[b
             tmp_path = Path(tmp.name)
         # valida minimamente o arquivo antes de sobrescrever a planilha local
         try:
-            pd.ExcelFile(tmp_path)
+            with pd.ExcelFile(tmp_path) as excel_tmp:
+                _ = excel_tmp.sheet_names
         except Exception:
             try:
                 tmp_path.unlink(missing_ok=True)
             except Exception:
                 pass
             return False, 'arquivo_baixado_invalido'
-        tmp_path.replace(destino)
+        try:
+            tmp_path.replace(destino)
+        except PermissionError as exc_perm:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            detalhe_perm = str(exc_perm).strip().replace('\n', ' ').replace('\r', ' ')
+            if detalhe_perm:
+                return False, f"falha_download_planilha:PermissionError:destino_bloqueado_ou_em_uso:{detalhe_perm}"
+            return False, 'falha_download_planilha:PermissionError:destino_bloqueado_ou_em_uso'
         return True, None
     except Exception as exc:  # pragma: no cover
         detalhe = str(exc).strip().replace('\n', ' ').replace('\r', ' ')
