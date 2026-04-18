@@ -1,4 +1,4 @@
-# Validação local V81
+# Validação local V82
 
 ## Bateria executada
 
@@ -10,7 +10,7 @@
 
 ## Resultado
 
-- baseline V81 compilando e executando;
+- baseline V82 compilando e executando;
 - auditoria fina da transição dominante gerada com sucesso;
 - `release checker` aprovado em estado limpo;
 - sem alteração do fluxo principal, do motor financeiro e do `proxy v3` congelado.

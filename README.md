@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V81
+**Versão atual da baseline:** V82
 
-A V81 preserva integralmente a base funcional da V80 e abre uma **auditoria fina apenas da transição dominante `Lote 3000 mar. B -> Lote 8500 mar.`**, sem alterar o motor financeiro e sem reabrir a decisão local congelada.
+A V82 preserva integralmente a base funcional da V81 e abre uma **auditoria fina apenas da transição dominante `Lote 3000 mar. B -> Lote 8500 mar.`**, sem alterar o motor financeiro e sem reabrir a decisão local congelada.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -41,18 +41,18 @@ python scripts/diagnostico/inspecionar_transicao_dominante_proxy_v3_vs_hibrido_s
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V81.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V81.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V81.md`
+- `relatorios/atuais/BASELINE_FIXA_V82.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V82.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V82.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/AUDITORIA_RESIDUAL_DIVERGENCIAS_PROXY_V3_VS_HIBRIDO.md`
 - `relatorios/atuais/AUDITORIA_CIRURGICA_42_CASOS_REAPROVEITAVEIS.md`
 - `relatorios/atuais/AUDITORIA_FINA_TRANSICAO_DOMINANTE_3000B_8500MAR.md`
 
-## Resumo operacional da V81
+## Resumo operacional da V82
 
 - `proxy econômico v3` permanece congelado como decisão monofonte vigente;
 - `multifonte v1` continua fora do fluxo principal e condicionada à evidência;
 - `switching_economico_shadow` e `resolver_hibrido_5p_shadow` continuam camadas diagnósticas;
-- a V81 aprofunda apenas a transição dominante `Lote 3000 mar. B -> Lote 8500 mar.`, sem alterar o comportamento executável do projeto.
+- a V82 aprofunda apenas a transição dominante `Lote 3000 mar. B -> Lote 8500 mar.`, sem alterar o comportamento executável do projeto.

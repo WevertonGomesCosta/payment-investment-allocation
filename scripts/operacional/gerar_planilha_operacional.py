@@ -173,7 +173,7 @@ def main() -> None:
         ('Fase Operacional Lote', 'Fase')
     ]
     rows_passado = list(_as_rows(log.to_dict('records'), cols_passado))
-    _apply_table_style(ws_passado, [dst for _, dst in cols_passado], rows_passado)
+    _apply_table_style(ws_passado, [dst for _, dst in cols_passado], rows_passado, freeze=True)
 
     ws_futuro = wb.create_sheet('Extrato futuro')
     gastos_futuros = dados.gastos_canonicos[dados.gastos_canonicos['futuro_ou_pendente_na_data_referencia'] == True].copy().sort_values(by=['data', 'despesa_id'], kind='stable')
@@ -193,7 +193,7 @@ def main() -> None:
             'futuro/pendente',
         ])
     headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote usado 1', 'Lote usado 2', 'Dias até evento', 'Status']
-    _apply_table_style(ws_futuro, headers_futuro, rows_futuro)
+    _apply_table_style(ws_futuro, headers_futuro, rows_futuro, freeze=True)
 
     ws_melhores = wb.create_sheet('Melhores produtos')
     candidatos = tri.quadro_candidatos.copy().sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')
@@ -204,10 +204,9 @@ def main() -> None:
             row.get('dias_bonus'), row.get('carencia_dias'), row.get('aplicacao_minima'), row.get('score_final'), row.get('rank_global'), row.get('rank_familia')
         ])
     headers_melhores = ['Produto', 'Família', 'Regime', 'Taxa Base CDI', 'Taxa Bônus CDI', 'Dias Bônus', 'Carência Dias', 'Aplicação Mínima', 'Score Final', 'Rank Global', 'Rank Família']
-    _apply_table_style(ws_melhores, headers_melhores, rows_melhores)
+    _apply_table_style(ws_melhores, headers_melhores, rows_melhores, freeze=True)
 
     ws_atual = wb.create_sheet('Situação atual')
-    ws_fechamento_atual = wb.create_sheet('Fechamento econômico atual')
     resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
         data_referencia=ctx.data_referencia,
         calendario_financeiro=cal,
@@ -234,12 +233,12 @@ def main() -> None:
     ]
     headers_atual_ident = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis']
     headers_atual_valores = ['Lote', 'Valor Original', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
-    _apply_table_style(ws_fechamento_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=1, title='Fechamento econômico da situação atual', freeze=True)
-    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_exauridos_ident, start_row=1, title='Identificação e tempo dos lotes exauridos', freeze=True)
+    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_exauridos_ident, start_row=1, title='Identificação e tempo dos lotes exauridos')
     ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_exauridos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes exauridos')
     ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_ativos_ident, start_row=ultima_linha + 3, title='Identificação e tempo dos lotes ativos')
     ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_ativos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes ativos')
-    _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_recebidos_resumo, start_row=ultima_linha + 3, title='Resumo dos recebidos auditáveis (inclui exauridos)')
+    ultima_linha = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_recebidos_resumo, start_row=ultima_linha + 3, title='Resumo dos recebidos auditáveis (inclui exauridos)')
+    _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=ultima_linha + 3, title='Fechamento econômico da situação atual')
 
     SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
     wb.save(SAIDA_INTERNA)

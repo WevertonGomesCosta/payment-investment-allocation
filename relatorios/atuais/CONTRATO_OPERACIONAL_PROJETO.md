@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V81**.
-2. A V81 preserva integralmente a base funcional da V80 e abre apenas a auditoria fina da transição dominante `Lote 3000 mar. B -> Lote 8500 mar.` entre o `proxy econômico v3` vigente e o benchmark shadow do `resolver_hibrido_5p`, sem alterar o fluxo principal.
+1. A baseline atual é a **V82**.
+2. A V82 preserva integralmente a base funcional da V81 e abre apenas a auditoria fina da transição dominante `Lote 3000 mar. B -> Lote 8500 mar.` entre o `proxy econômico v3` vigente e o benchmark shadow do `resolver_hibrido_5p`, sem alterar o fluxo principal.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -158,22 +158,22 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 14. Auditoria comparativa vigente do benchmark híbrido
 
-94. A baseline V81 mantém uma auditoria comparativa reproduzível entre a `decisao_local_v1` vigente (proxy v3) e o `resolver_hibrido_5p_shadow`.
+94. A baseline V82 mantém uma auditoria comparativa reproduzível entre a `decisao_local_v1` vigente (proxy v3) e o `resolver_hibrido_5p_shadow`.
 95. Essa auditoria usa métricas comuns e não compara diretamente scores brutos de escalas diferentes.
-96. A baseline V81 também mantém uma auditoria residual específica dos casos de divergência material entre essas duas réguas.
+96. A baseline V82 também mantém uma auditoria residual específica dos casos de divergência material entre essas duas réguas.
 97. O benchmark híbrido permanece diagnóstico; divergência em relação ao proxy v3 não implica substituição automática da decisão vigente.
 98. A auditoria residual atual mostra que o benchmark reduz excesso sistematicamente, mas que a maioria das divergências materiais não melhora a métrica comum do `proxy v3`.
 
 
 ## 15. Auditoria cirúrgica vigente dos casos reaproveitáveis
 
-99. A baseline V81 mantém uma auditoria cirúrgica específica apenas sobre os 42 casos já classificados como `potencial_reaproveitamento_proxy_v3`.
+99. A baseline V82 mantém uma auditoria cirúrgica específica apenas sobre os 42 casos já classificados como `potencial_reaproveitamento_proxy_v3`.
 100. Essa auditoria não reabre o `proxy v3`; ela apenas organiza transições dominantes, buckets e prioridades cirúrgicas para eventual auditoria fina futura.
 101. Enquanto não houver evidência nova, o benchmark híbrido continua shadow e o `proxy v3` permanece a decisão monofonte vigente.
 
 
 ## 16. Auditoria fina vigente da transição dominante
 
-102. A baseline V81 mantém uma auditoria fina específica apenas da transição `Lote 3000 mar. B -> Lote 8500 mar.`.
+102. A baseline V82 mantém uma auditoria fina específica apenas da transição `Lote 3000 mar. B -> Lote 8500 mar.`.
 103. Essa auditoria fina permanece diagnóstica e externa ao fluxo principal; ela não altera o `proxy v3` nem substitui a decisão local vigente.
 104. Qualquer ajuste futuro no `proxy v3` só pode ser considerado se essa auditoria fina mostrar padrão estável e localizado em pagamentos pequenos ou médios no horizonte entre 91 e 365 dias.

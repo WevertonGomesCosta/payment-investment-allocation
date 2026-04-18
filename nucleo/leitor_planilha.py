@@ -82,6 +82,9 @@ def _tentar_baixar_planilha(config: Mapping[str, Any], destino: Path) -> tuple[b
         tmp_path.replace(destino)
         return True, None
     except Exception as exc:  # pragma: no cover
+        detalhe = str(exc).strip().replace('\n', ' ').replace('\r', ' ')
+        if detalhe:
+            return False, f'falha_download_planilha:{exc.__class__.__name__}:{detalhe}'
         return False, f'falha_download_planilha:{exc.__class__.__name__}'
 
 def construir_mapa_alias(mapa_alias: Mapping[str, Iterable[str]]) -> dict[str, str]:

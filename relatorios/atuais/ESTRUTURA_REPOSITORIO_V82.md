@@ -1,6 +1,6 @@
-# Estrutura do repositório V81
+# Estrutura do repositório V82
 
-## Camadas novas da V81
+## Camadas novas da V82
 
 - `scripts/diagnostico/inspecionar_transicao_dominante_proxy_v3_vs_hibrido_shadow.py`
 - `scripts/inspecionar_transicao_dominante_proxy_v3_vs_hibrido_shadow.py`
@@ -15,6 +15,6 @@
 - `scripts/diagnostico/inspecionar_casos_reaproveitaveis_proxy_v3_vs_hibrido_shadow.py`
 - `scripts/diagnostico/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py`
 
-## Papel da V81
+## Papel da V82
 
-A V81 não adiciona nova camada funcional ao motor. Ela só aprofunda, de forma fina e localizada, a transição dominante identificada na V80, preservando a baseline decisória vigente e mantendo o benchmark híbrido como régua externa de auditoria.
+A V82 não adiciona nova camada funcional ao motor. Ela só aprofunda, de forma fina e localizada, a transição dominante identificada na V81, preservando a baseline decisória vigente e mantendo o benchmark híbrido como régua externa de auditoria.
