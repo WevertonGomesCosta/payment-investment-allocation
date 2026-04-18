@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V78'
-VERSAO_ANTERIOR = 'V77'
+VERSAO_VIGENTE = 'V79'
+VERSAO_ANTERIOR = 'V78'
 
 
 def repo_root() -> Path:
@@ -35,6 +35,7 @@ def validar_indice_documental(base: Path) -> list[str]:
         f'relatorios/atuais/ESTRUTURA_REPOSITORIO_{VERSAO_VIGENTE}.md',
         'relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md',
         'relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md',
+        'relatorios/atuais/AUDITORIA_RESIDUAL_DIVERGENCIAS_PROXY_V3_VS_HIBRIDO.md',
     ]
     if not indice.exists():
         return ['relatorios/INDICE_RELATORIOS.md ausente']
@@ -98,6 +99,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_switching_economico_shadow.py',
         'scripts/diagnostico/inspecionar_resolver_hibrido_5p_shadow.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
+        'scripts/diagnostico/inspecionar_divergencias_residuais_proxy_v3_vs_hibrido_shadow.py',
         'scripts/gerar_planilha_operacional.py',
         'scripts/gerar_auditoria_diaria_lote.py',
         'scripts/inspecionar_base.py',
@@ -112,6 +114,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_switching_economico_shadow.py',
         'scripts/inspecionar_resolver_hibrido_5p_shadow.py',
         'scripts/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
+        'scripts/inspecionar_divergencias_residuais_proxy_v3_vs_hibrido_shadow.py',
         'nucleo/caixa_recebidos_auditaveis.py',
         'nucleo/switching_economico_shadow.py',
         'nucleo/resolver_hibrido_5p_shadow.py',

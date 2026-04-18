@@ -57,4 +57,4 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
     - documentado de forma estável.
 
 
-15. Prioridade imediata pós-V77/V78: auditoria comparativa entre `proxy v3` vigente e benchmark shadow do `resolver_hibrido_5p`, antes de qualquer tentativa de acoplamento funcional do benchmark ao fluxo principal.
+15. Prioridade imediata pós-V77/V79: auditoria comparativa entre `proxy v3` vigente e benchmark shadow do `resolver_hibrido_5p`, antes de qualquer tentativa de acoplamento funcional do benchmark ao fluxo principal.

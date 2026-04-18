@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V78
+**Versão atual da baseline:** V79
 
-A V78 preserva integralmente a base funcional da V77 e abre o **benchmark shadow do `resolver_hibrido_5p` legado**, sem alterar o motor financeiro, sem reabrir o `proxy econômico v3` congelado e sem acoplar o benchmark ao fluxo principal.
+A V79 preserva integralmente a base funcional da V78 e abre a **auditoria residual das divergências materiais entre o `proxy econômico v3` vigente e o benchmark shadow do `resolver_hibrido_5p`**, sem alterar o motor financeiro, sem reabrir o `proxy econômico v3` congelado e sem acoplar o benchmark ao fluxo principal.
 
-## Estrutura canônica da V78
+## Estrutura canônica da V79
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -41,6 +41,7 @@ A V78 preserva integralmente a base funcional da V77 e abre o **benchmark shadow
 
 ### Mapeamento legado vigente
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
+- `relatorios/atuais/AUDITORIA_RESIDUAL_DIVERGENCIAS_PROXY_V3_VS_HIBRIDO.md`
 
 ### Shadow do switching econômico legado
 - `nucleo/switching_economico_shadow.py`
@@ -57,9 +58,9 @@ A V78 preserva integralmente a base funcional da V77 e abre o **benchmark shadow
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V78.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V78.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V78.md`
+- `relatorios/atuais/BASELINE_FIXA_V79.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V79.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V79.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 
@@ -135,4 +136,12 @@ python scripts/inspecionar_resolver_hibrido_5p_shadow.py
 - baseline atualizada para **V78** sem alteração do fluxo principal;
 - abertura da auditoria comparativa entre a decisão local vigente (**proxy v3**) e o benchmark shadow do **`resolver_hibrido_5p`**;
 - criação do diagnóstico `inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py`;
+- manutenção do `proxy econômico v3` como decisão vigente e do benchmark híbrido como camada apenas diagnóstica.
+
+
+## Atualização V79
+
+- baseline atualizada para **V79** sem alteração do fluxo principal;
+- abertura da auditoria residual dos **casos de divergência material** entre o `proxy v3` vigente e o benchmark shadow do `resolver_hibrido_5p`;
+- criação do diagnóstico `inspecionar_divergencias_residuais_proxy_v3_vs_hibrido_shadow.py`;
 - manutenção do `proxy econômico v3` como decisão vigente e do benchmark híbrido como camada apenas diagnóstica.

@@ -1850,3 +1850,160 @@ def auditar_comparativo_proxy_v3_vs_hibrido_shadow(
         'pacote_benchmark_shadow': resolver_hibrido_5p_shadow,
         'auditoria': auditoria,
     }
+
+
+
+def auditar_divergencias_residuais_proxy_v3_vs_hibrido_shadow(
+    dados_operacionais: PacoteDadosOperacionaisCanonicos,
+    fontes_elegiveis_pagamento: PacoteFontesElegiveisPagamento,
+    saldo_disponivel_geral: PacoteSaldoDisponivelGeral,
+    decisao_local_v1: PacoteDecisaoLocalV1,
+    resolver_hibrido_5p_shadow: Any,
+    *,
+    data_referencia: date,
+    carteira_canonica: Any,
+) -> dict[str, Any]:
+    comparativo = auditar_comparativo_proxy_v3_vs_hibrido_shadow(
+        dados_operacionais,
+        fontes_elegiveis_pagamento,
+        saldo_disponivel_geral,
+        decisao_local_v1,
+        resolver_hibrido_5p_shadow,
+        data_referencia=data_referencia,
+        carteira_canonica=carteira_canonica,
+    )
+    quadro = comparativo['quadro_comparativo'].copy()
+    divergencias = comparativo['quadro_divergencias'].copy()
+
+    if len(divergencias) == 0:
+        resumo = {
+            'total_pagamentos': int(len(quadro)),
+            'total_divergencias_materiais': 0,
+            'pct_divergencias_materiais': 0.0,
+            'casos_potencial_reaproveitamento_proxy_v3': 0,
+            'casos_divergencia_estrutural_benchmark': 0,
+            'casos_multifonte_shadow': 0,
+            'classificacao_residual': {},
+            'transicao_lote_principal': {},
+            'bucket_valor_pagamento': {},
+            'bucket_horizonte': {},
+            'conclusao_residual': 'sem_divergencias_materiais',
+        }
+        return {
+            'comparativo_base': comparativo,
+            'quadro_divergencias_residuais': divergencias,
+            'quadro_padroes_transicao': pd.DataFrame(),
+            'quadro_padroes_buckets': pd.DataFrame(),
+            'quadro_reaproveitaveis': pd.DataFrame(),
+            'quadro_estruturais': pd.DataFrame(),
+            'auditoria': {'validacao': {'ok': True, 'erros': [], 'avisos': []}, 'resumo': resumo},
+        }
+
+    divergencias = divergencias.copy()
+    divergencias['data_pagamento'] = pd.to_datetime(divergencias['data_pagamento'], errors='coerce')
+    divergencias['dias_ate_pagamento'] = divergencias['data_pagamento'].dt.date.apply(lambda d: (d - data_referencia).days if d is not None and pd.notna(d) else None)
+    divergencias['bucket_valor_pagamento'] = pd.cut(
+        divergencias['valor_pagamento'],
+        bins=[0.0, 100.0, 250.0, 500.0, 1000.0, float('inf')],
+        labels=['<=100', '100-250', '250-500', '500-1000', '>1000'],
+        include_lowest=True,
+    ).astype(str)
+    divergencias['bucket_horizonte'] = pd.cut(
+        divergencias['dias_ate_pagamento'],
+        bins=[-1, 30, 90, 180, 365, 10_000],
+        labels=['<=30d', '31-90d', '91-180d', '181-365d', '>365d'],
+        include_lowest=True,
+    ).astype(str)
+    divergencias['transicao_lote_principal'] = (
+        divergencias['lote_id_escolhido_local_v3'].fillna('sem_lote_local')
+        + ' -> ' +
+        divergencias['lote_principal_hibrido_shadow'].fillna('sem_lote_benchmark')
+    )
+    divergencias['grau_delta_score_proxy_v3'] = divergencias['delta_score_proxy_v3_principal_benchmark_vs_local'].abs().map(
+        lambda x: 'baixo' if float(x or 0.0) < 1.0 else ('moderado' if float(x or 0.0) < 25.0 else 'alto')
+    )
+
+    def _classificar_residual(row: pd.Series) -> str:
+        if bool(row.get('benchmark_multifonte_shadow')):
+            return 'benchmark_multifonte_sem_evidencia_suficiente'
+        score_cls = limpar_texto(row.get('classificacao_score_proxy_v3_principal'))
+        excesso_cls = limpar_texto(row.get('classificacao_excesso_liquido'))
+        if score_cls == 'benchmark_principal_melhor' and excesso_cls == 'benchmark_menor_excesso':
+            return 'potencial_reaproveitamento_proxy_v3'
+        if score_cls == 'benchmark_principal_pior' and excesso_cls == 'benchmark_menor_excesso':
+            return 'divergencia_estrutural_benchmark_hibrido'
+        return 'divergencia_residual_indeterminada'
+
+    divergencias['classificacao_residual'] = divergencias.apply(_classificar_residual, axis=1)
+    divergencias['ordem_relevancia_residual'] = divergencias['classificacao_residual'].map({
+        'potencial_reaproveitamento_proxy_v3': 1,
+        'benchmark_multifonte_sem_evidencia_suficiente': 2,
+        'divergencia_estrutural_benchmark_hibrido': 3,
+    }).fillna(9).astype(int)
+
+    quadro_padroes_transicao = (
+        divergencias.groupby(['transicao_lote_principal', 'classificacao_residual'], dropna=False, as_index=False)
+        .agg(
+            qtd_pagamentos=('pagamento_id', 'count'),
+            valor_pagamento_total=('valor_pagamento', 'sum'),
+            valor_pagamento_medio=('valor_pagamento', 'mean'),
+            delta_score_proxy_v3_medio=('delta_score_proxy_v3_principal_benchmark_vs_local', 'mean'),
+            delta_excesso_liquido_medio=('delta_excesso_liquido_benchmark_vs_local', 'mean'),
+            qtd_multifonte_shadow=('benchmark_multifonte_shadow', 'sum'),
+        )
+        .sort_values(['qtd_pagamentos', 'valor_pagamento_total'], ascending=[False, False], kind='stable')
+        .reset_index(drop=True)
+    )
+    for col in ['valor_pagamento_total', 'valor_pagamento_medio', 'delta_score_proxy_v3_medio', 'delta_excesso_liquido_medio']:
+        quadro_padroes_transicao[col] = quadro_padroes_transicao[col].astype(float).round(4 if 'score' in col else 2)
+
+    quadro_padroes_buckets = (
+        divergencias.groupby(['bucket_valor_pagamento', 'bucket_horizonte', 'classificacao_residual'], dropna=False, as_index=False)
+        .agg(
+            qtd_pagamentos=('pagamento_id', 'count'),
+            valor_pagamento_total=('valor_pagamento', 'sum'),
+            delta_score_proxy_v3_medio=('delta_score_proxy_v3_principal_benchmark_vs_local', 'mean'),
+            delta_excesso_liquido_medio=('delta_excesso_liquido_benchmark_vs_local', 'mean'),
+        )
+        .sort_values(['qtd_pagamentos', 'valor_pagamento_total'], ascending=[False, False], kind='stable')
+        .reset_index(drop=True)
+    )
+    for col in ['valor_pagamento_total', 'delta_score_proxy_v3_medio', 'delta_excesso_liquido_medio']:
+        quadro_padroes_buckets[col] = quadro_padroes_buckets[col].astype(float).round(4 if 'score' in col else 2)
+
+    quadro_reaproveitaveis = divergencias[divergencias['classificacao_residual'] == 'potencial_reaproveitamento_proxy_v3'].copy()
+    quadro_reaproveitaveis = quadro_reaproveitaveis.sort_values(['delta_score_proxy_v3_principal_benchmark_vs_local', 'valor_pagamento'], ascending=[True, False], kind='stable').reset_index(drop=True)
+
+    quadro_estruturais = divergencias[divergencias['classificacao_residual'] == 'divergencia_estrutural_benchmark_hibrido'].copy()
+    quadro_estruturais = quadro_estruturais.sort_values(['delta_score_proxy_v3_principal_benchmark_vs_local', 'valor_pagamento'], ascending=[False, False], kind='stable').reset_index(drop=True)
+
+    resumo = {
+        'total_pagamentos': int(len(quadro)),
+        'total_divergencias_materiais': int(len(divergencias)),
+        'pct_divergencias_materiais': round((len(divergencias) / max(len(quadro), 1)) * 100.0, 2),
+        'casos_potencial_reaproveitamento_proxy_v3': int(len(quadro_reaproveitaveis)),
+        'casos_divergencia_estrutural_benchmark': int(len(quadro_estruturais)),
+        'casos_multifonte_shadow': int(divergencias['benchmark_multifonte_shadow'].fillna(False).sum()),
+        'classificacao_residual': {str(k): int(v) for k, v in divergencias['classificacao_residual'].value_counts(dropna=False).to_dict().items()},
+        'transicao_lote_principal': {str(k): int(v) for k, v in divergencias['transicao_lote_principal'].value_counts(dropna=False).to_dict().items()},
+        'bucket_valor_pagamento': {str(k): int(v) for k, v in divergencias['bucket_valor_pagamento'].value_counts(dropna=False).to_dict().items()},
+        'bucket_horizonte': {str(k): int(v) for k, v in divergencias['bucket_horizonte'].value_counts(dropna=False).to_dict().items()},
+        'classificacao_score_proxy_v3_principal': {str(k): int(v) for k, v in divergencias['classificacao_score_proxy_v3_principal'].value_counts(dropna=False).to_dict().items()},
+        'classificacao_excesso_liquido': {str(k): int(v) for k, v in divergencias['classificacao_excesso_liquido'].value_counts(dropna=False).to_dict().items()},
+        'conclusao_residual': 'benchmark_hibrido_reduz_excesso_mas_a_maioria_das_divergencias_materiais_nao_melhora_a_metrica_comum_do_proxy_v3',
+    }
+    avisos = []
+    if len(quadro_reaproveitaveis) > 0:
+        avisos.append('existem_padroes_residuais_reaproveitaveis_no_benchmark_hibrido')
+    if len(quadro_estruturais) > 0:
+        avisos.append('existem_divergencias_estruturais_do_benchmark_hibrido_sem_evidencia_de_superioridade_no_proxy_v3')
+
+    return {
+        'comparativo_base': comparativo,
+        'quadro_divergencias_residuais': divergencias.sort_values(['ordem_relevancia_residual', 'data_pagamento', 'valor_pagamento'], ascending=[True, True, False], kind='stable').reset_index(drop=True),
+        'quadro_padroes_transicao': quadro_padroes_transicao,
+        'quadro_padroes_buckets': quadro_padroes_buckets,
+        'quadro_reaproveitaveis': quadro_reaproveitaveis,
+        'quadro_estruturais': quadro_estruturais,
+        'auditoria': {'validacao': {'ok': True, 'erros': [], 'avisos': avisos}, 'resumo': resumo},
+    }
