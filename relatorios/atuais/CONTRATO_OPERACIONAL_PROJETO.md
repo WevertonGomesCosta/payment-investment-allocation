@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V77**.
-2. A V77 preserva integralmente a base funcional da V76 e abre um benchmark shadow do **`resolver_hibrido_5p` legado**, mantendo o `proxy econômico v3` congelado como decisão monofonte vigente e sem acoplar o benchmark ao fluxo principal.
+1. A baseline atual é a **V78**.
+2. A V78 preserva integralmente a base funcional da V77 e abre um benchmark shadow do **`resolver_hibrido_5p` legado**, mantendo o `proxy econômico v3` congelado como decisão monofonte vigente e sem acoplar o benchmark ao fluxo principal.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -143,7 +143,7 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 12. Mapeamento legado vigente
 
-91. A baseline V77 mantém e usa um mapa de absorção legado específico para os `Script 1.txt` e `Script 2.txt`.
+91. A baseline V78 mantém e usa um mapa de absorção legado específico para os `Script 1.txt` e `Script 2.txt`.
 92. Esse mapa classifica funções e blocos em: `migrar já`, `migrar depois`, `não migrar` e `substituída pela baseline atual`.
 93. Nenhuma migração funcional dos Scripts 1 e 2 deve ser feita de forma bruta; a absorção deve seguir esse mapa e ocorrer primeiro em modo shadow/diagnóstico quando a regra ainda estiver ausente.
 
@@ -154,3 +154,10 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 66. `switching_economico_shadow` avalia lotes ativos pós-replay, compara `manter` vs `switch agora e carregar até o horizonte` e produz apenas ranking/plano shadow auditável.
 67. `resolver_hibrido_5p_shadow` avalia, por pagamento, um benchmark multifonte de resgate entre lotes elegíveis usando pesos legados de IOF, IR, idade, liquidez, cliff e VPL, sem substituir a decisão local v1 vigente.
 68. Nenhuma dessas camadas altera o fluxo principal da baseline atual.
+
+
+## 14. Auditoria comparativa vigente do benchmark híbrido
+
+94. A baseline V78 mantém uma auditoria comparativa reproduzível entre a `decisao_local_v1` vigente (proxy v3) e o `resolver_hibrido_5p_shadow`.
+95. Essa auditoria usa métricas comuns e não compara diretamente scores brutos de escalas diferentes.
+96. O benchmark híbrido permanece diagnóstico; divergência em relação ao proxy v3 não implica substituição automática da decisão vigente.

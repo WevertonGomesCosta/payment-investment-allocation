@@ -4,11 +4,11 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V77
+**Versão atual da baseline:** V78
 
-A V77 preserva integralmente a base funcional da V76 e abre o **benchmark shadow do `resolver_hibrido_5p` legado**, sem alterar o motor financeiro, sem reabrir o `proxy econômico v3` congelado e sem acoplar o benchmark ao fluxo principal.
+A V78 preserva integralmente a base funcional da V77 e abre o **benchmark shadow do `resolver_hibrido_5p` legado**, sem alterar o motor financeiro, sem reabrir o `proxy econômico v3` congelado e sem acoplar o benchmark ao fluxo principal.
 
-## Estrutura canônica da V77
+## Estrutura canônica da V78
 
 ### Orquestração da baseline
 - `nucleo/contexto_baseline.py` → montagem central da baseline
@@ -57,9 +57,9 @@ A V77 preserva integralmente a base funcional da V76 e abre o **benchmark shadow
 ### Documentação vigente
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V77.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V77.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V77.md`
+- `relatorios/atuais/BASELINE_FIXA_V78.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V78.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V78.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 
@@ -86,6 +86,7 @@ python scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py
 python scripts/diagnostico/inspecionar_mapa_absorcao_legado.py
 python scripts/diagnostico/inspecionar_switching_economico_shadow.py
 python scripts/diagnostico/inspecionar_resolver_hibrido_5p_shadow.py
+- `scripts/diagnostico/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py`
 ```
 
 ## Comandos antigos preservados
@@ -105,11 +106,12 @@ python scripts/inspecionar_comparativo_proxy_v2_v3.py
 python scripts/inspecionar_mapa_absorcao_legado.py
 python scripts/inspecionar_switching_economico_shadow.py
 python scripts/inspecionar_resolver_hibrido_5p_shadow.py
+- `scripts/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py`
 ```
 
-## Atualização V77
+## Atualização V78
 
-- baseline atualizada para **V76** sem alteração funcional do motor;
+- baseline atualizada para **V77** sem alteração funcional do motor;
 - abertura da absorção inicial do **switching econômico legado em modo shadow**;
 - criação de uma camada diagnóstica que compara `manter` vs `switch agora e carregar até o horizonte`;
 - criação do diagnóstico `inspecionar_switching_economico_shadow.py`;
@@ -118,11 +120,19 @@ python scripts/inspecionar_resolver_hibrido_5p_shadow.py
 - preservação do `release checker` como gate obrigatório antes das próximas entregas.
 
 
-## Atualização V77
+## Atualização V78
 
-- baseline atualizada para **V77** sem alteração funcional do motor;
+- baseline atualizada para **V78** sem alteração funcional do motor;
 - abertura do benchmark shadow do **`resolver_hibrido_5p`** legado;
 - criação de uma camada diagnóstica multifonte local por pagamento, isolada do fluxo principal;
 - criação do diagnóstico `inspecionar_resolver_hibrido_5p_shadow.py`;
 - preservação do `proxy econômico v3` congelado como decisão monofonte vigente;
 - manutenção de `multifonte v1` como frente futura condicionada à evidência.
+
+
+## Atualização V78
+
+- baseline atualizada para **V78** sem alteração do fluxo principal;
+- abertura da auditoria comparativa entre a decisão local vigente (**proxy v3**) e o benchmark shadow do **`resolver_hibrido_5p`**;
+- criação do diagnóstico `inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py`;
+- manutenção do `proxy econômico v3` como decisão vigente e do benchmark híbrido como camada apenas diagnóstica.

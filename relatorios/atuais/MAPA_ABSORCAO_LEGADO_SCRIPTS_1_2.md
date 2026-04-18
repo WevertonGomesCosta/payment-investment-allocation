@@ -8,7 +8,7 @@ Este documento classifica os blocos relevantes de `Script 1.txt` e `Script 2.txt
 - **não migrar**;
 - **substituída pela baseline atual**.
 
-A V77 usa este mapa como referência obrigatória antes de qualquer nova migração funcional do legado.
+A V78 usa este mapa como referência obrigatória antes de qualquer nova migração funcional do legado.
 
 ## Script 1 — otimização e validação
 
@@ -34,7 +34,7 @@ A V77 usa este mapa como referência obrigatória antes de qualquer nova migraç
   - motivo: infraestrutura pesada, acoplada e não prioritária nesta fase.
 
 ### Substituída pela baseline atual
-- utilidades de exportação e diagnósticos auxiliares que já têm equivalente mais simples e controlado na V74/V77.
+- utilidades de exportação e diagnósticos auxiliares que já têm equivalente mais simples e controlado na V74/V78.
 
 ## Script 2 — switching e diagnósticos
 
@@ -60,12 +60,12 @@ A V77 usa este mapa como referência obrigatória antes de qualquer nova migraç
   - motivo: o repositório atual já possui caminhos próprios e mais controlados de saída.
 
 ### Substituída pela baseline atual
-- trechos de resumo operacional e exportação já cobertos pela planilha operacional vigente, pela separação de seções do console e pelos diagnósticos canônicos da V74/V77.
+- trechos de resumo operacional e exportação já cobertos pela planilha operacional vigente, pela separação de seções do console e pelos diagnósticos canônicos da V74/V78.
 
-## Prioridade imediata pós-V77
+## Prioridade imediata pós-V78
 
-1. **Switching econômico legado** do Script 2, em modo shadow/auditoria — **aberto na V76**.
-2. **Benchmark do `resolver_hibrido_5p`** do Script 1, em modo diagnóstico comparativo — **aberto na V77**.
+1. **Switching econômico legado** do Script 2, em modo shadow/auditoria — **aberto na V77**.
+2. **Benchmark do `resolver_hibrido_5p`** do Script 1, em modo diagnóstico comparativo — **aberto na V78**.
 3. Só depois avaliar absorção complementar, calibração e eventual comparação estruturada entre benchmark híbrido e decisão local vigente.
 
 ## Regras de absorção
@@ -74,3 +74,6 @@ A V77 usa este mapa como referência obrigatória antes de qualquer nova migraç
 - Não incorporar infraestrutura pesada de treino, rede ou exportação antiga sem necessidade material.
 - Toda migração funcional deve passar primeiro por camada shadow/diagnóstica quando a regra ainda estiver ausente.
 - A baseline vigente continua com `proxy econômico v3` congelado até nova evidência concreta.
+
+
+3. **Auditoria comparativa do benchmark `resolver_hibrido_5p_shadow` vs. decisão local vigente** — **aberta na V78**.

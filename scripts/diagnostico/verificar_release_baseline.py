@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V77'
-VERSAO_ANTERIOR = 'V76'
+VERSAO_VIGENTE = 'V78'
+VERSAO_ANTERIOR = 'V77'
 
 
 def repo_root() -> Path:
@@ -97,6 +97,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_mapa_absorcao_legado.py',
         'scripts/diagnostico/inspecionar_switching_economico_shadow.py',
         'scripts/diagnostico/inspecionar_resolver_hibrido_5p_shadow.py',
+        'scripts/diagnostico/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
         'scripts/gerar_planilha_operacional.py',
         'scripts/gerar_auditoria_diaria_lote.py',
         'scripts/inspecionar_base.py',
@@ -110,6 +111,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_mapa_absorcao_legado.py',
         'scripts/inspecionar_switching_economico_shadow.py',
         'scripts/inspecionar_resolver_hibrido_5p_shadow.py',
+        'scripts/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
         'nucleo/caixa_recebidos_auditaveis.py',
         'nucleo/switching_economico_shadow.py',
         'nucleo/resolver_hibrido_5p_shadow.py',

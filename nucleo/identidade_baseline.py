@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-VERSAO_BASELINE = "V77"
+VERSAO_BASELINE = "V78"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
 
@@ -30,3 +30,7 @@ def caminho_artifact(nome_arquivo: str) -> Path:
 
 def nome_auditoria_comparativa_proxy_v2_v3(extensao: str) -> str:
     return f"auditoria_comparativa_proxy_v2_v3_{VERSAO_SLUG}.{extensao.lstrip('.')}"
+
+
+def nome_auditoria_comparativa_proxy_v3_vs_hibrido_shadow(extensao: str) -> str:
+    return f"auditoria_comparativa_proxy_v3_vs_hibrido_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"

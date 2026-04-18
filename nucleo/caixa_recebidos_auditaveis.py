@@ -1670,3 +1670,183 @@ def materializar_fontes_elegiveis_pagamento(
         },
     }
     return PacoteFontesElegiveisPagamento(quadro_fontes_elegiveis=quadro, auditoria=auditoria)
+
+
+def auditar_comparativo_proxy_v3_vs_hibrido_shadow(
+    dados_operacionais: PacoteDadosOperacionaisCanonicos,
+    fontes_elegiveis_pagamento: PacoteFontesElegiveisPagamento,
+    saldo_disponivel_geral: PacoteSaldoDisponivelGeral,
+    decisao_local_v1: PacoteDecisaoLocalV1,
+    resolver_hibrido_5p_shadow: Any,
+    *,
+    data_referencia: date,
+    carteira_canonica: Any | None = None,
+) -> dict[str, Any]:
+    quadro_local = decisao_local_v1.quadro_decisao_local_v1.copy().rename(columns={
+        'fonte_escolhida_id': 'fonte_escolhida_id_local_v3',
+        'fonte_base_escolhida': 'fonte_base_escolhida_local_v3',
+        'lote_id_escolhido': 'lote_id_escolhido_local_v3',
+        'recebido_id_escolhido': 'recebido_id_escolhido_local_v3',
+        'tipo_fonte_escolhida': 'tipo_fonte_escolhida_local_v3',
+        'criterio_decisao': 'criterio_decisao_local_v3',
+        'custo_economico_proxy': 'custo_economico_proxy_local_v3',
+        'observacao_auditavel': 'observacao_auditavel_local_v3',
+        'valor_disponivel_escolhido': 'valor_disponivel_escolhido_local_v3',
+        'pagamento_totalmente_coberto': 'pagamento_totalmente_coberto_local_v3',
+        'fonte_origem_status': 'fonte_origem_status_local_v3',
+        'fonte_elegivel_na_data': 'fonte_elegivel_na_data_local_v3',
+        'data_base_valor_escolhido': 'data_base_valor_escolhido_local_v3',
+        'motivo_bloqueio_ou_restricao': 'motivo_bloqueio_ou_restricao_local_v3',
+    })
+    quadro_bench = resolver_hibrido_5p_shadow.quadro_pagamentos_benchmark.copy().rename(columns={
+        'status_benchmark': 'status_benchmark_shadow',
+        'motivo_status': 'motivo_status_shadow',
+        'qtd_lotes_candidatos': 'qtd_lotes_candidatos_shadow',
+        'qtd_lotes_usados_hibrido': 'qtd_lotes_usados_hibrido_shadow',
+        'valor_bruto_total_hibrido': 'valor_bruto_total_hibrido_shadow',
+        'valor_liquido_total_hibrido': 'valor_liquido_total_hibrido_shadow',
+        'custo_total_proxy_hibrido': 'custo_total_proxy_hibrido_shadow',
+        'benchmark_totalmente_coberto': 'benchmark_totalmente_coberto_shadow',
+        'lote_principal_hibrido': 'lote_principal_hibrido_shadow',
+        'lote_principal_local_v1': 'lote_principal_local_v1_shadow',
+        'tipo_fonte_local_v1': 'tipo_fonte_local_v1_shadow',
+        'diverge_decisao_local_v1': 'diverge_decisao_local_v1_shadow',
+        'bruto_monofonte_local_estimado': 'bruto_monofonte_local_estimado_shadow',
+        'delta_bruto_hibrido_vs_local': 'delta_bruto_hibrido_vs_local_shadow',
+        'observacao_auditavel': 'observacao_auditavel_shadow',
+    })
+    comparativo = quadro_local.merge(
+        quadro_bench,
+        on=['pagamento_id', 'data_pagamento', 'descricao_pagamento', 'valor_pagamento'],
+        how='outer',
+        validate='one_to_one',
+    )
+
+    pagamentos_alvo = _pagamentos_alvo_f1_4(dados_operacionais.gastos_canonicos.copy(), data_referencia=data_referencia)
+    quadro_saldo = saldo_disponivel_geral.quadro_saldo_disponivel.copy()
+    quadro_fontes = fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy()
+    mapa_produtos_proxy = _construir_mapa_produtos_proxy(carteira_canonica)
+
+    score_local_comum = []
+    score_benchmark_principal = []
+    delta_score_principal = []
+    classif_score = []
+    excesso_local = []
+    excesso_bench = []
+    delta_excesso = []
+    classif_excesso = []
+    mudou_lote_principal = []
+    divergencia_material = []
+
+    for linha in comparativo.to_dict(orient='records'):
+        pagamento_id = limpar_texto(linha.get('pagamento_id'))
+        pagamento_row = pagamentos_alvo.loc[pagamentos_alvo['despesa_id'] == pagamento_id]
+        if len(pagamento_row) == 0:
+            score_local_comum.append(None)
+            score_benchmark_principal.append(None)
+            delta_score_principal.append(None)
+            classif_score.append('indisponivel')
+            excesso_local.append(None)
+            excesso_bench.append(None)
+            delta_excesso.append(None)
+            classif_excesso.append('indisponivel')
+            lote_local = normalizar_identificador(linha.get('lote_id_escolhido_local_v3')) or ''
+            lote_bench = normalizar_identificador(linha.get('lote_principal_hibrido_shadow')) or ''
+            mudou = lote_local != lote_bench
+            mudou_lote_principal.append(bool(mudou))
+            divergencia_material.append(bool(mudou or bool(linha.get('qtd_lotes_usados_hibrido_shadow') or 0) > 1))
+            continue
+
+        pagamento = pagamento_row.iloc[0].to_dict()
+        valor_pagamento = round(float(pagamento.get('valor') or 0.0), 2)
+        candidatos = _construir_candidatos_decisao_local_v1(pagamento, quadro_saldo, quadro_fontes, mapa_produtos_proxy)
+        mapa_candidatos_fonte = {limpar_texto(c.get('fonte_escolhida_id')): c for c in candidatos}
+        mapa_candidatos_lote = {normalizar_identificador(c.get('lote_id')): c for c in candidatos if normalizar_identificador(c.get('lote_id'))}
+
+        candidato_local = mapa_candidatos_fonte.get(limpar_texto(linha.get('fonte_escolhida_id_local_v3')))
+        candidato_bench = mapa_candidatos_lote.get(normalizar_identificador(linha.get('lote_principal_hibrido_shadow')))
+
+        if candidato_local is not None:
+            score_loc, _ = _score_proxy_economico_v3(candidato_local, valor_pagamento=valor_pagamento)
+        else:
+            score_loc = linha.get('custo_economico_proxy_local_v3')
+        if candidato_bench is not None:
+            score_bench, _ = _score_proxy_economico_v3(candidato_bench, valor_pagamento=valor_pagamento)
+        else:
+            score_bench = None
+
+        score_local_comum.append(round(float(score_loc), 4) if score_loc is not None else None)
+        score_benchmark_principal.append(round(float(score_bench), 4) if score_bench is not None else None)
+        if score_loc is None or score_bench is None:
+            delta_score_principal.append(None)
+            classif_score.append('indisponivel')
+        else:
+            delta = round(float(score_bench) - float(score_loc), 4)
+            delta_score_principal.append(delta)
+            classif_score.append('benchmark_principal_melhor' if delta < 0 else ('benchmark_principal_pior' if delta > 0 else 'igual'))
+
+        valor_local = round(float(linha.get('valor_disponivel_escolhido_local_v3') or 0.0), 2)
+        valor_bench = round(float(linha.get('valor_liquido_total_hibrido_shadow') or 0.0), 2)
+        exc_local = round(max(valor_local - valor_pagamento, 0.0), 2)
+        exc_bench = round(max(valor_bench - valor_pagamento, 0.0), 2)
+        excesso_local.append(exc_local)
+        excesso_bench.append(exc_bench)
+        delta_exc = round(exc_bench - exc_local, 2)
+        delta_excesso.append(delta_exc)
+        classif_excesso.append('benchmark_menor_excesso' if delta_exc < 0 else ('benchmark_maior_excesso' if delta_exc > 0 else 'igual'))
+
+        lote_local = normalizar_identificador(linha.get('lote_id_escolhido_local_v3')) or ''
+        lote_bench = normalizar_identificador(linha.get('lote_principal_hibrido_shadow')) or ''
+        mudou = lote_local != lote_bench
+        mudou_lote_principal.append(bool(mudou))
+        divergencia_material.append(bool(mudou or bool(linha.get('qtd_lotes_usados_hibrido_shadow') or 0) > 1 or limpar_texto(linha.get('tipo_fonte_escolhida_local_v3')) != 'lote_resgatavel'))
+
+    comparativo['score_proxy_v3_local_comum'] = score_local_comum
+    comparativo['score_proxy_v3_lote_principal_benchmark'] = score_benchmark_principal
+    comparativo['delta_score_proxy_v3_principal_benchmark_vs_local'] = delta_score_principal
+    comparativo['classificacao_score_proxy_v3_principal'] = classif_score
+    comparativo['excesso_liquido_local_v3'] = excesso_local
+    comparativo['excesso_liquido_benchmark_shadow'] = excesso_bench
+    comparativo['delta_excesso_liquido_benchmark_vs_local'] = delta_excesso
+    comparativo['classificacao_excesso_liquido'] = classif_excesso
+    comparativo['mudou_lote_principal'] = mudou_lote_principal
+    comparativo['divergencia_material'] = divergencia_material
+    comparativo['benchmark_multifonte_shadow'] = comparativo['qtd_lotes_usados_hibrido_shadow'].fillna(0).map(lambda x: bool(float(x) > 1))
+
+    comparativo = comparativo.sort_values(['data_pagamento', 'pagamento_id'], kind='stable').reset_index(drop=True)
+    divergencias = comparativo.loc[comparativo['divergencia_material']].copy()
+
+    serie_score = pd.Series([x for x in comparativo['delta_score_proxy_v3_principal_benchmark_vs_local'].tolist() if x is not None], dtype='float64')
+    serie_excesso = pd.Series([x for x in comparativo['delta_excesso_liquido_benchmark_vs_local'].tolist() if x is not None], dtype='float64')
+
+    resumo = {
+        'total_pagamentos': int(len(comparativo)),
+        'pagamentos_totalmente_cobertos_local_v3': int(comparativo['pagamento_totalmente_coberto_local_v3'].fillna(False).sum()),
+        'pagamentos_totalmente_cobertos_benchmark_shadow': int(comparativo['benchmark_totalmente_coberto_shadow'].fillna(False).sum()),
+        'pagamentos_com_lote_principal_alterado': int(comparativo['mudou_lote_principal'].fillna(False).sum()),
+        'pagamentos_multifonte_shadow': int(comparativo['benchmark_multifonte_shadow'].fillna(False).sum()),
+        'pagamentos_com_divergencia_material': int(comparativo['divergencia_material'].fillna(False).sum()),
+        'delta_score_proxy_v3_principal_total': round(float(serie_score.sum()), 4) if len(serie_score) else 0.0,
+        'delta_score_proxy_v3_principal_medio': round(float(serie_score.mean()), 4) if len(serie_score) else 0.0,
+        'classificacao_score_proxy_v3_principal': {str(k): int(v) for k, v in comparativo['classificacao_score_proxy_v3_principal'].value_counts(dropna=False).to_dict().items()},
+        'delta_excesso_liquido_total': round(float(serie_excesso.sum()), 2) if len(serie_excesso) else 0.0,
+        'delta_excesso_liquido_medio': round(float(serie_excesso.mean()), 2) if len(serie_excesso) else 0.0,
+        'classificacao_excesso_liquido': {str(k): int(v) for k, v in comparativo['classificacao_excesso_liquido'].value_counts(dropna=False).to_dict().items()},
+        'lote_id_escolhido_local_v3': {str(k): int(v) for k, v in comparativo['lote_id_escolhido_local_v3'].fillna('sem_lote').value_counts(dropna=False).to_dict().items()},
+        'lote_principal_hibrido_shadow': {str(k): int(v) for k, v in comparativo['lote_principal_hibrido_shadow'].fillna('sem_lote').value_counts(dropna=False).to_dict().items()},
+    }
+    auditoria = {
+        'resumo': resumo,
+        'validacao': {
+            'ok': len(comparativo) == len(quadro_local) == len(quadro_bench),
+            'erros': [] if len(comparativo) == len(quadro_local) == len(quadro_bench) else ['comparativo_incompleto_proxy_v3_vs_hibrido_shadow'],
+            'avisos': ['benchmark_shadow_permanece_diagnostico_e_desacoplado_do_fluxo_principal'],
+        },
+    }
+    return {
+        'quadro_comparativo': comparativo,
+        'quadro_divergencias': divergencias,
+        'pacote_local_v3': decisao_local_v1,
+        'pacote_benchmark_shadow': resolver_hibrido_5p_shadow,
+        'auditoria': auditoria,
+    }
