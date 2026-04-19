@@ -10,7 +10,7 @@ Este documento classifica os blocos relevantes de `Script 1.txt` e `Script 2.txt
 
 > Correção de identidade vigente: o arquivo que havia sido tratado anteriormente como “Script 2” corresponde, na verdade, ao **Script 1**. O `Script 2.txt` correto passa a ser o runner legado de **switching + simulação futura + exportação final**.
 
-A V91 usa este mapa como referência obrigatória antes de qualquer nova migração funcional do legado.
+A V92 usa este mapa como referência obrigatória antes de qualquer nova migração funcional do legado.
 
 ## Script 1 — otimização, validação e competição entre estratégias
 
@@ -69,12 +69,12 @@ A V91 usa este mapa como referência obrigatória antes de qualquer nova migraç
 - geração do relatório operacional vigente
 - camadas shadow já abertas para benchmarks específicos
 
-## Prioridade imediata pós-V91
+## Prioridade imediata pós-V92
 
 1. **Switching econômico legado** do Script 2 continua apenas em shadow — **aberto na V76**.
 2. **Benchmark do `resolver_hibrido_5p`** do Script 1 continua diagnóstico comparativo — **aberto na V77/V78**.
 3. **Benchmark shadow agrupado vs. individual** pertence ao Script 1 — **aberto na V88/V89**.
-4. **Nova prioridade aberta na V91:** benchmark shadow do runner de simulação futura do Script 2 correto.
+4. **Nova prioridade aberta na V92:** benchmark shadow do runner de simulação futura do Script 2 correto.
 
 ## Regras de absorção
 

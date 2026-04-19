@@ -4,7 +4,7 @@
 
 Este documento mapeia **apenas a orquestração principal do Script 2 correto** enviado pelo usuário, sem migrar o runner legado bruto para o fluxo principal atual.
 
-> Observação de governança: o mapa aberto anteriormente para “Script 2” foi baseado em um arquivo identificado de forma incorreta. A partir da V91, este documento **substitui** aquela leitura e passa a refletir o runner correto de switching, simulação futura e exportação final.
+> Observação de governança: o mapa aberto anteriormente para “Script 2” foi baseado em um arquivo identificado de forma incorreta. A partir da V92, este documento **substitui** aquela leitura e passa a refletir o runner correto de switching, simulação futura e exportação final.
 
 A base desta classificação é o bloco `executar_runner_principal(...)` e suas funções imediatamente associadas no `Script 2.txt` correto, que contém:
 - carregamento do snapshot inicial;
@@ -67,12 +67,12 @@ A base desta classificação é o bloco `executar_runner_principal(...)` e suas 
 - benchmark shadow agrupado vs. individual do **Script 1**
 - auditorias comparativas e residuais do `proxy v3` vigente
 
-## Decisão operacional da V91
+## Decisão operacional da V92
 
-A V91 **não absorve funcionalmente** a execução principal do Script 2 correto. Ela apenas corrige o mapa dessa orquestração e redefine a prioridade real da futura migração.
+A V92 **não absorve funcionalmente** a execução principal do Script 2 correto. Ela apenas corrige o mapa dessa orquestração e redefine a prioridade real da futura migração.
 
-## Prioridade pós-V91
+## Prioridade pós-V92
 
-1. **Próxima prioridade potencial:** benchmark shadow do runner de simulação futura do Script 2 correto.
+1. **Prioridade aberta na V92:** benchmark shadow do runner de simulação futura do Script 2 correto (**aberto na V92**).
 2. Em seguida: auditoria shadow do processamento por evento futuro e dos modos de execução futura.
 3. Só depois avaliar se alguma parte do runner legado correto merece migração funcional.

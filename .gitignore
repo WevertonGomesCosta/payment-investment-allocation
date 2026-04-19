@@ -1,19 +1,14 @@
 # =========================================================
 # Política principal de exclusão do repositório
 # Este arquivo é a fonte canônica das regras de ignore.
-# =========================================================
 
 # ---------------------------------------------------------
 # R / RStudio
-# ---------------------------------------------------------
 .Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
-
-# ---------------------------------------------------------
 # Python
-# ---------------------------------------------------------
 __pycache__/
 *.py[cod]
 *.pyo
@@ -36,17 +31,11 @@ htmlcov/
 build/
 dist/
 *.egg-info/
-
-# ---------------------------------------------------------
 # Ambientes / configurações locais
-# ---------------------------------------------------------
 .env
 .env.*
 *.local
-
-# ---------------------------------------------------------
 # Sistema operacional / editores
-# ---------------------------------------------------------
 .DS_Store
 Thumbs.db
 *.swp
@@ -54,25 +43,16 @@ Thumbs.db
 *~
 .idea/
 .vscode/
-
-# ---------------------------------------------------------
 # Arquivos compactados e pacotes gerados
-# ---------------------------------------------------------
 *.zip
 *.7z
 *.tar
 *.gz
-
-# ---------------------------------------------------------
 # Logs e temporários
-# ---------------------------------------------------------
 *.log
 *.tmp
 *.temp
-
-# ---------------------------------------------------------
 # Saídas geradas
-# ---------------------------------------------------------
 saidas/*
 relatorios/*
 !saidas/.gitkeep
@@ -82,44 +62,31 @@ relatorios/*
 !relatorios/atuais/**
 !relatorios/historico/
 !relatorios/historico/**
-
-# ---------------------------------------------------------
 # Derivados de dados e caches
 # Manter apenas arquivos canônicos quando rastreados.
-# ---------------------------------------------------------
 cache/
 *.parquet
 *.feather
 *.pkl
 *.joblib
 *.json.bak
-
-# ---------------------------------------------------------
 # Planilhas e exportações tabulares
 # Ignorar gerados por padrão.
 # Arquivos canônicos rastreados continuam permitidos.
-# ---------------------------------------------------------
 *.csv
 *.xls
 *.xlsx
 !dados/dados_financeiros.xlsx
-
-# ---------------------------------------------------------
 # Diretórios específicos do projeto
-# ---------------------------------------------------------
 dados/bruto/*
 dados/intermediario/*
 dados/processado/*
 !dados/bruto/.gitkeep
 !dados/intermediario/.gitkeep
 !dados/processado/.gitkeep
-
 relatorios/_log_validacao_*.txt
-
 !saidas/operacional/
 !saidas/operacional/.gitkeep
-
-
 Script 1.txt
 Script 2.txt
 code/

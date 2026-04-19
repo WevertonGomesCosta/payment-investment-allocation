@@ -60,18 +60,21 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 15. Prioridade imediata pós-V77/V80: auditoria comparativa entre `proxy v3` vigente e benchmark shadow do `resolver_hibrido_5p`, antes de qualquer tentativa de acoplamento funcional do benchmark ao fluxo principal.
 
 
-## 9. Continuação possível após a V91
+## 9. Continuação possível após a V92
 
-20. Só considerar refino do `proxy v3` se a auditoria fina mantida na V91 mostrar padrão suficientemente concentrado, localizado e economicamente coerente.
+20. Só considerar refino do `proxy v3` se a auditoria fina mantida na V92 mostrar padrão suficientemente concentrado, localizado e economicamente coerente.
 21. Se isso ocorrer, abrir apenas um eventual microajuste local restrito à transição dominante, antes de qualquer ajuste amplo no proxy local.
 
-22. Com a consolidação dos helpers duplicados de baixo risco preservada na V91, a próxima limpeza arquitetural ampla só deve ocorrer se restarem grupos duplicados com ganho real de manutenção.
+22. Com a consolidação dos helpers duplicados de baixo risco preservada na V92, a próxima limpeza arquitetural ampla só deve ocorrer se restarem grupos duplicados com ganho real de manutenção.
 23. Consolidar helpers duplicados de baixo risco em um módulo neutro compartilhado apenas depois da estabilização da compatibilidade restaurada.
 24. Classificar a superfície diagnóstica em canônica, histórica e experimental antes de qualquer poda de scripts.
 
 
-## 10. Prioridade imediata pós-V91
+## 10. Prioridade imediata pós-V92
 
 25. O benchmark shadow do teste agrupado vs. individual passa a ser tratado como camada do Script 1, e não do Script 2.
 26. Para o Script 2 correto, a próxima prioridade potencial passa a ser um benchmark shadow do runner de simulação futura antes de qualquer migração funcional.
 27. Não migrar o runner legado completo do Script 2 correto para o fluxo principal sem passar primeiro pelo benchmark shadow da simulação futura e pela auditoria do processamento por evento.
+
+28. A V92 abre o benchmark shadow do runner de simulação futura do Script 2 correto; enquanto não houver auditoria por evento, ele permanece apenas diagnóstico.
+29. O benchmark shadow do runner de simulação futura do Script 2 correto, aberto na V92, recomenda manter a decisão vigente até nova auditoria por evento futuro.

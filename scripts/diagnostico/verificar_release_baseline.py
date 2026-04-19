@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V91'
-VERSAO_ANTERIOR = 'V90'
+VERSAO_VIGENTE = 'V92'
+VERSAO_ANTERIOR = 'V91'
 
 
 def repo_root() -> Path:
@@ -37,6 +37,7 @@ def validar_indice_documental(base: Path) -> list[str]:
         'relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md',
         'relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md',
         'relatorios/atuais/BENCHMARK_SHADOW_AGRUPADO_VS_INDIVIDUAL_SCRIPT1.md',
+        'relatorios/atuais/BENCHMARK_SHADOW_RUNNER_SIMULACAO_FUTURA_SCRIPT2.md',
         'relatorios/atuais/AUDITORIA_RESIDUAL_DIVERGENCIAS_PROXY_V3_VS_HIBRIDO.md',
         'relatorios/atuais/AUDITORIA_CIRURGICA_42_CASOS_REAPROVEITAVEIS.md',
         'relatorios/atuais/AUDITORIA_FINA_TRANSICAO_DOMINANTE_3000B_8500MAR.md',
@@ -104,6 +105,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_mapa_absorcao_legado.py',
         'scripts/diagnostico/inspecionar_mapa_execucao_principal_script2.py',
         'scripts/diagnostico/inspecionar_benchmark_agrupado_individual_shadow.py',
+        'scripts/diagnostico/inspecionar_benchmark_runner_futuro_shadow.py',
         'scripts/diagnostico/inspecionar_switching_economico_shadow.py',
         'scripts/diagnostico/inspecionar_resolver_hibrido_5p_shadow.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
@@ -125,6 +127,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_mapa_absorcao_legado.py',
         'scripts/inspecionar_mapa_execucao_principal_script2.py',
         'scripts/inspecionar_benchmark_agrupado_individual_shadow.py',
+        'scripts/inspecionar_benchmark_runner_futuro_shadow.py',
         'scripts/inspecionar_switching_economico_shadow.py',
         'scripts/inspecionar_resolver_hibrido_5p_shadow.py',
         'scripts/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
@@ -137,6 +140,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'nucleo/switching_economico_shadow.py',
         'nucleo/resolver_hibrido_5p_shadow.py',
         'nucleo/benchmark_agrupado_individual_shadow.py',
+        'nucleo/benchmark_runner_futuro_shadow.py',
     ]
     erros: list[str] = []
     for item in esperados:
