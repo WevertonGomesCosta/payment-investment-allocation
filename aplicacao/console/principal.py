@@ -509,11 +509,6 @@ def _extrair_resumo_leitura_decisao(observacao):
     if not texto:
         return ''
     partes = []
-    import re
-    janela = re.search(r'janela de excesso de até\s*([0-9.,]+)', texto)
-    if janela:
-        valor_janela = str(janela.group(1)).rstrip('.,;: ')
-        partes.append(f'janela_excesso={valor_janela}')
     if 'fotografia da data de referência' in texto:
         partes.append('base=data_ref')
     if 'projeção futura da fonte ainda não foi aberta' in texto:
@@ -593,7 +588,6 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, de
             'Descrição': str(row.get('descricao') or ''),
             'Valor': round(float(row.get('valor') or 0.0), 2),
             'Lote sugerido': str(decisao.get('lote_id_escolhido') or ''),
-            'Lote(s) informado(s)': ' | '.join(lotes_informados),
             'Score proxy': round(float(decisao.get('custo_economico_proxy') or 0.0), 4) if decisao else '',
             'Status local': 'integral na decisão local' if bool(decisao.get('pagamento_totalmente_coberto')) else ('parcial/ausente na decisão local' if decisao else ''),
             'Leitura técnica': _extrair_resumo_leitura_decisao(decisao.get('observacao_auditavel')),

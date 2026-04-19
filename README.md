@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V97
+**Versão atual da baseline:** V98
 
-A V97 preserva integralmente a baseline funcional imediatamente anterior e faz um ajuste cirúrgico de auditabilidade do console: remove a coluna de método da amostra dos próximos 5 pagamentos, elimina a redundância entre cobertura e leitura auditável e substitui a coluna ambígua de custo por score proxy.
+A V98 preserva integralmente a baseline funcional imediatamente anterior e faz um ajuste cirúrgico de auditabilidade do console: preserva a auditabilidade do console e faz um refinamento cirúrgico da amostra dos próximos 5 pagamentos: remove a coluna residual de lotes informados e elimina a referência à janela na leitura técnica curta, mantendo apenas o lote sugerido, o score proxy, o status local e a leitura temporal essencial.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -45,9 +45,9 @@ python scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V97.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V97.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V97.md`
+- `relatorios/atuais/BASELINE_FIXA_V98.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V98.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V98.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -58,17 +58,17 @@ python scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
 
-## Resumo operacional da V97
+## Resumo operacional da V98
 
 - o runner principal legado do Script 2 foi classificado em mapa de absorção e não entra funcionalmente na baseline atual;
 - `proxy econômico v3` permanece congelado como decisão monofonte vigente;
 - `multifonte v1` continua fora do fluxo principal e condicionada à evidência;
 - `switching_economico_shadow` e `resolver_hibrido_5p_shadow` continuam camadas diagnósticas;
-- a V97 mantém a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20;
-- a V97 mantém o lote sugerido para os próximos pagamentos, mas remove a coluna de método dessa amostra curta;
-- a V97 separa explicitamente status local da decisão e leitura técnica, evitando redundância sobre cobertura integral;
-- a V97 renomeia a coluna ambígua de custo para score proxy e torna a leitura técnica mais explícita sobre janela e uso da data de referência;
-- a V97 mantém a seção separada de modelos, parâmetros centrais e justificativa operacional do método governante atual;
+- a V98 mantém a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20;
+- a V98 mantém o lote sugerido para os próximos pagamentos, mas remove a coluna de método dessa amostra curta;
+- a V98 separa explicitamente status local da decisão e leitura técnica, evitando redundância sobre cobertura integral;
+- a V98 renomeia a coluna ambígua de custo para score proxy e torna a leitura técnica mais explícita sobre janela e uso da data de referência;
+- a V98 mantém a seção separada de modelos, parâmetros centrais e justificativa operacional do método governante atual;
 - o runner shadow cobre 15/152 pagamentos integralmente, usa multifonte em 3 casos e altera o lote principal em 150 pagamentos;
 - por isso, a recomendação do benchmark permanece **vigente**, e o runner legado correto continua apenas diagnóstico.
 
