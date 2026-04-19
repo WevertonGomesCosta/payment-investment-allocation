@@ -509,17 +509,15 @@ def _extrair_resumo_leitura_decisao(observacao):
     if not texto:
         return ''
     partes = []
-    if 'cobre integralmente o pagamento' in texto:
-        partes.append('cobre integralmente')
     import re
     janela = re.search(r'janela de excesso de até\s*([0-9.,]+)', texto)
     if janela:
-        partes.append(f'janela={janela.group(1)}')
-    score = re.search(r'score=([0-9.,]+)', texto)
-    if score:
-        partes.append(f'score={score.group(1)}')
+        valor_janela = str(janela.group(1)).rstrip('.,;: ')
+        partes.append(f'janela_excesso={valor_janela}')
     if 'fotografia da data de referência' in texto:
-        partes.append('fotografia_ref')
+        partes.append('base=data_ref')
+    if 'projeção futura da fonte ainda não foi aberta' in texto:
+        partes.append('sem_projecao_futura')
     if not partes:
         return _normalizar_texto_curto(texto, limite=150)
     return ' | '.join(partes)
@@ -596,10 +594,9 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, de
             'Valor': round(float(row.get('valor') or 0.0), 2),
             'Lote sugerido': str(decisao.get('lote_id_escolhido') or ''),
             'Lote(s) informado(s)': ' | '.join(lotes_informados),
-            'Método': str(decisao.get('criterio_decisao') or ''),
-            'Custo proxy': round(float(decisao.get('custo_economico_proxy') or 0.0), 4) if decisao else '',
-            'Cobertura': 'integral' if bool(decisao.get('pagamento_totalmente_coberto')) else ('parcial/ausente' if decisao else ''),
-            'Leitura auditável': _extrair_resumo_leitura_decisao(decisao.get('observacao_auditavel')),
+            'Score proxy': round(float(decisao.get('custo_economico_proxy') or 0.0), 4) if decisao else '',
+            'Status local': 'integral na decisão local' if bool(decisao.get('pagamento_totalmente_coberto')) else ('parcial/ausente na decisão local' if decisao else ''),
+            'Leitura técnica': _extrair_resumo_leitura_decisao(decisao.get('observacao_auditavel')),
         })
         if len(linhas_proximos) >= limite:
             break
