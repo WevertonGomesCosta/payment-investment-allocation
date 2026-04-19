@@ -5,8 +5,8 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline atual é a **V93**.
-2. A V93 preserva integralmente a baseline funcional imediatamente anterior e abre a auditoria dos casos sem cobertura integral do runner futuro shadow, com subbloco final para os 3 casos multifonte. Ela não altera o fluxo principal, o replay nem o `proxy econômico v3` congelado.
+1. A baseline atual é a **V94**.
+2. A V94 preserva integralmente a baseline funcional imediatamente anterior e abre a auditoria dos casos sem cobertura integral do runner futuro shadow, com subbloco final para os 3 casos multifonte. Ela não altera o fluxo principal, o replay nem o `proxy econômico v3` congelado.
 3. O contrato executável deve descrever somente o que já está implementado ou parcialmente implementado de forma observável na baseline.
 4. Regras futuras, metas estratégicas e camadas ainda não abertas ficam fora deste documento e passam a constar em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -200,6 +200,6 @@ Ele não deve misturar backlog estratégico, changelog histórico ou metas futur
 
 113. Na V92, o benchmark shadow do runner de simulação futura do Script 2 cobre 15/152 pagamentos integralmente, usa multifonte em 3 casos e não substitui a decisão vigente.
 
-114. A baseline V93 mantém uma auditoria específica dos casos sem cobertura integral do runner futuro shadow do Script 2 correto.
-115. A baseline V93 mantém, como subbloco final dessa auditoria, os 3 casos multifonte do runner futuro shadow.
-116. Na V93, a recomendação operacional permanece: auditar primeiro as perdas de cobertura integral e só depois os casos multifonte.
+114. A baseline V94 mantém uma auditoria específica dos casos sem cobertura integral do runner futuro shadow do Script 2 correto.
+115. A baseline V94 mantém, como subbloco final dessa auditoria, os 3 casos multifonte do runner futuro shadow.
+116. Na V94, a recomendação operacional permanece: auditar primeiro as perdas de cobertura integral e só depois os casos multifonte.

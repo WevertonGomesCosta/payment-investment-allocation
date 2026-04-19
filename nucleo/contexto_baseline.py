@@ -20,6 +20,7 @@ from nucleo.resolver_hibrido_5p_shadow import carregar_resolver_hibrido_5p_shado
 from nucleo.benchmark_agrupado_individual_shadow import carregar_benchmark_agrupado_individual_shadow
 from nucleo.benchmark_runner_futuro_shadow import carregar_benchmark_runner_futuro_shadow
 from nucleo.auditoria_runner_futuro_shadow import carregar_auditoria_runner_futuro_shadow
+from nucleo.auditoria_primeira_quebra_runner_futuro_shadow import carregar_auditoria_primeira_quebra_runner_futuro_shadow
 from nucleo.config_utils import obter_config
 from nucleo.caixa_recebidos_auditaveis import (
     materializar_fontes_elegiveis_pagamento,
@@ -48,6 +49,7 @@ class ContextoBaseline:
     benchmark_agrupado_individual_shadow: Any
     benchmark_runner_futuro_shadow: Any
     auditoria_runner_futuro_shadow: Any
+    auditoria_primeira_quebra_runner_futuro_shadow: Any
     triagem_motor: Any
     nucleo_financeiro: Any
     replay_passado: Any
@@ -78,6 +80,7 @@ def carregar_contexto_baseline(
     incluir_resolver_hibrido_5p_shadow: bool = True,
     incluir_benchmark_agrupado_individual_shadow: bool = True,
     incluir_benchmark_runner_futuro_shadow: bool = True,
+    incluir_auditoria_primeira_quebra_runner_futuro_shadow: bool = True,
 ) -> ContextoBaseline:
     pacote_config = carregar_config(raiz_repositorio=raiz_repositorio)
     contexto_execucao = bootstrap_ambiente(
@@ -197,6 +200,17 @@ def carregar_contexto_baseline(
         benchmark_runner_futuro_shadow,
         data_referencia=contexto_execucao.data_referencia,
     ) if benchmark_runner_futuro_shadow is not None else None
+    auditoria_primeira_quebra_runner_futuro_shadow = carregar_auditoria_primeira_quebra_runner_futuro_shadow(
+        benchmark_runner_futuro_shadow,
+        auditoria_runner_futuro_shadow,
+        dados_operacionais,
+        replay_passado,
+        calendario_financeiro,
+        cache_cdi,
+        data_referencia=contexto_execucao.data_referencia,
+        tabela_iof=construir_tabela_iof(pacote_config.conteudo),
+        faixas_ir=construir_faixas_ir(pacote_config.conteudo),
+    ) if (incluir_auditoria_primeira_quebra_runner_futuro_shadow and benchmark_runner_futuro_shadow is not None) else None
     return ContextoBaseline(
         pacote_config=pacote_config,
         execucao=contexto_execucao,
@@ -215,6 +229,7 @@ def carregar_contexto_baseline(
         benchmark_agrupado_individual_shadow=benchmark_agrupado_individual_shadow,
         benchmark_runner_futuro_shadow=benchmark_runner_futuro_shadow,
         auditoria_runner_futuro_shadow=auditoria_runner_futuro_shadow,
+        auditoria_primeira_quebra_runner_futuro_shadow=auditoria_primeira_quebra_runner_futuro_shadow,
         triagem_motor=triagem_motor,
         nucleo_financeiro=nucleo_financeiro,
         replay_passado=replay_passado,
