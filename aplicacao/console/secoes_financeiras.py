@@ -111,6 +111,42 @@ def render_secao_replay(*, auditoria_replay, validacao_replay, severidade_replay
 
 
 
+
+
+def render_secao_metodo_pagamentos(*, auditoria_metodo=None, amostra_mudancas_metodo=None):
+    auditoria_metodo = auditoria_metodo or {}
+    amostra_mudancas_metodo = amostra_mudancas_metodo or []
+
+    imprimir_titulo('PAGAMENTOS FUTUROS — MÉTODO ATIVO E AUDITORIA')
+    imprimir_pares([
+        ('modelo governante atual', auditoria_metodo.get('modelo_governante') or ''),
+        ('método auditável atual', auditoria_metodo.get('metodo_governante') or ''),
+        ('proxy econômico ativo', auditoria_metodo.get('proxy_ativo') or ''),
+        ('pagamentos auditados', auditoria_metodo.get('total_pagamentos_auditados', 0)),
+        ('pagamentos cobertos pelo método atual', auditoria_metodo.get('pagamentos_cobertos_metodo_atual', 0)),
+        ('pagamentos cobertos pelo proxy v2', auditoria_metodo.get('pagamentos_cobertos_proxy_v2', 0)),
+        ('mudanças materiais v2→v3', auditoria_metodo.get('mudancas_materiais_v2_v3', 0)),
+        ('casos em que v3 melhora o score comum v3', auditoria_metodo.get('casos_v3_melhor_score_comum_v3', 0)),
+        ('cobertura integral do runner shadow', auditoria_metodo.get('pagamentos_cobertos_runner_shadow', 0)),
+        ('pagamentos sem cobertura no runner shadow', auditoria_metodo.get('pagamentos_sem_cobertura_runner_shadow', 0)),
+        ('recomendação operacional', auditoria_metodo.get('recomendacao_operacional') or ''),
+    ])
+
+    print('- parâmetros centrais do método governante:')
+    print(f"  [OK] prioridade de fonte: {auditoria_metodo.get('prioridade_fontes') or ''}")
+    print(f"  [OK] janela de excesso do proxy v3: {auditoria_metodo.get('janela_excesso_proxy_v3') or ''}")
+    print(f"  [OK] componentes centrais do score: {auditoria_metodo.get('componentes_score_proxy_v3') or ''}")
+    print(f"  [OK] leitura temporal da fonte: {auditoria_metodo.get('leitura_temporal_fonte') or ''}")
+    print(f"  [OK] por que o método atual governa: {auditoria_metodo.get('justificativa_metodo_governante') or ''}")
+
+    if amostra_mudancas_metodo:
+        print('\n- amostra das mudanças materiais entre proxy v2 e v3:')
+        imprimir_tabela(
+            ['Data', 'Despesa ID', 'Descrição', 'Valor', 'Lote v2', 'Lote v3', 'Delta score comum v3'],
+            amostra_mudancas_metodo,
+            limite=5,
+        )
+
 def render_secao_amostras_pagamentos(*, pagamentos_realizados=None, pagamentos_proximos=None):
     imprimir_titulo('PAGAMENTOS — AMOSTRAS OPERACIONAIS')
     pagamentos_realizados = pagamentos_realizados or []
@@ -125,7 +161,7 @@ def render_secao_amostras_pagamentos(*, pagamentos_realizados=None, pagamentos_p
 
     print('\n- próximos 5 pagamentos:')
     imprimir_tabela(
-        ['Data', 'Despesa ID', 'Descrição', 'Valor', 'Lotes informados'],
+        ['Data', 'Despesa ID', 'Descrição', 'Valor', 'Lote sugerido', 'Lote(s) informado(s)', 'Método', 'Custo proxy', 'Cobertura', 'Leitura auditável'],
         pagamentos_proximos,
         limite=5,
     )

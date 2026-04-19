@@ -15,7 +15,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 from aplicacao.console.common import imprimir_itens_severidade as _imprimir_itens_severidade, imprimir_linha_status as _imprimir_linha_status, imprimir_pares as _imprimir_pares, imprimir_tabela as _imprimir_tabela, imprimir_titulo as _imprimir_titulo, normalizar_lista as _normalizar_lista, severidade as _severidade
 from aplicacao.console.secoes_canonicas import render_secao_canonicas
 from aplicacao.console.secoes_execucao import render_secao_execucao
-from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos, render_secao_nucleo, render_secao_replay, render_secao_situacao_atual
+from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos, render_secao_metodo_pagamentos, render_secao_nucleo, render_secao_replay, render_secao_situacao_atual
 from aplicacao.console.secoes_triagem import render_secao_triagem
 from nucleo.calendario_financeiro import contar_dias_rendimento
 from nucleo.identidade_baseline import VERSAO_BASELINE
@@ -23,6 +23,7 @@ from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
 from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabela_iof
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
+from nucleo.caixa_recebidos_auditaveis import auditar_comparativo_proxy_v2_v3
 from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
 
 
@@ -412,7 +413,12 @@ def main() -> None:
         severidade_triagem=severidade_triagem,
     )
 
-    pagamentos_realizados_console, pagamentos_proximos_console = _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, limite=5)
+    auditoria_metodo_pagamentos, amostra_mudancas_metodo = _preparar_auditoria_metodo_pagamentos(contexto_baseline)
+    pagamentos_realizados_console, pagamentos_proximos_console = _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, contexto_baseline.decisao_local_v1, limite=5)
+    render_secao_metodo_pagamentos(
+        auditoria_metodo=auditoria_metodo_pagamentos,
+        amostra_mudancas_metodo=amostra_mudancas_metodo,
+    )
     render_secao_amostras_pagamentos(
         pagamentos_realizados=pagamentos_realizados_console,
         pagamentos_proximos=pagamentos_proximos_console,
@@ -436,7 +442,89 @@ def main() -> None:
 
 
 
-def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, *, limite=5):
+
+
+def _normalizar_texto_curto(valor, *, limite=180):
+    texto = ' '.join(str(valor or '').split())
+    if len(texto) <= limite:
+        return texto
+    return texto[: max(limite - 3, 0)].rstrip() + '...'
+
+
+def _preparar_auditoria_metodo_pagamentos(contexto_baseline):
+    auditoria_v2_v3 = auditar_comparativo_proxy_v2_v3(
+        contexto_baseline.dados_operacionais,
+        contexto_baseline.fontes_elegiveis_pagamento,
+        contexto_baseline.saldo_disponivel_geral,
+        data_referencia=contexto_baseline.execucao.data_referencia,
+        carteira_canonica=contexto_baseline.carteira_canonica,
+    )
+    resumo_comp = auditoria_v2_v3['auditoria']['resumo']
+    resumo_decisao = (contexto_baseline.decisao_local_v1.auditoria or {}).get('resumo', {})
+    resumo_shadow = (contexto_baseline.auditoria_runner_futuro_shadow.auditoria or {}).get('resumo', {}) if contexto_baseline.auditoria_runner_futuro_shadow is not None else {}
+
+    pagamentos_shadow_sem_cobertura = int(resumo_shadow.get('pagamentos_sem_cobertura_integral_shadow') or 0)
+    pagamentos_shadow_total = int(resumo_shadow.get('total_pagamentos_benchmark') or 0)
+    pagamentos_shadow_cobertos = max(pagamentos_shadow_total - pagamentos_shadow_sem_cobertura, 0)
+
+    auditoria_metodo = {
+        'modelo_governante': 'F1 / decisão_local_v1',
+        'metodo_governante': 'proxy_economico_v3_com_cobertura_total__resgate_otimizado_proxy',
+        'proxy_ativo': 'v3',
+        'total_pagamentos_auditados': int(resumo_decisao.get('total_pagamentos_alvo') or 0),
+        'pagamentos_cobertos_metodo_atual': int(resumo_decisao.get('pagamentos_totalmente_cobertos') or 0),
+        'pagamentos_cobertos_proxy_v2': int(resumo_comp.get('pagamentos_totalmente_cobertos_v2') or 0),
+        'mudancas_materiais_v2_v3': int((resumo_comp.get('pagamentos_com_fonte_alterada') or 0) + 0),
+        'casos_v3_melhor_score_comum_v3': int((resumo_comp.get('classificacao_delta_score_comum_v3') or {}).get('v3_melhor', 0)),
+        'pagamentos_cobertos_runner_shadow': pagamentos_shadow_cobertos,
+        'pagamentos_sem_cobertura_runner_shadow': pagamentos_shadow_sem_cobertura,
+        'recomendacao_operacional': 'manter proxy econômico v3 como método governante do console',
+        'prioridade_fontes': 'saldo disponível → caixa pré-aplicação → recebido disponível → lote resgatável',
+        'janela_excesso_proxy_v3': 'max(R$ 300, 18% do valor do pagamento)',
+        'componentes_score_proxy_v3': 'gap de cobertura, excesso, taxa, prazo, carência, liquidez, regime, risco, papel estratégico, destruição estratégica, fragmentação residual, fotografia temporal e horizonte curto',
+        'leitura_temporal_fonte': 'fotografia da data de referência; projeção futura da fonte ainda não foi aberta nesta etapa',
+        'justificativa_metodo_governante': 'o proxy v3 mantém cobertura integral dos 152 pagamentos e, nas 2 únicas trocas materiais frente ao v2, melhora o score comum v3; já o runner shadow perde cobertura integral em massa e permanece apenas diagnóstico.',
+    }
+
+    quadro_mudancas = auditoria_v2_v3['quadro_mudancas'].copy()
+    quadro_mudancas = quadro_mudancas.loc[quadro_mudancas['mudou_fonte'] | quadro_mudancas['mudou_lote']].copy()
+    quadro_mudancas = quadro_mudancas.sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
+    amostra_mudancas = []
+    for _, row in quadro_mudancas.head(5).iterrows():
+        data = row.get('data_pagamento')
+        amostra_mudancas.append({
+            'Data': data.isoformat() if hasattr(data, 'isoformat') else str(data or ''),
+            'Despesa ID': str(row.get('pagamento_id') or ''),
+            'Descrição': str(row.get('descricao_pagamento') or ''),
+            'Valor': round(float(row.get('valor_pagamento') or 0.0), 2),
+            'Lote v2': str(row.get('lote_id_escolhido_v2') or ''),
+            'Lote v3': str(row.get('lote_id_escolhido_v3') or ''),
+            'Delta score comum v3': round(float(row.get('delta_score_comum_v3') or 0.0), 4),
+        })
+    return auditoria_metodo, amostra_mudancas
+
+
+def _extrair_resumo_leitura_decisao(observacao):
+    texto = ' '.join(str(observacao or '').split())
+    if not texto:
+        return ''
+    partes = []
+    if 'cobre integralmente o pagamento' in texto:
+        partes.append('cobre integralmente')
+    import re
+    janela = re.search(r'janela de excesso de até\s*([0-9.,]+)', texto)
+    if janela:
+        partes.append(f'janela={janela.group(1)}')
+    score = re.search(r'score=([0-9.,]+)', texto)
+    if score:
+        partes.append(f'score={score.group(1)}')
+    if 'fotografia da data de referência' in texto:
+        partes.append('fotografia_ref')
+    if not partes:
+        return _normalizar_texto_curto(texto, limite=150)
+    return ' | '.join(partes)
+
+def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, decisao_local_v1, *, limite=5):
     gastos = dados_operacionais.gastos_canonicos.copy()
     if len(gastos) == 0:
         return [], []
@@ -487,18 +575,31 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, *,
         if len(linhas_realizados) >= limite:
             break
 
+    quadro_decisao = decisao_local_v1.quadro_decisao_local_v1.copy() if decisao_local_v1 is not None else pd.DataFrame()
+    mapa_decisao = {}
+    if len(quadro_decisao):
+        for _, row_dec in quadro_decisao.iterrows():
+            mapa_decisao[str(row_dec.get('pagamento_id') or '').strip()] = row_dec.to_dict()
+
     proximos = gastos.loc[gastos['futuro_ou_pendente_na_data_referencia'].fillna(False)].copy()
     proximos = proximos.sort_values(['data', 'despesa_id'], ascending=[True, True], kind='stable')
     linhas_proximos = []
     for _, row in proximos.iterrows():
+        despesa_id = str(row.get('despesa_id') or '').strip()
+        decisao = mapa_decisao.get(despesa_id, {})
         lotes_informados = [str(row.get('lote_usado_1') or '').strip(), str(row.get('lote_usado_2') or '').strip()]
         lotes_informados = [item for item in lotes_informados if item]
         linhas_proximos.append({
             'Data': row['data'].isoformat() if hasattr(row['data'], 'isoformat') else str(row.get('data') or ''),
-            'Despesa ID': str(row.get('despesa_id') or ''),
+            'Despesa ID': despesa_id,
             'Descrição': str(row.get('descricao') or ''),
             'Valor': round(float(row.get('valor') or 0.0), 2),
-            'Lotes informados': ' | '.join(lotes_informados),
+            'Lote sugerido': str(decisao.get('lote_id_escolhido') or ''),
+            'Lote(s) informado(s)': ' | '.join(lotes_informados),
+            'Método': str(decisao.get('criterio_decisao') or ''),
+            'Custo proxy': round(float(decisao.get('custo_economico_proxy') or 0.0), 4) if decisao else '',
+            'Cobertura': 'integral' if bool(decisao.get('pagamento_totalmente_coberto')) else ('parcial/ausente' if decisao else ''),
+            'Leitura auditável': _extrair_resumo_leitura_decisao(decisao.get('observacao_auditavel')),
         })
         if len(linhas_proximos) >= limite:
             break

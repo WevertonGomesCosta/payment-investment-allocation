@@ -60,7 +60,7 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 15. Prioridade imediata pós-V77/V80: auditoria comparativa entre `proxy v3` vigente e benchmark shadow do `resolver_hibrido_5p`, antes de qualquer tentativa de acoplamento funcional do benchmark ao fluxo principal.
 
 
-## 9. Continuação possível após a V95
+## 9. Continuação possível após a V96
 
 20. Só considerar refino do `proxy v3` se a auditoria fina mantida na V92 mostrar padrão suficientemente concentrado, localizado e economicamente coerente.
 21. Se isso ocorrer, abrir apenas um eventual microajuste local restrito à transição dominante, antes de qualquer ajuste amplo no proxy local.
@@ -70,7 +70,7 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 24. Classificar a superfície diagnóstica em canônica, histórica e experimental antes de qualquer poda de scripts.
 
 
-## 10. Prioridade imediata pós-V95
+## 10. Prioridade imediata pós-V96
 
 25. O benchmark shadow do teste agrupado vs. individual passa a ser tratado como camada do Script 1, e não do Script 2.
 26. Para o Script 2 correto, a próxima prioridade potencial passa a ser um benchmark shadow do runner de simulação futura antes de qualquer migração funcional.
@@ -79,7 +79,7 @@ Este documento reúne o que **ainda não é cobrável** da baseline atual, mas c
 28. A V92 abre o benchmark shadow do runner de simulação futura do Script 2 correto; enquanto não houver auditoria por evento, ele permanece apenas diagnóstico.
 29. O benchmark shadow do runner de simulação futura do Script 2 correto, aberto na V92, recomenda manter a decisão vigente até nova auditoria por evento futuro.
 
-30. A V95 mantém a auditoria dos casos sem cobertura integral do runner shadow, com subbloco final dos 3 casos multifonte, e adiciona ao console amostras operacionais do passado recente e do futuro imediato.
+30. A V96 mantém a auditoria dos casos sem cobertura integral do runner shadow, com subbloco final dos 3 casos multifonte, e adiciona ao console amostras operacionais do passado recente e do futuro imediato, agora com lote sugerido e auditoria explícita do método governante da escolha.
 31. Enquanto essa auditoria não indicar padrão reaproveitável claro, o runner futuro do Script 2 correto permanece apenas benchmark diagnóstico.
 
 
