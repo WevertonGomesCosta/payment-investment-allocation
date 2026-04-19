@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V101
+**Versão atual da baseline:** V102
 
-A V101 preserva a baseline funcional imediatamente anterior e adiciona uma camada de reescolha dinâmica pós-quebra sobre a auditoria temporal da decisão local v1: mantém a saída operacional do console e da planilha e passa a recomputar a fonte dos pagamentos futuros que deixam de ser coerentes sequencialmente, sem reabrir o solver global.
+A V102 preserva a baseline funcional imediatamente anterior e adiciona uma camada de recomputação sequencial preventiva sobre a decisão local v1: recalcula a melhor fonte a cada pagamento futuro com saldos residuais atualizados e registra trocas preventivas antes da quebra, sem reabrir o solver global.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -39,15 +39,16 @@ python scripts/diagnostico/inspecionar_transicao_dominante_proxy_v3_vs_hibrido_s
 python scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py
 python scripts/diagnostico/inspecionar_benchmark_runner_futuro_shadow.py
 python scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py
+python scripts/diagnostico/inspecionar_recomputacao_sequencial_preventiva.py
 ```
 
 ## Documentação vigente
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V101.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V101.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V101.md`
+- `relatorios/atuais/BASELINE_FIXA_V102.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V102.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V102.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -58,10 +59,10 @@ python scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
 
-## Resumo operacional da V101
+## Resumo operacional da V102
 
-- a V101 mantém a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20;
-- a V101 preserva o console e o extrato futuro da planilha como camada de auditabilidade local já aprovada;
-- a V101 preserva a auditoria temporal da decisão local v1 com depleção cumulativa dos lotes sugeridos;
-- a V101 adiciona uma camada de reescolha dinâmica pós-quebra para recomputar a fonte dos pagamentos futuros que deixam de ser coerentes sequencialmente;
-- a V101 adiciona colunas dinâmicas ao extrato futuro da planilha, uma nova aba de reescolha dinâmica e uma nova seção dedicada no console principal.
+- a V102 mantém a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20;
+- a V102 preserva o console e o extrato futuro da planilha como camada de auditabilidade local já aprovada;
+- a V102 preserva a auditoria temporal da decisão local v1 com depleção cumulativa dos lotes sugeridos;
+- a V102 adiciona uma camada de recomputação sequencial preventiva para recalcular continuamente a melhor fonte dos pagamentos futuros com saldos residuais atualizados;
+- a V102 adiciona colunas dinâmicas ao extrato futuro da planilha, uma nova aba de reescolha dinâmica e uma nova seção dedicada no console principal.

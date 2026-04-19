@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V101'
-VERSAO_ANTERIOR = 'V100'
+VERSAO_VIGENTE = 'V102'
+VERSAO_ANTERIOR = 'V101'
 
 
 def repo_root() -> Path:
@@ -105,6 +105,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_decisao_local_v1.py',
         'scripts/diagnostico/inspecionar_auditoria_temporal_decisao_local.py',
         'scripts/diagnostico/inspecionar_reescolha_dinamica_pos_quebra.py',
+        'scripts/diagnostico/inspecionar_recomputacao_sequencial_preventiva.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py',
         'scripts/diagnostico/inspecionar_mapa_absorcao_legado.py',
         'scripts/diagnostico/inspecionar_mapa_execucao_principal_script2.py',
