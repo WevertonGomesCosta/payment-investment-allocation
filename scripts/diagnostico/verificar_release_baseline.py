@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V92'
-VERSAO_ANTERIOR = 'V91'
+VERSAO_VIGENTE = 'V93'
+VERSAO_ANTERIOR = 'V92'
 
 
 def repo_root() -> Path:
@@ -43,6 +43,7 @@ def validar_indice_documental(base: Path) -> list[str]:
         'relatorios/atuais/AUDITORIA_FINA_TRANSICAO_DOMINANTE_3000B_8500MAR.md',
         'relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md',
         'relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md',
+        'relatorios/atuais/AUDITORIA_CASOS_CRITICOS_RUNNER_FUTURO_SHADOW.md',
     ]
     if not indice.exists():
         return ['relatorios/INDICE_RELATORIOS.md ausente']
@@ -106,6 +107,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_mapa_execucao_principal_script2.py',
         'scripts/diagnostico/inspecionar_benchmark_agrupado_individual_shadow.py',
         'scripts/diagnostico/inspecionar_benchmark_runner_futuro_shadow.py',
+        'scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py',
         'scripts/diagnostico/inspecionar_switching_economico_shadow.py',
         'scripts/diagnostico/inspecionar_resolver_hibrido_5p_shadow.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
@@ -128,6 +130,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_mapa_execucao_principal_script2.py',
         'scripts/inspecionar_benchmark_agrupado_individual_shadow.py',
         'scripts/inspecionar_benchmark_runner_futuro_shadow.py',
+        'scripts/inspecionar_auditoria_runner_futuro_shadow.py',
         'scripts/inspecionar_switching_economico_shadow.py',
         'scripts/inspecionar_resolver_hibrido_5p_shadow.py',
         'scripts/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
@@ -141,6 +144,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'nucleo/resolver_hibrido_5p_shadow.py',
         'nucleo/benchmark_agrupado_individual_shadow.py',
         'nucleo/benchmark_runner_futuro_shadow.py',
+        'nucleo/auditoria_runner_futuro_shadow.py',
     ]
     erros: list[str] = []
     for item in esperados:

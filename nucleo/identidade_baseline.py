@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-VERSAO_BASELINE = "V92"
+VERSAO_BASELINE = "V93"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
 
@@ -59,3 +59,7 @@ def nome_auditoria_benchmark_agrupado_individual_shadow(extensao: str) -> str:
 
 def nome_auditoria_benchmark_runner_futuro_shadow(extensao: str) -> str:
     return f"auditoria_benchmark_runner_futuro_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
+
+
+def nome_auditoria_casos_criticos_runner_futuro_shadow(extensao: str) -> str:
+    return f"auditoria_casos_criticos_runner_futuro_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
