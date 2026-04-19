@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V94
+**Versão atual da baseline:** V95
 
-A V94 preserva integralmente a baseline funcional imediatamente anterior e abre a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20. Não altera o motor financeiro, o replay nem o `proxy v3` congelado.
+A V95 preserva integralmente a baseline funcional imediatamente anterior e mantém a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20. O ajuste desta derivação é cirúrgico: adiciona ao console uma amostra dos últimos 5 pagamentos já realizados e dos próximos 5 pagamentos, sem alterar o motor financeiro, o replay nem o `proxy v3` congelado.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -45,9 +45,9 @@ python scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V94.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V94.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V94.md`
+- `relatorios/atuais/BASELINE_FIXA_V95.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V95.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V95.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -58,13 +58,14 @@ python scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
 
-## Resumo operacional da V94
+## Resumo operacional da V95
 
 - o runner principal legado do Script 2 foi classificado em mapa de absorção e não entra funcionalmente na baseline atual;
 - `proxy econômico v3` permanece congelado como decisão monofonte vigente;
 - `multifonte v1` continua fora do fluxo principal e condicionada à evidência;
 - `switching_economico_shadow` e `resolver_hibrido_5p_shadow` continuam camadas diagnósticas;
-- a V94 abre a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20;
+- a V95 mantém a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20;
+- a V95 adiciona ao console uma amostra dos últimos 5 pagamentos já realizados e dos próximos 5 pagamentos;
 - o runner shadow cobre 15/152 pagamentos integralmente, usa multifonte em 3 casos e altera o lote principal em 150 pagamentos;
 - por isso, a recomendação do benchmark permanece **vigente**, e o runner legado correto continua apenas diagnóstico.
 

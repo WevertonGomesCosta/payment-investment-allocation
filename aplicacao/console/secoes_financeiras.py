@@ -110,6 +110,26 @@ def render_secao_replay(*, auditoria_replay, validacao_replay, severidade_replay
     imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
 
 
+
+def render_secao_amostras_pagamentos(*, pagamentos_realizados=None, pagamentos_proximos=None):
+    imprimir_titulo('PAGAMENTOS — AMOSTRAS OPERACIONAIS')
+    pagamentos_realizados = pagamentos_realizados or []
+    pagamentos_proximos = pagamentos_proximos or []
+
+    print('- últimos 5 pagamentos já realizados:')
+    imprimir_tabela(
+        ['Data', 'Despesa ID', 'Descrição', 'Valor', 'Líquido coberto', 'Lotes usados'],
+        pagamentos_realizados,
+        limite=5,
+    )
+
+    print('\n- próximos 5 pagamentos:')
+    imprimir_tabela(
+        ['Data', 'Despesa ID', 'Descrição', 'Valor', 'Lotes informados'],
+        pagamentos_proximos,
+        limite=5,
+    )
+
 def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
     imprimir_titulo('SITUAÇÃO ATUAL')
     resumo_fechamento = resumo_fechamento or {}

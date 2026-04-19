@@ -15,7 +15,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 from aplicacao.console.common import imprimir_itens_severidade as _imprimir_itens_severidade, imprimir_linha_status as _imprimir_linha_status, imprimir_pares as _imprimir_pares, imprimir_tabela as _imprimir_tabela, imprimir_titulo as _imprimir_titulo, normalizar_lista as _normalizar_lista, severidade as _severidade
 from aplicacao.console.secoes_canonicas import render_secao_canonicas
 from aplicacao.console.secoes_execucao import render_secao_execucao
-from aplicacao.console.secoes_financeiras import render_secao_nucleo, render_secao_replay, render_secao_situacao_atual
+from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos, render_secao_nucleo, render_secao_replay, render_secao_situacao_atual
 from aplicacao.console.secoes_triagem import render_secao_triagem
 from nucleo.calendario_financeiro import contar_dias_rendimento
 from nucleo.identidade_baseline import VERSAO_BASELINE
@@ -412,6 +412,12 @@ def main() -> None:
         severidade_triagem=severidade_triagem,
     )
 
+    pagamentos_realizados_console, pagamentos_proximos_console = _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, limite=5)
+    render_secao_amostras_pagamentos(
+        pagamentos_realizados=pagamentos_realizados_console,
+        pagamentos_proximos=pagamentos_proximos_console,
+    )
+
     lotes_ativos, lotes_exauridos = _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
     recebidos_situacao_atual = _preparar_tabela_recebidos_situacao_atual(contexto_baseline.recebidos_auditaveis)
     resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
@@ -428,6 +434,76 @@ def main() -> None:
     )
 
 
+
+
+def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, *, limite=5):
+    gastos = dados_operacionais.gastos_canonicos.copy()
+    if len(gastos) == 0:
+        return [], []
+
+    gastos['data'] = pd.to_datetime(gastos['data'], errors='coerce').dt.date
+
+    log = replay_passado.log_passado.copy()
+    agregados_replay = {}
+    if len(log):
+        log['Data'] = pd.to_datetime(log['Data'], errors='coerce').dt.date
+        for despesa_id, grupo in log.groupby('Despesa ID', sort=False):
+            lotes = [str(v).strip() for v in grupo['Lote'].tolist() if str(v).strip()]
+            lotes_unicos = []
+            vistos = set()
+            for lote in lotes:
+                if lote not in vistos:
+                    vistos.add(lote)
+                    lotes_unicos.append(lote)
+            data_pagamento = grupo['Data'].dropna().max() if 'Data' in grupo.columns else None
+            descricao = str(grupo.iloc[-1].get('Conta') or '').strip()
+            valor_pagamento = round(float(grupo['Valor Conta'].dropna().iloc[-1]), 2) if grupo['Valor Conta'].dropna().shape[0] else None
+            liquido_coberto = round(float(grupo['Liquido'].fillna(0.0).sum()), 2)
+            agregados_replay[str(despesa_id)] = {
+                'Data': data_pagamento.isoformat() if hasattr(data_pagamento, 'isoformat') else (str(data_pagamento) if data_pagamento is not None else ''),
+                'Despesa ID': str(despesa_id),
+                'Descrição': descricao,
+                'Valor': valor_pagamento,
+                'Líquido coberto': liquido_coberto,
+                'Lotes usados': ' | '.join(lotes_unicos),
+            }
+
+    realizados = gastos.loc[gastos['passado_pago_ate_data_referencia'].fillna(False)].copy()
+    realizados = realizados.sort_values(['data', 'despesa_id'], ascending=[False, False], kind='stable')
+    linhas_realizados = []
+    for _, row in realizados.iterrows():
+        despesa_id = str(row.get('despesa_id') or '').strip()
+        base = agregados_replay.get(despesa_id, {})
+        lotes_informados = [str(row.get('lote_usado_1') or '').strip(), str(row.get('lote_usado_2') or '').strip()]
+        lotes_informados = [item for item in lotes_informados if item]
+        linhas_realizados.append({
+            'Data': base.get('Data') or (row['data'].isoformat() if hasattr(row['data'], 'isoformat') else str(row.get('data') or '')),
+            'Despesa ID': despesa_id,
+            'Descrição': base.get('Descrição') or str(row.get('descricao') or ''),
+            'Valor': base.get('Valor') if base.get('Valor') is not None else round(float(row.get('valor') or 0.0), 2),
+            'Líquido coberto': base.get('Líquido coberto') if base.get('Líquido coberto') is not None else '',
+            'Lotes usados': base.get('Lotes usados') or (' | '.join(lotes_informados)),
+        })
+        if len(linhas_realizados) >= limite:
+            break
+
+    proximos = gastos.loc[gastos['futuro_ou_pendente_na_data_referencia'].fillna(False)].copy()
+    proximos = proximos.sort_values(['data', 'despesa_id'], ascending=[True, True], kind='stable')
+    linhas_proximos = []
+    for _, row in proximos.iterrows():
+        lotes_informados = [str(row.get('lote_usado_1') or '').strip(), str(row.get('lote_usado_2') or '').strip()]
+        lotes_informados = [item for item in lotes_informados if item]
+        linhas_proximos.append({
+            'Data': row['data'].isoformat() if hasattr(row['data'], 'isoformat') else str(row.get('data') or ''),
+            'Despesa ID': str(row.get('despesa_id') or ''),
+            'Descrição': str(row.get('descricao') or ''),
+            'Valor': round(float(row.get('valor') or 0.0), 2),
+            'Lotes informados': ' | '.join(lotes_informados),
+        })
+        if len(linhas_proximos) >= limite:
+            break
+
+    return linhas_realizados, linhas_proximos
 
 def _preparar_auditoria_recebimento_vs_aplicacao(dados_operacionais, replay_passado):
     inventario = dados_operacionais.inventario_canonico.copy()
