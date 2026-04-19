@@ -1,73 +1,78 @@
-# Mapa de absorção da execução principal do Script 2
+# Mapa de absorção da execução principal do Script 2 (correto)
 
 ## Escopo
 
-Este documento mapeia **apenas a orquestração principal** do Script 2 legado enviado pelo usuário, sem migrar o runner legado bruto para o fluxo principal atual.
+Este documento mapeia **apenas a orquestração principal do Script 2 correto** enviado pelo usuário, sem migrar o runner legado bruto para o fluxo principal atual.
 
-A base desta classificação é o bloco `if __name__ == "__main__":` do Script 2 original, que contém bootstrap de dados, escolha interativa de treino, teste agrupado vs. individual, competição final entre estratégias, exportação por estratégia e exibição da situação atual da melhor estratégia.
+> Observação de governança: o mapa aberto anteriormente para “Script 2” foi baseado em um arquivo identificado de forma incorreta. A partir da V91, este documento **substitui** aquela leitura e passa a refletir o runner correto de switching, simulação futura e exportação final.
 
-## Classificação da execução principal do Script 2
+A base desta classificação é o bloco `executar_runner_principal(...)` e suas funções imediatamente associadas no `Script 2.txt` correto, que contém:
+- carregamento do snapshot inicial;
+- alocação inicial de aportes;
+- avaliação de switching e diagnósticos;
+- aplicação do modo de execução futuro;
+- `simular_futuro(...)`;
+- exportação final do Excel.
+
+## Classificação da execução principal do Script 2 correto
 
 ### Absorver já (em shadow/diagnóstico)
 
-1. **Teste agrupado vs. individual como benchmark de governança**
-   - No legado, `GENETICA_5P` é executada em `dados_contas_agr` e `dados_contas_ind`, e o resultado define o `modo_analise_forcado`.
-   - Absorção recomendada: benchmark reproduzível e desacoplado, sem substituir automaticamente o modo vigente da baseline.
+1. **Benchmark shadow do runner de simulação futura**
+   - O núcleo real do Script 2 correto está em `simular_futuro(...)`, que processa contas futuras dia a dia, executa pagamentos, switches e consolida métricas.
+   - Absorção recomendada: primeiro em **benchmark shadow reproduzível**, sem substituir o fluxo principal atual.
 
-2. **Competição final entre estratégias legadas em modo shadow**
-   - O legado compara `PENALIDADE_5P`, `HIBRIDO_5P`, `ECONOMICA_VPL`, `ECONOMICA_CLIFF`, `HEURISTICA` e `GENETICA_5P`.
-   - Absorção recomendada: comparação shadow da régua legada, sem acoplamento ao fluxo principal atual.
+2. **Auditoria shadow do processamento por evento futuro**
+   - O bloco `_processar_conta_futura(...)` e seus fallbacks (`rigido`, `hibrido`, `heuristico`) concentram regra de negócio real de pagamento no futuro.
+   - Absorção recomendada: comparação diagnóstica por evento, sem acoplamento ao fluxo operacional vigente.
 
-3. **Comparativo entre melhor estratégia legada e baseline atual**
-   - O legado fecha selecionando a melhor estratégia e exibindo sua situação atual.
-   - Absorção recomendada: auditoria comparativa controlada contra a baseline vigente, sem promover automaticamente o vencedor para o fluxo principal.
+3. **Governança shadow dos modos de execução futura**
+   - `_aplicar_modo_execucao_futuro_final(...)` e `_modo_execucao_futuro_requer_diag_datas()` mostram que o runner legado possuía uma régua explícita de modo futuro (`dinamico`, `rigido_*`).
+   - Absorção recomendada: primeiro em camada de auditoria/governança, sem promover diretamente ao fluxo principal.
 
 ### Absorver depois
 
-1. **Exportação detalhada por estratégia**
-   - O legado salva extrato, auditoria do extrato, carteira final, resumo, situação atual e abas específicas de switching para cada estratégia.
-   - Isso pode ser útil no futuro, mas só depois que a comparação shadow estiver estabilizada.
+1. **Alocação inicial de aportes do runner legado**
+   - `_alocar_aportes_iniciais(...)` pode trazer diferenças relevantes de consolidação por data e foco em rendimento.
+   - Deve ser comparada com a baseline atual apenas depois do benchmark shadow do runner futuro estar estabilizado.
 
-2. **Validação walk-forward integrada ao runner**
-   - O legado usa `validacao_walk_forward(...)` para compor o score final das estratégias.
-   - Absorção recomendada apenas depois da camada comparativa shadow estar madura.
+2. **Bootstrap legado do snapshot inicial**
+   - `_carregar_snapshot_inicial(...)` e a combinação com `carregar_inventario_e_gastos(...)` podem ser úteis para confronto estrutural posterior, mas não são a primeira prioridade.
 
-3. **Leitura de parâmetros salvos para perfis legados**
-   - O runner carrega e salva parâmetros para 5p e refinamento.
-   - Absorção adiada enquanto a baseline não reabrir treino ou seleção de parâmetros.
+3. **Exportação final detalhada do runner legado**
+   - `_exportar_resultados_excel(...)`, `_montar_relatorio_final_lotes(...)` e impressões consolidadas podem ser comparadas depois, sem migrar a interface antiga como está.
 
 ### Não absorver agora
 
-1. **Interatividade por `input()`**
-   - O runner legado depende de escolhas manuais de modo de treino e perfil.
-   - Não deve entrar no fluxo principal atual.
+1. **`executar_runner_principal(...)` como orquestrador principal da baseline**
+   - O runner legado correto não deve substituir `aplicacao/principal.py` nem os comandos canônicos atuais.
 
-2. **Treino profundo/refinamento pesado como caminho principal**
-   - O legado permite treinamento demorado e refinamento de parâmetros.
-   - Isso não é o gargalo atual da baseline.
+2. **Console/prints do legado como interface principal**
+   - A baseline atual já tem sua própria camada de saída organizada.
 
-3. **Runner legado bruto como orquestrador principal**
-   - Não deve substituir `aplicacao/principal.py` nem os comandos canônicos atuais.
+3. **Acoplamentos globais diretos do runner legado**
+   - Globais de modo de execução, produtos globais de simulação e parâmetros auxiliares não devem entrar brutos no fluxo atual.
 
 ### Já substituído pela baseline atual
 
-1. **Bootstrap controlado de dados**
-   - A baseline atual já possui leitura canônica, cache CDI, fallback local e geração operacional própria.
+1. **Bootstrap controlado de dados e cache CDI**
+   - A baseline atual já possui leitura canônica da planilha, fallback local, atualização do cache CDI e diagnóstico de origem dos dados.
 
-2. **Saída operacional principal**
-   - A baseline atual já gera `relatorio_operacional_v87.xlsx` e suas próprias seções/abas canônicas.
+2. **Geração operacional principal do Excel**
+   - A baseline atual já gera seu próprio relatório operacional e suas próprias abas canônicas.
 
-3. **Camadas shadow específicas já abertas**
+3. **Camadas shadow já abertas do legado**
    - `switching_economico_shadow`
-   - `resolver_hibrido_5p_shadow`
-   - auditorias comparativas do `proxy v3` vigente
+- `resolver_hibrido_5p_shadow`
+- benchmark shadow agrupado vs. individual do **Script 1**
+- auditorias comparativas e residuais do `proxy v3` vigente
 
-## Decisão operacional da V88
+## Decisão operacional da V91
 
-A V88 **não absorve funcionalmente** a execução principal do Script 2. Ela apenas registra o mapa de absorção dessa orquestração e define a prioridade correta de futura migração.
+A V91 **não absorve funcionalmente** a execução principal do Script 2 correto. Ela apenas corrige o mapa dessa orquestração e redefine a prioridade real da futura migração.
 
-## Prioridade pós-V88
+## Prioridade pós-V91
 
-1. **Aberto na V88:** benchmark shadow do teste agrupado vs. individual.
-2. Próxima prioridade potencial: competição final shadow entre estratégias legadas.
-3. Só então avaliar se alguma parte do runner legado merece migração funcional.
+1. **Próxima prioridade potencial:** benchmark shadow do runner de simulação futura do Script 2 correto.
+2. Em seguida: auditoria shadow do processamento por evento futuro e dos modos de execução futura.
+3. Só depois avaliar se alguma parte do runner legado correto merece migração funcional.

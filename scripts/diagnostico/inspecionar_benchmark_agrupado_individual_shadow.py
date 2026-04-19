@@ -40,7 +40,7 @@ def main() -> int:
     resumo = pacote.auditoria['resumo']
     quadro = pacote.quadro_comparativo_datas.copy()
 
-    print('=== BENCHMARK SHADOW: AGRUPADO VS INDIVIDUAL (SCRIPT 2) ===')
+    print('=== BENCHMARK SHADOW: AGRUPADO VS INDIVIDUAL (SCRIPT 1) ===')
     print(f"data_referencia: {contexto.execucao.data_referencia}")
     for chave in [
         'proxy_version',

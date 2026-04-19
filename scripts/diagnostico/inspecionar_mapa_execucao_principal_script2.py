@@ -22,16 +22,16 @@ def main() -> int:
         '### Absorver depois',
         '### Não absorver agora',
         '### Já substituído pela baseline atual',
-        '## Prioridade pós-V87',
+        '## Prioridade pós-V91',
     ]:
         if marcador not in texto:
             print(f'status: FALHA -> marcador ausente: {marcador}')
             return 1
     print('status: OK')
-    print('- mapa da execução principal do Script 2 encontrado')
+    print('- mapa da execução principal do Script 2 correto encontrado')
     print('- absorção imediata classificada')
     print('- partes adiadas e não absorvíveis registradas')
-    print('- prioridade pós-V87 registrada')
+    print('- prioridade pós-V91 registrada')
     return 0
 
 

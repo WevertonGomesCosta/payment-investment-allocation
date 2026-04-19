@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 
-"""Benchmark shadow do teste agrupado vs individual do Script 2 legado.
+"""Benchmark shadow do teste agrupado vs individual do Script 1 legado.
 
 Esta camada reproduz, em modo shadow e auditável, a governança legada que
 comparava processamento agrupado por dia versus individual. A absorção nesta

@@ -8,20 +8,25 @@ Este documento classifica os blocos relevantes de `Script 1.txt` e `Script 2.txt
 - **não migrar**;
 - **substituída pela baseline atual**.
 
-A V78 usa este mapa como referência obrigatória antes de qualquer nova migração funcional do legado.
+> Correção de identidade vigente: o arquivo que havia sido tratado anteriormente como “Script 2” corresponde, na verdade, ao **Script 1**. O `Script 2.txt` correto passa a ser o runner legado de **switching + simulação futura + exportação final**.
 
-## Script 1 — otimização e validação
+A V91 usa este mapa como referência obrigatória antes de qualquer nova migração funcional do legado.
+
+## Script 1 — otimização, validação e competição entre estratégias
 
 ### Migrar já
 - `resolver_hibrido_5p(...)`
   - motivo: contém regra de decisão econômica ainda ausente na baseline atual, com pesos para IOF, IR, idade, liquidez, cliff e VPL.
   - forma recomendada de absorção: primeiro em modo **benchmark/diagnóstico shadow**, sem acoplamento direto ao fluxo principal.
+- benchmark shadow do teste **agrupado vs. individual**
+  - motivo: faz parte da governança da execução principal do Script 1 e já foi aberto como benchmark shadow, mantendo o modo `individual` como recomendação vigente.
 
 ### Migrar depois
 - `carregar_parametros_hibrido_5p(...)`
 - `carregar_parametros_hibrido_5p_passado(...)`
 - `_escolher_modo_treino_por_objetivo(...)`
 - `validacao_walk_forward(...)`
+- competição final entre estratégias legadas em modo shadow
   - motivo: úteis para calibração posterior e comparação robusta, mas ainda não são o gargalo operacional da baseline.
 
 ### Não migrar
@@ -34,39 +39,42 @@ A V78 usa este mapa como referência obrigatória antes de qualquer nova migraç
   - motivo: infraestrutura pesada, acoplada e não prioritária nesta fase.
 
 ### Substituída pela baseline atual
-- utilidades de exportação e diagnósticos auxiliares que já têm equivalente mais simples e controlado na V74/V78.
+- utilidades de exportação e diagnósticos auxiliares que já têm equivalente mais simples e controlado na baseline vigente.
 
-## Script 2 — switching e diagnósticos
+## Script 2 — runner de switching, simulação futura e exportação final
 
 ### Migrar já
-- `otimizar_switches_portfolio_guloso(...)`
-- `_avaliar_switching_e_diagnosticos(...)`
-  - motivo: concentram a regra material de **switching econômico legado**, ainda ausente na baseline atual.
+- `simular_futuro(...)` como benchmark shadow do runner futuro
+- auditoria shadow do processamento por evento futuro
+- governança shadow dos modos de execução futura
+  - motivo: concentram a orquestração material de switching + pagamentos futuros ainda ausente na baseline atual.
   - forma recomendada de absorção: primeiro em modo **shadow/auditoria**, sem substituir o fluxo principal.
 
 ### Migrar depois
-- `_gerar_comparativo_validacao_switching(...)`
-- `_avaliar_iteracao_switch(...)`
-- `_decisoes_switch_marginais(...)`
-- `_simular_riqueza_carteira(...)`
-- `_switch_lotes_base(...)`
-  - motivo: complementam a trilha diagnóstica do switching, mas dependem da camada principal acima.
+- `_alocar_aportes_iniciais(...)`
+- `_carregar_snapshot_inicial(...)`
+- `_exportar_resultados_excel(...)`
+- `_montar_relatorio_final_lotes(...)`
+  - motivo: complementam o runner legado correto, mas dependem primeiro do benchmark shadow da execução futura.
 
 ### Não migrar
-- `_exportar_resultados_excel(...)`
-- `_montar_df_resumo_exportacao(...)`
-- `_imprimir_resumo_consolidado_switches(...)`
-- funções de impressão/exportação pesada e acoplamentos operacionais do legado
-  - motivo: o repositório atual já possui caminhos próprios e mais controlados de saída.
+- `executar_runner_principal(...)` bruto como novo orquestrador da baseline
+- prints/console legado como interface principal
+- acoplamentos globais diretos do runner
+  - motivo: a baseline atual já possui orquestração, saída e governança próprias.
 
 ### Substituída pela baseline atual
-- trechos de resumo operacional e exportação já cobertos pela planilha operacional vigente, pela separação de seções do console e pelos diagnósticos canônicos da V74/V78.
+- leitura canônica dos dados
+- cache CDI e fallback local
+- geração do relatório operacional vigente
+- camadas shadow já abertas para benchmarks específicos
 
-## Prioridade imediata pós-V78
+## Prioridade imediata pós-V91
 
-1. **Switching econômico legado** do Script 2, em modo shadow/auditoria — **aberto na V77**.
-2. **Benchmark do `resolver_hibrido_5p`** do Script 1, em modo diagnóstico comparativo — **aberto na V78**.
-3. Só depois avaliar absorção complementar, calibração e eventual comparação estruturada entre benchmark híbrido e decisão local vigente.
+1. **Switching econômico legado** do Script 2 continua apenas em shadow — **aberto na V76**.
+2. **Benchmark do `resolver_hibrido_5p`** do Script 1 continua diagnóstico comparativo — **aberto na V77/V78**.
+3. **Benchmark shadow agrupado vs. individual** pertence ao Script 1 — **aberto na V88/V89**.
+4. **Nova prioridade aberta na V91:** benchmark shadow do runner de simulação futura do Script 2 correto.
 
 ## Regras de absorção
 
@@ -74,12 +82,4 @@ A V78 usa este mapa como referência obrigatória antes de qualquer nova migraç
 - Não incorporar infraestrutura pesada de treino, rede ou exportação antiga sem necessidade material.
 - Toda migração funcional deve passar primeiro por camada shadow/diagnóstica quando a regra ainda estiver ausente.
 - A baseline vigente continua com `proxy econômico v3` congelado até nova evidência concreta.
-
-
-3. **Auditoria comparativa do benchmark `resolver_hibrido_5p_shadow` vs. decisão local vigente** — **aberta na V78**.
-
-
-## Execução principal do Script 2
-
-A execução principal do Script 2 passou a ter um mapa próprio em `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`.
-Esse runner legado não deve ser absorvido de forma bruta; suas partes úteis devem seguir a classificação específica aberta na V88.
+- O runner legado correto do Script 2 não deve ser acoplado ao fluxo principal sem passar pelo benchmark shadow da simulação futura.

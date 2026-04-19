@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V90
+**Versão atual da baseline:** V91
 
-A V90 preserva integralmente a baseline funcional imediatamente anterior e corrige a promoção do arquivo temporário no download da planilha financeira em ambiente local, evitando falso `PermissionError` no Windows após a validação do `.xlsx`. Não altera o motor financeiro, o replay nem o `proxy v3` congelado.
+A V91 preserva integralmente a baseline funcional imediatamente anterior e corrige a promoção do arquivo temporário no download da planilha financeira em ambiente local, evitando falso `PermissionError` no Windows após a validação do `.xlsx`. Não altera o motor financeiro, o replay nem o `proxy v3` congelado.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -43,9 +43,9 @@ python scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V90.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V90.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V90.md`
+- `relatorios/atuais/BASELINE_FIXA_V91.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V91.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V91.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -55,10 +55,10 @@ python scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
 
-## Resumo operacional da V90
+## Resumo operacional da V91
 
 - o runner principal legado do Script 2 foi classificado em mapa de absorção e não entra funcionalmente na baseline atual;
 - `proxy econômico v3` permanece congelado como decisão monofonte vigente;
 - `multifonte v1` continua fora do fluxo principal e condicionada à evidência;
 - `switching_economico_shadow` e `resolver_hibrido_5p_shadow` continuam camadas diagnósticas;
-- a V90 atualiza os arquivos canônicos de dados e confirma que o benchmark shadow agrupado vs individual mantém 9 datas com mudança de lote dominante e recomendação de modo `individual`.
+- a V91 atualiza os arquivos canônicos de dados e confirma que o benchmark shadow agrupado vs individual mantém 9 datas com mudança de lote dominante e recomendação de modo `individual`.
