@@ -62,7 +62,7 @@ def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: i
         ws.freeze_panes = f'A{header_row + 1}'
     ws.auto_filter.ref = f"A{header_row}:{get_column_letter(len(headers))}{max(header_row + len(rows), header_row)}"
 
-    currency_cols = {'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Aplicação Mínima', 'Bruto Atual', 'Líquido Atual', 'Saldo rem', 'Score Final', 'Valor Original', 'Valor bruto', 'Valor líquido', 'Valor vinculado', 'Residual aplicação'}
+    currency_cols = {'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Aplicação Mínima', 'Bruto Atual', 'Líquido Atual', 'Saldo rem', 'Score Final', 'Valor Original', 'Valor bruto', 'Valor líquido', 'Valor vinculado', 'Residual aplicação', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Score proxy', 'Score final dinâmico'}
     percent_cols = {'Taxa Base CDI', 'Taxa Bônus CDI'}
     int_cols = {'Dias Corridos', 'Dias Úteis', 'Dias até evento', 'Rank Global', 'Rank Família', 'Dias Bônus', 'Carência Dias', 'Pagamentos vinculados'}
 
@@ -224,14 +224,19 @@ def main() -> None:
     gastos_futuros = dados.gastos_canonicos[dados.gastos_canonicos['futuro_ou_pendente_na_data_referencia'] == True].copy().sort_values(by=['data', 'despesa_id'], kind='stable')
     quadro_decisao = contexto.decisao_local_v1.quadro_decisao_local_v1.copy() if contexto.decisao_local_v1 is not None else None
     quadro_temporal = contexto.auditoria_temporal_decisao_local.quadro_auditoria_temporal.copy() if contexto.auditoria_temporal_decisao_local is not None else None
+    quadro_reescolha = contexto.reescolha_dinamica_pos_quebra.quadro_reescolha_dinamica.copy() if contexto.reescolha_dinamica_pos_quebra is not None else None
     mapa_decisao = {}
     mapa_temporal = {}
+    mapa_reescolha = {}
     if quadro_decisao is not None and len(quadro_decisao):
         for _, row_dec in quadro_decisao.iterrows():
             mapa_decisao[str(row_dec.get('pagamento_id') or '').strip()] = row_dec.to_dict()
     if quadro_temporal is not None and len(quadro_temporal):
         for _, row_tmp in quadro_temporal.iterrows():
             mapa_temporal[str(row_tmp.get('pagamento_id') or '').strip()] = row_tmp.to_dict()
+    if quadro_reescolha is not None and len(quadro_reescolha):
+        for _, row_dyn in quadro_reescolha.iterrows():
+            mapa_reescolha[str(row_dyn.get('pagamento_id') or '').strip()] = row_dyn.to_dict()
     rows_futuro = []
     for item in gastos_futuros.to_dict('records'):
         data_evt = item.get('data')
@@ -240,6 +245,7 @@ def main() -> None:
         decisao = mapa_decisao.get(despesa_id, {})
         resumo_financeiro = _calcular_resumo_financeiro_fonte(contexto, decisao)
         temporal = mapa_temporal.get(despesa_id, {})
+        dinamico = mapa_reescolha.get(despesa_id, {})
         rows_futuro.append([
             data_evt,
             item.get('descricao'),
@@ -263,10 +269,20 @@ def main() -> None:
             round(float(temporal.get('saldo_remanescente_temporal') or 0.0), 2) if temporal else '',
             'sim' if bool(temporal.get('primeira_quebra_na_fonte')) else '',
             'sim' if bool(temporal.get('requer_reescolha_dinamica')) else '',
+            dinamico.get('lote_final_dinamico', ''),
+            'sim' if bool(dinamico.get('reescolha_acionada')) else '',
+            dinamico.get('status_pos_reescolha', ''),
+            round(float(dinamico.get('score_proxy_final') or 0.0), 4) if dinamico and dinamico.get('score_proxy_final') is not None else '',
+            round(float(dinamico.get('saldo_antes_dinamico') or 0.0), 2) if dinamico else '',
+            round(float(dinamico.get('bruto_dinamico') or 0.0), 2) if dinamico else '',
+            round(float(dinamico.get('imposto_dinamico') or 0.0), 2) if dinamico else '',
+            round(float(dinamico.get('liquido_dinamico') or 0.0), 2) if dinamico else '',
+            round(float(dinamico.get('saldo_remanescente_dinamico') or 0.0), 2) if dinamico else '',
+            'sim' if bool(dinamico.get('pagamento_totalmente_coberto_dinamico')) else '',
             dias_ate,
             'futuro/pendente',
         ])
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Dias até evento', 'Status']
+    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Dias até evento', 'Status']
     _apply_table_style(ws_futuro, headers_futuro, rows_futuro, freeze=True)
 
     ws_temporal = wb.create_sheet('Auditoria temporal')
@@ -297,6 +313,36 @@ def main() -> None:
             ])
     headers_temporal = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes local', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra global', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Observação temporal']
     _apply_table_style(ws_temporal, headers_temporal, rows_temporal, freeze=True)
+
+    ws_reescolha = wb.create_sheet('Reescolha dinâmica')
+    quadro_reescolha_full = contexto.reescolha_dinamica_pos_quebra.quadro_reescolha_dinamica.copy() if contexto.reescolha_dinamica_pos_quebra is not None else None
+    rows_reescolha = []
+    if quadro_reescolha_full is not None and len(quadro_reescolha_full):
+        quadro_reescolha_full = quadro_reescolha_full.sort_values(by=['data_pagamento', 'pagamento_id'], kind='stable')
+        for _, row_dyn in quadro_reescolha_full.iterrows():
+            rows_reescolha.append([
+                row_dyn.get('data_pagamento'),
+                row_dyn.get('descricao_pagamento'),
+                row_dyn.get('pagamento_id'),
+                row_dyn.get('valor_pagamento'),
+                row_dyn.get('lote_sugerido_original'),
+                'sim' if bool(row_dyn.get('reescolha_acionada')) else '',
+                'sim' if bool(row_dyn.get('mudou_fonte')) else '',
+                row_dyn.get('lote_final_dinamico'),
+                row_dyn.get('tipo_fonte_final'),
+                row_dyn.get('criterio_reescolha'),
+                row_dyn.get('score_proxy_final'),
+                row_dyn.get('status_pos_reescolha'),
+                row_dyn.get('saldo_antes_dinamico'),
+                row_dyn.get('bruto_dinamico'),
+                row_dyn.get('imposto_dinamico'),
+                row_dyn.get('liquido_dinamico'),
+                row_dyn.get('saldo_remanescente_dinamico'),
+                'sim' if bool(row_dyn.get('pagamento_totalmente_coberto_dinamico')) else '',
+                row_dyn.get('observacao_reescolha'),
+            ])
+    headers_reescolha = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido original', 'Reescolha acionada', 'Mudou fonte', 'Lote final dinâmico', 'Tipo fonte final', 'Critério reescolha', 'Score final dinâmico', 'Status pós-reescolha', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Observação reescolha']
+    _apply_table_style(ws_reescolha, headers_reescolha, rows_reescolha, freeze=True)
 
     ws_melhores = wb.create_sheet('Melhores produtos')
     candidatos = tri.quadro_candidatos.copy().sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')

@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V100
+**Versão atual da baseline:** V101
 
-A V100 preserva a baseline funcional imediatamente anterior e adiciona uma camada auditável de coerência sequencial sobre a decisão local v1: mantém a saída operacional do console e da planilha e passa a distinguir, de forma explícita, validade local e coerência temporal futura por meio de depleção cumulativa dos lotes sugeridos.
+A V101 preserva a baseline funcional imediatamente anterior e adiciona uma camada de reescolha dinâmica pós-quebra sobre a auditoria temporal da decisão local v1: mantém a saída operacional do console e da planilha e passa a recomputar a fonte dos pagamentos futuros que deixam de ser coerentes sequencialmente, sem reabrir o solver global.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -45,9 +45,9 @@ python scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V100.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V100.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V100.md`
+- `relatorios/atuais/BASELINE_FIXA_V101.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V101.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V101.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -58,10 +58,10 @@ python scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
 
-## Resumo operacional da V100
+## Resumo operacional da V101
 
-- a V100 mantém a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20;
-- a V100 preserva o console e o extrato futuro da planilha como camada de auditabilidade local já aprovada;
-- a V100 adiciona uma auditoria temporal da decisão local v1 com depleção cumulativa dos lotes sugeridos;
-- a V100 separa explicitamente status local de status temporal, marcando primeira quebra por fonte e necessidade de reescolha dinâmica;
-- a V100 adiciona uma nova aba de auditoria temporal na planilha operacional e uma nova seção dedicada no console principal.
+- a V101 mantém a auditoria da primeira quebra de cobertura do runner shadow em 2026-05-20;
+- a V101 preserva o console e o extrato futuro da planilha como camada de auditabilidade local já aprovada;
+- a V101 preserva a auditoria temporal da decisão local v1 com depleção cumulativa dos lotes sugeridos;
+- a V101 adiciona uma camada de reescolha dinâmica pós-quebra para recomputar a fonte dos pagamentos futuros que deixam de ser coerentes sequencialmente;
+- a V101 adiciona colunas dinâmicas ao extrato futuro da planilha, uma nova aba de reescolha dinâmica e uma nova seção dedicada no console principal.

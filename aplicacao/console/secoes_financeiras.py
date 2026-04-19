@@ -195,6 +195,45 @@ def render_secao_auditoria_temporal_pagamentos(*, auditoria_temporal=None, amost
             limite=10,
         )
 
+
+
+def render_secao_reescolha_dinamica_pagamentos(*, auditoria_reescolha=None, amostra_reescolhas=None, amostra_sem_cobertura=None):
+    auditoria_reescolha = auditoria_reescolha or {}
+    amostra_reescolhas = amostra_reescolhas or []
+    amostra_sem_cobertura = amostra_sem_cobertura or []
+    resumo = auditoria_reescolha.get('resumo', {})
+    imprimir_titulo('PAGAMENTOS FUTUROS — REESCOLHA DINÂMICA PÓS-QUEBRA')
+    imprimir_pares([
+        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
+        ('mantidos sem reescolha', resumo.get('pagamentos_mantidos_sem_reescolha', 0)),
+        ('reescolhas acionadas', resumo.get('pagamentos_com_reescolha_acionada', 0)),
+        ('mudanças efetivas de fonte', resumo.get('mudancas_efetivas_de_fonte', 0)),
+        ('cobertos após reescolha', resumo.get('pagamentos_cobertos_pos_reescolha', 0)),
+        ('sem cobertura após reescolha', resumo.get('pagamentos_sem_cobertura_pos_reescolha', 0)),
+        ('pagamentos recuperados após reescolha', resumo.get('pagamentos_recuperados_pos_reescolha', 0)),
+        ('primeira reescolha', resumo.get('primeira_reescolha_data')),
+        ('pagamento da primeira reescolha', resumo.get('primeira_reescolha_pagamento')),
+        ('lote original da primeira reescolha', resumo.get('primeira_reescolha_lote_original')),
+        ('lote final da primeira reescolha', resumo.get('primeira_reescolha_lote_final')),
+        ('primeira sem cobertura pós-reescolha', resumo.get('primeira_sem_cobertura_data')),
+        ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento')),
+        ('lote final da primeira sem cobertura', resumo.get('primeira_sem_cobertura_lote_final')),
+    ])
+    if amostra_reescolhas:
+        print('\n- amostra das primeiras reescolhas dinâmicas:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote original', 'Lote dinâmico', 'Status pós-reescolha', 'Score final'],
+            amostra_reescolhas,
+            limite=10,
+        )
+    if amostra_sem_cobertura:
+        print('\n- amostra dos pagamentos ainda sem cobertura após a reescolha dinâmica:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote dinâmico', 'Saldo Antes dinâmico', 'Status pós-reescolha'],
+            amostra_sem_cobertura,
+            limite=10,
+        )
+
 def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
     imprimir_titulo('SITUAÇÃO ATUAL')
     resumo_fechamento = resumo_fechamento or {}

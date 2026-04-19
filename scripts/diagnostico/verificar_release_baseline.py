@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V100'
-VERSAO_ANTERIOR = 'V99'
+VERSAO_VIGENTE = 'V101'
+VERSAO_ANTERIOR = 'V100'
 
 
 def repo_root() -> Path:
@@ -104,6 +104,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_saldo_disponivel_geral.py',
         'scripts/diagnostico/inspecionar_decisao_local_v1.py',
         'scripts/diagnostico/inspecionar_auditoria_temporal_decisao_local.py',
+        'scripts/diagnostico/inspecionar_reescolha_dinamica_pos_quebra.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py',
         'scripts/diagnostico/inspecionar_mapa_absorcao_legado.py',
         'scripts/diagnostico/inspecionar_mapa_execucao_principal_script2.py',
@@ -129,6 +130,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_saldo_disponivel_geral.py',
         'scripts/inspecionar_decisao_local_v1.py',
         'scripts/inspecionar_auditoria_temporal_decisao_local.py',
+        'scripts/inspecionar_reescolha_dinamica_pos_quebra.py',
         'scripts/inspecionar_comparativo_proxy_v2_v3.py',
         'scripts/inspecionar_mapa_absorcao_legado.py',
         'scripts/inspecionar_mapa_execucao_principal_script2.py',
@@ -146,6 +148,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_consolidacao_helpers_baixo_risco.py',
         'nucleo/caixa_recebidos_auditaveis.py',
         'nucleo/auditoria_temporal_decisao_local.py',
+        'nucleo/reescolha_dinamica_pos_quebra.py',
         'nucleo/switching_economico_shadow.py',
         'nucleo/resolver_hibrido_5p_shadow.py',
         'nucleo/benchmark_agrupado_individual_shadow.py',
