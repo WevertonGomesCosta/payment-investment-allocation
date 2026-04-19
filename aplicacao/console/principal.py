@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from copy import deepcopy
 from datetime import date, timedelta
 from pathlib import Path
 import pandas as pd
@@ -21,7 +22,7 @@ from nucleo.calendario_financeiro import contar_dias_rendimento
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
-from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabela_iof
+from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabela_iof, executar_saque_lote
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
 from nucleo.caixa_recebidos_auditaveis import auditar_comparativo_proxy_v2_v3
 from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
@@ -414,7 +415,7 @@ def main() -> None:
     )
 
     auditoria_metodo_pagamentos, amostra_mudancas_metodo = _preparar_auditoria_metodo_pagamentos(contexto_baseline)
-    pagamentos_realizados_console, pagamentos_proximos_console = _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, contexto_baseline.decisao_local_v1, limite=5)
+    pagamentos_realizados_console, pagamentos_proximos_console = _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, contexto_baseline.decisao_local_v1, contexto_baseline, limite=5)
     render_secao_metodo_pagamentos(
         auditoria_metodo=auditoria_metodo_pagamentos,
         amostra_mudancas_metodo=amostra_mudancas_metodo,
@@ -517,7 +518,55 @@ def _extrair_resumo_leitura_decisao(observacao):
         return _normalizar_texto_curto(texto, limite=150)
     return ' | '.join(partes)
 
-def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, decisao_local_v1, *, limite=5):
+
+def _calcular_resumo_financeiro_fonte(contexto_baseline, decisao):
+    if not decisao:
+        return {
+            'Saldo Antes': '',
+            'Bruto': '',
+            'Imposto': '',
+            'Líquido': '',
+            'Saldo Remanescente': '',
+        }
+    valor_pagamento = round(float(decisao.get('valor_pagamento') or 0.0), 2)
+    saldo_antes = round(float(decisao.get('valor_disponivel_escolhido') or 0.0), 2)
+    tipo_fonte = str(decisao.get('tipo_fonte_escolhida') or '')
+    lote_id = str(decisao.get('lote_id_escolhido') or '')
+
+    if tipo_fonte == 'lote_resgatavel' and lote_id:
+        lote_original = next((l for l in contexto_baseline.replay_passado.lotes_apos_replay if str(l.id) == lote_id), None)
+        if lote_original is not None:
+            lote = deepcopy(lote_original)
+            movimento = executar_saque_lote(
+                lote,
+                valor_pagamento,
+                contexto_baseline.execucao.data_referencia,
+                tabela_iof=contexto_baseline.tabela_iof,
+                faixas_ir=contexto_baseline.faixas_ir,
+            )
+            if movimento is not None:
+                return {
+                    'Saldo Antes': round(float(movimento.get('saldo_antes') or 0.0), 2),
+                    'Bruto': round(float(movimento.get('bruto') or 0.0), 2),
+                    'Imposto': round(float(movimento.get('imposto') or 0.0), 2),
+                    'Líquido': round(float(movimento.get('liquido') or 0.0), 2),
+                    'Saldo Remanescente': round(float(movimento.get('saldo_remanescente') or 0.0), 2),
+                }
+
+    bruto = min(valor_pagamento, saldo_antes) if saldo_antes else valor_pagamento
+    imposto = 0.0
+    liquido = bruto
+    saldo_rem = max(saldo_antes - bruto, 0.0) if saldo_antes else ''
+    return {
+        'Saldo Antes': saldo_antes if saldo_antes else '',
+        'Bruto': round(float(bruto), 2) if bruto != '' else '',
+        'Imposto': imposto,
+        'Líquido': round(float(liquido), 2) if liquido != '' else '',
+        'Saldo Remanescente': round(float(saldo_rem), 2) if saldo_rem != '' else '',
+    }
+
+
+def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, decisao_local_v1, contexto_baseline, *, limite=5):
     gastos = dados_operacionais.gastos_canonicos.copy()
     if len(gastos) == 0:
         return [], []
@@ -545,7 +594,11 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, de
                 'Despesa ID': str(despesa_id),
                 'Descrição': descricao,
                 'Valor': valor_pagamento,
-                'Líquido coberto': liquido_coberto,
+                'Saldo Antes': round(float(grupo['Saldo Antes'].fillna(0.0).sum()), 2) if 'Saldo Antes' in grupo.columns else '',
+                'Bruto': round(float(grupo['Bruto'].fillna(0.0).sum()), 2) if 'Bruto' in grupo.columns else '',
+                'Imposto': round(float(grupo['Imposto'].fillna(0.0).sum()), 2) if 'Imposto' in grupo.columns else '',
+                'Líquido': liquido_coberto,
+                'Saldo Remanescente': round(float(grupo['Saldo Remanescente'].fillna(0.0).sum()), 2) if 'Saldo Remanescente' in grupo.columns else '',
                 'Lotes usados': ' | '.join(lotes_unicos),
             }
 
@@ -559,11 +612,14 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, de
         lotes_informados = [item for item in lotes_informados if item]
         linhas_realizados.append({
             'Data': base.get('Data') or (row['data'].isoformat() if hasattr(row['data'], 'isoformat') else str(row.get('data') or '')),
-            'Despesa ID': despesa_id,
             'Descrição': base.get('Descrição') or str(row.get('descricao') or ''),
             'Valor': base.get('Valor') if base.get('Valor') is not None else round(float(row.get('valor') or 0.0), 2),
-            'Líquido coberto': base.get('Líquido coberto') if base.get('Líquido coberto') is not None else '',
             'Lotes usados': base.get('Lotes usados') or (' | '.join(lotes_informados)),
+            'Saldo Antes': base.get('Saldo Antes', ''),
+            'Bruto': base.get('Bruto', ''),
+            'Imposto': base.get('Imposto', ''),
+            'Líquido': base.get('Líquido', ''),
+            'Saldo Remanescente': base.get('Saldo Remanescente', ''),
         })
         if len(linhas_realizados) >= limite:
             break
@@ -582,15 +638,19 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, de
         decisao = mapa_decisao.get(despesa_id, {})
         lotes_informados = [str(row.get('lote_usado_1') or '').strip(), str(row.get('lote_usado_2') or '').strip()]
         lotes_informados = [item for item in lotes_informados if item]
+        resumo_financeiro = _calcular_resumo_financeiro_fonte(contexto_baseline, decisao)
         linhas_proximos.append({
             'Data': row['data'].isoformat() if hasattr(row['data'], 'isoformat') else str(row.get('data') or ''),
-            'Despesa ID': despesa_id,
             'Descrição': str(row.get('descricao') or ''),
             'Valor': round(float(row.get('valor') or 0.0), 2),
             'Lote sugerido': str(decisao.get('lote_id_escolhido') or ''),
+            'Saldo Antes': resumo_financeiro.get('Saldo Antes', ''),
+            'Bruto': resumo_financeiro.get('Bruto', ''),
+            'Imposto': resumo_financeiro.get('Imposto', ''),
+            'Líquido': resumo_financeiro.get('Líquido', ''),
+            'Saldo Remanescente': resumo_financeiro.get('Saldo Remanescente', ''),
             'Score proxy': round(float(decisao.get('custo_economico_proxy') or 0.0), 4) if decisao else '',
             'Status local': 'integral na decisão local' if bool(decisao.get('pagamento_totalmente_coberto')) else ('parcial/ausente na decisão local' if decisao else ''),
-            'Leitura técnica': _extrair_resumo_leitura_decisao(decisao.get('observacao_auditavel')),
         })
         if len(linhas_proximos) >= limite:
             break

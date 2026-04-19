@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from copy import deepcopy
 from datetime import date
 from typing import Iterable
 import sys
@@ -17,6 +18,7 @@ from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_re
 from nucleo.identidade_baseline import caminho_artifact, caminho_saida_operacional, nome_relatorio_operacional
 from nucleo.calendario_financeiro import contar_dias_rendimento
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
+from nucleo.nucleo_financeiro_minimo import executar_saque_lote
 from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
 
 SAIDA_INTERNA = caminho_saida_operacional(RAIZ, nome_relatorio_operacional())
@@ -85,6 +87,53 @@ def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: i
 
     return header_row + len(rows)
 
+
+
+def _calcular_resumo_financeiro_fonte(contexto, decisao: dict) -> dict[str, object]:
+    if not decisao:
+        return {
+            'Saldo Antes': '',
+            'Bruto': '',
+            'Imposto': '',
+            'Líquido': '',
+            'Saldo Remanescente': '',
+        }
+    valor_pagamento = round(float(decisao.get('valor_pagamento') or 0.0), 2)
+    saldo_antes = round(float(decisao.get('valor_disponivel_escolhido') or 0.0), 2)
+    tipo_fonte = str(decisao.get('tipo_fonte_escolhida') or '')
+    lote_id = str(decisao.get('lote_id_escolhido') or '')
+
+    if tipo_fonte == 'lote_resgatavel' and lote_id:
+        lote_original = next((l for l in contexto.replay_passado.lotes_apos_replay if str(l.id) == lote_id), None)
+        if lote_original is not None:
+            lote = deepcopy(lote_original)
+            movimento = executar_saque_lote(
+                lote,
+                valor_pagamento,
+                contexto.execucao.data_referencia,
+                tabela_iof=contexto.tabela_iof,
+                faixas_ir=contexto.faixas_ir,
+            )
+            if movimento is not None:
+                return {
+                    'Saldo Antes': round(float(movimento.get('saldo_antes') or 0.0), 2),
+                    'Bruto': round(float(movimento.get('bruto') or 0.0), 2),
+                    'Imposto': round(float(movimento.get('imposto') or 0.0), 2),
+                    'Líquido': round(float(movimento.get('liquido') or 0.0), 2),
+                    'Saldo Remanescente': round(float(movimento.get('saldo_remanescente') or 0.0), 2),
+                }
+
+    bruto = min(valor_pagamento, saldo_antes) if saldo_antes else valor_pagamento
+    imposto = 0.0
+    liquido = bruto
+    saldo_rem = max(saldo_antes - bruto, 0.0) if saldo_antes else ''
+    return {
+        'Saldo Antes': saldo_antes if saldo_antes else '',
+        'Bruto': round(float(bruto), 2) if bruto != '' else '',
+        'Imposto': imposto,
+        'Líquido': round(float(liquido), 2) if liquido != '' else '',
+        'Saldo Remanescente': round(float(saldo_rem), 2) if saldo_rem != '' else '',
+    }
 
 
 def _classificar_lotes_situacao_atual(contexto):
@@ -173,22 +222,36 @@ def main() -> None:
 
     ws_futuro = wb.create_sheet('Extrato futuro')
     gastos_futuros = dados.gastos_canonicos[dados.gastos_canonicos['futuro_ou_pendente_na_data_referencia'] == True].copy().sort_values(by=['data', 'despesa_id'], kind='stable')
+    quadro_decisao = contexto.decisao_local_v1.quadro_decisao_local_v1.copy() if contexto.decisao_local_v1 is not None else None
+    mapa_decisao = {}
+    if quadro_decisao is not None and len(quadro_decisao):
+        for _, row_dec in quadro_decisao.iterrows():
+            mapa_decisao[str(row_dec.get('pagamento_id') or '').strip()] = row_dec.to_dict()
     rows_futuro = []
     for item in gastos_futuros.to_dict('records'):
         data_evt = item.get('data')
         dias_ate = max((data_evt - ctx.data_referencia).days, 0) if isinstance(data_evt, date) else None
+        despesa_id = str(item.get('despesa_id') or '').strip()
+        decisao = mapa_decisao.get(despesa_id, {})
+        resumo_financeiro = _calcular_resumo_financeiro_fonte(contexto, decisao)
         rows_futuro.append([
             data_evt,
             item.get('descricao'),
             item.get('despesa_id'),
             item.get('valor'),
             item.get('pago'),
-            item.get('lote_usado_1'),
-            item.get('lote_usado_2'),
+            str(decisao.get('lote_id_escolhido') or ''),
+            resumo_financeiro.get('Saldo Antes', ''),
+            resumo_financeiro.get('Bruto', ''),
+            resumo_financeiro.get('Imposto', ''),
+            resumo_financeiro.get('Líquido', ''),
+            resumo_financeiro.get('Saldo Remanescente', ''),
+            round(float(decisao.get('custo_economico_proxy') or 0.0), 4) if decisao else '',
+            'integral na decisão local' if bool(decisao.get('pagamento_totalmente_coberto')) else ('parcial/ausente na decisão local' if decisao else ''),
             dias_ate,
             'futuro/pendente',
         ])
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote usado 1', 'Lote usado 2', 'Dias até evento', 'Status']
+    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Dias até evento', 'Status']
     _apply_table_style(ws_futuro, headers_futuro, rows_futuro, freeze=True)
 
     ws_melhores = wb.create_sheet('Melhores produtos')

@@ -154,14 +154,14 @@ def render_secao_amostras_pagamentos(*, pagamentos_realizados=None, pagamentos_p
 
     print('- últimos 5 pagamentos já realizados:')
     imprimir_tabela(
-        ['Data', 'Despesa ID', 'Descrição', 'Valor', 'Líquido coberto', 'Lotes usados'],
+        ['Data', 'Descrição', 'Valor', 'Lotes usados', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'],
         pagamentos_realizados,
         limite=5,
     )
 
     print('\n- próximos 5 pagamentos:')
     imprimir_tabela(
-        ['Data', 'Despesa ID', 'Descrição', 'Valor', 'Lote sugerido', 'Score proxy', 'Status local', 'Leitura técnica'],
+        ['Data', 'Descrição', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local'],
         pagamentos_proximos,
         limite=5,
     )

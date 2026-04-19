@@ -28,3 +28,7 @@
 - relatorios/atuais/AUDITORIA_CASOS_CRITICOS_RUNNER_FUTURO_SHADOW.md
 
 - relatorios/atuais/AUDITORIA_PRIMEIRA_QUEBRA_RUNNER_FUTURO_SHADOW.md
+
+- relatorios/atuais/BASELINE_FIXA_V99.md
+- relatorios/atuais/VALIDACAO_LOCAL_V99.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V99.md
