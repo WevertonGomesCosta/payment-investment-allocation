@@ -166,6 +166,35 @@ def render_secao_amostras_pagamentos(*, pagamentos_realizados=None, pagamentos_p
         limite=5,
     )
 
+
+
+def render_secao_auditoria_temporal_pagamentos(*, auditoria_temporal=None, amostra_primeiras_quebras=None):
+    auditoria_temporal = auditoria_temporal or {}
+    amostra_primeiras_quebras = amostra_primeiras_quebras or []
+    resumo = auditoria_temporal.get('resumo', {})
+    imprimir_titulo('PAGAMENTOS FUTUROS — AUDITORIA TEMPORAL DA DECISÃO LOCAL')
+    imprimir_pares([
+        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
+        ('integrais na decisão local', resumo.get('pagamentos_integral_local', 0)),
+        ('integrais na sequência', resumo.get('pagamentos_integral_temporal', 0)),
+        ('quebras temporais da sugestão local', resumo.get('pagamentos_com_quebra_temporal', 0)),
+        ('pagamentos após quebra da fonte', resumo.get('pagamentos_apos_quebra_fonte', 0)),
+        ('fontes auditadas', resumo.get('fontes_auditadas', 0)),
+        ('fontes com quebra temporal', resumo.get('fontes_com_quebra_temporal', 0)),
+        ('primeira quebra global', resumo.get('primeira_quebra_global_data')),
+        ('pagamento da primeira quebra', resumo.get('primeira_quebra_global_pagamento')),
+        ('lote/fonte da primeira quebra', resumo.get('primeira_quebra_global_lote')),
+        ('valor da primeira quebra', resumo.get('primeira_quebra_global_valor')),
+        ('sequência na fonte da primeira quebra', resumo.get('primeira_quebra_global_seq_fonte')),
+    ])
+    if amostra_primeiras_quebras:
+        print('\n- amostra das primeiras quebras temporais por fonte sugerida:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote sugerido', 'Seq. fonte', 'Saldo Antes temporal', 'Status temporal'],
+            amostra_primeiras_quebras,
+            limite=10,
+        )
+
 def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
     imprimir_titulo('SITUAÇÃO ATUAL')
     resumo_fechamento = resumo_fechamento or {}

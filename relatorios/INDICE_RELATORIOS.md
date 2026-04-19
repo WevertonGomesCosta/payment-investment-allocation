@@ -32,3 +32,8 @@
 - relatorios/atuais/BASELINE_FIXA_V99.md
 - relatorios/atuais/VALIDACAO_LOCAL_V99.md
 - relatorios/atuais/ESTRUTURA_REPOSITORIO_V99.md
+- relatorios/atuais/BASELINE_FIXA_V100.md
+
+- relatorios/atuais/VALIDACAO_LOCAL_V100.md
+
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V100.md

@@ -223,10 +223,15 @@ def main() -> None:
     ws_futuro = wb.create_sheet('Extrato futuro')
     gastos_futuros = dados.gastos_canonicos[dados.gastos_canonicos['futuro_ou_pendente_na_data_referencia'] == True].copy().sort_values(by=['data', 'despesa_id'], kind='stable')
     quadro_decisao = contexto.decisao_local_v1.quadro_decisao_local_v1.copy() if contexto.decisao_local_v1 is not None else None
+    quadro_temporal = contexto.auditoria_temporal_decisao_local.quadro_auditoria_temporal.copy() if contexto.auditoria_temporal_decisao_local is not None else None
     mapa_decisao = {}
+    mapa_temporal = {}
     if quadro_decisao is not None and len(quadro_decisao):
         for _, row_dec in quadro_decisao.iterrows():
             mapa_decisao[str(row_dec.get('pagamento_id') or '').strip()] = row_dec.to_dict()
+    if quadro_temporal is not None and len(quadro_temporal):
+        for _, row_tmp in quadro_temporal.iterrows():
+            mapa_temporal[str(row_tmp.get('pagamento_id') or '').strip()] = row_tmp.to_dict()
     rows_futuro = []
     for item in gastos_futuros.to_dict('records'):
         data_evt = item.get('data')
@@ -234,6 +239,7 @@ def main() -> None:
         despesa_id = str(item.get('despesa_id') or '').strip()
         decisao = mapa_decisao.get(despesa_id, {})
         resumo_financeiro = _calcular_resumo_financeiro_fonte(contexto, decisao)
+        temporal = mapa_temporal.get(despesa_id, {})
         rows_futuro.append([
             data_evt,
             item.get('descricao'),
@@ -248,11 +254,49 @@ def main() -> None:
             resumo_financeiro.get('Saldo Remanescente', ''),
             round(float(decisao.get('custo_economico_proxy') or 0.0), 4) if decisao else '',
             'integral na decisão local' if bool(decisao.get('pagamento_totalmente_coberto')) else ('parcial/ausente na decisão local' if decisao else ''),
+            temporal.get('status_temporal', ''),
+            temporal.get('sequencia_na_fonte', ''),
+            round(float(temporal.get('saldo_antes_temporal') or 0.0), 2) if temporal else '',
+            round(float(temporal.get('bruto_temporal') or 0.0), 2) if temporal else '',
+            round(float(temporal.get('imposto_temporal') or 0.0), 2) if temporal else '',
+            round(float(temporal.get('liquido_temporal') or 0.0), 2) if temporal else '',
+            round(float(temporal.get('saldo_remanescente_temporal') or 0.0), 2) if temporal else '',
+            'sim' if bool(temporal.get('primeira_quebra_na_fonte')) else '',
+            'sim' if bool(temporal.get('requer_reescolha_dinamica')) else '',
             dias_ate,
             'futuro/pendente',
         ])
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Dias até evento', 'Status']
+    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Dias até evento', 'Status']
     _apply_table_style(ws_futuro, headers_futuro, rows_futuro, freeze=True)
+
+    ws_temporal = wb.create_sheet('Auditoria temporal')
+    quadro_temporal_full = contexto.auditoria_temporal_decisao_local.quadro_auditoria_temporal.copy() if contexto.auditoria_temporal_decisao_local is not None else None
+    rows_temporal = []
+    if quadro_temporal_full is not None and len(quadro_temporal_full):
+        quadro_temporal_full = quadro_temporal_full.sort_values(by=['data_pagamento', 'pagamento_id'], kind='stable')
+        for _, row_tmp in quadro_temporal_full.iterrows():
+            rows_temporal.append([
+                row_tmp.get('data_pagamento'),
+                row_tmp.get('descricao_pagamento'),
+                row_tmp.get('pagamento_id'),
+                row_tmp.get('valor_pagamento'),
+                row_tmp.get('lote_id_escolhido'),
+                row_tmp.get('status_local'),
+                row_tmp.get('status_temporal'),
+                row_tmp.get('sequencia_na_fonte'),
+                row_tmp.get('saldo_antes_local'),
+                row_tmp.get('saldo_antes_temporal'),
+                row_tmp.get('bruto_temporal'),
+                row_tmp.get('imposto_temporal'),
+                row_tmp.get('liquido_temporal'),
+                row_tmp.get('saldo_remanescente_temporal'),
+                'sim' if bool(row_tmp.get('primeira_quebra_global')) else '',
+                'sim' if bool(row_tmp.get('primeira_quebra_na_fonte')) else '',
+                'sim' if bool(row_tmp.get('requer_reescolha_dinamica')) else '',
+                row_tmp.get('observacao_temporal'),
+            ])
+    headers_temporal = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes local', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra global', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Observação temporal']
+    _apply_table_style(ws_temporal, headers_temporal, rows_temporal, freeze=True)
 
     ws_melhores = wb.create_sheet('Melhores produtos')
     candidatos = tri.quadro_candidatos.copy().sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')
