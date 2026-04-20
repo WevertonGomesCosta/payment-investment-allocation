@@ -11,8 +11,8 @@ Este contrato não deve misturar regras executáveis correntes com backlog estra
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline documental vigente é a **V109**.
-2. A V106 executa o saneamento contratual do repositório; a **V107** implementa a primeira camada da frente central; a **V108** recalibra essa camada com penalidade explícita de escassez futura para `PROTEGIDA`, prioridade intraclasse no mesmo dia e fallback auditável de “sem fonte viável”; a **V109** reforça a proteção de `SEMIPROTEGIDA_A_CARTAO` material, introduz cap na penalidade de escassez futura e distingue auditavelmente “sem fonte viável” de “fonte preservada por reserva”.
+1. A baseline documental vigente é a **V110**.
+2. A V106 executa o saneamento contratual do repositório; a **V107** implementa a primeira camada da frente central; a **V108** recalibra essa camada com penalidade explícita de escassez futura para `PROTEGIDA`, prioridade intraclasse no mesmo dia e fallback auditável de “sem fonte viável”.
 3. A V108 preserva a V105 como **baseline experimental local** do bloco crítico e mantém a V106 como marco contratual de separação de trilhas.
 4. O contrato executável deve descrever apenas o que já está implementado e observável na baseline, separando o que é núcleo principal do que é experimento local.
 5. Regras futuras, metas estratégicas e camadas ainda não abertas permanecem em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
@@ -204,5 +204,5 @@ Este contrato não deve misturar regras executáveis correntes com backlog estra
 59. A V108 continua sem solver global completo e deve ser interpretada como calibração da frente central, não como camada final do motor conjunto.
 
 
-60. A V109 mantém a frente central como eixo principal e adiciona proteção reforçada para `SEMIPROTEGIDA_A_CARTAO` material dentro da `recomputacao_sequencial_central_v1`.
-61. A V109 adiciona cap na penalidade de escassez futura para `PROTEGIDA` e distingue auditavelmente entre `sem fonte viável` e `fonte preservada por reserva`.
+62. A V110 preserva a estrutura da V108 na frente central e introduz exceção controlada para `SEMIPROTEGIDA_A_CARTAO_MATERIAL`.
+63. A V110 adiciona orçamento explícito de perda máxima em `PROTEGIDA` e trava para não antecipar a primeira violação protegida de referência da V108.

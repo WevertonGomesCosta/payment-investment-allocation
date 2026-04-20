@@ -435,6 +435,11 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         ('mudanças vs decisão local', resumo.get('mudancas_vs_decisao_local', 0)),
         ('fallbacks sem fonte viável', resumo.get('fallbacks_sem_fonte_viavel', 0)),
         ('fontes preservadas por reserva', resumo.get('fontes_preservadas_por_reserva', 0)),
+        ('exceções cartão material aplicadas', resumo.get('excecoes_cartao_material_aplicadas', 0)),
+        ('bloqueios por trava protegida', resumo.get('bloqueios_excecao_antecipacao_protegida', 0)),
+        ('bloqueios por orçamento protegido', resumo.get('bloqueios_excecao_orcamento_protegida', 0)),
+        ('orçamento perda protegida máximo', resumo.get('orcamento_perda_protegida_maximo', 0.0)),
+        ('orçamento perda protegida consumido', resumo.get('orcamento_perda_protegida_consumido_final', 0.0)),
         ('patrimônio terminal proxy final', resumo.get('patrimonio_terminal_proxy_final', 0.0)),
         ('primeira sem cobertura', resumo.get('primeira_sem_cobertura_data')),
         ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento') or ''),
@@ -456,7 +461,7 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
     if amostra_sem_cobertura:
         print('\n- amostra dos pagamentos ainda sem cobertura integral na frente central:')
         imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit', 'Fallback', 'Reserva', 'Motivo'],
+            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit', 'Fallback'],
             amostra_sem_cobertura,
             limite=10,
         )
