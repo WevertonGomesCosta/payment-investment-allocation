@@ -4,9 +4,9 @@
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V98.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V98.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V98.md`
+- `relatorios/atuais/BASELINE_FIXA_V103.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V103.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V103.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -17,6 +17,8 @@
 - `relatorios/atuais/AUDITORIA_FINA_TRANSICAO_DOMINANTE_3000B_8500MAR.md`
 - `relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md`
 - `relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md`
+- `relatorios/atuais/AUDITORIA_CASOS_CRITICOS_RUNNER_FUTURO_SHADOW.md`
+- `relatorios/atuais/AUDITORIA_PRIMEIRA_QUEBRA_RUNNER_FUTURO_SHADOW.md`
 
 ## Histórico documental
 
@@ -24,16 +26,3 @@
 - `relatorios/historico/validacoes/`
 - `relatorios/historico/estruturas/`
 - `relatorios/historico/auditorias_especificas/`
-
-- relatorios/atuais/AUDITORIA_CASOS_CRITICOS_RUNNER_FUTURO_SHADOW.md
-
-- relatorios/atuais/AUDITORIA_PRIMEIRA_QUEBRA_RUNNER_FUTURO_SHADOW.md
-
-- relatorios/atuais/BASELINE_FIXA_V99.md
-- relatorios/atuais/VALIDACAO_LOCAL_V99.md
-- relatorios/atuais/ESTRUTURA_REPOSITORIO_V99.md
-- relatorios/atuais/BASELINE_FIXA_V102.md
-
-- relatorios/atuais/VALIDACAO_LOCAL_V102.md
-
-- relatorios/atuais/ESTRUTURA_REPOSITORIO_V102.md

@@ -62,7 +62,7 @@ def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: i
         ws.freeze_panes = f'A{header_row + 1}'
     ws.auto_filter.ref = f"A{header_row}:{get_column_letter(len(headers))}{max(header_row + len(rows), header_row)}"
 
-    currency_cols = {'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Aplicação Mínima', 'Bruto Atual', 'Líquido Atual', 'Saldo rem', 'Score Final', 'Valor Original', 'Valor bruto', 'Valor líquido', 'Valor vinculado', 'Residual aplicação', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Score proxy', 'Score final dinâmico'}
+    currency_cols = {'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Aplicação Mínima', 'Bruto Atual', 'Líquido Atual', 'Saldo rem', 'Score Final', 'Valor Original', 'Valor bruto', 'Valor líquido', 'Valor vinculado', 'Residual aplicação', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Score proxy', 'Score final dinâmico', 'Score proxy original', 'Score proxy heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística'}
     percent_cols = {'Taxa Base CDI', 'Taxa Bônus CDI'}
     int_cols = {'Dias Corridos', 'Dias Úteis', 'Dias até evento', 'Rank Global', 'Rank Família', 'Dias Bônus', 'Carência Dias', 'Pagamentos vinculados'}
 
@@ -225,9 +225,11 @@ def main() -> None:
     quadro_decisao = contexto.decisao_local_v1.quadro_decisao_local_v1.copy() if contexto.decisao_local_v1 is not None else None
     quadro_temporal = contexto.auditoria_temporal_decisao_local.quadro_auditoria_temporal.copy() if contexto.auditoria_temporal_decisao_local is not None else None
     quadro_reescolha = contexto.reescolha_dinamica_pos_quebra.quadro_reescolha_dinamica.copy() if contexto.reescolha_dinamica_pos_quebra is not None else None
+    quadro_heuristica = contexto.heuristica_conjunta_parcial_bloco_critico.quadro_heuristica_conjunta_parcial.copy() if contexto.heuristica_conjunta_parcial_bloco_critico is not None else None
     mapa_decisao = {}
     mapa_temporal = {}
     mapa_reescolha = {}
+    mapa_heuristica = {}
     if quadro_decisao is not None and len(quadro_decisao):
         for _, row_dec in quadro_decisao.iterrows():
             mapa_decisao[str(row_dec.get('pagamento_id') or '').strip()] = row_dec.to_dict()
@@ -237,6 +239,9 @@ def main() -> None:
     if quadro_reescolha is not None and len(quadro_reescolha):
         for _, row_dyn in quadro_reescolha.iterrows():
             mapa_reescolha[str(row_dyn.get('pagamento_id') or '').strip()] = row_dyn.to_dict()
+    if quadro_heuristica is not None and len(quadro_heuristica):
+        for _, row_h in quadro_heuristica.iterrows():
+            mapa_heuristica[str(row_h.get('pagamento_id') or '').strip()] = row_h.to_dict()
     rows_futuro = []
     for item in gastos_futuros.to_dict('records'):
         data_evt = item.get('data')
@@ -246,6 +251,7 @@ def main() -> None:
         resumo_financeiro = _calcular_resumo_financeiro_fonte(contexto, decisao)
         temporal = mapa_temporal.get(despesa_id, {})
         dinamico = mapa_reescolha.get(despesa_id, {})
+        heuristica = mapa_heuristica.get(despesa_id, {})
         rows_futuro.append([
             data_evt,
             item.get('descricao'),
@@ -279,10 +285,26 @@ def main() -> None:
             round(float(dinamico.get('liquido_dinamico') or 0.0), 2) if dinamico else '',
             round(float(dinamico.get('saldo_remanescente_dinamico') or 0.0), 2) if dinamico else '',
             'sim' if bool(dinamico.get('pagamento_totalmente_coberto_dinamico')) else '',
+            heuristica.get('lote_final_heuristica', ''),
+            'sim' if bool(heuristica.get('esta_no_bloco_critico')) else '',
+            'sim' if bool(heuristica.get('mudou_fonte_heuristica')) else '',
+            'sim' if bool(heuristica.get('troca_preventiva_heuristica')) else '',
+            'sim' if bool(heuristica.get('troca_por_inviabilidade_heuristica')) else '',
+            heuristica.get('criterio_heuristica', ''),
+            round(float(heuristica.get('score_proxy_ajustado_heuristica') or 0.0), 4) if heuristica and heuristica.get('score_proxy_ajustado_heuristica') is not None else '',
+            round(float(heuristica.get('penalidade_preservacao_estrategica') or 0.0), 4) if heuristica and heuristica.get('penalidade_preservacao_estrategica') is not None else '',
+            round(float(heuristica.get('reserva_planejada_fonte') or 0.0), 2) if heuristica and heuristica.get('reserva_planejada_fonte') is not None else '',
+            heuristica.get('status_heuristica', ''),
+            round(float(heuristica.get('saldo_antes_heuristica') or 0.0), 2) if heuristica else '',
+            round(float(heuristica.get('bruto_heuristica') or 0.0), 2) if heuristica else '',
+            round(float(heuristica.get('imposto_heuristica') or 0.0), 2) if heuristica else '',
+            round(float(heuristica.get('liquido_heuristica') or 0.0), 2) if heuristica else '',
+            round(float(heuristica.get('saldo_remanescente_heuristica') or 0.0), 2) if heuristica else '',
+            'sim' if bool(heuristica.get('pagamento_totalmente_coberto_heuristica')) else '',
             dias_ate,
             'futuro/pendente',
         ])
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Dias até evento', 'Status']
+    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Lote final heurístico', 'Bloco crítico', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Dias até evento', 'Status']
     _apply_table_style(ws_futuro, headers_futuro, rows_futuro, freeze=True)
 
     ws_temporal = wb.create_sheet('Auditoria temporal')
@@ -343,6 +365,43 @@ def main() -> None:
             ])
     headers_reescolha = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido original', 'Reescolha acionada', 'Mudou fonte', 'Lote final dinâmico', 'Tipo fonte final', 'Critério reescolha', 'Score final dinâmico', 'Status pós-reescolha', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Observação reescolha']
     _apply_table_style(ws_reescolha, headers_reescolha, rows_reescolha, freeze=True)
+
+
+    ws_heuristica = wb.create_sheet('Heurística conjunta')
+    quadro_heuristica_full = contexto.heuristica_conjunta_parcial_bloco_critico.quadro_heuristica_conjunta_parcial.copy() if contexto.heuristica_conjunta_parcial_bloco_critico is not None else None
+    rows_heuristica = []
+    if quadro_heuristica_full is not None and len(quadro_heuristica_full):
+        quadro_heuristica_full = quadro_heuristica_full.sort_values(by=['data_pagamento', 'pagamento_id'], kind='stable')
+        for _, row_h in quadro_heuristica_full.iterrows():
+            rows_heuristica.append([
+                row_h.get('data_pagamento'),
+                row_h.get('descricao_pagamento'),
+                row_h.get('pagamento_id'),
+                row_h.get('valor_pagamento'),
+                'sim' if bool(row_h.get('esta_no_bloco_critico')) else '',
+                row_h.get('lote_sugerido_original'),
+                row_h.get('lote_final_heuristica'),
+                row_h.get('tipo_fonte_final'),
+                'sim' if bool(row_h.get('mudou_fonte_heuristica')) else '',
+                'sim' if bool(row_h.get('troca_preventiva_heuristica')) else '',
+                'sim' if bool(row_h.get('troca_por_inviabilidade_heuristica')) else '',
+                row_h.get('criterio_heuristica'),
+                row_h.get('score_proxy_original'),
+                row_h.get('score_proxy_heuristica'),
+                row_h.get('score_proxy_ajustado_heuristica'),
+                row_h.get('penalidade_preservacao_estrategica'),
+                row_h.get('reserva_planejada_fonte'),
+                row_h.get('status_heuristica'),
+                row_h.get('saldo_antes_heuristica'),
+                row_h.get('bruto_heuristica'),
+                row_h.get('imposto_heuristica'),
+                row_h.get('liquido_heuristica'),
+                row_h.get('saldo_remanescente_heuristica'),
+                'sim' if bool(row_h.get('pagamento_totalmente_coberto_heuristica')) else '',
+                row_h.get('observacao_heuristica'),
+            ])
+    headers_heuristica = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Bloco crítico', 'Lote sugerido original', 'Lote final heurístico', 'Tipo fonte final', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score proxy original', 'Score proxy heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Observação heurística']
+    _apply_table_style(ws_heuristica, headers_heuristica, rows_heuristica, freeze=True)
 
     ws_melhores = wb.create_sheet('Melhores produtos')
     candidatos = tri.quadro_candidatos.copy().sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')

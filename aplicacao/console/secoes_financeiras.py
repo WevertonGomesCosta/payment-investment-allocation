@@ -234,6 +234,57 @@ def render_secao_reescolha_dinamica_pagamentos(*, auditoria_reescolha=None, amos
             limite=10,
         )
 
+
+
+def render_secao_heuristica_conjunta_parcial(*, auditoria_heuristica=None, amostra_trocas_preventivas=None, amostra_planejamento_reservas=None, amostra_sem_cobertura=None):
+    auditoria_heuristica = auditoria_heuristica or {}
+    amostra_trocas_preventivas = amostra_trocas_preventivas or []
+    amostra_planejamento_reservas = amostra_planejamento_reservas or []
+    amostra_sem_cobertura = amostra_sem_cobertura or []
+    resumo = auditoria_heuristica.get('resumo', {})
+    imprimir_titulo('PAGAMENTOS FUTUROS — HEURÍSTICA CONJUNTA PARCIAL (BLOCO CRÍTICO)')
+    imprimir_pares([
+        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
+        ('pagamentos no bloco crítico', resumo.get('pagamentos_no_bloco_critico', 0)),
+        ('cobertos pela heurística', resumo.get('pagamentos_cobertos_heuristica', 0)),
+        ('sem cobertura pela heurística', resumo.get('pagamentos_sem_cobertura_heuristica', 0)),
+        ('cobertos no bloco crítico', resumo.get('pagamentos_cobertos_no_bloco_critico', 0)),
+        ('mudanças efetivas de fonte', resumo.get('mudancas_efetivas_de_fonte', 0)),
+        ('trocas preventivas', resumo.get('trocas_preventivas_heuristica', 0)),
+        ('trocas por inviabilidade', resumo.get('trocas_por_inviabilidade_heuristica', 0)),
+        ('primeira troca preventiva', resumo.get('primeira_troca_preventiva_data')), 
+        ('pagamento da primeira troca preventiva', resumo.get('primeira_troca_preventiva_pagamento')),
+        ('lote original da primeira preventiva', resumo.get('primeira_troca_preventiva_lote_original')),
+        ('lote final da primeira preventiva', resumo.get('primeira_troca_preventiva_lote_final')),
+        ('primeira sem cobertura da heurística', resumo.get('primeira_sem_cobertura_data')),
+        ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento')),
+        ('atraso vs primeira quebra temporal (dias)', resumo.get('atraso_dias_vs_primeira_quebra_temporal')),
+        ('atraso vs primeira sem cobertura pós-reescolha (dias)', resumo.get('atraso_dias_vs_primeira_sem_cobertura_reescolha')),
+        ('quebra estrutural adiada vs temporal', 'sim' if resumo.get('quebra_estrutural_adiada_vs_temporal') else 'não'),
+        ('quebra estrutural adiada vs reescolha', 'sim' if resumo.get('quebra_estrutural_adiada_vs_reescolha') else 'não'),
+    ])
+    if amostra_trocas_preventivas:
+        print('\n- amostra das trocas preventivas por preservação estratégica:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote original', 'Lote heurístico', 'Reserva planejada', 'Penalidade preservação'],
+            amostra_trocas_preventivas,
+            limite=10,
+        )
+    if amostra_planejamento_reservas:
+        print('\n- amostra do planejamento de reservas estratégicas no bloco crítico:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Fonte reservada', 'Saldo residual planejado', 'Coberturas monofonte'],
+            amostra_planejamento_reservas,
+            limite=10,
+        )
+    if amostra_sem_cobertura:
+        print('\n- amostra dos pagamentos ainda sem cobertura pela heurística parcial:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote heurístico', 'Saldo Antes heurístico', 'Status heurística'],
+            amostra_sem_cobertura,
+            limite=10,
+        )
+
 def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
     imprimir_titulo('SITUAÇÃO ATUAL')
     resumo_fechamento = resumo_fechamento or {}
@@ -281,44 +332,3 @@ def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos
     if not recebidos_atuais:
         print('  [OK] sem recebidos auditáveis materializados nesta execução')
 
-
-
-
-def render_secao_recomputacao_sequencial_pagamentos(*, auditoria_recomputacao=None, amostra_trocas_preventivas=None, amostra_sem_cobertura=None):
-    auditoria_recomputacao = auditoria_recomputacao or {}
-    amostra_trocas_preventivas = amostra_trocas_preventivas or []
-    amostra_sem_cobertura = amostra_sem_cobertura or []
-    resumo = auditoria_recomputacao.get('resumo', {})
-    imprimir_titulo('PAGAMENTOS FUTUROS — RECOMPUTAÇÃO SEQUENCIAL PREVENTIVA')
-    imprimir_pares([
-        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
-        ('cobertos sequencialmente', resumo.get('pagamentos_cobertos_sequencialmente', 0)),
-        ('sem cobertura sequencial', resumo.get('pagamentos_sem_cobertura_sequencial', 0)),
-        ('mudanças efetivas de fonte', resumo.get('mudancas_efetivas_de_fonte', 0)),
-        ('trocas preventivas antes da quebra', resumo.get('trocas_preventivas', 0)),
-        ('trocas por inviabilidade da fonte original', resumo.get('trocas_por_inviabilidade', 0)),
-        ('mantidos sem troca', resumo.get('mantidos_sem_troca', 0)),
-        ('primeira troca preventiva', resumo.get('primeira_troca_preventiva_data')),
-        ('pagamento da primeira troca preventiva', resumo.get('primeira_troca_preventiva_pagamento')),
-        ('lote original da primeira troca preventiva', resumo.get('primeira_troca_preventiva_lote_original')),
-        ('lote final da primeira troca preventiva', resumo.get('primeira_troca_preventiva_lote_final')),
-        ('primeira troca por inviabilidade', resumo.get('primeira_troca_inviabilidade_data')),
-        ('pagamento da primeira troca por inviabilidade', resumo.get('primeira_troca_inviabilidade_pagamento')),
-        ('primeira sem cobertura sequencial', resumo.get('primeira_sem_cobertura_data')),
-        ('pagamento da primeira sem cobertura sequencial', resumo.get('primeira_sem_cobertura_pagamento')),
-        ('lote final da primeira sem cobertura', resumo.get('primeira_sem_cobertura_lote_final')),
-    ])
-    if amostra_trocas_preventivas:
-        print('\n- amostra das trocas preventivas antes da quebra:')
-        imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Lote original', 'Lote sequencial', 'Score sequencial', 'Status sequencial'],
-            amostra_trocas_preventivas,
-            limite=10,
-        )
-    if amostra_sem_cobertura:
-        print('\n- amostra dos pagamentos ainda sem cobertura após a recomputação sequencial:')
-        imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Lote sequencial', 'Saldo Antes sequencial', 'Status sequencial'],
-            amostra_sem_cobertura,
-            limite=10,
-        )
