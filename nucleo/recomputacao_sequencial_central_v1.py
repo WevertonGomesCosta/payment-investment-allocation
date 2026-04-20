@@ -25,10 +25,20 @@ class PacoteRecomputacaoSequencialCentralV1:
 
 
 DATA_TRAVA_PRIMEIRA_VIOLACAO_PROTEGIDA_V108 = date(2026, 7, 13)
-ORCAMENTO_MAXIMO_PERDA_PROTEGIDA = 500.0
-GANHO_MINIMO_EXCECAO_CARTAO_MATERIAL = 500.0
+ORCAMENTO_MAXIMO_PERDA_PROTEGIDA = 200.0
+GANHO_MINIMO_EXCECAO_CARTAO_MATERIAL = 900.0
 CAP_PENALIDADE_CRITICA_TRAVA = 3500.0
 FATOR_ORCAMENTO_PERDA_PROTEGIDA = 0.15
+FATOR_MAXIMO_PERDA_PROTEGIDA_SOBRE_GANHO = 0.20
+LIMIAR_PERDA_RELEVANTE_PROTEGIDA_CRITICA = 900.0
+SUBCLASSES_PROTEGIDAS_CRITICAS = {
+    'PROTEGIDA_A_TRATAMENTO',
+    'PROTEGIDA_A_ESCOLA',
+    'PROTEGIDA_A_ALUGUEL',
+    'PROTEGIDA_A_CONDOMINIO',
+    'PROTEGIDA_B_INTERNET',
+    'PROTEGIDA_B_CEMIG',
+}
 
 
 def _coerce_date(valor: Any) -> date | None:
@@ -149,11 +159,19 @@ def _peso_horizonte_protegida(dias: int) -> float:
     return 0.15
 
 
+def _eh_subclasse_protegida_critica(subclasse: str) -> bool:
+    return str(subclasse or '') in SUBCLASSES_PROTEGIDAS_CRITICAS
+
+
 def _demanda_protegida_futura_ponderada(pagamentos_futuros: list[dict[str, Any]], data_pagamento_atual: date) -> dict[str, float]:
     demanda_ponderada = 0.0
     demanda_7d = 0.0
     demanda_14d = 0.0
     demanda_21d = 0.0
+    demanda_critica_ponderada = 0.0
+    demanda_critica_7d = 0.0
+    demanda_critica_14d = 0.0
+    demanda_critica_21d = 0.0
     for pagamento in pagamentos_futuros:
         classe = str(pagamento.get('classe_pagamento_operacional') or '')
         if classe != 'PROTEGIDA':
@@ -163,7 +181,8 @@ def _demanda_protegida_futura_ponderada(pagamentos_futuros: list[dict[str, Any]]
             continue
         dias = (data_pagamento - data_pagamento_atual).days
         valor = round(float(pagamento.get('valor') or 0.0), 2)
-        peso = _peso_subclasse_protegida(str(pagamento.get('subclasse_pagamento_operacional') or '')) * _peso_horizonte_protegida(dias)
+        subclasse = str(pagamento.get('subclasse_pagamento_operacional') or '')
+        peso = _peso_subclasse_protegida(subclasse) * _peso_horizonte_protegida(dias)
         demanda_ponderada += valor * peso
         if dias <= 7:
             demanda_7d += valor
@@ -171,11 +190,23 @@ def _demanda_protegida_futura_ponderada(pagamentos_futuros: list[dict[str, Any]]
             demanda_14d += valor
         if dias <= 21:
             demanda_21d += valor
+        if _eh_subclasse_protegida_critica(subclasse):
+            demanda_critica_ponderada += valor * peso
+            if dias <= 7:
+                demanda_critica_7d += valor
+            if dias <= 14:
+                demanda_critica_14d += valor
+            if dias <= 21:
+                demanda_critica_21d += valor
     return {
         'demanda_protegida_futura_ponderada': round(demanda_ponderada, 2),
         'demanda_protegida_futura_7d': round(demanda_7d, 2),
         'demanda_protegida_futura_14d': round(demanda_14d, 2),
         'demanda_protegida_futura_21d': round(demanda_21d, 2),
+        'demanda_protegida_critica_futura_ponderada': round(demanda_critica_ponderada, 2),
+        'demanda_protegida_critica_futura_7d': round(demanda_critica_7d, 2),
+        'demanda_protegida_critica_futura_14d': round(demanda_critica_14d, 2),
+        'demanda_protegida_critica_futura_21d': round(demanda_critica_21d, 2),
     }
 
 
@@ -184,16 +215,26 @@ def _estimar_orcamento_perda_protegida(diag: dict[str, Any]) -> float:
     return round(penalidade_bruta * FATOR_ORCAMENTO_PERDA_PROTEGIDA, 2)
 
 
-def _permitir_excecao_cartao_material(*, data_pagamento: date, diag_candidato: dict[str, Any], ganho_liquidez: float, orcamento_restante: float) -> tuple[bool, bool, bool, float]:
+def _permitir_excecao_cartao_material(*, data_pagamento: date, diag_candidato: dict[str, Any], ganho_liquidez: float, orcamento_restante: float) -> tuple[bool, bool, bool, bool, float, float]:
     estimado = _estimar_orcamento_perda_protegida(diag_candidato)
+    limite_evento = round(min(float(orcamento_restante or 0.0), max(ganho_liquidez, 0.0) * FATOR_MAXIMO_PERDA_PROTEGIDA_SOBRE_GANHO), 2)
     bloqueio_trava = bool(
         data_pagamento < DATA_TRAVA_PRIMEIRA_VIOLACAO_PROTEGIDA_V108
         and bool(diag_candidato.get('fonte_critica_para_protegida_futura'))
         and float(diag_candidato.get('penalidade_escassez_protegida_futura_bruta') or diag_candidato.get('penalidade_escassez_protegida_futura') or 0.0) > CAP_PENALIDADE_CRITICA_TRAVA
     )
-    bloqueio_orcamento = bool(estimado > orcamento_restante)
-    permitido = bool(ganho_liquidez >= GANHO_MINIMO_EXCECAO_CARTAO_MATERIAL and not bloqueio_trava and not bloqueio_orcamento)
-    return permitido, bloqueio_trava, bloqueio_orcamento, estimado
+    bloqueio_orcamento = bool(estimado > limite_evento)
+    bloqueio_criticos = bool(
+        diag_candidato.get('perda_relevante_protegida_critica')
+        or float(diag_candidato.get('penalidade_escassez_protegida_critica_futura_bruta') or 0.0) > LIMIAR_PERDA_RELEVANTE_PROTEGIDA_CRITICA
+    )
+    permitido = bool(
+        ganho_liquidez >= GANHO_MINIMO_EXCECAO_CARTAO_MATERIAL
+        and not bloqueio_trava
+        and not bloqueio_orcamento
+        and not bloqueio_criticos
+    )
+    return permitido, bloqueio_trava, bloqueio_orcamento, bloqueio_criticos, estimado, limite_evento
 
 
 def _simular_movimento_candidato(
@@ -340,6 +381,36 @@ def _penalidade_escassez_protegida_futura(
     return penalidade, fonte_critica, penalidade
 
 
+def _penalidade_escassez_protegida_critica_futura(
+    *,
+    classe_pagamento: str,
+    candidato: dict[str, Any],
+    movimento_simulado: dict[str, Any],
+    candidatos_ajustados: list[dict[str, Any]],
+    demanda_futura: dict[str, float],
+) -> tuple[float, bool, float]:
+    demanda_ponderada = round(float(demanda_futura.get('demanda_protegida_critica_futura_ponderada') or 0.0), 2)
+    if demanda_ponderada <= 0.0:
+        return 0.0, False, 0.0
+    saldo_fonte = round(float(candidato.get('saldo_antes_dinamico') or candidato.get('valor_disponivel') or 0.0), 2)
+    if saldo_fonte <= 0.0:
+        return 0.0, False, 0.0
+    total_disponivel = round(sum(max(float(item.get('saldo_antes_dinamico') or item.get('valor_disponivel') or 0.0), 0.0) for item in candidatos_ajustados), 2)
+    capacidade_outras_fontes = max(round(total_disponivel - saldo_fonte, 2), 0.0)
+    reserva_dependente_desta_fonte = max(round(demanda_ponderada - capacidade_outras_fontes, 2), 0.0)
+    consumo_efetivo = round(float(movimento_simulado.get('patrimonio_delta') or movimento_simulado.get('liquido_central') or 0.0), 2)
+    base_penalizada = min(consumo_efetivo, reserva_dependente_desta_fonte)
+    multiplicador = {
+        'FLEXIVEL': 2.40,
+        'SEMIPROTEGIDA': 1.90,
+        'PROTEGIDA': 0.90,
+    }.get(classe_pagamento, 1.0)
+    penalidade = round(base_penalizada * multiplicador, 4)
+    fonte_critica = bool(reserva_dependente_desta_fonte > 0.0)
+    return penalidade, fonte_critica, penalidade
+
+
+
 def _comparador_central(
     *,
     classe_pagamento: str,
@@ -387,6 +458,13 @@ def _comparador_central(
         candidatos_ajustados=candidatos_ajustados,
         demanda_futura=demanda_futura,
     )
+    penalidade_escassez_critica, fonte_critica_critica, penalidade_escassez_critica_bruta = _penalidade_escassez_protegida_critica_futura(
+        classe_pagamento=classe_pagamento,
+        candidato=candidato,
+        movimento_simulado=movimento_simulado,
+        candidatos_ajustados=candidatos_ajustados,
+        demanda_futura=demanda_futura,
+    )
     if classe_pagamento == 'PROTEGIDA':
         comparador = (
             violacao_protegida,
@@ -427,8 +505,16 @@ def _comparador_central(
         'demanda_protegida_futura_7d': float(demanda_futura.get('demanda_protegida_futura_7d') or 0.0),
         'demanda_protegida_futura_14d': float(demanda_futura.get('demanda_protegida_futura_14d') or 0.0),
         'demanda_protegida_futura_21d': float(demanda_futura.get('demanda_protegida_futura_21d') or 0.0),
+        'demanda_protegida_critica_futura_ponderada': float(demanda_futura.get('demanda_protegida_critica_futura_ponderada') or 0.0),
+        'demanda_protegida_critica_futura_7d': float(demanda_futura.get('demanda_protegida_critica_futura_7d') or 0.0),
+        'demanda_protegida_critica_futura_14d': float(demanda_futura.get('demanda_protegida_critica_futura_14d') or 0.0),
+        'demanda_protegida_critica_futura_21d': float(demanda_futura.get('demanda_protegida_critica_futura_21d') or 0.0),
         'fonte_critica_para_protegida_futura': fonte_critica,
+        'fonte_critica_para_protegida_critica_futura': fonte_critica_critica,
         'penalidade_escassez_protegida_futura_bruta': round(float(penalidade_escassez_bruta or 0.0), 4),
+        'penalidade_escassez_protegida_critica_futura': round(float(penalidade_escassez_critica or 0.0), 4),
+        'penalidade_escassez_protegida_critica_futura_bruta': round(float(penalidade_escassez_critica_bruta or 0.0), 4),
+        'perda_relevante_protegida_critica': bool(float(penalidade_escassez_critica_bruta or 0.0) > LIMIAR_PERDA_RELEVANTE_PROTEGIDA_CRITICA),
         'score_proxy_central': round(float(score_proxy or 0.0), 4),
         'detalhes_proxy_componentes': detalhes,
     }
@@ -458,10 +544,13 @@ def carregar_recomputacao_sequencial_central_v1(
         'deficit_liquido_total', 'pagamento_sem_cobertura_integral', 'patrimonio_terminal_proxy',
         'penalidade_estrategica_central', 'penalidade_fragmentacao_central', 'penalidade_escassez_protegida_futura',
         'demanda_protegida_futura_ponderada', 'demanda_protegida_futura_7d', 'demanda_protegida_futura_14d',
-        'demanda_protegida_futura_21d', 'fonte_critica_para_protegida_futura', 'penalidade_escassez_protegida_futura_bruta',
+        'demanda_protegida_futura_21d', 'demanda_protegida_critica_futura_ponderada', 'demanda_protegida_critica_futura_7d',
+        'demanda_protegida_critica_futura_14d', 'demanda_protegida_critica_futura_21d', 'fonte_critica_para_protegida_futura',
+        'fonte_critica_para_protegida_critica_futura', 'penalidade_escassez_protegida_futura_bruta', 'penalidade_escassez_protegida_critica_futura',
+        'penalidade_escassez_protegida_critica_futura_bruta', 'perda_relevante_protegida_critica',
         'orcamento_maximo_perda_protegida', 'orcamento_perda_protegida_consumido', 'orcamento_perda_protegida_restante',
         'orcamento_perda_protegida_estimado', 'excecao_cartao_material_aplicada', 'bloqueio_excecao_antecipacao_protegida',
-        'bloqueio_excecao_orcamento_protegida', 'fonte_preservada_por_reserva', 'fonte_preservada_referencia',
+        'bloqueio_excecao_orcamento_protegida', 'bloqueio_excecao_perda_protegida_critica', 'fonte_preservada_por_reserva', 'fonte_preservada_referencia',
         'fallback_sem_fonte_viavel', 'motivo_indisponibilidade_central',
         'saldo_antes_central', 'bruto_central', 'imposto_central', 'liquido_central', 'saldo_remanescente_central',
         'pagamento_totalmente_coberto_central', 'observacao_central',
@@ -569,6 +658,7 @@ def carregar_recomputacao_sequencial_central_v1(
         excecao_cartao_material_aplicada = False
         bloqueio_excecao_antecipacao_protegida = False
         bloqueio_excecao_orcamento_protegida = False
+        bloqueio_excecao_perda_protegida_critica = False
         orcamento_perda_protegida_restante = round(max(ORCAMENTO_MAXIMO_PERDA_PROTEGIDA - orcamento_perda_protegida_consumido, 0.0), 2)
         orcamento_perda_protegida_estimado = 0.0
 
@@ -581,7 +671,7 @@ def carregar_recomputacao_sequencial_central_v1(
                 if str(alternativa['candidato'].get('fonte_escolhida_id') or '') == str(escolhido.get('fonte_escolhida_id') or ''):
                     continue
                 ganho_liquidez = round(float(alternativa['movimento'].get('liquido_central') or 0.0) - float(melhor_mov.get('liquido_central') or 0.0), 2)
-                permitido, bloqueio_tmp_trava, bloqueio_tmp_orc, estimado_tmp = _permitir_excecao_cartao_material(
+                permitido, bloqueio_tmp_trava, bloqueio_tmp_orc, bloqueio_tmp_crit, estimado_tmp, limite_evento_tmp = _permitir_excecao_cartao_material(
                     data_pagamento=data_pagamento,
                     diag_candidato=alternativa['diagnostico'],
                     ganho_liquidez=ganho_liquidez,
@@ -598,9 +688,11 @@ def carregar_recomputacao_sequencial_central_v1(
                     orcamento_perda_protegida_restante = round(max(ORCAMENTO_MAXIMO_PERDA_PROTEGIDA - orcamento_perda_protegida_consumido, 0.0), 2)
                     bloqueio_excecao_antecipacao_protegida = False
                     bloqueio_excecao_orcamento_protegida = False
+                    bloqueio_excecao_perda_protegida_critica = False
                     break
                 bloqueio_excecao_antecipacao_protegida = bloqueio_excecao_antecipacao_protegida or bloqueio_tmp_trava
                 bloqueio_excecao_orcamento_protegida = bloqueio_excecao_orcamento_protegida or bloqueio_tmp_orc
+                bloqueio_excecao_perda_protegida_critica = bloqueio_excecao_perda_protegida_critica or bloqueio_tmp_crit
                 orcamento_perda_protegida_estimado = max(orcamento_perda_protegida_estimado, estimado_tmp)
 
         fonte_preservada_por_reserva = bool(
@@ -618,6 +710,8 @@ def carregar_recomputacao_sequencial_central_v1(
             motivo_indisponibilidade = 'bloqueio_trava_primeira_violacao_protegida'
         elif bloqueio_excecao_orcamento_protegida:
             motivo_indisponibilidade = 'bloqueio_orcamento_perda_protegida'
+        elif bloqueio_excecao_perda_protegida_critica:
+            motivo_indisponibilidade = 'bloqueio_perda_relevante_protegida_critica'
         elif fonte_preservada_por_reserva:
             motivo_indisponibilidade = 'fonte_preservada_por_reserva'
 
@@ -697,8 +791,8 @@ def carregar_recomputacao_sequencial_central_v1(
             observacao += ' fallback auditável acionado: sem fonte viável com liquidez positiva no evento.'
         elif excecao_cartao_material_aplicada:
             observacao += f" exceção controlada de cartão material aplicada: orcamento_estimado={orcamento_perda_protegida_estimado:.2f}, restante={orcamento_perda_protegida_restante:.2f}."
-        elif bloqueio_excecao_antecipacao_protegida or bloqueio_excecao_orcamento_protegida:
-            observacao += f" exceção controlada bloqueada: estimado={orcamento_perda_protegida_estimado:.2f}, restante={orcamento_perda_protegida_restante:.2f}, trava={DATA_TRAVA_PRIMEIRA_VIOLACAO_PROTEGIDA_V108.isoformat()}."
+        elif bloqueio_excecao_antecipacao_protegida or bloqueio_excecao_orcamento_protegida or bloqueio_excecao_perda_protegida_critica:
+            observacao += f" exceção controlada bloqueada: estimado={orcamento_perda_protegida_estimado:.2f}, restante={orcamento_perda_protegida_restante:.2f}, trava={DATA_TRAVA_PRIMEIRA_VIOLACAO_PROTEGIDA_V108.isoformat()}, perda_critica={bloqueio_excecao_perda_protegida_critica}."
         elif fonte_preservada_por_reserva:
             observacao += f" reserva auditável acionada: fonte de maior liquidez preservada ({_rotulo_fonte(fonte_referencia_reserva)})."
 
@@ -715,7 +809,7 @@ def carregar_recomputacao_sequencial_central_v1(
             'fonte_final_id': fonte_final_id,
             'tipo_fonte_final': tipo_final,
             'mudou_vs_decisao_local': mudou,
-            'criterio_central': 'metrica_canonica_minima_central_v110',
+            'criterio_central': 'metrica_canonica_minima_central_v111',
             'status_central': status,
             'score_proxy_central': melhor_diag.get('score_proxy_central'),
             'violacao_protegida': melhor_diag.get('violacao_protegida'),
@@ -730,8 +824,16 @@ def carregar_recomputacao_sequencial_central_v1(
             'demanda_protegida_futura_7d': melhor_diag.get('demanda_protegida_futura_7d'),
             'demanda_protegida_futura_14d': melhor_diag.get('demanda_protegida_futura_14d'),
             'demanda_protegida_futura_21d': melhor_diag.get('demanda_protegida_futura_21d'),
+            'demanda_protegida_critica_futura_ponderada': melhor_diag.get('demanda_protegida_critica_futura_ponderada'),
+            'demanda_protegida_critica_futura_7d': melhor_diag.get('demanda_protegida_critica_futura_7d'),
+            'demanda_protegida_critica_futura_14d': melhor_diag.get('demanda_protegida_critica_futura_14d'),
+            'demanda_protegida_critica_futura_21d': melhor_diag.get('demanda_protegida_critica_futura_21d'),
             'fonte_critica_para_protegida_futura': bool(melhor_diag.get('fonte_critica_para_protegida_futura')),
+            'fonte_critica_para_protegida_critica_futura': bool(melhor_diag.get('fonte_critica_para_protegida_critica_futura')),
             'penalidade_escassez_protegida_futura_bruta': melhor_diag.get('penalidade_escassez_protegida_futura_bruta'),
+            'penalidade_escassez_protegida_critica_futura': melhor_diag.get('penalidade_escassez_protegida_critica_futura'),
+            'penalidade_escassez_protegida_critica_futura_bruta': melhor_diag.get('penalidade_escassez_protegida_critica_futura_bruta'),
+            'perda_relevante_protegida_critica': bool(melhor_diag.get('perda_relevante_protegida_critica')),
             'orcamento_maximo_perda_protegida': ORCAMENTO_MAXIMO_PERDA_PROTEGIDA,
             'orcamento_perda_protegida_consumido': round(orcamento_perda_protegida_consumido, 2),
             'orcamento_perda_protegida_restante': round(orcamento_perda_protegida_restante, 2),
@@ -739,6 +841,7 @@ def carregar_recomputacao_sequencial_central_v1(
             'excecao_cartao_material_aplicada': excecao_cartao_material_aplicada,
             'bloqueio_excecao_antecipacao_protegida': bloqueio_excecao_antecipacao_protegida,
             'bloqueio_excecao_orcamento_protegida': bloqueio_excecao_orcamento_protegida,
+            'bloqueio_excecao_perda_protegida_critica': bloqueio_excecao_perda_protegida_critica,
             'fonte_preservada_por_reserva': fonte_preservada_por_reserva,
             'fonte_preservada_referencia': '' if not fonte_preservada_por_reserva else _rotulo_fonte(fonte_referencia_reserva),
             'fallback_sem_fonte_viavel': fallback_sem_fonte_viavel,
@@ -766,6 +869,7 @@ def carregar_recomputacao_sequencial_central_v1(
         'excecoes_cartao_material_aplicadas': int(quadro['excecao_cartao_material_aplicada'].sum()) if len(quadro) else 0,
         'bloqueios_excecao_antecipacao_protegida': int(quadro['bloqueio_excecao_antecipacao_protegida'].sum()) if len(quadro) else 0,
         'bloqueios_excecao_orcamento_protegida': int(quadro['bloqueio_excecao_orcamento_protegida'].sum()) if len(quadro) else 0,
+        'bloqueios_excecao_perda_protegida_critica': int(quadro['bloqueio_excecao_perda_protegida_critica'].sum()) if len(quadro) else 0,
         'orcamento_perda_protegida_maximo': ORCAMENTO_MAXIMO_PERDA_PROTEGIDA,
         'orcamento_perda_protegida_consumido_final': round(float(quadro['orcamento_perda_protegida_consumido'].max()) if len(quadro) else 0.0, 2),
         'primeira_sem_cobertura_data': primeira_sem.get('Data') if primeira_sem else None,

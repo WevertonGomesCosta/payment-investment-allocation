@@ -11,7 +11,7 @@ Este contrato não deve misturar regras executáveis correntes com backlog estra
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline documental vigente é a **V110**.
+1. A baseline documental vigente é a **V111**.
 2. A V106 executa o saneamento contratual do repositório; a **V107** implementa a primeira camada da frente central; a **V108** recalibra essa camada com penalidade explícita de escassez futura para `PROTEGIDA`, prioridade intraclasse no mesmo dia e fallback auditável de “sem fonte viável”.
 3. A V108 preserva a V105 como **baseline experimental local** do bloco crítico e mantém a V106 como marco contratual de separação de trilhas.
 4. O contrato executável deve descrever apenas o que já está implementado e observável na baseline, separando o que é núcleo principal do que é experimento local.
@@ -206,3 +206,6 @@ Este contrato não deve misturar regras executáveis correntes com backlog estra
 
 62. A V110 preserva a estrutura da V108 na frente central e introduz exceção controlada para `SEMIPROTEGIDA_A_CARTAO_MATERIAL`.
 63. A V110 adiciona orçamento explícito de perda máxima em `PROTEGIDA` e trava para não antecipar a primeira violação protegida de referência da V108.
+
+64. A V111 preserva a estrutura da V108 na frente central e reutiliza a exceção controlada da V110 apenas sob trava mais dura.
+65. A V111 exige perda agregada máxima em `PROTEGIDA`, proibição de perda relevante em pagamentos protegidos críticos e ganho mínimo obrigatório no `Cartão Azul` de 20/05.

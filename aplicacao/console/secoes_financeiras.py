@@ -438,6 +438,7 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         ('exceções cartão material aplicadas', resumo.get('excecoes_cartao_material_aplicadas', 0)),
         ('bloqueios por trava protegida', resumo.get('bloqueios_excecao_antecipacao_protegida', 0)),
         ('bloqueios por orçamento protegido', resumo.get('bloqueios_excecao_orcamento_protegida', 0)),
+        ('bloqueios por perda protegida crítica', resumo.get('bloqueios_excecao_perda_protegida_critica', 0)),
         ('orçamento perda protegida máximo', resumo.get('orcamento_perda_protegida_maximo', 0.0)),
         ('orçamento perda protegida consumido', resumo.get('orcamento_perda_protegida_consumido_final', 0.0)),
         ('patrimônio terminal proxy final', resumo.get('patrimonio_terminal_proxy_final', 0.0)),

@@ -46,3 +46,7 @@
 - `relatorios/atuais/BASELINE_FIXA_V110.md`
 - `relatorios/atuais/VALIDACAO_LOCAL_V110.md`
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V110.md`
+- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V111.md`
+- `relatorios/atuais/BASELINE_FIXA_V111.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V111.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V111.md`
