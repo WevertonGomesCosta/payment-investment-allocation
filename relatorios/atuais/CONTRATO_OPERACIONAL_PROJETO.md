@@ -11,9 +11,9 @@ Este contrato não deve misturar regras executáveis correntes com backlog estra
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline documental vigente é a **V106**.
-2. A V106 não abre nova lógica econômica no motor; ela executa um **saneamento contratual** do repositório.
-3. A V106 preserva a baseline imediatamente anterior, mas passa a tratar formalmente a V105 como **baseline experimental local** do bloco crítico.
+1. A baseline documental vigente é a **V107**.
+2. A V106 executa o saneamento contratual do repositório; a **V107** implementa a primeira camada da frente central: `recomputacao_sequencial_central_v1`.
+3. A V107 preserva a V105 como **baseline experimental local** do bloco crítico e mantém a V106 como marco contratual de separação de trilhas.
 4. O contrato executável deve descrever apenas o que já está implementado e observável na baseline, separando o que é núcleo principal do que é experimento local.
 5. Regras futuras, metas estratégicas e camadas ainda não abertas permanecem em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
@@ -186,8 +186,15 @@ Este contrato não deve misturar regras executáveis correntes com backlog estra
 
 ---
 
-## 13. Regra de foco do projeto a partir da V106
+## 13. Regra de foco do projeto a partir da V107
 
 56. A partir da V106, o foco principal do projeto volta a ser a construção do motor conjunto e auditável orientado pela métrica canônica mínima central.
 57. O bloco crítico 20/04/2026–20/05/2026 permanece como laboratório local, mas deixa de ser o eixo central de evolução do repositório.
 58. Novas iterações locais só devem ser abertas se estiverem explicitamente conectadas a hipótese nova relevante para a frente central.
+
+
+## 14. Recomputação sequencial central v1
+
+57. A `recomputacao_sequencial_central_v1` passa a ser a primeira camada executável da frente central após o saneamento contratual.
+58. Ela deve recalcular a melhor fonte a cada pagamento com estado residual atualizado e comparador governado pela métrica canônica mínima central.
+59. Enquanto não houver nova decisão explícita, a `recomputacao_sequencial_central_v1` não substitui o solver global nem promove automaticamente políticas experimentais locais.

@@ -418,3 +418,38 @@ def render_secao_microplanejamento_conjunto_v2(*, auditoria_microplanejamento=No
             amostra_mudancas_vs_v104,
             limite=10,
         )
+
+
+def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, amostra_mudancas=None, amostra_sem_cobertura=None):
+    auditoria_central = auditoria_central or {}
+    amostra_mudancas = amostra_mudancas or []
+    amostra_sem_cobertura = amostra_sem_cobertura or []
+    resumo = auditoria_central.get('resumo', {})
+    imprimir_titulo('FRENTE CENTRAL — RECOMPUTAÇÃO SEQUENCIAL CENTRAL V1')
+    imprimir_pares([
+        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
+        ('pagamentos cobertos integralmente', resumo.get('pagamentos_cobertos_integral_central', 0)),
+        ('pagamentos sem cobertura integral', resumo.get('pagamentos_sem_cobertura_integral', 0)),
+        ('violações de pagamentos PROTEGIDA', resumo.get('violacoes_pagamentos_protegida', 0)),
+        ('déficit líquido total central', resumo.get('deficit_liquido_total_central', 0.0)),
+        ('mudanças vs decisão local', resumo.get('mudancas_vs_decisao_local', 0)),
+        ('patrimônio terminal proxy final', resumo.get('patrimonio_terminal_proxy_final', 0.0)),
+        ('primeira sem cobertura', resumo.get('primeira_sem_cobertura_data')),
+        ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento') or ''),
+        ('primeira violação protegida', resumo.get('primeira_violation_protegida_data')),
+        ('pagamento da primeira violação protegida', resumo.get('primeira_violation_protegida_pagamento') or ''),
+    ])
+    if amostra_mudancas:
+        print('\n- amostra das mudanças da recomputação central vs decisão local:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote local', 'Lote central', 'Classe'],
+            amostra_mudancas,
+            limite=10,
+        )
+    if amostra_sem_cobertura:
+        print('\n- amostra dos pagamentos ainda sem cobertura integral na frente central:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit'],
+            amostra_sem_cobertura,
+            limite=10,
+        )
