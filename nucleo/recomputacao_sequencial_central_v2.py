@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 import pandas as pd
@@ -13,162 +13,32 @@ from nucleo.caixa_recebidos_auditaveis import (
     _pagamentos_alvo_f1_4,
     _score_proxy_economico_por_versao,
 )
-from nucleo.nucleo_financeiro_minimo import executar_saque_lote
+from nucleo.recomputacao_sequencial_central_v1 import (
+    _coerce_date,
+    _perfil_pagamento_operacional,
+    _patrimonio_terminal_proxy,
+    _peso_horizonte_protegida,
+    _peso_subclasse_protegida,
+    _rotulo_fonte,
+    _simular_movimento_candidato,
+)
 from nucleo.reescolha_dinamica_pos_quebra import _ajustar_candidatos_dinamicos
-from nucleo.utilitarios_neutros import limpar_texto
 
 
 @dataclass(slots=True)
-class PacoteRecomputacaoSequencialCentralV1:
+class PacoteRecomputacaoSequencialCentralV2:
     quadro_recomputacao_sequencial_central: pd.DataFrame
     auditoria: dict[str, Any]
 
 
-def _coerce_date(valor: Any) -> date | None:
-    if valor is None:
-        return None
-    if isinstance(valor, pd.Timestamp):
-        return valor.date()
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, date):
-        return valor
-    return None
-
-
-def _rotulo_fonte(candidato: dict[str, Any]) -> str:
-    lote_id = str(candidato.get('lote_id') or candidato.get('lote_id_escolhido') or '').strip()
-    if lote_id:
-        return lote_id
-    return str(candidato.get('fonte_base_escolhida') or candidato.get('fonte_escolhida_id') or '').strip()
-
-
-def _perfil_pagamento_operacional(descricao: str) -> dict[str, Any]:
-    texto = limpar_texto(descricao).lower()
-    if 'tratamento' in texto:
-        return {
-            'classe': 'PROTEGIDA',
-            'subclasse': 'PROTEGIDA_A_TRATAMENTO',
-            'prioridade_classe': 0,
-            'prioridade_intraclasse': 0,
-        }
-    if 'escola' in texto:
-        return {
-            'classe': 'PROTEGIDA',
-            'subclasse': 'PROTEGIDA_A_ESCOLA',
-            'prioridade_classe': 0,
-            'prioridade_intraclasse': 1,
-        }
-    if 'aluguel' in texto:
-        return {
-            'classe': 'PROTEGIDA',
-            'subclasse': 'PROTEGIDA_A_ALUGUEL',
-            'prioridade_classe': 0,
-            'prioridade_intraclasse': 2,
-        }
-    if 'condom' in texto:
-        return {
-            'classe': 'PROTEGIDA',
-            'subclasse': 'PROTEGIDA_A_CONDOMINIO',
-            'prioridade_classe': 0,
-            'prioridade_intraclasse': 3,
-        }
-    if 'internet' in texto:
-        return {
-            'classe': 'PROTEGIDA',
-            'subclasse': 'PROTEGIDA_B_INTERNET',
-            'prioridade_classe': 0,
-            'prioridade_intraclasse': 4,
-        }
-    if 'cemig' in texto:
-        return {
-            'classe': 'PROTEGIDA',
-            'subclasse': 'PROTEGIDA_B_CEMIG',
-            'prioridade_classe': 0,
-            'prioridade_intraclasse': 5,
-        }
-    if 'cartão' in texto or 'cartao' in texto:
-        return {
-            'classe': 'SEMIPROTEGIDA',
-            'subclasse': 'SEMIPROTEGIDA_A_CARTAO',
-            'prioridade_classe': 1,
-            'prioridade_intraclasse': 10,
-        }
-    if 'claro' in texto:
-        return {
-            'classe': 'SEMIPROTEGIDA',
-            'subclasse': 'SEMIPROTEGIDA_B_CLARO',
-            'prioridade_classe': 1,
-            'prioridade_intraclasse': 11,
-        }
-    return {
-        'classe': 'FLEXIVEL',
-        'subclasse': 'FLEXIVEL',
-        'prioridade_classe': 2,
-        'prioridade_intraclasse': 20,
-    }
-
-
-def _peso_subclasse_protegida(subclasse: str) -> float:
-    pesos = {
-        'PROTEGIDA_A_TRATAMENTO': 1.00,
-        'PROTEGIDA_A_ESCOLA': 1.00,
-        'PROTEGIDA_A_ALUGUEL': 0.95,
-        'PROTEGIDA_A_CONDOMINIO': 0.95,
-        'PROTEGIDA_B_INTERNET': 0.70,
-        'PROTEGIDA_B_CEMIG': 0.70,
-    }
-    return float(pesos.get(subclasse, 0.0))
-
-
-def _peso_horizonte_protegida(dias: int) -> float:
-    if dias <= 0:
-        return 1.30
-    if dias <= 7:
-        return 1.00
-    if dias <= 14:
-        return 0.75
-    if dias <= 21:
-        return 0.70
-    if dias <= 30:
-        return 0.45
-    return 0.15
-
-
-def _demanda_protegida_futura_ponderada(pagamentos_futuros: list[dict[str, Any]], data_pagamento_atual: date) -> dict[str, float]:
-    demanda_ponderada = 0.0
-    demanda_7d = 0.0
-    demanda_14d = 0.0
-    demanda_21d = 0.0
-    for pagamento in pagamentos_futuros:
-        classe = str(pagamento.get('classe_pagamento_operacional') or '')
-        if classe != 'PROTEGIDA':
-            continue
-        data_pagamento = _coerce_date(pagamento.get('data'))
-        if data_pagamento is None:
-            continue
-        dias = (data_pagamento - data_pagamento_atual).days
-        valor = round(float(pagamento.get('valor') or 0.0), 2)
-        peso = _peso_subclasse_protegida(str(pagamento.get('subclasse_pagamento_operacional') or '')) * _peso_horizonte_protegida(dias)
-        demanda_ponderada += valor * peso
-        if dias <= 7:
-            demanda_7d += valor
-        if dias <= 14:
-            demanda_14d += valor
-        if dias <= 21:
-            demanda_21d += valor
-    return {
-        'demanda_protegida_futura_ponderada': round(demanda_ponderada, 2),
-        'demanda_protegida_futura_7d': round(demanda_7d, 2),
-        'demanda_protegida_futura_14d': round(demanda_14d, 2),
-        'demanda_protegida_futura_21d': round(demanda_21d, 2),
-    }
-
-
-def _simular_movimento_candidato(
-    candidato: dict[str, Any],
+def _reserva_critica_por_fonte(
     *,
-    valor_pagamento: float,
+    candidato: dict[str, Any],
+    pagamentos_futuros: list[dict[str, Any]],
+    data_pagamento_atual: date,
+    quadro_saldo: pd.DataFrame,
+    quadro_fontes: pd.DataFrame,
+    mapa_produtos_proxy: dict[str, Any],
     mapa_lotes: dict[str, Any],
     consumo_generico: dict[str, float],
     data_referencia: date,
@@ -176,140 +46,98 @@ def _simular_movimento_candidato(
     faixas_ir: list[dict[str, Any]],
     tolerancia_monetaria: float,
 ) -> dict[str, Any]:
-    tipo = str(candidato.get('tipo_fonte_escolhida') or '').strip()
-    lote_id = str(candidato.get('lote_id') or '').strip()
-    saldo_antes = round(float(candidato.get('saldo_antes_dinamico') or candidato.get('valor_disponivel') or 0.0), 2)
-    bruto = 0.0
-    imposto = 0.0
-    liquido = 0.0
-    saldo_rem = saldo_antes
-    patrimonio_delta = 0.0
-    if tipo == 'lote_resgatavel' and lote_id:
-        lote_atual = mapa_lotes.get(lote_id)
-        lote_sim = deepcopy(lote_atual) if lote_atual is not None else None
-        liquido_disponivel_antes = round(float(candidato.get('valor_disponivel') or 0.0), 2)
-        if lote_sim is not None and liquido_disponivel_antes > tolerancia_monetaria:
-            liquido_alvo = round(min(valor_pagamento, liquido_disponivel_antes), 2)
-            movimento = executar_saque_lote(
-                lote_sim,
-                liquido_alvo,
-                data_referencia,
-                tabela_iof=tabela_iof,
-                faixas_ir=faixas_ir,
-                tolerancia_monetaria=tolerancia_monetaria,
-            )
-            if movimento is not None:
-                bruto = round(float(movimento.get('bruto') or 0.0), 2)
-                imposto = round(float(movimento.get('imposto') or 0.0), 2)
-                liquido = round(float(movimento.get('liquido') or 0.0), 2)
-                saldo_rem = round(float(movimento.get('saldo_remanescente') or 0.0), 2)
-                liquido_disponivel_depois = round(float(lote_sim.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
-                patrimonio_delta = round(liquido_disponivel_antes - liquido_disponivel_depois, 2)
+    fonte_id = str(candidato.get('fonte_escolhida_id') or '').strip()
+    referencia_fonte = _rotulo_fonte(candidato)
+    saldo_fonte = round(float(candidato.get('saldo_antes_dinamico') or candidato.get('valor_disponivel') or 0.0), 2)
+    if not referencia_fonte or saldo_fonte <= tolerancia_monetaria:
         return {
-            'tipo_fonte_final': tipo,
-            'lote_final_central': lote_id,
-            'fonte_final_id': str(candidato.get('fonte_escolhida_id') or ''),
-            'saldo_antes_central': saldo_antes,
-            'bruto_central': bruto,
-            'imposto_central': imposto,
-            'liquido_central': liquido,
-            'saldo_remanescente_central': saldo_rem,
-            'pagamento_totalmente_coberto_central': bool(liquido + tolerancia_monetaria >= valor_pagamento),
-            'mapa_lotes_pos': lote_sim,
-            'consumo_generico_pos': None,
-            'patrimonio_delta': patrimonio_delta,
+            'demanda_marginal_protegida_fonte_7d': 0.0,
+            'demanda_marginal_protegida_fonte_14d': 0.0,
+            'demanda_marginal_protegida_fonte_21d': 0.0,
+            'reserva_critica_total_fonte': 0.0,
+            'orcamento_livre_apos_reserva_fonte': saldo_fonte,
+            'fonte_critica_para_protegida_futura': False,
+            'pagamentos_protegidos_dependentes_fonte': 0,
+            'fonte_critica_referencias': '',
         }
 
-    fonte_id = str(candidato.get('fonte_base_escolhida') or candidato.get('fonte_escolhida_id') or '').strip()
-    liquido = round(min(valor_pagamento, saldo_antes), 2)
-    bruto = liquido
-    imposto = 0.0
-    saldo_rem = round(max(saldo_antes - liquido, 0.0), 2)
-    patrimonio_delta = round(liquido, 2)
+    bruto_7 = 0.0
+    bruto_14 = 0.0
+    bruto_21 = 0.0
+    ponderada_total = 0.0
+    dependentes = 0
+    refs: list[str] = []
+
+    for pagamento in pagamentos_futuros:
+        if str(pagamento.get('classe_pagamento_operacional') or '') != 'PROTEGIDA':
+            continue
+        data_pagamento = _coerce_date(pagamento.get('data'))
+        if data_pagamento is None:
+            continue
+        dias = (data_pagamento - data_pagamento_atual).days
+        if dias < 0 or dias > 21:
+            continue
+
+        futuros_base = _construir_candidatos_decisao_local_v1(pagamento, quadro_saldo, quadro_fontes, mapa_produtos_proxy)
+        futuros = _ajustar_candidatos_dinamicos(
+            futuros_base,
+            valor_pagamento=round(float(pagamento.get('valor') or 0.0), 2),
+            mapa_lotes=mapa_lotes,
+            consumo_generico=consumo_generico,
+            data_referencia=data_referencia,
+            tabela_iof=tabela_iof,
+            faixas_ir=faixas_ir,
+            tolerancia_monetaria=tolerancia_monetaria,
+        )
+        if not futuros:
+            continue
+        saldo_alvo = 0.0
+        melhor_outra_capacidade = 0.0
+        for futuro in futuros:
+            saldo_item = round(float(futuro.get('saldo_antes_dinamico') or futuro.get('valor_disponivel') or 0.0), 2)
+            if saldo_item <= tolerancia_monetaria:
+                continue
+            if _rotulo_fonte(futuro) == referencia_fonte:
+                saldo_alvo = max(saldo_alvo, saldo_item)
+            else:
+                melhor_outra_capacidade = max(melhor_outra_capacidade, saldo_item)
+        if saldo_alvo <= tolerancia_monetaria:
+            continue
+        valor_futuro = round(float(pagamento.get('valor') or 0.0), 2)
+        demanda_marginal = round(max(min(saldo_alvo, valor_futuro - melhor_outra_capacidade), 0.0), 2)
+        if demanda_marginal <= tolerancia_monetaria:
+            continue
+        dependentes += 1
+        subclasse = str(pagamento.get('subclasse_pagamento_operacional') or '')
+        peso = _peso_subclasse_protegida(subclasse) * _peso_horizonte_protegida(dias)
+        ponderada_total += demanda_marginal * peso
+        if dias <= 7:
+            bruto_7 += demanda_marginal
+        if dias <= 14:
+            bruto_14 += demanda_marginal
+        if dias <= 21:
+            bruto_21 += demanda_marginal
+        if len(refs) < 3:
+            refs.append(f"{pagamento.get('descricao') or ''} ({data_pagamento.strftime('%d/%m')})")
+
+    demanda_7 = round(min(saldo_fonte, bruto_7), 2)
+    demanda_14 = round(min(saldo_fonte, bruto_14), 2)
+    demanda_21 = round(min(saldo_fonte, bruto_21), 2)
+    reserva_total = round(min(saldo_fonte, ponderada_total), 2)
+    livre = round(max(saldo_fonte - reserva_total, 0.0), 2)
     return {
-        'tipo_fonte_final': tipo,
-        'lote_final_central': _rotulo_fonte(candidato),
-        'fonte_final_id': str(candidato.get('fonte_escolhida_id') or ''),
-        'saldo_antes_central': saldo_antes,
-        'bruto_central': bruto,
-        'imposto_central': imposto,
-        'liquido_central': liquido,
-        'saldo_remanescente_central': saldo_rem,
-        'pagamento_totalmente_coberto_central': bool(liquido + tolerancia_monetaria >= valor_pagamento),
-        'mapa_lotes_pos': None,
-        'consumo_generico_pos': {fonte_id: round(float(consumo_generico.get(fonte_id, 0.0) or 0.0) + liquido, 2)},
-        'patrimonio_delta': patrimonio_delta,
+        'demanda_marginal_protegida_fonte_7d': demanda_7,
+        'demanda_marginal_protegida_fonte_14d': demanda_14,
+        'demanda_marginal_protegida_fonte_21d': demanda_21,
+        'reserva_critica_total_fonte': reserva_total,
+        'orcamento_livre_apos_reserva_fonte': livre,
+        'fonte_critica_para_protegida_futura': bool(reserva_total > 0.0),
+        'pagamentos_protegidos_dependentes_fonte': dependentes,
+        'fonte_critica_referencias': '; '.join(refs),
     }
 
 
-def _patrimonio_terminal_proxy(
-    candidatos_ajustados: list[dict[str, Any]],
-    *,
-    candidato_escolhido: dict[str, Any],
-    movimento_simulado: dict[str, Any],
-    data_referencia: date,
-    mapa_lotes: dict[str, Any],
-    tabela_iof: list[float],
-    faixas_ir: list[dict[str, Any]],
-) -> float:
-    total = 0.0
-    vistos: set[str] = set()
-    lote_sim_pos = movimento_simulado.get('mapa_lotes_pos')
-    consumo_pos = movimento_simulado.get('consumo_generico_pos') or {}
-    fonte_escolhida = str(candidato_escolhido.get('fonte_escolhida_id') or '')
-    for candidato in candidatos_ajustados:
-        fonte_id = str(candidato.get('fonte_escolhida_id') or '')
-        if not fonte_id or fonte_id in vistos:
-            continue
-        vistos.add(fonte_id)
-        tipo = str(candidato.get('tipo_fonte_escolhida') or '').strip()
-        lote_id = str(candidato.get('lote_id') or '').strip()
-        if tipo == 'lote_resgatavel' and lote_id:
-            if fonte_id == fonte_escolhida and lote_sim_pos is not None:
-                valor = round(float(lote_sim_pos.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
-            else:
-                lote = mapa_lotes.get(lote_id)
-                valor = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2) if lote is not None else 0.0
-        else:
-            valor = round(float(candidato.get('saldo_antes_dinamico') or candidato.get('valor_disponivel') or 0.0), 2)
-            if fonte_id in consumo_pos:
-                valor = max(round(valor - float(consumo_pos.get(fonte_id, 0.0) or 0.0), 2), 0.0)
-            elif fonte_id == fonte_escolhida:
-                valor = round(float(movimento_simulado.get('saldo_remanescente_central') or 0.0), 2)
-        total += max(valor, 0.0)
-    return round(total, 2)
-
-
-def _penalidade_escassez_protegida_futura(
-    *,
-    classe_pagamento: str,
-    candidato: dict[str, Any],
-    movimento_simulado: dict[str, Any],
-    candidatos_ajustados: list[dict[str, Any]],
-    demanda_futura: dict[str, float],
-) -> tuple[float, bool]:
-    demanda_ponderada = round(float(demanda_futura.get('demanda_protegida_futura_ponderada') or 0.0), 2)
-    if demanda_ponderada <= 0.0:
-        return 0.0, False
-    saldo_fonte = round(float(candidato.get('saldo_antes_dinamico') or candidato.get('valor_disponivel') or 0.0), 2)
-    if saldo_fonte <= 0.0:
-        return 0.0, False
-    total_disponivel = round(sum(max(float(item.get('saldo_antes_dinamico') or item.get('valor_disponivel') or 0.0), 0.0) for item in candidatos_ajustados), 2)
-    capacidade_outras_fontes = max(round(total_disponivel - saldo_fonte, 2), 0.0)
-    reserva_dependente_desta_fonte = max(round(demanda_ponderada - capacidade_outras_fontes, 2), 0.0)
-    consumo_efetivo = round(float(movimento_simulado.get('patrimonio_delta') or movimento_simulado.get('liquido_central') or 0.0), 2)
-    base_penalizada = min(consumo_efetivo, reserva_dependente_desta_fonte)
-    multiplicador = {
-        'FLEXIVEL': 2.20,
-        'SEMIPROTEGIDA': 1.60,
-        'PROTEGIDA': 0.80,
-    }.get(classe_pagamento, 1.0)
-    penalidade = round(base_penalizada * multiplicador, 4)
-    fonte_critica = bool(reserva_dependente_desta_fonte > 0.0)
-    return penalidade, fonte_critica
-
-
-def _comparador_central(
+def _comparador_central_v2(
     *,
     classe_pagamento: str,
     subclasse_pagamento: str,
@@ -322,10 +150,11 @@ def _comparador_central(
     tabela_iof: list[float],
     faixas_ir: list[dict[str, Any]],
     proxy_version: str,
-    demanda_futura: dict[str, float],
+    reserva_fonte: dict[str, Any],
 ) -> tuple[tuple[Any, ...], dict[str, Any]]:
     score_proxy, detalhes = _score_proxy_economico_por_versao(proxy_version, candidato, valor_pagamento=valor_pagamento)
-    deficit = round(max(valor_pagamento - float(movimento_simulado.get('liquido_central') or 0.0), 0.0), 2)
+    liquido = round(float(movimento_simulado.get('liquido_central') or 0.0), 2)
+    deficit = round(max(valor_pagamento - liquido, 0.0), 2)
     uncovered = 1 if deficit > 0.01 else 0
     violacao_protegida = 1 if classe_pagamento == 'PROTEGIDA' and uncovered else 0
     severidade_protegida = deficit if classe_pagamento == 'PROTEGIDA' else 0.0
@@ -349,20 +178,23 @@ def _comparador_central(
         + float(detalhes.get('penalidade_horizonte_curto') or 0.0),
         4,
     )
-    penalidade_escassez_futura, fonte_critica = _penalidade_escassez_protegida_futura(
-        classe_pagamento=classe_pagamento,
-        candidato=candidato,
-        movimento_simulado=movimento_simulado,
-        candidatos_ajustados=candidatos_ajustados,
-        demanda_futura=demanda_futura,
-    )
+    consumo_efetivo = round(float(movimento_simulado.get('patrimonio_delta') or liquido), 2)
+    orcamento_livre = round(float(reserva_fonte.get('orcamento_livre_apos_reserva_fonte') or 0.0), 2)
+    excesso_sobre_reserva = round(max(consumo_efetivo - orcamento_livre, 0.0), 2)
+    multiplicador = {
+        'PROTEGIDA': 0.55,
+        'SEMIPROTEGIDA': 1.05,
+        'FLEXIVEL': 1.55,
+    }.get(classe_pagamento, 1.0)
+    penalidade_reserva = round(excesso_sobre_reserva * multiplicador, 4)
+
     if classe_pagamento == 'PROTEGIDA':
         comparador = (
             violacao_protegida,
             round(severidade_protegida, 2),
             round(deficit, 2),
             uncovered,
-            round(penalidade_escassez_futura, 4),
+            round(penalidade_reserva, 4),
             -patrimonio,
             penalidade_estrategica,
             penalidade_fragmentacao,
@@ -372,7 +204,7 @@ def _comparador_central(
     else:
         comparador = (
             violacao_protegida,
-            round(penalidade_escassez_futura, 4),
+            round(penalidade_reserva, 4),
             round(deficit, 2),
             uncovered,
             -patrimonio,
@@ -391,19 +223,23 @@ def _comparador_central(
         'patrimonio_terminal_proxy': patrimonio,
         'penalidade_estrategica_central': penalidade_estrategica,
         'penalidade_fragmentacao_central': penalidade_fragmentacao,
-        'penalidade_escassez_protegida_futura': penalidade_escassez_futura,
-        'demanda_protegida_futura_ponderada': float(demanda_futura.get('demanda_protegida_futura_ponderada') or 0.0),
-        'demanda_protegida_futura_7d': float(demanda_futura.get('demanda_protegida_futura_7d') or 0.0),
-        'demanda_protegida_futura_14d': float(demanda_futura.get('demanda_protegida_futura_14d') or 0.0),
-        'demanda_protegida_futura_21d': float(demanda_futura.get('demanda_protegida_futura_21d') or 0.0),
-        'fonte_critica_para_protegida_futura': fonte_critica,
+        'penalidade_reserva_critica_fonte': penalidade_reserva,
+        'excesso_sobre_reserva_critica': excesso_sobre_reserva,
+        'reserva_critica_total_fonte': round(float(reserva_fonte.get('reserva_critica_total_fonte') or 0.0), 2),
+        'orcamento_livre_apos_reserva_fonte': round(float(reserva_fonte.get('orcamento_livre_apos_reserva_fonte') or 0.0), 2),
+        'demanda_marginal_protegida_fonte_7d': round(float(reserva_fonte.get('demanda_marginal_protegida_fonte_7d') or 0.0), 2),
+        'demanda_marginal_protegida_fonte_14d': round(float(reserva_fonte.get('demanda_marginal_protegida_fonte_14d') or 0.0), 2),
+        'demanda_marginal_protegida_fonte_21d': round(float(reserva_fonte.get('demanda_marginal_protegida_fonte_21d') or 0.0), 2),
+        'fonte_critica_para_protegida_futura': bool(reserva_fonte.get('fonte_critica_para_protegida_futura')),
+        'pagamentos_protegidos_dependentes_fonte': int(reserva_fonte.get('pagamentos_protegidos_dependentes_fonte') or 0),
+        'fonte_critica_referencias': str(reserva_fonte.get('fonte_critica_referencias') or ''),
         'score_proxy_central': round(float(score_proxy or 0.0), 4),
         'detalhes_proxy_componentes': detalhes,
     }
     return comparador, diagnostico
 
 
-def carregar_recomputacao_sequencial_central_v1(
+def carregar_recomputacao_sequencial_central_v2(
     dados_operacionais,
     fontes_elegiveis_pagamento,
     saldo_disponivel_geral,
@@ -416,7 +252,7 @@ def carregar_recomputacao_sequencial_central_v1(
     carteira_canonica: Any | None = None,
     proxy_version: str = 'v3',
     tolerancia_monetaria: float = 0.01,
-) -> PacoteRecomputacaoSequencialCentralV1:
+) -> PacoteRecomputacaoSequencialCentralV2:
     pagamentos_alvo = _pagamentos_alvo_f1_4(dados_operacionais.gastos_canonicos.copy(), data_referencia=data_referencia)
     colunas = [
         'pagamento_id', 'data_pagamento', 'descricao_pagamento', 'valor_pagamento', 'classe_pagamento_operacional',
@@ -424,22 +260,15 @@ def carregar_recomputacao_sequencial_central_v1(
         'lote_final_central', 'fonte_final_id', 'tipo_fonte_final', 'mudou_vs_decisao_local', 'criterio_central',
         'status_central', 'score_proxy_central', 'violacao_protegida', 'severidade_protegida',
         'deficit_liquido_total', 'pagamento_sem_cobertura_integral', 'patrimonio_terminal_proxy',
-        'penalidade_estrategica_central', 'penalidade_fragmentacao_central', 'penalidade_escassez_protegida_futura',
-        'demanda_protegida_futura_ponderada', 'demanda_protegida_futura_7d', 'demanda_protegida_futura_14d',
-        'demanda_protegida_futura_21d', 'fonte_critica_para_protegida_futura', 'fallback_sem_fonte_viavel',
-        'saldo_antes_central', 'bruto_central', 'imposto_central', 'liquido_central', 'saldo_remanescente_central',
-        'pagamento_totalmente_coberto_central', 'observacao_central',
+        'penalidade_estrategica_central', 'penalidade_fragmentacao_central', 'penalidade_reserva_critica_fonte',
+        'excesso_sobre_reserva_critica', 'demanda_marginal_protegida_fonte_7d', 'demanda_marginal_protegida_fonte_14d',
+        'demanda_marginal_protegida_fonte_21d', 'reserva_critica_total_fonte', 'orcamento_livre_apos_reserva_fonte',
+        'fonte_critica_para_protegida_futura', 'pagamentos_protegidos_dependentes_fonte', 'fonte_critica_referencias',
+        'fallback_sem_fonte_viavel', 'saldo_antes_central', 'bruto_central', 'imposto_central', 'liquido_central',
+        'saldo_remanescente_central', 'pagamento_totalmente_coberto_central', 'observacao_central',
     ]
     if len(pagamentos_alvo) == 0:
-        return PacoteRecomputacaoSequencialCentralV1(
-            quadro_recomputacao_sequencial_central=pd.DataFrame(columns=colunas),
-            auditoria={
-                'validacao': {'ok': False, 'erros': ['recomputacao_sequencial_central_sem_pagamentos_alvo'], 'avisos': []},
-                'resumo': {'total_pagamentos_auditados': 0},
-                'amostra_mudancas': [],
-                'amostra_sem_cobertura': [],
-            },
-        )
+        return PacoteRecomputacaoSequencialCentralV2(pd.DataFrame(columns=colunas), {'validacao': {'ok': False, 'erros': ['recomputacao_sequencial_central_v2_sem_pagamentos_alvo'], 'avisos': []}, 'resumo': {'total_pagamentos_auditados': 0}, 'amostra_mudancas': [], 'amostra_sem_cobertura': []})
 
     quadro_fontes = fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy()
     quadro_saldo = saldo_disponivel_geral.quadro_saldo_disponivel.copy()
@@ -457,10 +286,7 @@ def carregar_recomputacao_sequencial_central_v1(
     pagamentos_alvo['subclasse_pagamento_operacional'] = perfis.apply(lambda x: x['subclasse'])
     pagamentos_alvo['prioridade_classe_operacional'] = perfis.apply(lambda x: x['prioridade_classe'])
     pagamentos_alvo['prioridade_intraclasse_operacional'] = perfis.apply(lambda x: x['prioridade_intraclasse'])
-    pagamentos_alvo = pagamentos_alvo.sort_values(
-        by=['data', 'prioridade_classe_operacional', 'prioridade_intraclasse_operacional', 'despesa_id'],
-        kind='stable',
-    ).reset_index(drop=True)
+    pagamentos_alvo = pagamentos_alvo.sort_values(by=['data', 'prioridade_classe_operacional', 'prioridade_intraclasse_operacional', 'despesa_id'], kind='stable').reset_index(drop=True)
     pagamentos_ordenados = pagamentos_alvo.to_dict(orient='records')
 
     registros: list[dict[str, Any]] = []
@@ -476,7 +302,7 @@ def carregar_recomputacao_sequencial_central_v1(
         prioridade_intraclasse = int(pagamento.get('prioridade_intraclasse_operacional') or 99)
         data_pagamento = _coerce_date(pagamento.get('data')) or data_referencia
         pagamentos_futuros = pagamentos_ordenados[indice + 1:]
-        demanda_futura = _demanda_protegida_futura_ponderada(pagamentos_futuros, data_pagamento)
+
         candidatos_base = _construir_candidatos_decisao_local_v1(pagamento, quadro_saldo, quadro_fontes, mapa_produtos_proxy)
         candidatos = _ajustar_candidatos_dinamicos(
             candidatos_base,
@@ -503,7 +329,21 @@ def carregar_recomputacao_sequencial_central_v1(
                 faixas_ir=faixas_ir,
                 tolerancia_monetaria=tolerancia_monetaria,
             )
-            cmp_tuple, diag = _comparador_central(
+            reserva_fonte = _reserva_critica_por_fonte(
+                candidato=candidato,
+                pagamentos_futuros=pagamentos_futuros,
+                data_pagamento_atual=data_pagamento,
+                quadro_saldo=quadro_saldo,
+                quadro_fontes=quadro_fontes,
+                mapa_produtos_proxy=mapa_produtos_proxy,
+                mapa_lotes=mapa_lotes,
+                consumo_generico=consumo_generico,
+                data_referencia=data_referencia,
+                tabela_iof=tabela_iof,
+                faixas_ir=faixas_ir,
+                tolerancia_monetaria=tolerancia_monetaria,
+            )
+            cmp_tuple, diag = _comparador_central_v2(
                 classe_pagamento=classe_pagamento,
                 subclasse_pagamento=subclasse_pagamento,
                 valor_pagamento=valor_pagamento,
@@ -515,7 +355,7 @@ def carregar_recomputacao_sequencial_central_v1(
                 tabela_iof=tabela_iof,
                 faixas_ir=faixas_ir,
                 proxy_version=proxy_version,
-                demanda_futura=demanda_futura,
+                reserva_fonte=reserva_fonte,
             )
             avaliacoes.append({'candidato': candidato, 'movimento': movimento, 'comparador': cmp_tuple, 'diagnostico': diag})
 
@@ -543,25 +383,11 @@ def carregar_recomputacao_sequencial_central_v1(
 
         coberto = bool(melhor_mov.get('pagamento_totalmente_coberto_central')) and not fallback_sem_fonte_viavel
         if melhor_diag.get('violacao_protegida') and primeira_protegida is None:
-            primeira_protegida = {
-                'Data': pagamento.get('data'),
-                'Descrição': str(pagamento.get('descricao') or ''),
-                'Valor': valor_pagamento,
-                'Lote central': lote_final or _rotulo_fonte(escolhido),
-            }
+            primeira_protegida = {'Data': pagamento.get('data'), 'Descrição': str(pagamento.get('descricao') or ''), 'Valor': valor_pagamento, 'Lote central': lote_final or _rotulo_fonte(escolhido)}
         if not coberto and primeira_sem is None:
-            primeira_sem = {
-                'Data': pagamento.get('data'),
-                'Descrição': str(pagamento.get('descricao') or ''),
-                'Valor': valor_pagamento,
-                'Lote central': lote_final or _rotulo_fonte(escolhido),
-            }
+            primeira_sem = {'Data': pagamento.get('data'), 'Descrição': str(pagamento.get('descricao') or ''), 'Valor': valor_pagamento, 'Lote central': lote_final or _rotulo_fonte(escolhido)}
         if fallback_sem_fonte_viavel and primeiro_sem_fonte_viavel is None:
-            primeiro_sem_fonte_viavel = {
-                'Data': pagamento.get('data'),
-                'Descrição': str(pagamento.get('descricao') or ''),
-                'Valor': valor_pagamento,
-            }
+            primeiro_sem_fonte_viavel = {'Data': pagamento.get('data'), 'Descrição': str(pagamento.get('descricao') or ''), 'Valor': valor_pagamento}
 
         decisao_original = mapa_decisao.get(pagamento_id, {})
         mudou = bool(str(decisao_original.get('fonte_escolhida_id') or '').strip() != fonte_final_id)
@@ -577,12 +403,14 @@ def carregar_recomputacao_sequencial_central_v1(
             status = 'sem cobertura na recomputacao central'
 
         observacao = (
-            f"comparador central => protegida={melhor_diag.get('violacao_protegida')}, deficit={melhor_diag.get('deficit_liquido_total'):.2f}, "
+            f"comparador central v2 => protegida={melhor_diag.get('violacao_protegida')}, deficit={melhor_diag.get('deficit_liquido_total'):.2f}, "
             f"sem_integral={melhor_diag.get('pagamento_sem_cobertura_integral')}, patrimonio_proxy={melhor_diag.get('patrimonio_terminal_proxy'):.2f}, "
-            f"pen_escassez_protegida={melhor_diag.get('penalidade_escassez_protegida_futura'):.4f}, "
-            f"demanda7d={melhor_diag.get('demanda_protegida_futura_7d'):.2f}, demanda14d={melhor_diag.get('demanda_protegida_futura_14d'):.2f}, "
-            f"pen_estrat={melhor_diag.get('penalidade_estrategica_central'):.4f}, pen_frag={melhor_diag.get('penalidade_fragmentacao_central'):.4f}."
+            f"pen_reserva={melhor_diag.get('penalidade_reserva_critica_fonte'):.4f}, res_total={melhor_diag.get('reserva_critica_total_fonte'):.2f}, "
+            f"livre={melhor_diag.get('orcamento_livre_apos_reserva_fonte'):.2f}, d7={melhor_diag.get('demanda_marginal_protegida_fonte_7d'):.2f}, "
+            f"d14={melhor_diag.get('demanda_marginal_protegida_fonte_14d'):.2f}, d21={melhor_diag.get('demanda_marginal_protegida_fonte_21d'):.2f}."
         )
+        if melhor_diag.get('fonte_critica_referencias'):
+            observacao += f" refs: {melhor_diag.get('fonte_critica_referencias')}."
         if fallback_sem_fonte_viavel:
             observacao += ' fallback auditável acionado: sem fonte viável com liquidez positiva no evento.'
 
@@ -599,7 +427,7 @@ def carregar_recomputacao_sequencial_central_v1(
             'fonte_final_id': fonte_final_id,
             'tipo_fonte_final': tipo_final,
             'mudou_vs_decisao_local': mudou,
-            'criterio_central': 'metrica_canonica_minima_central_v108',
+            'criterio_central': 'metrica_canonica_minima_central_v112_reserva_critica_por_fonte',
             'status_central': status,
             'score_proxy_central': melhor_diag.get('score_proxy_central'),
             'violacao_protegida': melhor_diag.get('violacao_protegida'),
@@ -609,12 +437,16 @@ def carregar_recomputacao_sequencial_central_v1(
             'patrimonio_terminal_proxy': melhor_diag.get('patrimonio_terminal_proxy'),
             'penalidade_estrategica_central': melhor_diag.get('penalidade_estrategica_central'),
             'penalidade_fragmentacao_central': melhor_diag.get('penalidade_fragmentacao_central'),
-            'penalidade_escassez_protegida_futura': melhor_diag.get('penalidade_escassez_protegida_futura'),
-            'demanda_protegida_futura_ponderada': melhor_diag.get('demanda_protegida_futura_ponderada'),
-            'demanda_protegida_futura_7d': melhor_diag.get('demanda_protegida_futura_7d'),
-            'demanda_protegida_futura_14d': melhor_diag.get('demanda_protegida_futura_14d'),
-            'demanda_protegida_futura_21d': melhor_diag.get('demanda_protegida_futura_21d'),
+            'penalidade_reserva_critica_fonte': melhor_diag.get('penalidade_reserva_critica_fonte'),
+            'excesso_sobre_reserva_critica': melhor_diag.get('excesso_sobre_reserva_critica'),
+            'demanda_marginal_protegida_fonte_7d': melhor_diag.get('demanda_marginal_protegida_fonte_7d'),
+            'demanda_marginal_protegida_fonte_14d': melhor_diag.get('demanda_marginal_protegida_fonte_14d'),
+            'demanda_marginal_protegida_fonte_21d': melhor_diag.get('demanda_marginal_protegida_fonte_21d'),
+            'reserva_critica_total_fonte': melhor_diag.get('reserva_critica_total_fonte'),
+            'orcamento_livre_apos_reserva_fonte': melhor_diag.get('orcamento_livre_apos_reserva_fonte'),
             'fonte_critica_para_protegida_futura': bool(melhor_diag.get('fonte_critica_para_protegida_futura')),
+            'pagamentos_protegidos_dependentes_fonte': melhor_diag.get('pagamentos_protegidos_dependentes_fonte'),
+            'fonte_critica_referencias': melhor_diag.get('fonte_critica_referencias'),
             'fallback_sem_fonte_viavel': fallback_sem_fonte_viavel,
             'saldo_antes_central': 0.0 if fallback_sem_fonte_viavel else melhor_mov.get('saldo_antes_central'),
             'bruto_central': 0.0 if fallback_sem_fonte_viavel else melhor_mov.get('bruto_central'),
@@ -635,6 +467,8 @@ def carregar_recomputacao_sequencial_central_v1(
         'mudancas_vs_decisao_local': int(quadro['mudou_vs_decisao_local'].sum()) if len(quadro) else 0,
         'patrimonio_terminal_proxy_final': round(float(quadro.iloc[-1].get('patrimonio_terminal_proxy') or 0.0), 2) if len(quadro) else 0.0,
         'fallbacks_sem_fonte_viavel': int(quadro['fallback_sem_fonte_viavel'].sum()) if len(quadro) else 0,
+        'fontes_criticas_para_protegida': int(quadro['fonte_critica_para_protegida_futura'].sum()) if len(quadro) else 0,
+        'reserva_critica_total_observada': round(float(quadro['reserva_critica_total_fonte'].sum()), 2) if len(quadro) else 0.0,
         'primeira_sem_cobertura_data': primeira_sem.get('Data') if primeira_sem else None,
         'primeira_sem_cobertura_pagamento': primeira_sem.get('Descrição') if primeira_sem else None,
         'primeira_violation_protegida_data': primeira_protegida.get('Data') if primeira_protegida else None,
@@ -670,4 +504,4 @@ def carregar_recomputacao_sequencial_central_v1(
         'amostra_mudancas': amostra_mudancas,
         'amostra_sem_cobertura': amostra_sem_cobertura,
     }
-    return PacoteRecomputacaoSequencialCentralV1(quadro_recomputacao_sequencial_central=quadro, auditoria=auditoria)
+    return PacoteRecomputacaoSequencialCentralV2(quadro_recomputacao_sequencial_central=quadro, auditoria=auditoria)

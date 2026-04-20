@@ -434,13 +434,6 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         ('déficit líquido total central', resumo.get('deficit_liquido_total_central', 0.0)),
         ('mudanças vs decisão local', resumo.get('mudancas_vs_decisao_local', 0)),
         ('fallbacks sem fonte viável', resumo.get('fallbacks_sem_fonte_viavel', 0)),
-        ('fontes preservadas por reserva', resumo.get('fontes_preservadas_por_reserva', 0)),
-        ('exceções cartão material aplicadas', resumo.get('excecoes_cartao_material_aplicadas', 0)),
-        ('bloqueios por trava protegida', resumo.get('bloqueios_excecao_antecipacao_protegida', 0)),
-        ('bloqueios por orçamento protegido', resumo.get('bloqueios_excecao_orcamento_protegida', 0)),
-        ('bloqueios por perda protegida crítica', resumo.get('bloqueios_excecao_perda_protegida_critica', 0)),
-        ('orçamento perda protegida máximo', resumo.get('orcamento_perda_protegida_maximo', 0.0)),
-        ('orçamento perda protegida consumido', resumo.get('orcamento_perda_protegida_consumido_final', 0.0)),
         ('patrimônio terminal proxy final', resumo.get('patrimonio_terminal_proxy_final', 0.0)),
         ('primeira sem cobertura', resumo.get('primeira_sem_cobertura_data')),
         ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento') or ''),
@@ -448,9 +441,6 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         ('pagamento da primeira violação protegida', resumo.get('primeira_violation_protegida_pagamento') or ''),
         ('primeiro fallback sem fonte viável', resumo.get('primeiro_fallback_sem_fonte_viavel_data')),
         ('pagamento do primeiro fallback', resumo.get('primeiro_fallback_sem_fonte_viavel_pagamento') or ''),
-        ('primeira fonte preservada por reserva', resumo.get('primeira_fonte_preservada_por_reserva_data')),
-        ('pagamento da primeira reserva', resumo.get('primeira_fonte_preservada_por_reserva_pagamento') or ''),
-        ('fonte preservada na primeira reserva', resumo.get('primeira_fonte_preservada_por_reserva_fonte') or ''),
     ])
     if amostra_mudancas:
         print('\n- amostra das mudanças da recomputação central vs decisão local:')
@@ -461,6 +451,46 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         )
     if amostra_sem_cobertura:
         print('\n- amostra dos pagamentos ainda sem cobertura integral na frente central:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit', 'Fallback'],
+            amostra_sem_cobertura,
+            limite=10,
+        )
+
+
+def render_secao_recomputacao_sequencial_central_v2(*, auditoria_central=None, amostra_mudancas=None, amostra_sem_cobertura=None):
+    auditoria_central = auditoria_central or {}
+    amostra_mudancas = amostra_mudancas or []
+    amostra_sem_cobertura = amostra_sem_cobertura or []
+    resumo = auditoria_central.get('resumo', {})
+    imprimir_titulo('FRENTE CENTRAL — RECOMPUTAÇÃO SEQUENCIAL CENTRAL V2')
+    imprimir_pares([
+        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
+        ('pagamentos cobertos integralmente', resumo.get('pagamentos_cobertos_integral_central', 0)),
+        ('pagamentos sem cobertura integral', resumo.get('pagamentos_sem_cobertura_integral', 0)),
+        ('violações de pagamentos PROTEGIDA', resumo.get('violacoes_pagamentos_protegida', 0)),
+        ('déficit líquido total central', resumo.get('deficit_liquido_total_central', 0.0)),
+        ('mudanças vs decisão local', resumo.get('mudancas_vs_decisao_local', 0)),
+        ('fallbacks sem fonte viável', resumo.get('fallbacks_sem_fonte_viavel', 0)),
+        ('fontes críticas para protegida', resumo.get('fontes_criticas_para_protegida', 0)),
+        ('reserva crítica total observada', resumo.get('reserva_critica_total_observada', 0.0)),
+        ('patrimônio terminal proxy final', resumo.get('patrimonio_terminal_proxy_final', 0.0)),
+        ('primeira sem cobertura', resumo.get('primeira_sem_cobertura_data')),
+        ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento') or ''),
+        ('primeira violação protegida', resumo.get('primeira_violation_protegida_data')),
+        ('pagamento da primeira violação protegida', resumo.get('primeira_violation_protegida_pagamento') or ''),
+        ('primeiro fallback sem fonte viável', resumo.get('primeiro_fallback_sem_fonte_viavel_data')),
+        ('pagamento do primeiro fallback', resumo.get('primeiro_fallback_sem_fonte_viavel_pagamento') or ''),
+    ])
+    if amostra_mudancas:
+        print('\n- amostra das mudanças da recomputação central v2 vs decisão local:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote local', 'Lote central', 'Classe', 'Subclasse'],
+            amostra_mudancas,
+            limite=10,
+        )
+    if amostra_sem_cobertura:
+        print('\n- amostra dos pagamentos ainda sem cobertura integral na frente central v2:')
         imprimir_tabela(
             ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit', 'Fallback'],
             amostra_sem_cobertura,
