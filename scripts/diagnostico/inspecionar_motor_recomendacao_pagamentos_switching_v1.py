@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+try:
+    from scripts.diagnostico._bootstrap import RAIZ
+except ModuleNotFoundError:  # execução direta
+    from _bootstrap import RAIZ
 
-import pandas as pd
-
-RAIZ = Path(__file__).resolve().parents[2]
-if str(RAIZ) not in sys.path:
-    sys.path.insert(0, str(RAIZ))
 
 from nucleo.contexto_baseline import carregar_contexto_baseline
 

@@ -2,14 +2,28 @@
 
 ## Documentação vigente
 
+### Núcleo contratual e direção metodológica
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
-- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
+
+### Frente central vigente
+- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 - `relatorios/atuais/BASELINE_FIXA_V108.md`
 - `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V108.md`
+
+### Camada operacional por conta
+- `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`
+
+### Reorganização estrutural vigente do repositório
+- `relatorios/atuais/REORGANIZACAO_REPOSITORIO_V115.md`
+- `relatorios/atuais/BASELINE_FIXA_V115.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V115.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V115.md`
+
+### Contratos auxiliares, mapas e auditorias ativas
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -24,25 +38,7 @@
 - `relatorios/atuais/AUDITORIA_PRIMEIRA_QUEBRA_RUNNER_FUTURO_SHADOW.md`
 
 ## Histórico documental
-
 - `relatorios/historico/baselines/`
 - `relatorios/historico/validacoes/`
 - `relatorios/historico/estruturas/`
 - `relatorios/historico/auditorias_especificas/`
-
-## V108
-- `relatorios/atuais/BASELINE_FIXA_V108.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V108.md`
-- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
-
-## Histórico recente
-- `relatorios/historico/baselines/BASELINE_FIXA_V107.md`
-- `relatorios/historico/validacoes/VALIDACAO_LOCAL_V107.md`
-- `relatorios/historico/estruturas/ESTRUTURA_REPOSITORIO_V107.md`
-- `relatorios/historico/auditorias_especificas/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V107.md`
-
-- relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md
-- relatorios/atuais/BASELINE_FIXA_V114.md
-- relatorios/atuais/VALIDACAO_LOCAL_V114.md
-- relatorios/atuais/ESTRUTURA_REPOSITORIO_V114.md

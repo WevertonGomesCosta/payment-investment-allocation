@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
-
-RAIZ_REPOSITORIO = Path(__file__).resolve().parents[2]
-if str(RAIZ_REPOSITORIO) not in sys.path:
-    sys.path.insert(0, str(RAIZ_REPOSITORIO))
+try:
+    from scripts.diagnostico._bootstrap import RAIZ
+except ModuleNotFoundError:  # execução direta
+    from _bootstrap import RAIZ
 
 from nucleo.caixa_recebidos_auditaveis import (
     obter_contrato_minimo_caixa_recebidos,

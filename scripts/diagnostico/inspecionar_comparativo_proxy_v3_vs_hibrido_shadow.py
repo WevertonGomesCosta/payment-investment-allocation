@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pandas as pd
 
-RAIZ_REPOSITORIO = Path(__file__).resolve().parents[2]
-if str(RAIZ_REPOSITORIO) not in sys.path:
-    sys.path.insert(0, str(RAIZ_REPOSITORIO))
+try:
+    from scripts.diagnostico._bootstrap import RAIZ
+except ModuleNotFoundError:  # execução direta
+    from _bootstrap import RAIZ
 
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.caixa_recebidos_auditaveis import auditar_comparativo_proxy_v3_vs_hibrido_shadow
@@ -38,7 +36,7 @@ def _quadro_resumo(resumo: dict[str, object]) -> pd.DataFrame:
 
 
 def main() -> int:
-    contexto = carregar_contexto_baseline(raiz_repositorio=RAIZ_REPOSITORIO)
+    contexto = carregar_contexto_baseline(raiz_repositorio=RAIZ)
     auditoria = auditar_comparativo_proxy_v3_vs_hibrido_shadow(
         contexto.dados_operacionais,
         contexto.fontes_elegiveis_pagamento,
@@ -75,8 +73,8 @@ def main() -> int:
     amostra = divergencias[COLUNAS_EXIBICAO].head(40) if len(divergencias) else quadro[COLUNAS_EXIBICAO].head(20)
     print(amostra.to_string(index=False) if len(amostra) else 'sem divergências materiais')
 
-    caminho_xlsx = caminho_saida_operacional(RAIZ_REPOSITORIO, ARQUIVO_XLSX)
-    caminho_csv = caminho_saida_operacional(RAIZ_REPOSITORIO, ARQUIVO_CSV)
+    caminho_xlsx = caminho_saida_operacional(RAIZ, ARQUIVO_XLSX)
+    caminho_csv = caminho_saida_operacional(RAIZ, ARQUIVO_CSV)
     caminho_xlsx.parent.mkdir(parents=True, exist_ok=True)
     quadro.to_csv(caminho_csv, index=False, encoding='utf-8-sig')
     with pd.ExcelWriter(caminho_xlsx, engine='openpyxl') as writer:

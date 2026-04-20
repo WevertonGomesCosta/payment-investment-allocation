@@ -1,31 +1,51 @@
 # payment-investment-allocation
 
-Repositório de unificação incremental do motor de **pagamentos, aportes e switching** com base única, config central e rastreabilidade por lote.
+Repositório de unificação incremental do motor de **pagamentos, recebidos, aportes e switching** com base única, `config` central e rastreabilidade por lote.
 
-**Versão atual da baseline:** V108
+**Baseline entregue do repositório:** V115  
+**Baseline central/contratual da frente principal:** V108
 
-A V108 recalibra a primeira camada da frente central, **`recomputacao_sequencial_central_v1`**, adicionando:
+A V115 é uma etapa de **reorganização e saneamento estrutural** para recolocar o repositório sob o objetivo final do projeto, sem introduzir nova regra econômica decisória.
 
-- penalidade explícita de escassez futura para pagamentos `PROTEGIDA`;
-- prioridade intraclasse no mesmo dia;
-- fallback auditável de **sem fonte viável**.
+## Objetivo final do projeto
 
-## O que a V108 faz
+Construir um **motor conjunto, auditável e economicamente coerente** para:
 
-- recalcula a melhor fonte a cada pagamento futuro com **saldos residuais atualizados**;
-- compara alternativas pela **métrica canônica mínima central**;
-- introduz proteção mínima de curto prazo para `PROTEGIDA` futura;
-- mantém rastreabilidade por lote e por fonte;
-- preserva V103–V105 como **trilha experimental local**;
-- não abre solver global completo.
+- pagamentos;
+- recebidos;
+- aportes;
+- futuras decisões de switching.
 
-## Frente central vs trilha experimental
+A decisão final deve buscar **maximizar o patrimônio líquido terminal**, respeitando:
+
+- cobertura dos pagamentos;
+- liquidez e carência;
+- tributação;
+- precedência intradiária parametrizada;
+- preservação de pagamentos protegidos;
+- auditabilidade completa por lote/fonte.
+
+O projeto **não** tem como objetivo final otimizar isoladamente um único pagamento ou uma janela local sem reconexão com o cenário conjunto.
+
+## O que a V115 faz
+
+- recentra a documentação ativa no objetivo final conjunto;
+- move documentação histórica redundante para `relatorios/historico/`;
+- remove saídas operacionais antigas e não referenciadas;
+- reduz redundância de bootstrap nos diagnósticos via helper compartilhado;
+- preserva compatibilidade dos wrappers raiz em `scripts/`.
+
+## Camadas vigentes
 
 ### Frente central
+- `caixa_recebidos_auditaveis`
 - `decisao_local_v1`
 - `auditoria_temporal_decisao_local`
 - `reescolha_dinamica_pos_quebra`
 - `recomputacao_sequencial_central_v1`
+
+### Camada operacional por conta
+- `motor_recomendacao_pagamentos_switching_v1`
 
 ### Trilha experimental local
 - `heuristica_conjunta_parcial_bloco_critico`
@@ -38,15 +58,9 @@ A V108 recalibra a primeira camada da frente central, **`recomputacao_sequencial
 - `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
 - `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
-- `relatorios/atuais/BASELINE_FIXA_V108.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V108.md`
-
-## Resumo operacional da V108
-
-A V108 mantém a frente central como eixo principal e recalibra a `recomputacao_sequencial_central_v1` para reduzir violações de `PROTEGIDA` sem voltar a otimizar apenas o bloco crítico local.
-
-
-## V114 — motor operacional por conta
-
-A V114 adiciona uma camada operacional de recomendação por conta, comparando pagar sem switching, com switching simples e com combinação mínima. A baseline principal da frente central permanece a V108.
+- `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`
+- `relatorios/atuais/BASELINE_FIXA_V115.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V115.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V115.md`
+- `relatorios/atuais/REORGANIZACAO_REPOSITORIO_V115.md`
+- `relatorios/INDICE_RELATORIOS.md`
