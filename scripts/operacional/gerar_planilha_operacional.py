@@ -229,7 +229,7 @@ def main() -> None:
     quadro_planejamento = contexto.planejamento_conjunto_local_bloco_critico_v1.quadro_planejamento_conjunto_local.copy() if contexto.planejamento_conjunto_local_bloco_critico_v1 is not None else None
     quadro_microplanejamento = contexto.microplanejamento_conjunto_bloco_critico_v2.quadro_microplanejamento_conjunto.copy() if getattr(contexto, 'microplanejamento_conjunto_bloco_critico_v2', None) is not None else None
     quadro_central = contexto.recomputacao_sequencial_central_v1.quadro_recomputacao_sequencial_central.copy() if getattr(contexto, 'recomputacao_sequencial_central_v1', None) is not None else None
-    quadro_pacote = contexto.alocacao_intradiaria_pacote_v1.quadro_alocacao_intradiaria_pacote.copy() if getattr(contexto, 'alocacao_intradiaria_pacote_v1', None) is not None else None
+    quadro_recomendacao = contexto.motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes.copy() if getattr(contexto, 'motor_recomendacao_pagamentos_switching_v1', None) is not None else None
     mapa_decisao = {}
     mapa_temporal = {}
     mapa_reescolha = {}
@@ -237,7 +237,7 @@ def main() -> None:
     mapa_planejamento = {}
     mapa_microplanejamento = {}
     mapa_central = {}
-    mapa_pacote = {}
+    mapa_recomendacao = {}
     if quadro_decisao is not None and len(quadro_decisao):
         for _, row_dec in quadro_decisao.iterrows():
             mapa_decisao[str(row_dec.get('pagamento_id') or '').strip()] = row_dec.to_dict()
@@ -259,9 +259,9 @@ def main() -> None:
     if quadro_central is not None and len(quadro_central):
         for _, row_c in quadro_central.iterrows():
             mapa_central[str(row_c.get('pagamento_id') or '').strip()] = row_c.to_dict()
-    if quadro_pacote is not None and len(quadro_pacote):
-        for _, row_pac in quadro_pacote.iterrows():
-            mapa_pacote[str(row_pac.get('pagamento_id') or '').strip()] = row_pac.to_dict()
+    if quadro_recomendacao is not None and len(quadro_recomendacao):
+        for _, row_r in quadro_recomendacao.iterrows():
+            mapa_recomendacao[str(row_r.get('pagamento_id') or '').strip()] = row_r.to_dict()
     rows_futuro = []
     for item in gastos_futuros.to_dict('records'):
         data_evt = item.get('data')
@@ -275,7 +275,7 @@ def main() -> None:
         planejamento = mapa_planejamento.get(despesa_id, {})
         microplanejamento = mapa_microplanejamento.get(despesa_id, {})
         central = mapa_central.get(despesa_id, {})
-        pacote = mapa_pacote.get(despesa_id, {})
+        recomendacao = mapa_recomendacao.get(despesa_id, {})
         rows_futuro.append([
             data_evt,
             item.get('descricao'),
@@ -380,10 +380,21 @@ def main() -> None:
             round(float(central.get('liquido_central') or 0.0), 2) if central else '',
             round(float(central.get('saldo_remanescente_central') or 0.0), 2) if central else '',
             'sim' if bool(central.get('pagamento_totalmente_coberto_central')) else '',
+            recomendacao.get('estrategia_recomendada', ''),
+            recomendacao.get('lote_recomendado', ''),
+            recomendacao.get('lote_reserva', ''),
+            'sim' if bool(recomendacao.get('necessidade_switching')) else '',
+            recomendacao.get('data_sugerida_switching', ''),
+            recomendacao.get('lote_origem_switching', ''),
+            recomendacao.get('produto_destino_switching', ''),
+            round(float(recomendacao.get('ganho_liquido_estimado_switching') or 0.0), 2) if recomendacao else '',
+            round(float(recomendacao.get('cobertura_esperada') or 0.0), 2) if recomendacao else '',
+            'sim' if bool(recomendacao.get('cobertura_integral_recomendada')) else '',
+            recomendacao.get('motivo_recomendacao', ''),
             dias_ate,
             'futuro/pendente',
         ])
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Lote final heurístico', 'Bloco crítico', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Política bloco crítico', 'Descrição política bloco crítico', 'Evento-âncora', 'Lote final planejamento local', 'Mudou vs V103', 'Status planejamento local', 'Score planejamento local', 'Saldo Antes planejamento local', 'Bruto planejamento local', 'Imposto planejamento local', 'Líquido planejamento local', 'Saldo Remanescente planejamento local', 'Cobertura planejamento local integral', 'Política microplanejamento v2', 'Descrição política microplanejamento v2', 'Lote final microplanejamento v2', 'Fontes usadas microplanejamento v2', 'Multifonte microplanejamento v2', 'Status microplanejamento v2', 'Critério microplanejamento v2', 'Reserva explícita microplanejamento v2', 'Score microplanejamento v2', 'Saldo Antes microplanejamento v2', 'Bruto microplanejamento v2', 'Imposto microplanejamento v2', 'Líquido microplanejamento v2', 'Saldo Remanescente microplanejamento v2', 'Cobertura microplanejamento v2 integral', 'Classe central', 'Subclasse central', 'Prioridade intraclasse central', 'Lote final central', 'Tipo fonte central', 'Mudou vs decisão local', 'Status central', 'Score proxy central', 'Violação protegida', 'Severidade protegida', 'Déficit líquido total central', 'Patrimônio terminal proxy', 'Penalidade estratégica central', 'Penalidade fragmentação central', 'Penalidade escassez protegida futura', 'Demanda protegida futura ponderada', 'Demanda protegida 7d', 'Demanda protegida 14d', 'Demanda protegida 21d', 'Fonte crítica para protegida futura', 'Fallback sem fonte viável', 'Saldo Antes central', 'Bruto central', 'Imposto central', 'Líquido central', 'Saldo Remanescente central', 'Cobertura central integral', 'Dias até evento', 'Status']
+    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Lote final heurístico', 'Bloco crítico', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Política bloco crítico', 'Descrição política bloco crítico', 'Evento-âncora', 'Lote final planejamento local', 'Mudou vs V103', 'Status planejamento local', 'Score planejamento local', 'Saldo Antes planejamento local', 'Bruto planejamento local', 'Imposto planejamento local', 'Líquido planejamento local', 'Saldo Remanescente planejamento local', 'Cobertura planejamento local integral', 'Política microplanejamento v2', 'Descrição política microplanejamento v2', 'Lote final microplanejamento v2', 'Fontes usadas microplanejamento v2', 'Multifonte microplanejamento v2', 'Status microplanejamento v2', 'Critério microplanejamento v2', 'Reserva explícita microplanejamento v2', 'Score microplanejamento v2', 'Saldo Antes microplanejamento v2', 'Bruto microplanejamento v2', 'Imposto microplanejamento v2', 'Líquido microplanejamento v2', 'Saldo Remanescente microplanejamento v2', 'Cobertura microplanejamento v2 integral', 'Classe central', 'Subclasse central', 'Prioridade intraclasse central', 'Lote final central', 'Tipo fonte central', 'Mudou vs decisão local', 'Status central', 'Score proxy central', 'Violação protegida', 'Severidade protegida', 'Déficit líquido total central', 'Patrimônio terminal proxy', 'Penalidade estratégica central', 'Penalidade fragmentação central', 'Penalidade escassez protegida futura', 'Demanda protegida futura ponderada', 'Demanda protegida 7d', 'Demanda protegida 14d', 'Demanda protegida 21d', 'Fonte crítica para protegida futura', 'Fallback sem fonte viável', 'Saldo Antes central', 'Bruto central', 'Imposto central', 'Líquido central', 'Saldo Remanescente central', 'Cobertura central integral', 'Estratégia recomendada', 'Lote recomendado', 'Lote reserva', 'Necessita switching', 'Data sugerida switching', 'Lote origem switching', 'Produto destino switching', 'Ganho líquido estimado switching', 'Cobertura esperada recomendação', 'Cobertura integral recomendação', 'Motivo recomendação', 'Dias até evento', 'Status']
     _apply_table_style(ws_futuro, headers_futuro, rows_futuro, freeze=True)
 
     ws_temporal = wb.create_sheet('Auditoria temporal')
@@ -606,28 +617,23 @@ def main() -> None:
     headers_central = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Classe operacional', 'Subclasse operacional', 'Prioridade intraclasse', 'Lote local', 'Lote central', 'Tipo fonte central', 'Mudou vs decisão local', 'Status central', 'Score proxy central', 'Violação protegida', 'Severidade protegida', 'Déficit líquido total', 'Patrimônio terminal proxy', 'Penalidade estratégica', 'Penalidade fragmentação', 'Penalidade escassez protegida futura', 'Demanda protegida futura ponderada', 'Demanda protegida 7d', 'Demanda protegida 14d', 'Demanda protegida 21d', 'Fonte crítica para protegida futura', 'Fallback sem fonte viável', 'Saldo Antes central', 'Bruto central', 'Imposto central', 'Líquido central', 'Saldo Remanescente central', 'Cobertura central integral', 'Observação central']
     _apply_table_style(ws_central, headers_central, rows_central, freeze=True)
 
-    ws_pacote = wb.create_sheet('Aloc. intradiaria v1')
-    quadro_pacote_full = contexto.alocacao_intradiaria_pacote_v1.quadro_alocacao_intradiaria_pacote.copy() if getattr(contexto, 'alocacao_intradiaria_pacote_v1', None) is not None else None
-    rows_pacote = []
-    if quadro_pacote_full is not None and len(quadro_pacote_full):
-        quadro_pacote_full = quadro_pacote_full.sort_values(by=['data_pagamento', 'ordem_no_pacote', 'pagamento_id'], kind='stable')
-        for _, row_pac in quadro_pacote_full.iterrows():
-            rows_pacote.append([
-                row_pac.get('data_pagamento'), row_pac.get('descricao_pagamento'), row_pac.get('pagamento_id'), row_pac.get('valor_pagamento'),
-                row_pac.get('classe_pagamento_operacional'), row_pac.get('subclasse_pagamento_operacional'), row_pac.get('politica_pacote_id'), row_pac.get('politica_pacote_descricao'), row_pac.get('ordem_no_pacote'),
-                row_pac.get('lote_sugerido_local'), row_pac.get('lote_final_central_v108'), row_pac.get('lote_final_pacote'),
-                'sim' if bool(row_pac.get('mudou_vs_central_v108')) else '', 'sim' if bool(row_pac.get('mudou_vs_decisao_local')) else '', row_pac.get('tipo_fonte_final'), row_pac.get('status_pacote'),
-                row_pac.get('score_proxy_pacote'), row_pac.get('violacao_protegida_pacote'), row_pac.get('deficit_liquido_total_pacote'), row_pac.get('saldo_antes_pacote'), row_pac.get('bruto_pacote'), row_pac.get('imposto_pacote'), row_pac.get('liquido_pacote'), row_pac.get('saldo_remanescente_pacote'),
-                'sim' if bool(row_pac.get('pagamento_totalmente_coberto_pacote')) else '', 'sim' if bool(row_pac.get('fallback_sem_fonte_viavel_pacote')) else '', row_pac.get('observacao_pacote'),
+
+    ws_recomendacao = wb.create_sheet('Rec. pgto+switch')
+    quadro_recomendacao_full = contexto.motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes.copy() if getattr(contexto, 'motor_recomendacao_pagamentos_switching_v1', None) is not None else None
+    rows_recomendacao = []
+    if quadro_recomendacao_full is not None and len(quadro_recomendacao_full):
+        quadro_recomendacao_full = quadro_recomendacao_full.sort_values(by=['data_pagamento', 'pagamento_id'], kind='stable')
+        for _, row_r in quadro_recomendacao_full.iterrows():
+            rows_recomendacao.append([
+                row_r.get('data_pagamento'), row_r.get('descricao_pagamento'), row_r.get('pagamento_id'), row_r.get('valor_pagamento'),
+                row_r.get('classe_pagamento_operacional'), row_r.get('subclasse_pagamento_operacional'), row_r.get('estrategia_recomendada'),
+                row_r.get('lote_recomendado'), row_r.get('lote_reserva'), 'sim' if bool(row_r.get('necessidade_switching')) else '',
+                row_r.get('data_sugerida_switching'), row_r.get('lote_origem_switching'), row_r.get('produto_destino_switching'),
+                row_r.get('ganho_liquido_estimado_switching'), row_r.get('cobertura_esperada'),
+                'sim' if bool(row_r.get('cobertura_integral_recomendada')) else '', row_r.get('lote_central_referencia'), row_r.get('lote_reserva_referencia'),
+                row_r.get('materialidade_minima_switching'), row_r.get('motivo_recomendacao'),
             ])
-    headers_pacote = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Classe operacional', 'Subclasse operacional', 'Política pacote', 'Descrição política', 'Ordem no pacote', 'Lote local', 'Lote central V108', 'Lote pacote', 'Mudou vs central V108', 'Mudou vs decisão local', 'Tipo fonte pacote', 'Status pacote', 'Score proxy pacote', 'Violação protegida pacote', 'Déficit pacote', 'Saldo Antes pacote', 'Bruto pacote', 'Imposto pacote', 'Líquido pacote', 'Saldo Remanescente pacote', 'Cobertura pacote integral', 'Fallback sem fonte viável pacote', 'Observação pacote']
-    _apply_table_style(ws_pacote, headers_pacote, rows_pacote, freeze=True)
-    quadro_resumo_pacote = contexto.alocacao_intradiaria_pacote_v1.quadro_resumo_pacotes.copy() if getattr(contexto, 'alocacao_intradiaria_pacote_v1', None) is not None else None
-    rows_resumo_pacote = []
-    if quadro_resumo_pacote is not None and len(quadro_resumo_pacote):
-        for _, row_rp in quadro_resumo_pacote.iterrows():
-            rows_resumo_pacote.append([row_rp.get('data_pacote'), row_rp.get('politicas_avaliadas'), row_rp.get('politica_escolhida'), row_rp.get('politica_descricao'), row_rp.get('violacoes_protegida_pacote'), row_rp.get('deficit_protegida_pacote'), row_rp.get('deficit_total_pacote'), row_rp.get('pagamentos_sem_cobertura_pacote'), row_rp.get('pagamentos_cobertos_pacote'), row_rp.get('comparador_pacote')])
-    _apply_table_style(ws_pacote, ['Data pacote', 'Políticas avaliadas', 'Política escolhida', 'Descrição', 'Viol. PROT', 'Déficit PROT', 'Déficit total', 'Sem cobertura', 'Cobertos', 'Comparador'], rows_resumo_pacote, start_row=len(rows_pacote)+4, title='Resumo dos pacotes intradiários')
+    _apply_table_style(ws_recomendacao, ['Data', 'Conta', 'Despesa ID', 'Valor', 'Classe', 'Subclasse', 'Estratégia recomendada', 'Lote recomendado', 'Lote reserva', 'Necessita switching', 'Data sugerida switching', 'Lote origem switching', 'Produto destino switching', 'Ganho líquido estimado switching', 'Cobertura esperada', 'Cobertura integral recomendada', 'Lote central referência', 'Lote reserva referência', 'Materialidade mínima switching', 'Motivo recomendação'], rows_recomendacao, freeze=True)
 
     ws_melhores = wb.create_sheet('Melhores produtos')
     candidatos = tri.quadro_candidatos.copy().sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')

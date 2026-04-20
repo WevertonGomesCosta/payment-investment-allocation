@@ -11,12 +11,9 @@ Este contrato não deve misturar regras executáveis correntes com backlog estra
 
 ## 1. Escopo e status da baseline atual
 
-1. A baseline documental vigente do repositório experimental é a **V113**.
-2. A **baseline principal da frente central permanece V108** até promoção explícita de nova camada.
-3. A V113 adiciona `alocacao_intradiaria_pacote_v1` como experimento central intradiário, sem promoção automática.
-4. A V106 executa o saneamento contratual do repositório; a **V107** implementa a primeira camada da frente central; a **V108** recalibra essa camada com penalidade explícita de escassez futura para `PROTEGIDA`, prioridade intraclasse no mesmo dia e fallback auditável de “sem fonte viável”.
-5. A V108 preserva a V105 como **baseline experimental local** do bloco crítico e mantém a V106 como marco contratual de separação de trilhas.
-6. A V113 não reabre a trilha local do bloco crítico; atua apenas como camada experimental intradiária sobre a frente central.
+1. A baseline documental vigente é a **V108**.
+2. A V106 executa o saneamento contratual do repositório; a **V107** implementa a primeira camada da frente central; a **V108** recalibra essa camada com penalidade explícita de escassez futura para `PROTEGIDA`, prioridade intraclasse no mesmo dia e fallback auditável de “sem fonte viável”.
+3. A V108 preserva a V105 como **baseline experimental local** do bloco crítico e mantém a V106 como marco contratual de separação de trilhas.
 4. O contrato executável deve descrever apenas o que já está implementado e observável na baseline, separando o que é núcleo principal do que é experimento local.
 5. Regras futuras, metas estratégicas e camadas ainda não abertas permanecem em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 

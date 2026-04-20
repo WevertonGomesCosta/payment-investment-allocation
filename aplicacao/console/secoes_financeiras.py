@@ -458,34 +458,54 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         )
 
 
-def render_secao_alocacao_intradiaria_pacote_v1(*, auditoria_pacote=None, amostra_pacotes=None, amostra_mudancas=None, amostra_sem_cobertura=None):
-    auditoria_pacote = auditoria_pacote or {}
-    amostra_pacotes = amostra_pacotes or []
-    amostra_mudancas = amostra_mudancas or []
-    amostra_sem_cobertura = amostra_sem_cobertura or []
-    resumo = auditoria_pacote.get('resumo', {})
-    imprimir_titulo('FRENTE CENTRAL — ALOCAÇÃO INTRADIÁRIA POR PACOTE V1')
+def render_secao_motor_recomendacao_pagamentos_switching_v1(*, auditoria_recomendacao=None, amostra_switching=None, amostra_combinacao=None):
+    auditoria_recomendacao = auditoria_recomendacao or {}
+    amostra_switching = amostra_switching or []
+    amostra_combinacao = amostra_combinacao or []
+    resumo = auditoria_recomendacao.get('resumo', {})
+    imprimir_titulo('MOTOR OPERACIONAL — RECOMENDAÇÃO DE PAGAMENTOS + SWITCHING V1')
     imprimir_pares([
         ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
-        ('datas com pacote', resumo.get('datas_com_pacote', 0)),
-        ('políticas avaliadas no total', resumo.get('politicas_avaliadas_total', 0)),
-        ('pagamentos cobertos integralmente', resumo.get('pagamentos_cobertos_integral_pacote', 0)),
-        ('pagamentos sem cobertura integral', resumo.get('pagamentos_sem_cobertura_integral_pacote', 0)),
-        ('violações de pagamentos PROTEGIDA', resumo.get('violacoes_pagamentos_protegida_pacote', 0)),
-        ('déficit líquido total do pacote', resumo.get('deficit_liquido_total_pacote', 0.0)),
-        ('mudanças vs central V108', resumo.get('mudancas_vs_central_v108', 0)),
-        ('mudanças vs decisão local', resumo.get('mudancas_vs_decisao_local', 0)),
-        ('primeira sem cobertura', resumo.get('primeira_sem_cobertura_data')),
-        ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento') or ''),
-        ('primeira violação protegida', resumo.get('primeira_violation_protegida_data')),
-        ('pagamento da primeira violação protegida', resumo.get('primeira_violation_protegida_pagamento') or ''),
+        ('estratégia sem switching', resumo.get('estrategia_sem_switching', 0)),
+        ('estratégia switching simples', resumo.get('estrategia_switching_simples', 0)),
+        ('estratégia combinação mínima', resumo.get('estrategia_combinacao_minima', 0)),
+        ('switchings acionados', resumo.get('switching_acionado', 0)),
+        ('combinações acionadas', resumo.get('combinacao_acionada', 0)),
+        ('ganho líquido estimado de switching', resumo.get('ganho_liquido_switching_estimado_total', 0.0)),
+        ('pagamentos com cobertura integral recomendada', resumo.get('pagamentos_com_cobertura_integral_recomendada', 0)),
     ])
-    if amostra_pacotes:
-        print('\n- amostra dos pacotes diários escolhidos:')
-        imprimir_tabela(['Data', 'Política', 'Cobertos', 'Sem cobertura', 'Viol. PROT', 'Déficit'], amostra_pacotes, limite=10)
-    if amostra_mudancas:
-        print('\n- amostra das mudanças do pacote vs central V108:')
-        imprimir_tabela(['Data', 'Descrição', 'Valor', 'Lote V108', 'Lote pacote', 'Classe', 'Ordem'], amostra_mudancas, limite=10)
-    if amostra_sem_cobertura:
-        print('\n- amostra dos pagamentos ainda sem cobertura integral no pacote intradiário:')
-        imprimir_tabela(['Data', 'Descrição', 'Valor', 'Classe', 'Lote pacote', 'Déficit', 'Fallback'], amostra_sem_cobertura, limite=10)
+    if amostra_switching:
+        print('\n- amostra das recomendações com switching simples:')
+        linhas = []
+        for row in amostra_switching:
+            linhas.append({
+                'Data': row.get('data_pagamento'),
+                'Descrição': row.get('descricao_pagamento'),
+                'Valor': row.get('valor_pagamento'),
+                'Lote origem': row.get('lote_origem_switching') or row.get('lote_recomendado'),
+                'Produto destino': row.get('produto_destino_switching'),
+                'Ganho estimado': row.get('ganho_liquido_estimado_switching'),
+                'Cobertura esperada': row.get('cobertura_esperada'),
+            })
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote origem', 'Produto destino', 'Ganho estimado', 'Cobertura esperada'],
+            linhas,
+            limite=10,
+        )
+    if amostra_combinacao:
+        print('\n- amostra das recomendações por combinação mínima:')
+        linhas = []
+        for row in amostra_combinacao:
+            linhas.append({
+                'Data': row.get('data_pagamento'),
+                'Descrição': row.get('descricao_pagamento'),
+                'Valor': row.get('valor_pagamento'),
+                'Lote principal': row.get('lote_recomendado'),
+                'Lote reserva': row.get('lote_reserva'),
+                'Cobertura esperada': row.get('cobertura_esperada'),
+            })
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote principal', 'Lote reserva', 'Cobertura esperada'],
+            linhas,
+            limite=10,
+        )

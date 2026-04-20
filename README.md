@@ -2,11 +2,7 @@
 
 Repositório de unificação incremental do motor de **pagamentos, aportes e switching** com base única, config central e rastreabilidade por lote.
 
-**Versão atual do repositório:** V113
-
-**Baseline principal da frente central:** V108
-
-**Camada experimental nova:** `alocacao_intradiaria_pacote_v1`
+**Versão atual da baseline:** V108
 
 A V108 recalibra a primeira camada da frente central, **`recomputacao_sequencial_central_v1`**, adicionando:
 
@@ -51,8 +47,6 @@ A V108 recalibra a primeira camada da frente central, **`recomputacao_sequencial
 A V108 mantém a frente central como eixo principal e recalibra a `recomputacao_sequencial_central_v1` para reduzir violações de `PROTEGIDA` sem voltar a otimizar apenas o bloco crítico local.
 
 
-## O que a V113 acrescenta
+## V114 — motor operacional por conta
 
-A V113 adiciona uma camada experimental de **alocação conjunta intradiária por data**, mantendo a V108 como baseline principal da frente central.
-
-Essa camada compara poucas políticas candidatas para cada data e escolhe a melhor por comparador lexicográfico diário, reduzindo artefatos de ordem entre pagamentos da mesma data.
+A V114 adiciona uma camada operacional de recomendação por conta, comparando pagar sem switching, com switching simples e com combinação mínima. A baseline principal da frente central permanece a V108.

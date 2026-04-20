@@ -6,7 +6,6 @@
 - `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
 - `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
-- `relatorios/atuais/ALOCACAO_INTRADIARIA_PACOTE_V113.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
 - `relatorios/atuais/BASELINE_FIXA_V108.md`
 - `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
@@ -36,7 +35,6 @@
 - `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V108.md`
 - `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
-- `relatorios/atuais/ALOCACAO_INTRADIARIA_PACOTE_V113.md`
 
 ## Histórico recente
 - `relatorios/historico/baselines/BASELINE_FIXA_V107.md`
@@ -44,9 +42,7 @@
 - `relatorios/historico/estruturas/ESTRUTURA_REPOSITORIO_V107.md`
 - `relatorios/historico/auditorias_especificas/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V107.md`
 
-
-## V113
-- `relatorios/atuais/BASELINE_FIXA_V113.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V113.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V113.md`
-- `relatorios/atuais/ALOCACAO_INTRADIARIA_PACOTE_V113.md`
+- relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md
+- relatorios/atuais/BASELINE_FIXA_V114.md
+- relatorios/atuais/VALIDACAO_LOCAL_V114.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V114.md

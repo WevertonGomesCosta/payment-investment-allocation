@@ -16,7 +16,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 from aplicacao.console.common import imprimir_itens_severidade as _imprimir_itens_severidade, imprimir_linha_status as _imprimir_linha_status, imprimir_pares as _imprimir_pares, imprimir_tabela as _imprimir_tabela, imprimir_titulo as _imprimir_titulo, normalizar_lista as _normalizar_lista, severidade as _severidade
 from aplicacao.console.secoes_canonicas import render_secao_canonicas
 from aplicacao.console.secoes_execucao import render_secao_execucao
-from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos, render_secao_auditoria_temporal_pagamentos, render_secao_heuristica_conjunta_parcial, render_secao_metodo_pagamentos, render_secao_nucleo, render_secao_planejamento_conjunto_local, render_secao_reescolha_dinamica_pagamentos, render_secao_replay, render_secao_situacao_atual, render_secao_microplanejamento_conjunto_v2, render_secao_recomputacao_sequencial_central_v1, render_secao_alocacao_intradiaria_pacote_v1
+from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos, render_secao_auditoria_temporal_pagamentos, render_secao_heuristica_conjunta_parcial, render_secao_metodo_pagamentos, render_secao_nucleo, render_secao_planejamento_conjunto_local, render_secao_reescolha_dinamica_pagamentos, render_secao_replay, render_secao_situacao_atual, render_secao_microplanejamento_conjunto_v2, render_secao_recomputacao_sequencial_central_v1, render_secao_motor_recomendacao_pagamentos_switching_v1
 from aplicacao.console.secoes_triagem import render_secao_triagem
 from nucleo.calendario_financeiro import contar_dias_rendimento
 from nucleo.identidade_baseline import VERSAO_BASELINE
@@ -433,16 +433,16 @@ def main() -> None:
         amostra_reescolhas=((contexto_baseline.reescolha_dinamica_pos_quebra.auditoria or {}).get('amostra_reescolhas', []) if contexto_baseline.reescolha_dinamica_pos_quebra is not None else []),
         amostra_sem_cobertura=((contexto_baseline.reescolha_dinamica_pos_quebra.auditoria or {}).get('amostra_sem_cobertura', []) if contexto_baseline.reescolha_dinamica_pos_quebra is not None else []),
     )
+
+    render_secao_motor_recomendacao_pagamentos_switching_v1(
+        auditoria_recomendacao=contexto_baseline.motor_recomendacao_pagamentos_switching_v1.auditoria if getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None) is not None else {},
+        amostra_switching=((contexto_baseline.motor_recomendacao_pagamentos_switching_v1.auditoria or {}).get('amostras', {}).get('recomendacoes_switching', []) if getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None) is not None else []),
+        amostra_combinacao=((contexto_baseline.motor_recomendacao_pagamentos_switching_v1.auditoria or {}).get('amostras', {}).get('recomendacoes_combinacao', []) if getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None) is not None else []),
+    )
     render_secao_recomputacao_sequencial_central_v1(
         auditoria_central=contexto_baseline.recomputacao_sequencial_central_v1.auditoria if getattr(contexto_baseline, 'recomputacao_sequencial_central_v1', None) is not None else {},
         amostra_mudancas=((contexto_baseline.recomputacao_sequencial_central_v1.auditoria or {}).get('amostra_mudancas', []) if getattr(contexto_baseline, 'recomputacao_sequencial_central_v1', None) is not None else []),
         amostra_sem_cobertura=((contexto_baseline.recomputacao_sequencial_central_v1.auditoria or {}).get('amostra_sem_cobertura', []) if getattr(contexto_baseline, 'recomputacao_sequencial_central_v1', None) is not None else []),
-    )
-    render_secao_alocacao_intradiaria_pacote_v1(
-        auditoria_pacote=contexto_baseline.alocacao_intradiaria_pacote_v1.auditoria if getattr(contexto_baseline, 'alocacao_intradiaria_pacote_v1', None) is not None else {},
-        amostra_pacotes=((contexto_baseline.alocacao_intradiaria_pacote_v1.auditoria or {}).get('amostra_pacotes', []) if getattr(contexto_baseline, 'alocacao_intradiaria_pacote_v1', None) is not None else []),
-        amostra_mudancas=((contexto_baseline.alocacao_intradiaria_pacote_v1.auditoria or {}).get('amostra_mudancas', []) if getattr(contexto_baseline, 'alocacao_intradiaria_pacote_v1', None) is not None else []),
-        amostra_sem_cobertura=((contexto_baseline.alocacao_intradiaria_pacote_v1.auditoria or {}).get('amostra_sem_cobertura', []) if getattr(contexto_baseline, 'alocacao_intradiaria_pacote_v1', None) is not None else []),
     )
     render_secao_heuristica_conjunta_parcial(
         auditoria_heuristica=contexto_baseline.heuristica_conjunta_parcial_bloco_critico.auditoria if contexto_baseline.heuristica_conjunta_parcial_bloco_critico is not None else {},
