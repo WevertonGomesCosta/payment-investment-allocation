@@ -3,10 +3,12 @@
 ## Documentação vigente
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
+- `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`
+- `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V104.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V104.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V104.md`
+- `relatorios/atuais/BASELINE_FIXA_V106.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V106.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V106.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -27,11 +29,9 @@
 - `relatorios/historico/estruturas/`
 - `relatorios/historico/auditorias_especificas/`
 
-## V105
-- atuais/BASELINE_FIXA_V105.md
-- atuais/VALIDACAO_LOCAL_V105.md
-- atuais/ESTRUTURA_REPOSITORIO_V105.md
-
-- relatorios/atuais/BASELINE_FIXA_V105.md
-- relatorios/atuais/VALIDACAO_LOCAL_V105.md
-- relatorios/atuais/ESTRUTURA_REPOSITORIO_V105.md
+## V106
+- `relatorios/atuais/BASELINE_FIXA_V106.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V106.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V106.md`
+- `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`
+- `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
