@@ -24,6 +24,7 @@ from nucleo.auditoria_primeira_quebra_runner_futuro_shadow import carregar_audit
 from nucleo.auditoria_temporal_decisao_local import carregar_auditoria_temporal_decisao_local
 from nucleo.reescolha_dinamica_pos_quebra import carregar_reescolha_dinamica_pos_quebra
 from nucleo.heuristica_conjunta_parcial_bloco_critico import carregar_heuristica_conjunta_parcial_bloco_critico
+from nucleo.planejamento_conjunto_local_bloco_critico_v1 import carregar_planejamento_conjunto_local_bloco_critico_v1
 from nucleo.config_utils import obter_config
 from nucleo.caixa_recebidos_auditaveis import (
     materializar_fontes_elegiveis_pagamento,
@@ -49,6 +50,7 @@ class ContextoBaseline:
     auditoria_temporal_decisao_local: Any
     reescolha_dinamica_pos_quebra: Any
     heuristica_conjunta_parcial_bloco_critico: Any
+    planejamento_conjunto_local_bloco_critico_v1: Any
     switching_shadow: Any
     switching_economico_shadow: Any
     resolver_hibrido_5p_shadow: Any
@@ -203,6 +205,18 @@ def carregar_contexto_baseline(
         carteira_canonica=carteira_canonica,
         proxy_version='v3',
     ) if decisao_local_v1 is not None and replay_passado is not None else None
+    planejamento_conjunto_local_bloco_critico_v1 = carregar_planejamento_conjunto_local_bloco_critico_v1(
+        dados_operacionais,
+        fontes_elegiveis_pagamento,
+        saldo_disponivel_geral,
+        replay_passado,
+        reescolha_dinamica_pos_quebra,
+        heuristica_conjunta_parcial_bloco_critico,
+        data_referencia=contexto_execucao.data_referencia,
+        tabela_iof=construir_tabela_iof(pacote_config.conteudo),
+        faixas_ir=construir_faixas_ir(pacote_config.conteudo),
+        carteira_canonica=carteira_canonica,
+    ) if decisao_local_v1 is not None and replay_passado is not None else None
     resolver_hibrido_5p_shadow = carregar_resolver_hibrido_5p_shadow(
         dados_operacionais,
         fontes_elegiveis_pagamento,
@@ -266,6 +280,7 @@ def carregar_contexto_baseline(
         auditoria_temporal_decisao_local=auditoria_temporal_decisao_local,
         reescolha_dinamica_pos_quebra=reescolha_dinamica_pos_quebra,
         heuristica_conjunta_parcial_bloco_critico=heuristica_conjunta_parcial_bloco_critico,
+        planejamento_conjunto_local_bloco_critico_v1=planejamento_conjunto_local_bloco_critico_v1,
         switching_shadow=switching_shadow,
         switching_economico_shadow=switching_economico_shadow,
         resolver_hibrido_5p_shadow=resolver_hibrido_5p_shadow,

@@ -16,7 +16,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 from aplicacao.console.common import imprimir_itens_severidade as _imprimir_itens_severidade, imprimir_linha_status as _imprimir_linha_status, imprimir_pares as _imprimir_pares, imprimir_tabela as _imprimir_tabela, imprimir_titulo as _imprimir_titulo, normalizar_lista as _normalizar_lista, severidade as _severidade
 from aplicacao.console.secoes_canonicas import render_secao_canonicas
 from aplicacao.console.secoes_execucao import render_secao_execucao
-from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos, render_secao_auditoria_temporal_pagamentos, render_secao_heuristica_conjunta_parcial, render_secao_metodo_pagamentos, render_secao_nucleo, render_secao_reescolha_dinamica_pagamentos, render_secao_replay, render_secao_situacao_atual
+from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos, render_secao_auditoria_temporal_pagamentos, render_secao_heuristica_conjunta_parcial, render_secao_metodo_pagamentos, render_secao_nucleo, render_secao_planejamento_conjunto_local, render_secao_reescolha_dinamica_pagamentos, render_secao_replay, render_secao_situacao_atual
 from aplicacao.console.secoes_triagem import render_secao_triagem
 from nucleo.calendario_financeiro import contar_dias_rendimento
 from nucleo.identidade_baseline import VERSAO_BASELINE
@@ -438,6 +438,12 @@ def main() -> None:
         amostra_trocas_preventivas=((contexto_baseline.heuristica_conjunta_parcial_bloco_critico.auditoria or {}).get('amostra_trocas_preventivas', []) if contexto_baseline.heuristica_conjunta_parcial_bloco_critico is not None else []),
         amostra_planejamento_reservas=((contexto_baseline.heuristica_conjunta_parcial_bloco_critico.auditoria or {}).get('amostra_planejamento_reservas', []) if contexto_baseline.heuristica_conjunta_parcial_bloco_critico is not None else []),
         amostra_sem_cobertura=((contexto_baseline.heuristica_conjunta_parcial_bloco_critico.auditoria or {}).get('amostra_sem_cobertura', []) if contexto_baseline.heuristica_conjunta_parcial_bloco_critico is not None else []),
+    )
+
+    render_secao_planejamento_conjunto_local(
+        auditoria_planejamento=contexto_baseline.planejamento_conjunto_local_bloco_critico_v1.auditoria if contexto_baseline.planejamento_conjunto_local_bloco_critico_v1 is not None else {},
+        amostra_comparativo_politicas=((contexto_baseline.planejamento_conjunto_local_bloco_critico_v1.auditoria or {}).get('amostra_comparativo_politicas', []) if contexto_baseline.planejamento_conjunto_local_bloco_critico_v1 is not None else []),
+        amostra_mudancas_vs_v103=((contexto_baseline.planejamento_conjunto_local_bloco_critico_v1.auditoria or {}).get('amostra_mudancas_vs_v103', []) if contexto_baseline.planejamento_conjunto_local_bloco_critico_v1 is not None else []),
     )
 
     lotes_ativos, lotes_exauridos = _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)

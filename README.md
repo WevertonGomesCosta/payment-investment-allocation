@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V103
+**Versão atual da baseline:** V104
 
-A V103 preserva a cadeia auditável da baseline anterior e adiciona uma camada de **heurística conjunta parcial focada no bloco crítico entre 20/04/2026 e 20/05/2026**. Essa camada continua sem solver global, usa o mesmo governante local (`decisao_local_v1 + proxy v3`) como base e passa a aplicar **preservação estratégica de lotes** e **trocas preventivas** para reduzir consumo precoce e testar se a primeira grande quebra estrutural pode ser adiada.
+A V104 preserva a cadeia auditável da baseline anterior e adiciona uma camada de **planejamento conjunto local do bloco crítico** entre 20/04/2026 e 20/05/2026. Essa camada continua sem solver global, compara poucas políticas candidatas de consumo e preservação de lotes e seleciona a melhor segundo a cobertura do **Cartão Azul de 20/05**, a cobertura do bloco e o déficit total.
 
 ## Gate obrigatório antes de cada entrega
 
@@ -49,9 +49,9 @@ python scripts/diagnostico/inspecionar_primeira_quebra_runner_futuro_shadow.py
 
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V103.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V103.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V103.md`
+- `relatorios/atuais/BASELINE_FIXA_V104.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V104.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V104.md`
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
 - `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
 - `relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md`
@@ -65,9 +65,10 @@ python scripts/diagnostico/inspecionar_primeira_quebra_runner_futuro_shadow.py
 - `relatorios/atuais/AUDITORIA_CASOS_CRITICOS_RUNNER_FUTURO_SHADOW.md`
 - `relatorios/atuais/AUDITORIA_PRIMEIRA_QUEBRA_RUNNER_FUTURO_SHADOW.md`
 
-## Resumo operacional da V103
+## Resumo operacional da V104
 
-- a V103 mantém a saída operacional do console e da planilha já auditadas;
+- a V104 mantém a saída operacional do console e da planilha já auditadas;
+- adiciona o `planejamento_conjunto_local_bloco_critico_v1` com comparação de políticas candidatas;
 - preserva a auditoria temporal da decisão local e a reescolha dinâmica pós-quebra;
 - adiciona uma heurística conjunta parcial restrita ao bloco crítico 20/04/2026–20/05/2026;
 - introduz planejamento de reservas estratégicas por fonte para reduzir consumo precoce;

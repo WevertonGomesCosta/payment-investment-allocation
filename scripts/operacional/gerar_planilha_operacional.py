@@ -226,10 +226,12 @@ def main() -> None:
     quadro_temporal = contexto.auditoria_temporal_decisao_local.quadro_auditoria_temporal.copy() if contexto.auditoria_temporal_decisao_local is not None else None
     quadro_reescolha = contexto.reescolha_dinamica_pos_quebra.quadro_reescolha_dinamica.copy() if contexto.reescolha_dinamica_pos_quebra is not None else None
     quadro_heuristica = contexto.heuristica_conjunta_parcial_bloco_critico.quadro_heuristica_conjunta_parcial.copy() if contexto.heuristica_conjunta_parcial_bloco_critico is not None else None
+    quadro_planejamento = contexto.planejamento_conjunto_local_bloco_critico_v1.quadro_planejamento_conjunto_local.copy() if contexto.planejamento_conjunto_local_bloco_critico_v1 is not None else None
     mapa_decisao = {}
     mapa_temporal = {}
     mapa_reescolha = {}
     mapa_heuristica = {}
+    mapa_planejamento = {}
     if quadro_decisao is not None and len(quadro_decisao):
         for _, row_dec in quadro_decisao.iterrows():
             mapa_decisao[str(row_dec.get('pagamento_id') or '').strip()] = row_dec.to_dict()
@@ -242,6 +244,9 @@ def main() -> None:
     if quadro_heuristica is not None and len(quadro_heuristica):
         for _, row_h in quadro_heuristica.iterrows():
             mapa_heuristica[str(row_h.get('pagamento_id') or '').strip()] = row_h.to_dict()
+    if quadro_planejamento is not None and len(quadro_planejamento):
+        for _, row_p in quadro_planejamento.iterrows():
+            mapa_planejamento[str(row_p.get('pagamento_id') or '').strip()] = row_p.to_dict()
     rows_futuro = []
     for item in gastos_futuros.to_dict('records'):
         data_evt = item.get('data')
@@ -252,6 +257,7 @@ def main() -> None:
         temporal = mapa_temporal.get(despesa_id, {})
         dinamico = mapa_reescolha.get(despesa_id, {})
         heuristica = mapa_heuristica.get(despesa_id, {})
+        planejamento = mapa_planejamento.get(despesa_id, {})
         rows_futuro.append([
             data_evt,
             item.get('descricao'),
@@ -301,10 +307,23 @@ def main() -> None:
             round(float(heuristica.get('liquido_heuristica') or 0.0), 2) if heuristica else '',
             round(float(heuristica.get('saldo_remanescente_heuristica') or 0.0), 2) if heuristica else '',
             'sim' if bool(heuristica.get('pagamento_totalmente_coberto_heuristica')) else '',
+            planejamento.get('politica_id', ''),
+            planejamento.get('politica_descricao', ''),
+            'sim' if bool(planejamento.get('evento_ancora')) else '',
+            planejamento.get('lote_final_planejamento', ''),
+            'sim' if bool(planejamento.get('mudou_vs_v103')) else '',
+            planejamento.get('status_planejamento', ''),
+            round(float(planejamento.get('score_planejamento') or 0.0), 4) if planejamento and planejamento.get('score_planejamento') is not None else '',
+            round(float(planejamento.get('saldo_antes_planejamento') or 0.0), 2) if planejamento else '',
+            round(float(planejamento.get('bruto_planejamento') or 0.0), 2) if planejamento else '',
+            round(float(planejamento.get('imposto_planejamento') or 0.0), 2) if planejamento else '',
+            round(float(planejamento.get('liquido_planejamento') or 0.0), 2) if planejamento else '',
+            round(float(planejamento.get('saldo_remanescente_planejamento') or 0.0), 2) if planejamento else '',
+            'sim' if bool(planejamento.get('pagamento_totalmente_coberto_planejamento')) else '',
             dias_ate,
             'futuro/pendente',
         ])
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Lote final heurístico', 'Bloco crítico', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Dias até evento', 'Status']
+    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Lote final heurístico', 'Bloco crítico', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Política bloco crítico', 'Descrição política bloco crítico', 'Evento-âncora', 'Lote final planejamento local', 'Mudou vs V103', 'Status planejamento local', 'Score planejamento local', 'Saldo Antes planejamento local', 'Bruto planejamento local', 'Imposto planejamento local', 'Líquido planejamento local', 'Saldo Remanescente planejamento local', 'Cobertura planejamento local integral', 'Dias até evento', 'Status']
     _apply_table_style(ws_futuro, headers_futuro, rows_futuro, freeze=True)
 
     ws_temporal = wb.create_sheet('Auditoria temporal')
@@ -402,6 +421,55 @@ def main() -> None:
             ])
     headers_heuristica = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Bloco crítico', 'Lote sugerido original', 'Lote final heurístico', 'Tipo fonte final', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score proxy original', 'Score proxy heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Observação heurística']
     _apply_table_style(ws_heuristica, headers_heuristica, rows_heuristica, freeze=True)
+
+
+    ws_planejamento = wb.create_sheet('Planejamento conjunto')
+    quadro_planejamento_full = contexto.planejamento_conjunto_local_bloco_critico_v1.quadro_planejamento_conjunto_local.copy() if contexto.planejamento_conjunto_local_bloco_critico_v1 is not None else None
+    quadro_politicas_full = contexto.planejamento_conjunto_local_bloco_critico_v1.quadro_comparativo_politicas.copy() if contexto.planejamento_conjunto_local_bloco_critico_v1 is not None else None
+    rows_planejamento = []
+    if quadro_planejamento_full is not None and len(quadro_planejamento_full):
+        quadro_planejamento_full = quadro_planejamento_full.sort_values(by=['data_pagamento', 'pagamento_id'], kind='stable')
+        for _, row_p in quadro_planejamento_full.iterrows():
+            rows_planejamento.append([
+                row_p.get('data_pagamento'),
+                row_p.get('descricao_pagamento'),
+                row_p.get('pagamento_id'),
+                row_p.get('valor_pagamento'),
+                row_p.get('politica_id'),
+                row_p.get('politica_descricao'),
+                'sim' if bool(row_p.get('evento_ancora')) else '',
+                row_p.get('lote_final_planejamento'),
+                row_p.get('tipo_fonte_final'),
+                row_p.get('score_planejamento'),
+                row_p.get('status_planejamento'),
+                row_p.get('saldo_antes_planejamento'),
+                row_p.get('bruto_planejamento'),
+                row_p.get('imposto_planejamento'),
+                row_p.get('liquido_planejamento'),
+                row_p.get('saldo_remanescente_planejamento'),
+                'sim' if bool(row_p.get('pagamento_totalmente_coberto_planejamento')) else '',
+                'sim' if bool(row_p.get('mudou_vs_v103')) else '',
+                row_p.get('observacao_planejamento'),
+            ])
+    headers_planejamento = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Política', 'Descrição política', 'Evento-âncora', 'Lote final planejamento', 'Tipo fonte final', 'Score planejamento', 'Status planejamento', 'Saldo Antes planejamento', 'Bruto planejamento', 'Imposto planejamento', 'Líquido planejamento', 'Saldo Remanescente planejamento', 'Cobertura planejamento integral', 'Mudou vs V103', 'Observação planejamento']
+    _apply_table_style(ws_planejamento, headers_planejamento, rows_planejamento, freeze=True)
+
+    if quadro_politicas_full is not None and len(quadro_politicas_full):
+        rows_politicas = []
+        for _, row_pol in quadro_politicas_full.iterrows():
+            rows_politicas.append([
+                row_pol.get('politica_id'),
+                row_pol.get('politica_descricao'),
+                'sim' if bool(row_pol.get('cobertura_integral_ancora')) else '',
+                row_pol.get('liquido_coberto_ancora'),
+                row_pol.get('deficit_ancora'),
+                row_pol.get('pagamentos_cobertos_bloco'),
+                row_pol.get('deficit_total_bloco'),
+                row_pol.get('mudancas_vs_v103'),
+                row_pol.get('primeira_sem_cobertura_data'),
+                row_pol.get('primeira_sem_cobertura_pagamento'),
+            ])
+        _apply_table_style(ws_planejamento, ['Política', 'Descrição', 'Cobertura integral da âncora', 'Líquido coberto na âncora', 'Déficit da âncora', 'Pagamentos cobertos no bloco', 'Déficit total do bloco', 'Mudanças vs V103', 'Primeira sem cobertura', 'Pagamento da primeira sem cobertura'], rows_politicas, start_row=len(rows_planejamento)+4, title='Comparativo das políticas do bloco crítico')
 
     ws_melhores = wb.create_sheet('Melhores produtos')
     candidatos = tri.quadro_candidatos.copy().sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')

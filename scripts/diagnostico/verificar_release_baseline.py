@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V103'
-VERSAO_ANTERIOR = 'V102'
+VERSAO_VIGENTE = 'V104'
+VERSAO_ANTERIOR = 'V103'
 
 
 def repo_root() -> Path:
@@ -106,6 +106,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_auditoria_temporal_decisao_local.py',
         'scripts/diagnostico/inspecionar_reescolha_dinamica_pos_quebra.py',
         'scripts/diagnostico/inspecionar_heuristica_conjunta_parcial_bloco_critico.py',
+        'scripts/diagnostico/inspecionar_planejamento_conjunto_local_bloco_critico_v1.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py',
         'scripts/diagnostico/inspecionar_mapa_absorcao_legado.py',
         'scripts/diagnostico/inspecionar_mapa_execucao_principal_script2.py',
@@ -133,6 +134,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_auditoria_temporal_decisao_local.py',
         'scripts/inspecionar_reescolha_dinamica_pos_quebra.py',
         'scripts/inspecionar_heuristica_conjunta_parcial_bloco_critico.py',
+        'scripts/inspecionar_planejamento_conjunto_local_bloco_critico_v1.py',
         'scripts/inspecionar_comparativo_proxy_v2_v3.py',
         'scripts/inspecionar_mapa_absorcao_legado.py',
         'scripts/inspecionar_mapa_execucao_principal_script2.py',
@@ -152,6 +154,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'nucleo/auditoria_temporal_decisao_local.py',
         'nucleo/reescolha_dinamica_pos_quebra.py',
         'nucleo/heuristica_conjunta_parcial_bloco_critico.py',
+        'nucleo/planejamento_conjunto_local_bloco_critico_v1.py',
         'nucleo/switching_economico_shadow.py',
         'nucleo/resolver_hibrido_5p_shadow.py',
         'nucleo/benchmark_agrupado_individual_shadow.py',
