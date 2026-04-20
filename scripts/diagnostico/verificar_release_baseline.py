@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V107'
-VERSAO_ANTERIOR = 'V106'
+VERSAO_VIGENTE = 'V108'
+VERSAO_ANTERIOR = 'V107'
 
 
 def repo_root() -> Path:
@@ -31,7 +31,7 @@ def validar_indice_documental(base: Path) -> list[str]:
         'relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md',
         'relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md',
         'relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md',
-        'relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V107.md',
+        'relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md',
         'relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md',
         f'relatorios/atuais/BASELINE_FIXA_{VERSAO_VIGENTE}.md',
         f'relatorios/atuais/VALIDACAO_LOCAL_{VERSAO_VIGENTE}.md',

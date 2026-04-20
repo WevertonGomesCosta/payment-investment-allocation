@@ -433,23 +433,26 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         ('violações de pagamentos PROTEGIDA', resumo.get('violacoes_pagamentos_protegida', 0)),
         ('déficit líquido total central', resumo.get('deficit_liquido_total_central', 0.0)),
         ('mudanças vs decisão local', resumo.get('mudancas_vs_decisao_local', 0)),
+        ('fallbacks sem fonte viável', resumo.get('fallbacks_sem_fonte_viavel', 0)),
         ('patrimônio terminal proxy final', resumo.get('patrimonio_terminal_proxy_final', 0.0)),
         ('primeira sem cobertura', resumo.get('primeira_sem_cobertura_data')),
         ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento') or ''),
         ('primeira violação protegida', resumo.get('primeira_violation_protegida_data')),
         ('pagamento da primeira violação protegida', resumo.get('primeira_violation_protegida_pagamento') or ''),
+        ('primeiro fallback sem fonte viável', resumo.get('primeiro_fallback_sem_fonte_viavel_data')),
+        ('pagamento do primeiro fallback', resumo.get('primeiro_fallback_sem_fonte_viavel_pagamento') or ''),
     ])
     if amostra_mudancas:
         print('\n- amostra das mudanças da recomputação central vs decisão local:')
         imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Lote local', 'Lote central', 'Classe'],
+            ['Data', 'Descrição', 'Valor', 'Lote local', 'Lote central', 'Classe', 'Subclasse'],
             amostra_mudancas,
             limite=10,
         )
     if amostra_sem_cobertura:
         print('\n- amostra dos pagamentos ainda sem cobertura integral na frente central:')
         imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit'],
+            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit', 'Fallback'],
             amostra_sem_cobertura,
             limite=10,
         )

@@ -2,16 +2,21 @@
 
 Repositório de unificação incremental do motor de **pagamentos, aportes e switching** com base única, config central e rastreabilidade por lote.
 
-**Versão atual da baseline:** V107
+**Versão atual da baseline:** V108
 
-A V107 implementa a primeira camada da frente central após o saneamento contratual da V106: a **`recomputacao_sequencial_central_v1`**.
+A V108 recalibra a primeira camada da frente central, **`recomputacao_sequencial_central_v1`**, adicionando:
 
-## O que a V107 faz
+- penalidade explícita de escassez futura para pagamentos `PROTEGIDA`;
+- prioridade intraclasse no mesmo dia;
+- fallback auditável de **sem fonte viável**.
+
+## O que a V108 faz
 
 - recalcula a melhor fonte a cada pagamento futuro com **saldos residuais atualizados**;
 - compara alternativas pela **métrica canônica mínima central**;
+- introduz proteção mínima de curto prazo para `PROTEGIDA` futura;
 - mantém rastreabilidade por lote e por fonte;
-- preserva as camadas V103–V105 como **trilha experimental local**;
+- preserva V103–V105 como **trilha experimental local**;
 - não abre solver global completo.
 
 ## Frente central vs trilha experimental
@@ -32,11 +37,11 @@ A V107 implementa a primeira camada da frente central após o saneamento contrat
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
-- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V107.md`
-- `relatorios/atuais/BASELINE_FIXA_V107.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V107.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V107.md`
+- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
+- `relatorios/atuais/BASELINE_FIXA_V108.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V108.md`
 
-## Resumo operacional da V107
+## Resumo operacional da V108
 
-A V107 recoloca o projeto na frente central: em vez de otimizar âncoras locais isoladas, passa a comparar candidatos por uma régua mínima conjunta com foco em pagamentos `PROTEGIDA`, déficit total, cobertura integral e patrimônio terminal proxy.
+A V108 mantém a frente central como eixo principal e recalibra a `recomputacao_sequencial_central_v1` para reduzir violações de `PROTEGIDA` sem voltar a otimizar apenas o bloco crítico local.
