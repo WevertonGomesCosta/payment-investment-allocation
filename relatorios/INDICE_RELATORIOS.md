@@ -26,3 +26,12 @@
 - `relatorios/historico/validacoes/`
 - `relatorios/historico/estruturas/`
 - `relatorios/historico/auditorias_especificas/`
+
+## V105
+- atuais/BASELINE_FIXA_V105.md
+- atuais/VALIDACAO_LOCAL_V105.md
+- atuais/ESTRUTURA_REPOSITORIO_V105.md
+
+- relatorios/atuais/BASELINE_FIXA_V105.md
+- relatorios/atuais/VALIDACAO_LOCAL_V105.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V105.md

@@ -374,3 +374,47 @@ def render_secao_planejamento_conjunto_local(*, auditoria_planejamento=None, amo
             amostra_mudancas_vs_v103,
             limite=10,
         )
+
+
+def render_secao_microplanejamento_conjunto_v2(*, auditoria_microplanejamento=None, amostra_comparativo_politicas=None, amostra_mudancas_vs_v104=None):
+    auditoria_microplanejamento = auditoria_microplanejamento or {}
+    amostra_comparativo_politicas = amostra_comparativo_politicas or []
+    amostra_mudancas_vs_v104 = amostra_mudancas_vs_v104 or []
+    resumo = auditoria_microplanejamento.get('resumo', {})
+    imprimir_titulo('PAGAMENTOS FUTUROS — MICROPLANEJAMENTO CONJUNTO DO BLOCO CRÍTICO V2')
+    imprimir_pares([
+        ('pagamentos no bloco crítico', resumo.get('pagamentos_no_bloco_critico', 0)),
+        ('políticas avaliadas', resumo.get('politicas_avaliadas', 0)),
+        ('política escolhida', resumo.get('politica_escolhida') or ''),
+        ('descrição da política escolhida', resumo.get('descricao_politica_escolhida') or ''),
+        ('evento-âncora', resumo.get('evento_ancora_pagamento') or ''),
+        ('data do evento-âncora', resumo.get('evento_ancora_data')),
+        ('valor do evento-âncora', resumo.get('evento_ancora_valor')),
+        ('líquido coberto na âncora (escolhida)', resumo.get('liquido_coberto_ancora_escolhida', 0.0)),
+        ('déficit da âncora (escolhida)', resumo.get('deficit_ancora_escolhida', 0.0)),
+        ('cobertura integral da âncora', 'sim' if resumo.get('cobertura_integral_ancora_escolhida') else 'não'),
+        ('pagamentos cobertos no bloco (escolhida)', resumo.get('pagamentos_cobertos_bloco_escolhida', 0)),
+        ('déficit total do bloco (escolhida)', resumo.get('deficit_total_bloco_escolhida', 0.0)),
+        ('uso multifonte (escolhida)', resumo.get('uso_multifonte_escolhida', 0)),
+        ('reservas acionadas (escolhida)', resumo.get('reservas_acionadas_escolhida', 0)),
+        ('delta líquido da âncora vs V104', resumo.get('delta_liquido_ancora_vs_v104', 0.0)),
+        ('delta pagamentos cobertos vs V104', resumo.get('delta_pagamentos_cobertos_vs_v104', 0)),
+        ('primeira sem cobertura (escolhida)', resumo.get('primeira_sem_cobertura_data_escolhida')),
+        ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento_escolhida') or ''),
+        ('ganho material vs V104', 'sim' if resumo.get('ganho_material_vs_v104') else 'não'),
+        ('lotes de reserva explícitos', ', '.join(resumo.get('lotes_reserva_explicitos', []) or [])),
+    ])
+    if amostra_comparativo_politicas:
+        print('\n- comparativo sintético das políticas candidatas do microplanejamento v2:')
+        imprimir_tabela(
+            ['Política', 'Liquidez no Cartão Azul 20/05', 'Déficit do Cartão Azul 20/05', 'Pagamentos cobertos no bloco', 'Uso multifonte', 'Reservas acionadas'],
+            amostra_comparativo_politicas,
+            limite=10,
+        )
+    if amostra_mudancas_vs_v104:
+        print('\n- amostra das mudanças da política escolhida vs V104 no bloco crítico:')
+        imprimir_tabela(
+            ['Data', 'Descrição', 'Valor', 'Lote V104', 'Lote v2', 'Status v2'],
+            amostra_mudancas_vs_v104,
+            limite=10,
+        )

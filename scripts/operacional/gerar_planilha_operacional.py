@@ -227,11 +227,13 @@ def main() -> None:
     quadro_reescolha = contexto.reescolha_dinamica_pos_quebra.quadro_reescolha_dinamica.copy() if contexto.reescolha_dinamica_pos_quebra is not None else None
     quadro_heuristica = contexto.heuristica_conjunta_parcial_bloco_critico.quadro_heuristica_conjunta_parcial.copy() if contexto.heuristica_conjunta_parcial_bloco_critico is not None else None
     quadro_planejamento = contexto.planejamento_conjunto_local_bloco_critico_v1.quadro_planejamento_conjunto_local.copy() if contexto.planejamento_conjunto_local_bloco_critico_v1 is not None else None
+    quadro_microplanejamento = contexto.microplanejamento_conjunto_bloco_critico_v2.quadro_microplanejamento_conjunto.copy() if getattr(contexto, 'microplanejamento_conjunto_bloco_critico_v2', None) is not None else None
     mapa_decisao = {}
     mapa_temporal = {}
     mapa_reescolha = {}
     mapa_heuristica = {}
     mapa_planejamento = {}
+    mapa_microplanejamento = {}
     if quadro_decisao is not None and len(quadro_decisao):
         for _, row_dec in quadro_decisao.iterrows():
             mapa_decisao[str(row_dec.get('pagamento_id') or '').strip()] = row_dec.to_dict()
@@ -247,6 +249,9 @@ def main() -> None:
     if quadro_planejamento is not None and len(quadro_planejamento):
         for _, row_p in quadro_planejamento.iterrows():
             mapa_planejamento[str(row_p.get('pagamento_id') or '').strip()] = row_p.to_dict()
+    if quadro_microplanejamento is not None and len(quadro_microplanejamento):
+        for _, row_m in quadro_microplanejamento.iterrows():
+            mapa_microplanejamento[str(row_m.get('pagamento_id') or '').strip()] = row_m.to_dict()
     rows_futuro = []
     for item in gastos_futuros.to_dict('records'):
         data_evt = item.get('data')
@@ -258,6 +263,7 @@ def main() -> None:
         dinamico = mapa_reescolha.get(despesa_id, {})
         heuristica = mapa_heuristica.get(despesa_id, {})
         planejamento = mapa_planejamento.get(despesa_id, {})
+        microplanejamento = mapa_microplanejamento.get(despesa_id, {})
         rows_futuro.append([
             data_evt,
             item.get('descricao'),
@@ -320,10 +326,25 @@ def main() -> None:
             round(float(planejamento.get('liquido_planejamento') or 0.0), 2) if planejamento else '',
             round(float(planejamento.get('saldo_remanescente_planejamento') or 0.0), 2) if planejamento else '',
             'sim' if bool(planejamento.get('pagamento_totalmente_coberto_planejamento')) else '',
+            microplanejamento.get('politica_id', ''),
+            microplanejamento.get('politica_descricao', ''),
+            microplanejamento.get('lote_final_microplanejamento', ''),
+            microplanejamento.get('fontes_usadas_microplanejamento', ''),
+            'sim' if bool(microplanejamento.get('multifonte_microplanejamento')) else '',
+            microplanejamento.get('status_microplanejamento', ''),
+            microplanejamento.get('criterio_microplanejamento', ''),
+            microplanejamento.get('reserva_explicita_microplanejamento', ''),
+            round(float(microplanejamento.get('score_microplanejamento') or 0.0), 4) if microplanejamento and microplanejamento.get('score_microplanejamento') is not None else '',
+            round(float(microplanejamento.get('saldo_antes_microplanejamento') or 0.0), 2) if microplanejamento else '',
+            round(float(microplanejamento.get('bruto_microplanejamento') or 0.0), 2) if microplanejamento else '',
+            round(float(microplanejamento.get('imposto_microplanejamento') or 0.0), 2) if microplanejamento else '',
+            round(float(microplanejamento.get('liquido_microplanejamento') or 0.0), 2) if microplanejamento else '',
+            round(float(microplanejamento.get('saldo_remanescente_microplanejamento') or 0.0), 2) if microplanejamento else '',
+            'sim' if bool(microplanejamento.get('pagamento_totalmente_coberto_microplanejamento')) else '',
             dias_ate,
             'futuro/pendente',
         ])
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Lote final heurístico', 'Bloco crítico', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Política bloco crítico', 'Descrição política bloco crítico', 'Evento-âncora', 'Lote final planejamento local', 'Mudou vs V103', 'Status planejamento local', 'Score planejamento local', 'Saldo Antes planejamento local', 'Bruto planejamento local', 'Imposto planejamento local', 'Líquido planejamento local', 'Saldo Remanescente planejamento local', 'Cobertura planejamento local integral', 'Dias até evento', 'Status']
+    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Lote final heurístico', 'Bloco crítico', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Política bloco crítico', 'Descrição política bloco crítico', 'Evento-âncora', 'Lote final planejamento local', 'Mudou vs V103', 'Status planejamento local', 'Score planejamento local', 'Saldo Antes planejamento local', 'Bruto planejamento local', 'Imposto planejamento local', 'Líquido planejamento local', 'Saldo Remanescente planejamento local', 'Cobertura planejamento local integral', 'Política microplanejamento v2', 'Descrição política microplanejamento v2', 'Lote final microplanejamento v2', 'Fontes usadas microplanejamento v2', 'Multifonte microplanejamento v2', 'Status microplanejamento v2', 'Critério microplanejamento v2', 'Reserva explícita microplanejamento v2', 'Score microplanejamento v2', 'Saldo Antes microplanejamento v2', 'Bruto microplanejamento v2', 'Imposto microplanejamento v2', 'Líquido microplanejamento v2', 'Saldo Remanescente microplanejamento v2', 'Cobertura microplanejamento v2 integral', 'Dias até evento', 'Status']
     _apply_table_style(ws_futuro, headers_futuro, rows_futuro, freeze=True)
 
     ws_temporal = wb.create_sheet('Auditoria temporal')
@@ -470,6 +491,59 @@ def main() -> None:
                 row_pol.get('primeira_sem_cobertura_pagamento'),
             ])
         _apply_table_style(ws_planejamento, ['Política', 'Descrição', 'Cobertura integral da âncora', 'Líquido coberto na âncora', 'Déficit da âncora', 'Pagamentos cobertos no bloco', 'Déficit total do bloco', 'Mudanças vs V103', 'Primeira sem cobertura', 'Pagamento da primeira sem cobertura'], rows_politicas, start_row=len(rows_planejamento)+4, title='Comparativo das políticas do bloco crítico')
+
+    ws_micro = wb.create_sheet('Microplanejamento v2')
+    quadro_micro_full = contexto.microplanejamento_conjunto_bloco_critico_v2.quadro_microplanejamento_conjunto.copy() if getattr(contexto, 'microplanejamento_conjunto_bloco_critico_v2', None) is not None else None
+    quadro_micro_politicas = contexto.microplanejamento_conjunto_bloco_critico_v2.quadro_comparativo_politicas.copy() if getattr(contexto, 'microplanejamento_conjunto_bloco_critico_v2', None) is not None else None
+    rows_micro = []
+    if quadro_micro_full is not None and len(quadro_micro_full):
+        quadro_micro_full = quadro_micro_full.sort_values(by=['data_pagamento', 'pagamento_id'], kind='stable')
+        for _, row_m in quadro_micro_full.iterrows():
+            rows_micro.append([
+                row_m.get('data_pagamento'),
+                row_m.get('descricao_pagamento'),
+                row_m.get('pagamento_id'),
+                row_m.get('valor_pagamento'),
+                row_m.get('politica_id'),
+                row_m.get('politica_descricao'),
+                'sim' if bool(row_m.get('evento_ancora')) else '',
+                row_m.get('lote_final_microplanejamento'),
+                row_m.get('fontes_usadas_microplanejamento'),
+                'sim' if bool(row_m.get('multifonte_microplanejamento')) else '',
+                row_m.get('status_microplanejamento'),
+                row_m.get('criterio_microplanejamento'),
+                row_m.get('reserva_explicita_microplanejamento'),
+                row_m.get('score_microplanejamento'),
+                row_m.get('saldo_antes_microplanejamento'),
+                row_m.get('bruto_microplanejamento'),
+                row_m.get('imposto_microplanejamento'),
+                row_m.get('liquido_microplanejamento'),
+                row_m.get('saldo_remanescente_microplanejamento'),
+                'sim' if bool(row_m.get('pagamento_totalmente_coberto_microplanejamento')) else '',
+                'sim' if bool(row_m.get('mudou_vs_v104')) else '',
+                row_m.get('observacao_microplanejamento'),
+            ])
+    headers_micro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Política', 'Descrição política', 'Evento-âncora', 'Lote final microplanejamento', 'Fontes usadas', 'Multifonte', 'Status microplanejamento', 'Critério microplanejamento', 'Reserva explícita', 'Score microplanejamento', 'Saldo Antes microplanejamento', 'Bruto microplanejamento', 'Imposto microplanejamento', 'Líquido microplanejamento', 'Saldo Remanescente microplanejamento', 'Cobertura microplanejamento integral', 'Mudou vs V104', 'Observação microplanejamento']
+    _apply_table_style(ws_micro, headers_micro, rows_micro, freeze=True)
+    rows_micro_politicas = []
+    if quadro_micro_politicas is not None and len(quadro_micro_politicas):
+        quadro_micro_politicas = quadro_micro_politicas.sort_values(by=['cobertura_integral_ancora', 'liquido_coberto_ancora', 'pagamentos_cobertos_bloco'], ascending=[False, False, False], kind='stable')
+        for _, row_p in quadro_micro_politicas.iterrows():
+            primeira = row_p.get('primeira_sem_cobertura_pagamento') or ''
+            rows_micro_politicas.append([
+                row_p.get('politica_id'),
+                row_p.get('politica_descricao'),
+                'sim' if bool(row_p.get('cobertura_integral_ancora')) else '',
+                row_p.get('liquido_coberto_ancora'),
+                row_p.get('deficit_ancora'),
+                row_p.get('pagamentos_cobertos_bloco'),
+                row_p.get('deficit_total_bloco'),
+                row_p.get('uso_multifonte'),
+                row_p.get('reservas_acionadas'),
+                row_p.get('primeira_sem_cobertura_data'),
+                primeira,
+            ])
+        _apply_table_style(ws_micro, ['Política', 'Descrição', 'Cobertura integral da âncora', 'Líquido coberto na âncora', 'Déficit da âncora', 'Pagamentos cobertos no bloco', 'Déficit total do bloco', 'Uso multifonte', 'Reservas acionadas', 'Primeira sem cobertura', 'Pagamento da primeira sem cobertura'], rows_micro_politicas, start_row=len(rows_micro)+4, title='Comparativo das políticas do microplanejamento v2')
 
     ws_melhores = wb.create_sheet('Melhores produtos')
     candidatos = tri.quadro_candidatos.copy().sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')

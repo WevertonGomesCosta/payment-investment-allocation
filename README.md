@@ -4,9 +4,9 @@ Repositório controlado para a unificação incremental de pagamentos, recebidos
 
 ## Estado atual do repositório
 
-**Versão atual da baseline:** V104
+**Versão atual da baseline:** V105
 
-A V104 preserva a cadeia auditável da baseline anterior e adiciona uma camada de **planejamento conjunto local do bloco crítico** entre 20/04/2026 e 20/05/2026. Essa camada continua sem solver global, compara poucas políticas candidatas de consumo e preservação de lotes e seleciona a melhor segundo a cobertura do **Cartão Azul de 20/05**, a cobertura do bloco e o déficit total.
+A V105 preserva a cadeia auditável da baseline anterior e adiciona uma camada de **microplanejamento conjunto do bloco crítico v2** entre 20/04/2026 e 20/05/2026. Essa camada continua sem solver global, embute multifonte de forma controlada, usa reservas explícitas de lotes estratégicos e compara poucas políticas candidatas com meta hierárquica centrada na cobertura do **Cartão Azul de 20/05**.
 
 ## Gate obrigatório antes de cada entrega
 
