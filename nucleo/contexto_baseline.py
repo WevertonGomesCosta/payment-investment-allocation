@@ -27,7 +27,7 @@ from nucleo.heuristica_conjunta_parcial_bloco_critico import carregar_heuristica
 from nucleo.planejamento_conjunto_local_bloco_critico_v1 import carregar_planejamento_conjunto_local_bloco_critico_v1
 from nucleo.microplanejamento_conjunto_bloco_critico_v2 import carregar_microplanejamento_conjunto_bloco_critico_v2
 from nucleo.recomputacao_sequencial_central_v1 import carregar_recomputacao_sequencial_central_v1
-from nucleo.recomputacao_sequencial_central_v2 import carregar_recomputacao_sequencial_central_v2
+from nucleo.alocacao_intradiaria_pacote_v1 import carregar_alocacao_intradiaria_pacote_v1
 from nucleo.config_utils import obter_config
 from nucleo.caixa_recebidos_auditaveis import (
     materializar_fontes_elegiveis_pagamento,
@@ -56,7 +56,7 @@ class ContextoBaseline:
     planejamento_conjunto_local_bloco_critico_v1: Any
     microplanejamento_conjunto_bloco_critico_v2: Any
     recomputacao_sequencial_central_v1: Any
-    recomputacao_sequencial_central_v2: Any
+    alocacao_intradiaria_pacote_v1: Any
     switching_shadow: Any
     switching_economico_shadow: Any
     resolver_hibrido_5p_shadow: Any
@@ -235,18 +235,19 @@ def carregar_contexto_baseline(
         carteira_canonica=carteira_canonica,
         proxy_version='v3',
     ) if decisao_local_v1 is not None and replay_passado is not None else None
-    recomputacao_sequencial_central_v2 = carregar_recomputacao_sequencial_central_v2(
+    alocacao_intradiaria_pacote_v1 = carregar_alocacao_intradiaria_pacote_v1(
         dados_operacionais,
         fontes_elegiveis_pagamento,
         saldo_disponivel_geral,
         decisao_local_v1,
         replay_passado,
+        recomputacao_sequencial_central_v1,
         data_referencia=contexto_execucao.data_referencia,
         tabela_iof=construir_tabela_iof(pacote_config.conteudo),
         faixas_ir=construir_faixas_ir(pacote_config.conteudo),
         carteira_canonica=carteira_canonica,
         proxy_version='v3',
-    ) if decisao_local_v1 is not None and replay_passado is not None else None
+    ) if decisao_local_v1 is not None and replay_passado is not None and recomputacao_sequencial_central_v1 is not None else None
     
     microplanejamento_conjunto_bloco_critico_v2 = carregar_microplanejamento_conjunto_bloco_critico_v2(
         dados_operacionais,
@@ -326,7 +327,7 @@ def carregar_contexto_baseline(
         planejamento_conjunto_local_bloco_critico_v1=planejamento_conjunto_local_bloco_critico_v1,
         microplanejamento_conjunto_bloco_critico_v2=microplanejamento_conjunto_bloco_critico_v2,
         recomputacao_sequencial_central_v1=recomputacao_sequencial_central_v1,
-        recomputacao_sequencial_central_v2=recomputacao_sequencial_central_v2,
+        alocacao_intradiaria_pacote_v1=alocacao_intradiaria_pacote_v1,
         switching_shadow=switching_shadow,
         switching_economico_shadow=switching_economico_shadow,
         resolver_hibrido_5p_shadow=resolver_hibrido_5p_shadow,

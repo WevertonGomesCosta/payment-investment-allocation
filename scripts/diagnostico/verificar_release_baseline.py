@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V112'
-VERSAO_ANTERIOR = 'V108'
+VERSAO_VIGENTE = 'V113'
+VERSAO_ANTERIOR = 'V112'
 
 
 def repo_root() -> Path:
@@ -31,7 +31,8 @@ def validar_indice_documental(base: Path) -> list[str]:
         'relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md',
         'relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md',
         'relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md',
-        'relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V112.md',
+        'relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md',
+        'relatorios/atuais/ALOCACAO_INTRADIARIA_PACOTE_V113.md',
         'relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md',
         f'relatorios/atuais/BASELINE_FIXA_{VERSAO_VIGENTE}.md',
         f'relatorios/atuais/VALIDACAO_LOCAL_{VERSAO_VIGENTE}.md',
@@ -111,7 +112,8 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/diagnostico/inspecionar_heuristica_conjunta_parcial_bloco_critico.py',
         'scripts/diagnostico/inspecionar_planejamento_conjunto_local_bloco_critico_v1.py',
         'scripts/diagnostico/inspecionar_microplanejamento_conjunto_bloco_critico_v2.py',
-        'scripts/diagnostico/inspecionar_recomputacao_sequencial_central_v2.py',
+        'scripts/diagnostico/inspecionar_recomputacao_sequencial_central_v1.py',
+        'scripts/diagnostico/inspecionar_alocacao_intradiaria_pacote_v1.py',
         'scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py',
         'scripts/diagnostico/inspecionar_mapa_absorcao_legado.py',
         'scripts/diagnostico/inspecionar_mapa_execucao_principal_script2.py',
@@ -141,7 +143,8 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/inspecionar_heuristica_conjunta_parcial_bloco_critico.py',
         'scripts/inspecionar_planejamento_conjunto_local_bloco_critico_v1.py',
         'scripts/inspecionar_microplanejamento_conjunto_bloco_critico_v2.py',
-        'scripts/inspecionar_recomputacao_sequencial_central_v2.py',
+        'scripts/inspecionar_recomputacao_sequencial_central_v1.py',
+        'scripts/inspecionar_alocacao_intradiaria_pacote_v1.py',
         'scripts/inspecionar_comparativo_proxy_v2_v3.py',
         'scripts/inspecionar_mapa_absorcao_legado.py',
         'scripts/inspecionar_mapa_execucao_principal_script2.py',
@@ -163,7 +166,8 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'nucleo/heuristica_conjunta_parcial_bloco_critico.py',
         'nucleo/planejamento_conjunto_local_bloco_critico_v1.py',
         'nucleo/microplanejamento_conjunto_bloco_critico_v2.py',
-        'nucleo/recomputacao_sequencial_central_v2.py',
+        'nucleo/recomputacao_sequencial_central_v1.py',
+        'nucleo/alocacao_intradiaria_pacote_v1.py',
         'nucleo/switching_economico_shadow.py',
         'nucleo/resolver_hibrido_5p_shadow.py',
         'nucleo/benchmark_agrupado_individual_shadow.py',

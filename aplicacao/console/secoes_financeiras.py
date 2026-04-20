@@ -458,41 +458,34 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         )
 
 
-def render_secao_recomputacao_sequencial_central_v2(*, auditoria_central=None, amostra_mudancas=None, amostra_sem_cobertura=None):
-    auditoria_central = auditoria_central or {}
+def render_secao_alocacao_intradiaria_pacote_v1(*, auditoria_pacote=None, amostra_pacotes=None, amostra_mudancas=None, amostra_sem_cobertura=None):
+    auditoria_pacote = auditoria_pacote or {}
+    amostra_pacotes = amostra_pacotes or []
     amostra_mudancas = amostra_mudancas or []
     amostra_sem_cobertura = amostra_sem_cobertura or []
-    resumo = auditoria_central.get('resumo', {})
-    imprimir_titulo('FRENTE CENTRAL — RECOMPUTAÇÃO SEQUENCIAL CENTRAL V2')
+    resumo = auditoria_pacote.get('resumo', {})
+    imprimir_titulo('FRENTE CENTRAL — ALOCAÇÃO INTRADIÁRIA POR PACOTE V1')
     imprimir_pares([
         ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
-        ('pagamentos cobertos integralmente', resumo.get('pagamentos_cobertos_integral_central', 0)),
-        ('pagamentos sem cobertura integral', resumo.get('pagamentos_sem_cobertura_integral', 0)),
-        ('violações de pagamentos PROTEGIDA', resumo.get('violacoes_pagamentos_protegida', 0)),
-        ('déficit líquido total central', resumo.get('deficit_liquido_total_central', 0.0)),
+        ('datas com pacote', resumo.get('datas_com_pacote', 0)),
+        ('políticas avaliadas no total', resumo.get('politicas_avaliadas_total', 0)),
+        ('pagamentos cobertos integralmente', resumo.get('pagamentos_cobertos_integral_pacote', 0)),
+        ('pagamentos sem cobertura integral', resumo.get('pagamentos_sem_cobertura_integral_pacote', 0)),
+        ('violações de pagamentos PROTEGIDA', resumo.get('violacoes_pagamentos_protegida_pacote', 0)),
+        ('déficit líquido total do pacote', resumo.get('deficit_liquido_total_pacote', 0.0)),
+        ('mudanças vs central V108', resumo.get('mudancas_vs_central_v108', 0)),
         ('mudanças vs decisão local', resumo.get('mudancas_vs_decisao_local', 0)),
-        ('fallbacks sem fonte viável', resumo.get('fallbacks_sem_fonte_viavel', 0)),
-        ('fontes críticas para protegida', resumo.get('fontes_criticas_para_protegida', 0)),
-        ('reserva crítica total observada', resumo.get('reserva_critica_total_observada', 0.0)),
-        ('patrimônio terminal proxy final', resumo.get('patrimonio_terminal_proxy_final', 0.0)),
         ('primeira sem cobertura', resumo.get('primeira_sem_cobertura_data')),
         ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento') or ''),
         ('primeira violação protegida', resumo.get('primeira_violation_protegida_data')),
         ('pagamento da primeira violação protegida', resumo.get('primeira_violation_protegida_pagamento') or ''),
-        ('primeiro fallback sem fonte viável', resumo.get('primeiro_fallback_sem_fonte_viavel_data')),
-        ('pagamento do primeiro fallback', resumo.get('primeiro_fallback_sem_fonte_viavel_pagamento') or ''),
     ])
+    if amostra_pacotes:
+        print('\n- amostra dos pacotes diários escolhidos:')
+        imprimir_tabela(['Data', 'Política', 'Cobertos', 'Sem cobertura', 'Viol. PROT', 'Déficit'], amostra_pacotes, limite=10)
     if amostra_mudancas:
-        print('\n- amostra das mudanças da recomputação central v2 vs decisão local:')
-        imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Lote local', 'Lote central', 'Classe', 'Subclasse'],
-            amostra_mudancas,
-            limite=10,
-        )
+        print('\n- amostra das mudanças do pacote vs central V108:')
+        imprimir_tabela(['Data', 'Descrição', 'Valor', 'Lote V108', 'Lote pacote', 'Classe', 'Ordem'], amostra_mudancas, limite=10)
     if amostra_sem_cobertura:
-        print('\n- amostra dos pagamentos ainda sem cobertura integral na frente central v2:')
-        imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit', 'Fallback'],
-            amostra_sem_cobertura,
-            limite=10,
-        )
+        print('\n- amostra dos pagamentos ainda sem cobertura integral no pacote intradiário:')
+        imprimir_tabela(['Data', 'Descrição', 'Valor', 'Classe', 'Lote pacote', 'Déficit', 'Fallback'], amostra_sem_cobertura, limite=10)
