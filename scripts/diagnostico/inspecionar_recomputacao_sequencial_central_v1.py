@@ -34,8 +34,10 @@ def main() -> int:
     print(f"deficit_liquido_total_central: {resumo.get('deficit_liquido_total_central', 0.0)}")
     print(f"mudancas_vs_decisao_local: {resumo.get('mudancas_vs_decisao_local', 0)}")
     print(f"patrimonio_terminal_proxy_final: {resumo.get('patrimonio_terminal_proxy_final', 0.0)}")
+    print(f"fontes_preservadas_por_reserva: {resumo.get('fontes_preservadas_por_reserva', 0)}")
     print(f"primeira_sem_cobertura: {resumo.get('primeira_sem_cobertura_data')} | {resumo.get('primeira_sem_cobertura_pagamento')}")
     print(f"primeira_violacao_protegida: {resumo.get('primeira_violation_protegida_data')} | {resumo.get('primeira_violation_protegida_pagamento')}")
+    print(f"primeira_fonte_preservada_por_reserva: {resumo.get('primeira_fonte_preservada_por_reserva_data')} | {resumo.get('primeira_fonte_preservada_por_reserva_pagamento')} | {resumo.get('primeira_fonte_preservada_por_reserva_fonte')}")
     if not auditoria.get('validacao', {}).get('ok', False):
         print(f"erros: {auditoria.get('validacao', {}).get('erros', [])}")
         return 1

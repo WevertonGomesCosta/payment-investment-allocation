@@ -434,6 +434,7 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         ('déficit líquido total central', resumo.get('deficit_liquido_total_central', 0.0)),
         ('mudanças vs decisão local', resumo.get('mudancas_vs_decisao_local', 0)),
         ('fallbacks sem fonte viável', resumo.get('fallbacks_sem_fonte_viavel', 0)),
+        ('fontes preservadas por reserva', resumo.get('fontes_preservadas_por_reserva', 0)),
         ('patrimônio terminal proxy final', resumo.get('patrimonio_terminal_proxy_final', 0.0)),
         ('primeira sem cobertura', resumo.get('primeira_sem_cobertura_data')),
         ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento') or ''),
@@ -441,6 +442,9 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
         ('pagamento da primeira violação protegida', resumo.get('primeira_violation_protegida_pagamento') or ''),
         ('primeiro fallback sem fonte viável', resumo.get('primeiro_fallback_sem_fonte_viavel_data')),
         ('pagamento do primeiro fallback', resumo.get('primeiro_fallback_sem_fonte_viavel_pagamento') or ''),
+        ('primeira fonte preservada por reserva', resumo.get('primeira_fonte_preservada_por_reserva_data')),
+        ('pagamento da primeira reserva', resumo.get('primeira_fonte_preservada_por_reserva_pagamento') or ''),
+        ('fonte preservada na primeira reserva', resumo.get('primeira_fonte_preservada_por_reserva_fonte') or ''),
     ])
     if amostra_mudancas:
         print('\n- amostra das mudanças da recomputação central vs decisão local:')
@@ -452,7 +456,7 @@ def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, a
     if amostra_sem_cobertura:
         print('\n- amostra dos pagamentos ainda sem cobertura integral na frente central:')
         imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit', 'Fallback'],
+            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit', 'Fallback', 'Reserva', 'Motivo'],
             amostra_sem_cobertura,
             limite=10,
         )

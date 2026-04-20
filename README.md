@@ -2,15 +2,18 @@
 
 Repositório de unificação incremental do motor de **pagamentos, aportes e switching** com base única, config central e rastreabilidade por lote.
 
-**Versão atual da baseline:** V108
+**Versão atual da baseline:** V109
 
-A V108 recalibra a primeira camada da frente central, **`recomputacao_sequencial_central_v1`**, adicionando:
+A V109 recalibra a primeira camada da frente central, **`recomputacao_sequencial_central_v1`**, adicionando:
+- proteção reforçada para `SEMIPROTEGIDA_A_CARTAO` material
+- cap na penalidade de escassez futura para `PROTEGIDA`
+- distinção auditável entre `sem fonte viável` e `fonte preservada por reserva`
 
 - penalidade explícita de escassez futura para pagamentos `PROTEGIDA`;
 - prioridade intraclasse no mesmo dia;
 - fallback auditável de **sem fonte viável**.
 
-## O que a V108 faz
+## O que a V109 faz
 
 - recalcula a melhor fonte a cada pagamento futuro com **saldos residuais atualizados**;
 - compara alternativas pela **métrica canônica mínima central**;
@@ -37,11 +40,11 @@ A V108 recalibra a primeira camada da frente central, **`recomputacao_sequencial
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
-- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
-- `relatorios/atuais/BASELINE_FIXA_V108.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V108.md`
+- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V109.md`
+- `relatorios/atuais/BASELINE_FIXA_V109.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V109.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V109.md`
 
-## Resumo operacional da V108
+## Resumo operacional da V109
 
-A V108 mantém a frente central como eixo principal e recalibra a `recomputacao_sequencial_central_v1` para reduzir violações de `PROTEGIDA` sem voltar a otimizar apenas o bloco crítico local.
+A V109 mantém a frente central como eixo principal e recalibra a `recomputacao_sequencial_central_v1` para reduzir violações de `PROTEGIDA` sem colapsar tanto cartões materiais de curto prazo e sem voltar a otimizar apenas o bloco crítico local.
