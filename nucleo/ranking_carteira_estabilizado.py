@@ -10,6 +10,7 @@ import pandas as pd
 
 from nucleo.carteira_canonica import PacoteCarteiraCanonica, normalizar_nome_produto
 from nucleo.leitor_planilha import PacotePlanilha
+from nucleo.utilitarios_neutros import para_float_monetario
 
 
 @dataclass(slots=True)
@@ -100,12 +101,16 @@ def carregar_ranking_carteira_estabilizado(
     numeric_cols = [
         'Horizonte_Efetivo_Dias', 'SAOF_Final', 'Rank_Consolidado_Final_Ativos', 'Rank_Bucket_Final_Ativos',
         'Rank_Bucket_Ativos', 'Rank_Consolidado_Ativos', 'Taxa_Base_CDI', 'Taxa_Bonus_CDI', 'Prazo_Dias',
-        'Carência_Dias', 'Aplicação_Mínima', 'Aplicação_Máxima', 'SAOF', 'Retorno_Proxy_aa', 'Score_Retorno_Proxy',
+        'Carência_Dias', 'SAOF', 'Retorno_Proxy_aa', 'Score_Retorno_Proxy',
         'Fit_Liquidez', 'Fit_Ticket', 'Proteção_Estrutural', 'Risco_Real_Score', 'Risco_Proteção', 'Eficiência_Fiscal', 'Robustez_Operacional'
     ]
     for col in numeric_cols:
         if col in df.columns:
             df[col] = _to_num(df[col])
+    if 'Aplicação_Mínima' in df.columns:
+        df['Aplicação_Mínima'] = df['Aplicação_Mínima'].apply(lambda x: float(para_float_monetario(x, 0.0) or 0.0))
+    if 'Aplicação_Máxima' in df.columns:
+        df['Aplicação_Máxima'] = df['Aplicação_Máxima'].apply(lambda x: float(para_float_monetario(x, 0.0) or 0.0))
 
     df['Ativo_bool'] = df['Ativo'].map(_bool_sim)
     df['Elegível_SAOF_bool'] = df['Elegível_SAOF'].map(_bool_sim)
@@ -154,9 +159,19 @@ def carregar_ranking_carteira_estabilizado(
     destinos['rank_destino'] = _to_num(destinos['Rank_Consolidado_Prazo_Ativos']).astype('Int64')
     destinos['carencia_dias'] = _to_num(destinos.get('carencia_dias', destinos.get('Carência_Dias', pd.Series(dtype=float)))).fillna(0).astype(int)
     destinos['liquidez_dias'] = _to_num(destinos.get('liquidez_dias', destinos.get('Carência_Dias', pd.Series(dtype=float)))).fillna(0).astype(int)
+    destinos['aplicacao_minima'] = destinos.get('Aplicação_Mínima', pd.Series(dtype=object)).apply(lambda x: float(para_float_monetario(x, 0.0) or 0.0)).round(2)
+    destinos['aplicacao_maxima'] = destinos.get('Aplicação_Máxima', pd.Series(dtype=object)).apply(lambda x: float(para_float_monetario(x, 0.0) or 0.0)).round(2)
+    destinos['somente_combo'] = destinos.get('Somente_Combo', pd.Series(dtype=object)).map(_bool_sim).fillna(False)
+    destinos['tipo_produto'] = destinos.get('Tipo', pd.Series(dtype=object)).fillna('').astype(str)
+    destinos['produto_base'] = destinos.get('Produto_Base', pd.Series(dtype=object)).fillna('').astype(str)
+    destinos['produto_bonus'] = destinos.get('Produto_Bonus', pd.Series(dtype=object)).fillna('').astype(str)
+    destinos['ratio_base'] = _to_num(destinos.get('Ratio_Base', pd.Series(dtype=float))).fillna(0.0)
+    destinos['ratio_bonus'] = _to_num(destinos.get('Ratio_Bonus', pd.Series(dtype=float))).fillna(0.0)
     destinos = destinos[[
         'rank_destino', 'produto_key', 'Nome', 'score_final', 'proxy_terminal_destino', 'retorno_anual_proxy',
-        'liquidez_dias', 'carencia_dias', 'taxa_base_cdi', 'taxa_bonus_cdi', 'Bucket_SAOF', 'SAOF_Final_Prazo',
+        'liquidez_dias', 'carencia_dias', 'aplicacao_minima', 'aplicacao_maxima', 'somente_combo',
+        'tipo_produto', 'produto_base', 'produto_bonus', 'ratio_base', 'ratio_bonus',
+        'taxa_base_cdi', 'taxa_bonus_cdi', 'Bucket_SAOF', 'SAOF_Final_Prazo',
         'Rank_Consolidado_Final_Ativos', 'Status_Confirmação', 'Campos_Pendentes'
     ]].rename(columns={'Nome': 'nome'})
 

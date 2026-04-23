@@ -38,7 +38,12 @@ class AcaoSwitchingTemporalCandidata:
     retorno_anual_origem_estimado: float = 0.0
     score_ranqueamento_economico: float = 0.0
     rank_destino_sugerido: int = 0
-    status_modelo: str = 'integral_multidestino_v127'
+    aplicacao_minima_destino: float = 0.0
+    aplicacao_maxima_destino: float = 0.0
+    somente_combo_destino: bool = False
+    atende_ticket_individual: bool = True
+    motivo_bloqueio_ticket_individual: str = ''
+    status_modelo: str = 'integral_multidestino_v129'
 
     def para_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -260,6 +265,20 @@ def planejar_switching_temporal_v1(
             )
             liquidez_dias_destino = int(produto_destino.get('liquidez_dias') or 0)
             carencia_dias_destino = int(produto_destino.get('carencia_dias') or 0)
+            aplicacao_minima_destino = round(float(produto_destino.get('aplicacao_minima') or 0.0), 2)
+            aplicacao_maxima_destino = round(float(produto_destino.get('aplicacao_maxima') or 0.0), 2)
+            somente_combo_destino = bool(produto_destino.get('somente_combo') or False)
+            atende_ticket_individual = True
+            motivo_ticket_individual = ''
+            if aplicacao_minima_destino > 0.0 and valor_migrado + 1e-9 < aplicacao_minima_destino:
+                atende_ticket_individual = False
+                motivo_ticket_individual = 'abaixo_da_aplicacao_minima'
+            elif aplicacao_maxima_destino > 0.0 and valor_migrado - 1e-9 > aplicacao_maxima_destino:
+                atende_ticket_individual = False
+                motivo_ticket_individual = 'acima_da_aplicacao_maxima'
+            elif somente_combo_destino:
+                atende_ticket_individual = False
+                motivo_ticket_individual = 'somente_combo'
             patrimonio_terminal_destino = _projetar_valor_terminal(valor_migrado, retorno_anual_destino, dias_restantes)
             data_disponibilidade_destino = max(
                 data_acao,
@@ -325,7 +344,12 @@ def planejar_switching_temporal_v1(
                     retorno_anual_origem_estimado=retorno_anual_origem,
                     score_ranqueamento_economico=ganho_terminal_economico,
                     rank_destino_sugerido=int(produto_destino.get('rank_destino') or rank_destino),
-                    status_modelo='integral_multidestino_v127',
+                    aplicacao_minima_destino=aplicacao_minima_destino,
+                    aplicacao_maxima_destino=aplicacao_maxima_destino,
+                    somente_combo_destino=somente_combo_destino,
+                    atende_ticket_individual=atende_ticket_individual,
+                    motivo_bloqueio_ticket_individual=motivo_ticket_individual,
+                    status_modelo='integral_multidestino_v129',
                 )
             )
 
@@ -352,6 +376,20 @@ def planejar_switching_temporal_v1(
             )
             liquidez_dias_destino = int(produto_destino.get('liquidez_dias') or 0)
             carencia_dias_destino = int(produto_destino.get('carencia_dias') or 0)
+            aplicacao_minima_destino = round(float(produto_destino.get('aplicacao_minima') or 0.0), 2)
+            aplicacao_maxima_destino = round(float(produto_destino.get('aplicacao_maxima') or 0.0), 2)
+            somente_combo_destino = bool(produto_destino.get('somente_combo') or False)
+            atende_ticket_individual = True
+            motivo_ticket_individual = ''
+            if aplicacao_minima_destino > 0.0 and valor_disponivel + 1e-9 < aplicacao_minima_destino:
+                atende_ticket_individual = False
+                motivo_ticket_individual = 'abaixo_da_aplicacao_minima'
+            elif aplicacao_maxima_destino > 0.0 and valor_disponivel - 1e-9 > aplicacao_maxima_destino:
+                atende_ticket_individual = False
+                motivo_ticket_individual = 'acima_da_aplicacao_maxima'
+            elif somente_combo_destino:
+                atende_ticket_individual = False
+                motivo_ticket_individual = 'somente_combo'
             patrimonio_terminal_destino = _projetar_valor_terminal(valor_disponivel, retorno_anual_destino, dias_restantes)
             data_disponibilidade_destino = max(
                 data_acao,
@@ -413,7 +451,12 @@ def planejar_switching_temporal_v1(
                     retorno_anual_origem_estimado=0.0,
                     score_ranqueamento_economico=ganho_terminal_economico,
                     rank_destino_sugerido=int(produto_destino.get('rank_destino') or rank_destino),
-                    status_modelo='integral_multidestino_v127',
+                    aplicacao_minima_destino=aplicacao_minima_destino,
+                    aplicacao_maxima_destino=aplicacao_maxima_destino,
+                    somente_combo_destino=somente_combo_destino,
+                    atende_ticket_individual=atende_ticket_individual,
+                    motivo_bloqueio_ticket_individual=motivo_ticket_individual,
+                    status_modelo='integral_multidestino_v129',
                 )
             )
 

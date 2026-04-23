@@ -68,3 +68,7 @@
 - `relatorios/atuais/VALIDACAO_LOCAL_V128.md`
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V128.md`
 - `relatorios/atuais/AVALIACAO_DIARIA_DATA_OTIMA_SWITCHING_V128.md`
+- `relatorios/atuais/AUDITORIA_PARAMETROS_PRODUTOS_SWITCHING_V129.md` — auditoria dos parâmetros de produto no switching temporal, com foco em ticket mínimo/máximo e reavaliação focal da janela crítica.
+- `relatorios/atuais/BASELINE_FIXA_V129.md` — baseline fixa da V129.
+- `relatorios/atuais/VALIDACAO_LOCAL_V129.md` — validação local da V129.
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V129.md` — estrutura do repositório na V129.

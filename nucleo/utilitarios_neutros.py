@@ -122,12 +122,33 @@ def para_float_monetario(valor: Any, default: float = 0.0) -> float:
         texto = str(valor).strip()
         if not texto or texto.lower() in TEXTOS_NULOS_PADRAO:
             return default
-        texto = texto.replace('R$', '').replace('%', '').replace(' ', '')
-        if ',' in texto and '.' in texto:
-            texto = texto.replace('.', '').replace(',', '.')
-        elif ',' in texto:
-            texto = texto.replace(',', '.')
-        return float(texto)
+        texto = (
+            texto.replace('R$', '')
+            .replace('%', '')
+            .replace(' ', '')
+            .replace('\u00a0', '')
+        )
+        if not texto:
+            return default
+
+        sinal = -1.0 if texto.startswith('-') else 1.0
+        if texto[:1] in {'+', '-'}:
+            texto = texto[1:]
+
+        texto = ''.join(ch for ch in texto if ch.isdigit() or ch in {'.', ','})
+        if not texto:
+            return default
+
+        separadores = [i for i, ch in enumerate(texto) if ch in {'.', ','}]
+        if separadores:
+            ultimo = separadores[-1]
+            parte_inteira = ''.join(ch for ch in texto[:ultimo] if ch.isdigit())
+            parte_decimal = ''.join(ch for ch in texto[ultimo + 1:] if ch.isdigit())
+            if parte_decimal:
+                texto = f"{parte_inteira}.{parte_decimal}"
+            else:
+                texto = parte_inteira
+        return sinal * float(texto)
     except Exception:
         return default
 

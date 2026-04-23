@@ -1,0 +1,89 @@
+{
+  "top5_destinos": [
+    {
+      "rank_destino": 1,
+      "nome": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "aplicacao_minima": 1.0,
+      "aplicacao_maxima": 10000.0,
+      "retorno_anual_proxy": 16.8
+    },
+    {
+      "rank_destino": 2,
+      "nome": "CDB BMG Escalonado - até 109% CDI - 5 anos",
+      "aplicacao_minima": 50.0,
+      "aplicacao_maxima": 0.0,
+      "retorno_anual_proxy": 14.7
+    },
+    {
+      "rank_destino": 3,
+      "nome": "CDB Sofisa 105%",
+      "aplicacao_minima": 1.0,
+      "aplicacao_maxima": 0.0,
+      "retorno_anual_proxy": 14.7
+    },
+    {
+      "rank_destino": 4,
+      "nome": "Combo PicPay 100-120 3m",
+      "aplicacao_minima": 300.0,
+      "aplicacao_maxima": 0.0,
+      "retorno_anual_proxy": 16.8
+    },
+    {
+      "rank_destino": 5,
+      "nome": "Combo PicPay 100-120 6m",
+      "aplicacao_minima": 300.0,
+      "aplicacao_maxima": 0.0,
+      "retorno_anual_proxy": 16.8
+    }
+  ],
+  "xp150_invalidos_2026_04_30": [
+    {
+      "cenario": "Lote 3000 mar. V",
+      "valor_total_migrado": 3071.88,
+      "aplicacao_minima_destino": 10000.0,
+      "ticket_valido": false
+    },
+    {
+      "cenario": "Lote 3000 mar. B + Lote 3000 mar. V",
+      "valor_total_migrado": 6141.58,
+      "aplicacao_minima_destino": 10000.0,
+      "ticket_valido": false
+    },
+    {
+      "cenario": "Lote 3000 mar. V + Lote 8500 mar.",
+      "valor_total_migrado": 8579.01,
+      "aplicacao_minima_destino": 10000.0,
+      "ticket_valido": false
+    },
+    {
+      "cenario": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 8500 mar.",
+      "valor_total_migrado": 11648.71,
+      "aplicacao_minima_destino": 10000.0,
+      "ticket_valido": true
+    }
+  ],
+  "melhores_vencedores_parametrizados_2026_04_30_a_2026_05_02": [
+    {
+      "data": "2026-04-30",
+      "cenario": "Lote 3000 mar. V -> Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "valor_total": 2542.09,
+      "delta_deficit_vs_baseline": -500.59,
+      "delta_patrimonio_proxy_vs_baseline": 948.52
+    },
+    {
+      "data": "2026-05-01",
+      "cenario": "Lote 3000 mar. V -> Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "valor_total": 2542.09,
+      "delta_deficit_vs_baseline": -500.59,
+      "delta_patrimonio_proxy_vs_baseline": 942.34
+    },
+    {
+      "data": "2026-05-02",
+      "cenario": "Lote 3000 mar. V -> Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "valor_total": 2542.09,
+      "delta_deficit_vs_baseline": -500.59,
+      "delta_patrimonio_proxy_vs_baseline": 936.16
+    }
+  ],
+  "escopo": "auditoria focal da janela critica com parametros corrigidos"
+}
