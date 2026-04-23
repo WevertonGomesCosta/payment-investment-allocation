@@ -24,10 +24,11 @@
 
 ### Reorganização vigente
 - `relatorios/atuais/LEIA-ME_OPERACIONAL.md`
-- `relatorios/atuais/PREPARACAO_MODELOS_SCRIPT1_PAGAMENTOS_V139.md`
-- `relatorios/atuais/BASELINE_FIXA_V139.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V139.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V139.md`
+- `relatorios/atuais/CONTRATO_ABSORCAO_MODELOS_SCRIPT1_PAGAMENTOS_V140.md`
+- `relatorios/atuais/MAPA_HEURISTICAS_PRIORITARIAS_SCRIPT1_V140.md`
+- `relatorios/atuais/BASELINE_FIXA_V140.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V140.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V140.md`
 
 ## Histórico documental
 - `relatorios/historico/baselines/`

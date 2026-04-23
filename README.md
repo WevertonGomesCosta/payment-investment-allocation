@@ -26,7 +26,7 @@ Consulte primeiro:
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/ALOCADOR_PAGAMENTOS_TERMINAL_V137.md`
 - `relatorios/atuais/FLUXO_PAGAMENTOS_TERMINAL_RECORTE_CURTO_V138.md`
-- `relatorios/atuais/PREPARACAO_MODELOS_SCRIPT1_PAGAMENTOS_V139.md`
+- `relatorios/atuais/CONTRATO_ABSORCAO_MODELOS_SCRIPT1_PAGAMENTOS_V140.md`
 
 ## Próxima etapa após a V139
 Absorver os modelos do Script 1 na camada de pagamentos e, só depois disso, ampliar o bloco real de pagamentos além do recorte curto da V138.

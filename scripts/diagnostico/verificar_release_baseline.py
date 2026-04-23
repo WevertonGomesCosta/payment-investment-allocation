@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = "V139"
-VERSAO_ANTERIOR = "V138"
+VERSAO_VIGENTE = "V140"
+VERSAO_ANTERIOR = "V139"
 
 
 def repo_root() -> Path:
@@ -45,10 +45,11 @@ def validar_indice_documental(base: Path) -> list[str]:
         'relatorios/atuais/ALOCADOR_PAGAMENTOS_TERMINAL_V137.md',
         'relatorios/atuais/FLUXO_PAGAMENTOS_TERMINAL_RECORTE_CURTO_V138.md',
         'relatorios/atuais/LEIA-ME_OPERACIONAL.md',
-        'relatorios/atuais/PREPARACAO_MODELOS_SCRIPT1_PAGAMENTOS_V139.md',
-        'relatorios/atuais/BASELINE_FIXA_V139.md',
-        'relatorios/atuais/VALIDACAO_LOCAL_V139.md',
-        'relatorios/atuais/ESTRUTURA_REPOSITORIO_V139.md',
+        'relatorios/atuais/CONTRATO_ABSORCAO_MODELOS_SCRIPT1_PAGAMENTOS_V140.md',
+        'relatorios/atuais/MAPA_HEURISTICAS_PRIORITARIAS_SCRIPT1_V140.md',
+        'relatorios/atuais/BASELINE_FIXA_V140.md',
+        'relatorios/atuais/VALIDACAO_LOCAL_V140.md',
+        'relatorios/atuais/ESTRUTURA_REPOSITORIO_V140.md',
     ]
     if not indice.exists():
         return ['relatorios/INDICE_RELATORIOS.md ausente']
