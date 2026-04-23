@@ -115,3 +115,8 @@ A V132 introduz um comparador híbrido para classificar cenários diários em ve
 - relatorios/atuais/VALIDACAO_LOCAL_V133.md
 - relatorios/atuais/ESTRUTURA_REPOSITORIO_V133.md
 - relatorios/atuais/GRADE_DIARIA_OFICIAL_HIBRIDA_V133.md
+
+
+## Atualização V134
+
+A V134 expande a grade diária oficial híbrida além de 2026-05-20 e confirma promoção oficial apenas do `baseline_sem_switching` no horizonte 2026-05-21 a 2026-08-18.
