@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V130'
+VERSAO_VIGENTE = 'V131'
 VERSAO_ANTERIOR = 'V127'
 
 
@@ -44,6 +44,7 @@ def validar_indice_documental(base: Path) -> list[str]:
         'relatorios/atuais/AVALIACAO_DIARIA_DATA_OTIMA_SWITCHING_V127.md',
         'relatorios/atuais/AUDITORIA_PARAMETROS_PRODUTOS_SWITCHING_V129.md',
         'relatorios/atuais/AVALIACAO_DIARIA_PARAMETRIZADA_JANELA_V130.md',
+        'relatorios/atuais/AUDITORIA_CIRURGICA_BLOCO_8500_PICPAY_V131.md',
         f'relatorios/atuais/VALIDACAO_LOCAL_{VERSAO_VIGENTE}.md',
         f'relatorios/atuais/ESTRUTURA_REPOSITORIO_{VERSAO_VIGENTE}.md',
         'relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md',

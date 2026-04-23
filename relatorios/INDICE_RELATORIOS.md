@@ -77,3 +77,8 @@
 - `relatorios/atuais/BASELINE_FIXA_V130.md` — baseline fixa da V130.
 - `relatorios/atuais/VALIDACAO_LOCAL_V130.md` — validação local da V130.
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V130.md` — estrutura do repositório na V130.
+
+- `relatorios/atuais/AUDITORIA_CIRURGICA_BLOCO_8500_PICPAY_V131.md` — auditoria cirúrgica do bloco 2026-05-13 a 2026-05-20, mostrando que o caso do lote 8500 mar. vence por déficit/cobertura e não por patrimônio terminal.
+- `relatorios/atuais/BASELINE_FIXA_V131.md` — baseline fixa da V131.
+- `relatorios/atuais/VALIDACAO_LOCAL_V131.md` — validação local da V131.
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V131.md` — estrutura do repositório na V131.
