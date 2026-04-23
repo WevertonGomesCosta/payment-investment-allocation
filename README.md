@@ -1,17 +1,17 @@
 # payment-investment-allocation
 
-Baseline atual: **V124**.
+Baseline atual: **V125**.
 
-Esta derivação incorpora o ranking estabilizado Carteira-only ao projeto principal, preservando a aba `Carteira` como entrada única do score/ranking e usando esse ranking como fonte preferencial de destinos do switching temporal antes da avaliação de longo prazo.
+Esta derivação amplia a auditoria temporal do cenário conjunto com uma grade multihorizonte mais rica, para medir quando o switching realmente sobrevive economicamente e quando o baseline sem switching volta a dominar.
 
 # payment-investment-allocation
 
 Repositório de unificação incremental do motor de **pagamentos, recebidos, aportes e switching** com base única, `config` central e rastreabilidade por lote.
 
-**Baseline entregue do repositório:** V122  
+**Baseline entregue do repositório:** V125  
 **Baseline central/contratual da frente principal:** V108
 
-A V122 preserva a V117 como contrato do motor conjunto temporal, mantém a expansão multidestino da V121 e acrescenta um **teste multihorizonte do planejador temporal**, para verificar se algum switching sobrevive economicamente quando o horizonte deixa de penalizar excessivamente o custo fiscal inicial.
+A V125 preserva a V117 como contrato do motor conjunto temporal, mantém o ranking Carteira-only estabilizado da V123, a simulação central controlada longa da V124 e acrescenta uma **auditoria multihorizonte do cenário conjunto**, para evitar decisões baseadas em poucos recortes temporais isolados.
 
 ## Objetivo final do projeto
 
@@ -77,11 +77,14 @@ O projeto **não** tem como objetivo final otimizar isoladamente um único pagam
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
 - `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 - `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`
-- `relatorios/atuais/BASELINE_FIXA_V122.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V122.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V122.md`
+- `relatorios/atuais/BASELINE_FIXA_V125.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V125.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V125.md`
 - `relatorios/atuais/INTEGRACAO_FUNCIONAL_MINIMA_V117_RECORTE_CURTO.md`
 - `relatorios/atuais/EXPANSAO_MULTIDESTINO_PLANEJADOR_SWITCHING_TEMPORAL_V121.md`
 - `relatorios/atuais/TESTE_HORIZONTE_LONGO_PLANEJADOR_SWITCHING_TEMPORAL_V122.md`
 - `relatorios/atuais/AUDITORIA_COMPARADOR_MOTOR_RECOMENDACAO_V116.md`
 - `relatorios/INDICE_RELATORIOS.md`
+
+
+Documento novo desta derivação: `relatorios/atuais/AUDITORIA_MULTIHORIZONTE_CENARIOS_TEMPO_V125.md`.

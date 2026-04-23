@@ -54,7 +54,8 @@
 - relatorios/atuais/ESTRUTURA_REPOSITORIO_V123.md
 - relatorios/atuais/TESTE_HORIZONTE_LONGO_PLANEJADOR_SWITCHING_TEMPORAL_V123.md
 
-- relatorios/atuais/BASELINE_FIXA_V124.md
-- relatorios/atuais/VALIDACAO_LOCAL_V124.md
-- relatorios/atuais/ESTRUTURA_REPOSITORIO_V124.md
+- relatorios/atuais/BASELINE_FIXA_V125.md
+- relatorios/atuais/VALIDACAO_LOCAL_V125.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V125.md
 - relatorios/atuais/SIMULACAO_CENTRAL_CONTROLADA_HORIZONTE_LONGO_V124.md
+- relatorios/atuais/AUDITORIA_MULTIHORIZONTE_CENARIOS_TEMPO_V125.md
