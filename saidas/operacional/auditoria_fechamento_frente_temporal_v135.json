@@ -1,0 +1,26 @@
+{
+  "decisao": "nao_encerrar_ainda",
+  "subjanela_oficial_vencedora_confirmada": {
+    "inicio": "2026-04-30",
+    "fim": "2026-05-04"
+  },
+  "trecho_oficial_hibrido_ja_auditado": {
+    "inicio": "2026-05-21",
+    "fim": "2026-08-18",
+    "dias_auditados": 90,
+    "dias_promovidos_com_switching": 0,
+    "dias_promovidos_com_baseline": 90
+  },
+  "base_futura_ainda_relevante": {
+    "lotes_nao_aportados_futuros_quantidade": 24,
+    "lotes_nao_aportados_futuros_total": 144880.0,
+    "pagamentos_apos_2026_08_18_quantidade": 99,
+    "pagamentos_apos_2026_08_18_total": 109528.22
+  },
+  "justificativa": [
+    "o horizonte oficial hibrido consolidado ainda nao cobre ate 2027-03-31",
+    "a base ainda recebe lotes nao aportados futuros depois de 2026-08-18",
+    "o baseline dominante ate 2026-08-18 nao prova dominancia estrutural no restante do horizonte"
+  ],
+  "proxima_tarefa": "auditar a ativacao dos lotes nao aportados futuros no fluxo oficial hibrido e depois estender a grade diaria ate 2027-03-31"
+}

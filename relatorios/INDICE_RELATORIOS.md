@@ -93,10 +93,12 @@
 
 
 - relatorios/atuais/BASELINE_FIXA_V133.md
-- relatorios/atuais/BASELINE_FIXA_V134.md
 - relatorios/atuais/VALIDACAO_LOCAL_V133.md
-- relatorios/atuais/VALIDACAO_LOCAL_V134.md
 - relatorios/atuais/ESTRUTURA_REPOSITORIO_V133.md
-- relatorios/atuais/ESTRUTURA_REPOSITORIO_V134.md
 - relatorios/atuais/GRADE_DIARIA_OFICIAL_HIBRIDA_V133.md
 - relatorios/atuais/GRADE_DIARIA_OFICIAL_HIBRIDA_V134.md
+
+- `relatorios/atuais/AUDITORIA_FECHAMENTO_FRENTE_TEMPORAL_V135.md`
+- `relatorios/atuais/BASELINE_FIXA_V135.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V135.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V135.md`

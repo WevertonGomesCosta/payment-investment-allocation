@@ -120,3 +120,8 @@ A V132 introduz um comparador híbrido para classificar cenários diários em ve
 ## Atualização V134
 
 A V134 expande a grade diária oficial híbrida além de 2026-05-20 e confirma promoção oficial apenas do `baseline_sem_switching` no horizonte 2026-05-21 a 2026-08-18.
+
+
+## Atualização V135
+
+A V135 consolida a auditoria de fechamento da frente temporal e decide **não encerrar ainda** a frente de switching oficial. A justificativa é que a base ainda contém lotes futuros não aportados e pagamentos relevantes até `2027-03-31`, então a dominância do baseline até `2026-08-18` não é evidência suficiente para fechamento.
