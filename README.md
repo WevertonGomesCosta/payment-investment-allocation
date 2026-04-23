@@ -1,5 +1,11 @@
 # payment-investment-allocation
 
+Baseline atual: **V123**.
+
+Esta derivação incorpora o ranking estabilizado Carteira-only ao projeto principal, preservando a aba `Carteira` como entrada única do score/ranking e usando esse ranking como fonte preferencial de destinos do switching temporal antes da avaliação de longo prazo.
+
+# payment-investment-allocation
+
 Repositório de unificação incremental do motor de **pagamentos, recebidos, aportes e switching** com base única, `config` central e rastreabilidade por lote.
 
 **Baseline entregue do repositório:** V122  

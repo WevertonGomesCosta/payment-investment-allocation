@@ -5,4 +5,5 @@ __all__ = [
     'alocador_pagamentos_terminal_v1',
     'simulador_central_eventos_v1',
     'avaliador_cenarios_conjuntos_v1',
+    'ranking_carteira_estabilizado',
 ]

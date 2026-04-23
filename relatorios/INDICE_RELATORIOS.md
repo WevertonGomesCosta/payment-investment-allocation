@@ -46,3 +46,10 @@
 - `relatorios/historico/validacoes/`
 - `relatorios/historico/estruturas/`
 - `relatorios/historico/auditorias_especificas/`
+
+- relatorios/atuais/CONTRATO_RANKING_CARTEIRA_V123.md
+- relatorios/atuais/AUDITORIA_RANKING_CARTEIRA_V123.md
+- relatorios/atuais/BASELINE_FIXA_V123.md
+- relatorios/atuais/VALIDACAO_LOCAL_V123.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V123.md
+- relatorios/atuais/TESTE_HORIZONTE_LONGO_PLANEJADOR_SWITCHING_TEMPORAL_V123.md

@@ -39,6 +39,29 @@ def _normalizar_proxy_terminal(valor: Any) -> float:
 
 
 def _destinos_switch_elegiveis(contexto: Any, limite: int = 12) -> list[dict[str, Any]]:
+    ranking = getattr(contexto, 'ranking_carteira', None)
+    quadro = getattr(ranking, 'quadro_destinos_switch', None) if ranking is not None else None
+    if quadro is not None and len(quadro) > 0:
+        destinos: list[dict[str, Any]] = []
+        for posicao, (_, row) in enumerate(quadro.iterrows(), start=1):
+            destinos.append({
+                'rank_destino': int(row.get('rank_destino') or posicao),
+                'produto_key': row.get('produto_key'),
+                'nome': row.get('nome'),
+                'score_final': float(row.get('score_final') or 0.0),
+                'proxy_terminal_destino': _normalizar_proxy_terminal(row.get('proxy_terminal_destino') or row.get('score_final')),
+                'retorno_anual_proxy': float(row.get('retorno_anual_proxy') or 0.0),
+                'liquidez_dias': int(row.get('liquidez_dias') or 0),
+                'carencia_dias': int(row.get('carencia_dias') or 0),
+                'taxa_base_cdi': float(row.get('taxa_base_cdi') or 0.0),
+                'taxa_bonus_cdi': float(row.get('taxa_bonus_cdi') or 0.0),
+                'bucket_saof': row.get('Bucket_SAOF'),
+                'score_final_prazo': float(row.get('SAOF_Final_Prazo') or row.get('score_final') or 0.0),
+            })
+            if len(destinos) >= max(int(limite or 0), 1):
+                break
+        return destinos
+
     triagem = contexto.triagem_motor.quadro_candidatos.copy()
     if len(triagem) == 0:
         return []
@@ -73,13 +96,30 @@ def _top_destino_switch(contexto: Any) -> dict[str, Any]:
 
 
 def _mapa_produtos_proxy(contexto: Any) -> dict[str, dict[str, float]]:
+    ranking = getattr(contexto, 'ranking_carteira', None)
+    quadro = getattr(ranking, 'quadro_destinos_switch', None) if ranking is not None else None
+    mapa: dict[str, dict[str, float]] = {}
+    if quadro is not None and len(quadro) > 0 and 'produto_key' in quadro.columns:
+        for _, row in quadro.iterrows():
+            produto_key = str(row.get('produto_key') or '').strip()
+            if not produto_key:
+                continue
+            mapa[produto_key] = {
+                'score_final': float(row.get('score_final') or 0.0),
+                'proxy_terminal': _normalizar_proxy_terminal(row.get('proxy_terminal_destino') or row.get('score_final')),
+                'retorno_anual_proxy': float(row.get('retorno_anual_proxy') or 0.0),
+                'nome': str(row.get('nome') or ''),
+                'liquidez_dias': int(row.get('liquidez_dias') or 0),
+                'carencia_dias': int(row.get('carencia_dias') or 0),
+                'taxa_base_cdi': float(row.get('taxa_base_cdi') or 0.0),
+                'taxa_bonus_cdi': float(row.get('taxa_bonus_cdi') or 0.0),
+            }
     triagem = contexto.triagem_motor.quadro_candidatos.copy()
     if len(triagem) == 0 or 'produto_key' not in triagem.columns:
-        return {}
-    mapa: dict[str, dict[str, float]] = {}
+        return mapa
     for _, row in triagem.iterrows():
         produto_key = str(row.get('produto_key') or '').strip()
-        if not produto_key:
+        if not produto_key or produto_key in mapa:
             continue
         mapa[produto_key] = {
             'score_final': float(row.get('score_final') or 0.0),

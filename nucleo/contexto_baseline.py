@@ -15,6 +15,7 @@ from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabel
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
 from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
 from nucleo.triagem_motor import carregar_triagem_motor
+from nucleo.ranking_carteira_estabilizado import carregar_ranking_carteira_estabilizado
 from nucleo.switching_economico_shadow import carregar_switching_economico_shadow
 from nucleo.resolver_hibrido_5p_shadow import carregar_resolver_hibrido_5p_shadow
 from nucleo.benchmark_agrupado_individual_shadow import carregar_benchmark_agrupado_individual_shadow
@@ -65,6 +66,7 @@ class ContextoBaseline:
     auditoria_runner_futuro_shadow: Any
     auditoria_primeira_quebra_runner_futuro_shadow: Any
     triagem_motor: Any
+    ranking_carteira: Any
     nucleo_financeiro: Any
     replay_passado: Any
     tabela_iof: list[float]
@@ -129,6 +131,11 @@ def carregar_contexto_baseline(
         pacote_config.conteudo,
         data_referencia=contexto_execucao.data_referencia,
     ) if incluir_triagem else None
+    ranking_carteira = carregar_ranking_carteira_estabilizado(
+        pacote_planilha,
+        carteira_canonica,
+        raiz_repositorio=pacote_config.raiz_repositorio,
+    )
     nucleo_financeiro = carregar_nucleo_financeiro_minimo(
         dados_operacionais,
         carteira_canonica,
@@ -332,6 +339,7 @@ def carregar_contexto_baseline(
         auditoria_runner_futuro_shadow=auditoria_runner_futuro_shadow,
         auditoria_primeira_quebra_runner_futuro_shadow=auditoria_primeira_quebra_runner_futuro_shadow,
         triagem_motor=triagem_motor,
+        ranking_carteira=ranking_carteira,
         nucleo_financeiro=nucleo_financeiro,
         replay_passado=replay_passado,
         tabela_iof=construir_tabela_iof(pacote_config.conteudo),
