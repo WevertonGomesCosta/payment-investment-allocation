@@ -72,3 +72,8 @@
 - `relatorios/atuais/BASELINE_FIXA_V129.md` — baseline fixa da V129.
 - `relatorios/atuais/VALIDACAO_LOCAL_V129.md` — validação local da V129.
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V129.md` — estrutura do repositório na V129.
+
+- `relatorios/atuais/AVALIACAO_DIARIA_PARAMETRIZADA_JANELA_V130.md` — rerodagem parametrizada da janela crítica de switching diário, com ticket individual e agrupado corrigidos.
+- `relatorios/atuais/BASELINE_FIXA_V130.md` — baseline fixa da V130.
+- `relatorios/atuais/VALIDACAO_LOCAL_V130.md` — validação local da V130.
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V130.md` — estrutura do repositório na V130.

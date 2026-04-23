@@ -90,6 +90,10 @@ O projeto **não** tem como objetivo final otimizar isoladamente um único pagam
 Documento novo desta derivação: `relatorios/atuais/AUDITORIA_MULTIHORIZONTE_CENARIOS_TEMPO_V125.md`.
 
 
+## V130
+
+A V130 reroda a janela crítica `2026-04-30` a `2026-05-20` com validação parametrizada de aplicação mínima/máxima do produto de destino, eliminando falsos positivos de ticket no switching diário.
+
 ## V129
 
 - adiciona grade diária de data ótima de switching com estado condicional por dia;
