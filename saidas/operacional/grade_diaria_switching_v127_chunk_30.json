@@ -1,0 +1,135 @@
+{
+  "data_referencia": "2026-04-21",
+  "start_offset": 30,
+  "max_dias_executados": 3,
+  "data_fim": "2027-03-31",
+  "quantidade_pagamentos": 149,
+  "baseline_inicial": {
+    "descricao": "baseline do dia zero sem switching, apenas para referência global do horizonte completo"
+  },
+  "resultados": [
+    {
+      "data_solicitada": "2026-05-21",
+      "familia": "individual_integral",
+      "rotulo": "Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-05-21",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 65.32
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -1223.19,
+      "vetor_lexicografico": [
+        70.0,
+        157590.28,
+        148.0,
+        1223.19,
+        1342.6,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "vetor_baseline": [
+        70.0,
+        157590.28,
+        148.0,
+        1223.19,
+        1342.6,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0
+    },
+    {
+      "data_solicitada": "2026-05-22",
+      "familia": "individual_integral",
+      "rotulo": "Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-05-22",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 64.99
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -1223.19,
+      "vetor_lexicografico": [
+        70.0,
+        157590.28,
+        148.0,
+        1223.19,
+        1342.6,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "vetor_baseline": [
+        70.0,
+        157590.28,
+        148.0,
+        1223.19,
+        1342.6,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0
+    },
+    {
+      "data_solicitada": "2026-05-23",
+      "familia": "individual_integral",
+      "rotulo": "Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-05-23",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 64.68
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -1223.19,
+      "vetor_lexicografico": [
+        70.0,
+        157590.28,
+        148.0,
+        1223.19,
+        1342.6,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "vetor_baseline": [
+        70.0,
+        157590.28,
+        148.0,
+        1223.19,
+        1342.6,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0
+    }
+  ]
+}

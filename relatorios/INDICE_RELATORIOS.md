@@ -63,3 +63,8 @@
 - relatorios/atuais/VALIDACAO_LOCAL_V127.md
 - relatorios/atuais/ESTRUTURA_REPOSITORIO_V127.md
 - relatorios/atuais/AVALIACAO_DIARIA_DATA_OTIMA_SWITCHING_V127.md
+
+- `relatorios/atuais/BASELINE_FIXA_V128.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V128.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V128.md`
+- `relatorios/atuais/AVALIACAO_DIARIA_DATA_OTIMA_SWITCHING_V128.md`

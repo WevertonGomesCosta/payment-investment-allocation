@@ -1,20 +1,41 @@
-# Avaliação diária da data ótima de switching — V127
+# Avaliação diária da data ótima de switching — V128
 
-- Objetivo: testar diariamente, desde D0 até o fim do horizonte, qual é a melhor data de switching por lote e por agrupamento, mantendo a análise conjunta até o fim do período.
-- Escopo: lotes já investidos e, quando existirem, lotes não aportados disponíveis, com comparação entre cenários individuais e agrupados, sempre em modo integral.
-- Observação: a grade diária agora cobre todas as combinações integrais entre as melhores ações por fonte do dia, incluindo fontes não aportadas disponíveis quando existirem.
-- Execução pesada: o código foi preparado para rodar em blocos e consolidar a grade diária por partes quando o ambiente interativo não suporta o horizonte completo em uma única passagem.
+- Objetivo: continuar a grade diária integral após `2026-05-20`, mantendo apenas `individual_integral` e `agrupado_integral` com todas as combinações elegíveis e estado recursivo após o switching.
+- Leitura correta: a data ótima precisa ser buscada dia a dia; depois do dia da troca, o cenário segue até o fim da janela auditada já com a decisão realizada.
+- Contrato vigente nesta entrega: sem parcial; com individual integral, agrupado integral e suporte a não aportado quando elegível.
 
-## Janela auditada
+## Janela auditada nesta consolidação
 
 - Data de referência: 2026-04-21
-- Janela total teórica do horizonte: 2026-04-21 → 2027-03-31
-- Janela efetivamente consolidada nesta auditoria: 2026-04-21 → 2026-06-05
-- Quantidade de dias consolidados: 46
+- Horizonte teórico total da base: 2026-04-21 → 2027-03-31
+- Horizonte efetivamente auditado nesta entrega: 2026-04-21 → 2026-08-18
+- Dias auditados no total: 120
+- Dias com cenários gerados pelo planejador: 46
+- Dias sem cenários gerados: 74
+- Primeira data com cenários: 2026-04-21
+- Última data com cenários: 2026-06-05
+- Primeira data vencedora: 2026-04-30
+- Última data vencedora: 2026-05-20
 - Quantidade de pagamentos futuros no horizonte: 149
-- Comparação principal: em cada data, o switching é comparado contra o baseline condicional daquela própria data, após a trajetória sem switching até esse ponto.
 
-## Top global de datas/cenários
+## Síntese executiva
+
+- A janela vencedora iniciada em `2026-04-30` permanece dominante no horizonte auditado ampliado.
+- Depois de `2026-05-20`, nenhum cenário integral continua vencedor contra o baseline condicional do próprio dia.
+- Depois de `2026-06-05`, o planejador deixa de gerar cenários integrais elegíveis nesta grade diária auditada.
+- Portanto, no horizonte auditado até aqui, a expansão após `2026-05-20` não deslocou a data ótima inicial; ela apenas confirmou o esgotamento progressivo das oportunidades.
+
+## Regimes observados por faixa temporal
+
+- `2026-04-21` a `2026-04-29`: existem cenários candidatos, mas nenhum vence o baseline.
+- `2026-04-30` a `2026-05-04`: surge a primeira janela vencedora material, com destaque para `Lote 3000 mar. V`, `Lote 3000 mar. B + Lote 3000 mar. V`, `Lote 3000 mar. V + Lote 8500 mar.` e `Lote 3000 mar. B + Lote 3000 mar. V + Lote 8500 mar.`.
+- `2026-05-05` a `2026-05-06`: a janela vencedora continua, mas a hierarquia muda e aparecem cenários com melhora forte de déficit e patrimônio proxy, apesar de alguns deltas de perda terminal isolada piorarem.
+- `2026-05-07` a `2026-05-12`: restam poucos cenários candidatos e nenhum segue vencedor.
+- `2026-05-13` a `2026-05-20`: resta apenas `Lote 8500 mar.` como candidato integral individual, e ele continua vencedor material nessa faixa.
+- `2026-05-21` a `2026-06-05`: ainda existe 1 candidato diário integral individual, mas ele já não vence o baseline.
+- `2026-06-06` a `2026-08-18`: não surgem novos cenários integrais elegíveis na grade auditada.
+
+## Top global de cenários vencedores no horizonte auditado
 
 - 2026-04-30 | individual_integral | Lote 3000 mar. V
   - vencedor central = True
@@ -124,8 +145,35 @@
   - Δ protegida = 0.0
   - Δ patrimônio proxy = 1851.03
   - eventos = [{'lote_origem_id': 'Lote 3000 mar. B', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-05-01', 'fracao_lote': 1.0, 'ganho_planejador': 546.76}, {'lote_origem_id': 'Lote 3000 mar. V', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-05-01', 'fracao_lote': 1.0, 'ganho_planejador': 446.97}]
+- 2026-05-02 | agrupado_integral | Lote 3000 mar. B + Lote 3000 mar. V
+  - vencedor central = True
+  - vitória material = True
+  - vetor = [64.0, 142884.1, 134.0, 8506.48, 11962.6, 0.0, 57.93, 4.0]
+  - Δ perda terminal = 81.97
+  - Δ déficit = -472.07
+  - Δ protegida = 0.0
+  - Δ patrimônio proxy = 1839.49
+  - eventos = [{'lote_origem_id': 'Lote 3000 mar. B', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-05-02', 'fracao_lote': 1.0, 'ganho_planejador': 544.87}, {'lote_origem_id': 'Lote 3000 mar. V', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-05-02', 'fracao_lote': 1.0, 'ganho_planejador': 445.41}]
+- 2026-05-03 | agrupado_integral | Lote 3000 mar. B + Lote 3000 mar. V
+  - vencedor central = True
+  - vitória material = True
+  - vetor = [64.0, 142884.1, 134.0, 8512.25, 11962.6, 0.0, 57.93, 4.0]
+  - Δ perda terminal = 87.74
+  - Δ déficit = -472.07
+  - Δ protegida = 0.0
+  - Δ patrimônio proxy = 1827.95
+  - eventos = [{'lote_origem_id': 'Lote 3000 mar. B', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-05-03', 'fracao_lote': 1.0, 'ganho_planejador': 542.99}, {'lote_origem_id': 'Lote 3000 mar. V', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-05-03', 'fracao_lote': 1.0, 'ganho_planejador': 443.86}]
+- 2026-05-04 | agrupado_integral | Lote 3000 mar. B + Lote 3000 mar. V
+  - vencedor central = True
+  - vitória material = True
+  - vetor = [64.0, 142884.1, 134.0, 8518.02, 11962.6, 0.0, 57.93, 4.0]
+  - Δ perda terminal = 93.51
+  - Δ déficit = -472.07
+  - Δ protegida = 0.0
+  - Δ patrimônio proxy = 1816.41
+  - eventos = [{'lote_origem_id': 'Lote 3000 mar. B', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-05-04', 'fracao_lote': 1.0, 'ganho_planejador': 541.12}, {'lote_origem_id': 'Lote 3000 mar. V', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-05-04', 'fracao_lote': 1.0, 'ganho_planejador': 442.3}]
 
-## Melhor data por lote ou agrupamento
+## Melhor data por lote ou agrupamento no horizonte auditado
 
 ### individual_integral | Lote 3000 mar. V
 - melhor data solicitada: 2026-04-30
@@ -259,65 +307,9 @@
 - Δ patrimônio proxy: 1158.18
 - eventos: [{'lote_origem_id': 'Lote 3000 mar. B', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 565.59}, {'lote_origem_id': 'Lote 6630,64 fev.', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 0.04}]
 
-### agrupado_integral | Lote 3000 mar. V + Lote 6630,64 fev.
-- melhor data solicitada: 2026-04-21
-- vencedor central: False
-- vitória material: False
-- vetor: [64.0, 142855.58, 134.0, 8486.12, 11019.22, 0.0, 29.41, 5.0]
-- Δ perda terminal: -72.56
-- Δ déficit: 29.41
-- Δ protegida: 0.0
-- Δ patrimônio proxy: 1159.21
-- eventos: [{'lote_origem_id': 'Lote 3000 mar. V', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 565.12}, {'lote_origem_id': 'Lote 6630,64 fev.', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 0.04}]
+## Conclusão operacional desta rodada
 
-### agrupado_integral | Lote 3000 mar. B + Lote 8500 mar. + Lote 6630,64 fev.
-- melhor data solicitada: 2026-04-21
-- vencedor central: False
-- vitória material: False
-- vetor: [64.0, 142876.64, 134.0, 8181.46, 10660.14, 0.0, 50.47, 5.0]
-- Δ perda terminal: -377.22
-- Δ déficit: 50.47
-- Δ protegida: 0.0
-- Δ patrimônio proxy: 1463.1
-- eventos: [{'lote_origem_id': 'Lote 3000 mar. B', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 565.59}, {'lote_origem_id': 'Lote 8500 mar.', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 298.94}, {'lote_origem_id': 'Lote 6630,64 fev.', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 0.04}]
-
-### agrupado_integral | Lote 3000 mar. V + Lote 8500 mar. + Lote 6630,64 fev.
-- melhor data solicitada: 2026-04-21
-- vencedor central: False
-- vitória material: False
-- vetor: [64.0, 142877.53, 134.0, 8181.19, 10660.65, 0.0, 51.36, 5.0]
-- Δ perda terminal: -377.49
-- Δ déficit: 51.36
-- Δ protegida: 0.0
-- Δ patrimônio proxy: 1464.14
-- eventos: [{'lote_origem_id': 'Lote 3000 mar. V', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 565.12}, {'lote_origem_id': 'Lote 8500 mar.', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 298.94}, {'lote_origem_id': 'Lote 6630,64 fev.', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 0.04}]
-
-### agrupado_integral | Lote 3000 mar. B + Lote 3000 mar. V + Lote 6630,64 fev.
-- melhor data solicitada: 2026-04-21
-- vencedor central: False
-- vitória material: False
-- vetor: [64.0, 142884.1, 134.0, 8438.62, 12161.51, 0.0, 57.93, 5.0]
-- Δ perda terminal: -120.06
-- Δ déficit: 57.93
-- Δ protegida: 0.0
-- Δ patrimônio proxy: 2292.49
-- eventos: [{'lote_origem_id': 'Lote 3000 mar. B', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 565.59}, {'lote_origem_id': 'Lote 3000 mar. V', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 565.12}, {'lote_origem_id': 'Lote 6630,64 fev.', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 0.04}]
-
-### agrupado_integral | Lote 3000 mar. B + Lote 3000 mar. V + Lote 8500 mar. + Lote 6630,64 fev.
-- melhor data solicitada: 2026-04-21
-- vencedor central: False
-- vitória material: False
-- vetor: [64.0, 142906.05, 134.0, 8133.63, 11802.94, 0.0, 79.88, 5.0]
-- Δ perda terminal: -425.05
-- Δ déficit: 79.88
-- Δ protegida: 0.0
-- Δ patrimônio proxy: 2597.48
-- eventos: [{'lote_origem_id': 'Lote 3000 mar. B', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 565.59}, {'lote_origem_id': 'Lote 3000 mar. V', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 565.12}, {'lote_origem_id': 'Lote 8500 mar.', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 298.94}, {'lote_origem_id': 'Lote 6630,64 fev.', 'produto_destino': 'CDB XP 150%', 'data_acao': '2026-04-21', 'fracao_lote': 1.0, 'ganho_planejador': 0.04}]
-
-## Leitura operacional
-
-- Quantidade de cenários diários vencedores em D0: 0
-- Quantidade de cenários diários vencedores em D+1: 0
-- A decisão correta deixa de ser um único horizonte e passa a ser uma grade diária de datas possíveis, mantendo a trajetória conjunta após o switching integral individual ou agrupado.
-- O simulador continua após a data escolhida até o fim do horizonte, já com o switching/aporte realizado e impactando pagamentos futuros.
-- Cada delta do relatório é calculado contra o baseline condicional do mesmo dia, e não contra um único baseline fixo de D0.
+- A extensão da grade diária confirmou que a janela vencedora iniciada em `2026-04-30` permanece dominante no horizonte auditado ampliado.
+- O ganho não continua migrando para datas mais tardias: a partir de `2026-05-21`, os cenários integrais remanescentes deixam de vencer; a partir de `2026-06-06`, deixam inclusive de ser gerados.
+- Portanto, para esta baseline, a expansão após `2026-05-20` não revela uma nova data ótima superior; ela confirma que as oportunidades se concentram na janela já aberta entre `2026-04-30` e `2026-05-20`.
+- A próxima etapa correta é auditar com mais profundidade apenas essa janela vencedora e os grupos que a dominam, em vez de seguir expandindo o horizonte sem ganho informacional material.
