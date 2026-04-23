@@ -4,6 +4,7 @@
 
 ### Núcleo contratual e direção metodológica
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
+- `relatorios/atuais/CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`
 - `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
@@ -14,14 +15,13 @@
 - `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V108.md`
 
+### Camada documental/técnica mínima V117
+- `relatorios/atuais/BASELINE_FIXA_V117.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V117.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V117.md`
+
 ### Camada operacional por conta
 - `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`
-
-### Reorganização estrutural e recalibração operacional vigente do repositório
-- `relatorios/atuais/REORGANIZACAO_REPOSITORIO_V115.md`
-- `relatorios/atuais/BASELINE_FIXA_V116.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V116.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V116.md`
 - `relatorios/atuais/AUDITORIA_COMPARADOR_MOTOR_RECOMENDACAO_V116.md`
 
 ### Contratos auxiliares, mapas e auditorias ativas

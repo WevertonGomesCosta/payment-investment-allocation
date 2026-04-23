@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V116'
-VERSAO_ANTERIOR = 'V115'
+VERSAO_VIGENTE = 'V117'
+VERSAO_ANTERIOR = 'V116'
 
 
 def repo_root() -> Path:
@@ -29,6 +29,7 @@ def validar_indice_documental(base: Path) -> list[str]:
     indice = base / 'relatorios' / 'INDICE_RELATORIOS.md'
     esperado = [
         'relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md',
+        'relatorios/atuais/CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md',
         'relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md',
         'relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md',
         'relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md',
@@ -102,108 +103,33 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/auditoria/gerar_auditoria_diaria_lote.py',
         'scripts/diagnostico/inspecionar_base.py',
         'scripts/diagnostico/verificar_release_baseline.py',
-        'scripts/diagnostico/inspecionar_contrato_f1.py',
-        'scripts/diagnostico/inspecionar_recebidos_auditaveis.py',
-        'scripts/diagnostico/inspecionar_fontes_elegiveis_pagamento.py',
-        'scripts/diagnostico/inspecionar_saldo_disponivel_geral.py',
-        'scripts/diagnostico/inspecionar_decisao_local_v1.py',
-        'scripts/diagnostico/inspecionar_auditoria_temporal_decisao_local.py',
-        'scripts/diagnostico/inspecionar_reescolha_dinamica_pos_quebra.py',
-        'scripts/diagnostico/inspecionar_heuristica_conjunta_parcial_bloco_critico.py',
-        'scripts/diagnostico/inspecionar_planejamento_conjunto_local_bloco_critico_v1.py',
-        'scripts/diagnostico/inspecionar_microplanejamento_conjunto_bloco_critico_v2.py',
-        'scripts/diagnostico/inspecionar_recomputacao_sequencial_central_v1.py',
-        'scripts/diagnostico/inspecionar_motor_recomendacao_pagamentos_switching_v1.py',
-        'scripts/diagnostico/inspecionar_comparativo_proxy_v2_v3.py',
-        'scripts/diagnostico/inspecionar_mapa_absorcao_legado.py',
-        'scripts/diagnostico/inspecionar_mapa_execucao_principal_script2.py',
-        'scripts/diagnostico/inspecionar_benchmark_agrupado_individual_shadow.py',
-        'scripts/diagnostico/inspecionar_benchmark_runner_futuro_shadow.py',
-        'scripts/diagnostico/inspecionar_auditoria_runner_futuro_shadow.py',
-        'scripts/diagnostico/inspecionar_primeira_quebra_runner_futuro_shadow.py',
-        'scripts/diagnostico/inspecionar_switching_economico_shadow.py',
-        'scripts/diagnostico/inspecionar_resolver_hibrido_5p_shadow.py',
-        'scripts/diagnostico/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
-        'scripts/diagnostico/inspecionar_divergencias_residuais_proxy_v3_vs_hibrido_shadow.py',
-        'scripts/diagnostico/inspecionar_casos_reaproveitaveis_proxy_v3_vs_hibrido_shadow.py',
-        'scripts/diagnostico/inspecionar_transicao_dominante_proxy_v3_vs_hibrido_shadow.py',
-        'scripts/diagnostico/inspecionar_auditoria_estrutural_redundancia.py',
-        'scripts/diagnostico/inspecionar_consolidacao_helpers_baixo_risco.py',
-        'scripts/gerar_planilha_operacional.py',
-        'scripts/gerar_auditoria_diaria_lote.py',
-        'scripts/inspecionar_base.py',
-        'scripts/verificar_release_baseline.py',
-        'scripts/inspecionar_contrato_f1.py',
-        'scripts/inspecionar_recebidos_auditaveis.py',
-        'scripts/inspecionar_fontes_elegiveis_pagamento.py',
-        'scripts/inspecionar_saldo_disponivel_geral.py',
-        'scripts/inspecionar_decisao_local_v1.py',
-        'scripts/inspecionar_auditoria_temporal_decisao_local.py',
-        'scripts/inspecionar_reescolha_dinamica_pos_quebra.py',
-        'scripts/inspecionar_heuristica_conjunta_parcial_bloco_critico.py',
-        'scripts/inspecionar_planejamento_conjunto_local_bloco_critico_v1.py',
-        'scripts/inspecionar_microplanejamento_conjunto_bloco_critico_v2.py',
-        'scripts/inspecionar_recomputacao_sequencial_central_v1.py',
-        'scripts/inspecionar_motor_recomendacao_pagamentos_switching_v1.py',
-        'scripts/inspecionar_comparativo_proxy_v2_v3.py',
-        'scripts/inspecionar_mapa_absorcao_legado.py',
-        'scripts/inspecionar_mapa_execucao_principal_script2.py',
-        'scripts/inspecionar_benchmark_agrupado_individual_shadow.py',
-        'scripts/inspecionar_benchmark_runner_futuro_shadow.py',
-        'scripts/inspecionar_auditoria_runner_futuro_shadow.py',
-        'scripts/inspecionar_primeira_quebra_runner_futuro_shadow.py',
-        'scripts/inspecionar_switching_economico_shadow.py',
-        'scripts/inspecionar_resolver_hibrido_5p_shadow.py',
-        'scripts/inspecionar_comparativo_proxy_v3_vs_hibrido_shadow.py',
-        'scripts/inspecionar_divergencias_residuais_proxy_v3_vs_hibrido_shadow.py',
-        'scripts/inspecionar_casos_reaproveitaveis_proxy_v3_vs_hibrido_shadow.py',
-        'scripts/inspecionar_transicao_dominante_proxy_v3_vs_hibrido_shadow.py',
-        'scripts/inspecionar_auditoria_estrutural_redundancia.py',
-        'scripts/inspecionar_consolidacao_helpers_baixo_risco.py',
-        'nucleo/caixa_recebidos_auditaveis.py',
-        'nucleo/auditoria_temporal_decisao_local.py',
-        'nucleo/reescolha_dinamica_pos_quebra.py',
-        'nucleo/heuristica_conjunta_parcial_bloco_critico.py',
-        'nucleo/planejamento_conjunto_local_bloco_critico_v1.py',
-        'nucleo/microplanejamento_conjunto_bloco_critico_v2.py',
-        'nucleo/recomputacao_sequencial_central_v1.py',
-        'nucleo/motor_recomendacao_pagamentos_switching_v1.py',
-        'nucleo/switching_economico_shadow.py',
-        'nucleo/resolver_hibrido_5p_shadow.py',
-        'nucleo/benchmark_agrupado_individual_shadow.py',
-        'nucleo/benchmark_runner_futuro_shadow.py',
-        'nucleo/auditoria_runner_futuro_shadow.py',
-        'nucleo/auditoria_primeira_quebra_runner_futuro_shadow.py',
+        'nucleo/planejador_switching_temporal_v1.py',
+        'nucleo/alocador_pagamentos_terminal_v1.py',
+        'nucleo/simulador_central_eventos_v1.py',
+        'nucleo/avaliador_cenarios_conjuntos_v1.py',
     ]
     erros: list[str] = []
-    for item in esperados:
-        if not (base / item).exists():
-            erros.append(f'caminho_canonico_ausente: {item}')
+    for caminho in esperados:
+        if not (base / caminho).exists():
+            erros.append(f'caminho_canonico_ausente: {caminho}')
     return erros
 
 
 def main() -> int:
     base = repo_root()
-    problemas: list[str] = []
-    efemeros = coletar_artefatos_efemeros(base)
-    problemas.extend([f'artefato_efemero_presente: {item}' for item in efemeros])
-    problemas.extend(validar_indice_documental(base))
-    problemas.extend(validar_referencias_ativas(base))
-    problemas.extend(validar_caminhos_canonicos(base))
-
-    print('=== CHECAGEM MÍNIMA DE RELEASE ===')
-    print(f'raiz: {base}')
-    print(f'versao_vigente_esperada: {VERSAO_VIGENTE}')
-    if problemas:
-        print(f'status: FALHA ({len(problemas)} problema(s))')
-        for item in problemas:
-            print(f'- {item}')
+    erros = []
+    erros.extend(validar_indice_documental(base))
+    erros.extend(validar_referencias_ativas(base))
+    erros.extend(validar_caminhos_canonicos(base))
+    artefatos = coletar_artefatos_efemeros(base)
+    if artefatos:
+        erros.extend(f'artefato_efemero_presente: {item}' for item in artefatos)
+    if erros:
+        print('ERROS DE RELEASE:')
+        for erro in erros:
+            print(f'- {erro}')
         return 1
-    print('status: OK')
-    print('- sem artefatos efêmeros')
-    print('- índice documental vigente consistente')
-    print('- sem referências ativas indevidas ao fluxo removido ou à documentação corrente anterior')
-    print('- caminhos canônicos, wrappers e estruturas da F1 presentes')
+    print('OK - release baseline validado para', VERSAO_VIGENTE)
     return 0
 
 
