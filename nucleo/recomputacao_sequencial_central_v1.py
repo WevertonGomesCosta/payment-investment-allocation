@@ -8,7 +8,6 @@ from typing import Any
 import pandas as pd
 
 from nucleo.caixa_recebidos_auditaveis import (
-    _aplicar_elegibilidade_operacional_candidatos,
     _construir_candidatos_decisao_local_v1,
     _construir_mapa_produtos_proxy,
     _pagamentos_alvo_f1_4,
@@ -479,7 +478,6 @@ def carregar_recomputacao_sequencial_central_v1(
         pagamentos_futuros = pagamentos_ordenados[indice + 1:]
         demanda_futura = _demanda_protegida_futura_ponderada(pagamentos_futuros, data_pagamento)
         candidatos_base = _construir_candidatos_decisao_local_v1(pagamento, quadro_saldo, quadro_fontes, mapa_produtos_proxy)
-        candidatos_base = _aplicar_elegibilidade_operacional_candidatos(candidatos_base, data_referencia)
         candidatos = _ajustar_candidatos_dinamicos(
             candidatos_base,
             valor_pagamento=valor_pagamento,
@@ -490,20 +488,8 @@ def carregar_recomputacao_sequencial_central_v1(
             faixas_ir=faixas_ir,
             tolerancia_monetaria=tolerancia_monetaria,
         )
-        candidatos = [cand for cand in candidatos if bool(cand.get('elegivel'))]
         if not candidatos:
-            candidatos = [{
-                'fonte_escolhida_id': 'sem_fonte_elegivel_operacional',
-                'fonte_base_escolhida': 'sem_fonte_elegivel_operacional',
-                'tipo_fonte_escolhida': 'nenhuma',
-                'valor_disponivel': 0.0,
-                'saldo_antes_dinamico': 0.0,
-                'pagamento_totalmente_coberto': False,
-                'elegivel': False,
-                'origem_status': 'ausente',
-                'motivo_bloqueio': 'nao_ha_fonte_elegivel_operacional_na_data_referencia',
-                'lote_id': None,
-            }]
+            continue
 
         avaliacoes: list[dict[str, Any]] = []
         for candidato in candidatos:

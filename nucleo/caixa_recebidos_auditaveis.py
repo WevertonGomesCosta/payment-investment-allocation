@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 import pandas as pd
@@ -1166,48 +1166,6 @@ def _label_proxy_version(proxy_version: str) -> str:
     return 'v2' if versao == 'v2' else 'v3'
 
 
-
-
-def _coerce_date_operacional(valor: Any) -> date | None:
-    if valor is None:
-        return None
-    if isinstance(valor, pd.Timestamp):
-        return valor.date()
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, date):
-        return valor
-    return None
-
-
-def _fonte_disponivel_na_data_operacional(candidato: dict[str, Any], data_referencia: date) -> tuple[bool, str | None]:
-    if not bool(candidato.get('elegivel', False)):
-        return False, limpar_texto(candidato.get('motivo_bloqueio')) or 'fonte_nao_elegivel_na_data_pagamento'
-    tipo_fonte = limpar_texto(candidato.get('tipo_fonte_escolhida'))
-    data_recebimento = _coerce_date_operacional(candidato.get('data_recebimento_origem'))
-    data_aplicacao = _coerce_date_operacional(candidato.get('data_aplicacao_origem'))
-    if tipo_fonte in {'recebido_disponivel', 'caixa_pre_aplicacao'} and data_recebimento is not None and data_recebimento > data_referencia:
-        return False, 'fonte_ainda_nao_disponivel_na_data_operacional'
-    if tipo_fonte == 'lote_resgatavel' and data_aplicacao is not None and data_aplicacao > data_referencia:
-        return False, 'lote_ainda_nao_existente_na_data_operacional'
-    return True, None
-
-
-def _aplicar_elegibilidade_operacional_candidatos(candidatos: list[dict[str, Any]], data_referencia: date) -> list[dict[str, Any]]:
-    saida: list[dict[str, Any]] = []
-    for candidato in candidatos:
-        novo = dict(candidato)
-        elegivel_operacional, motivo_operacional = _fonte_disponivel_na_data_operacional(novo, data_referencia)
-        novo['elegivel_operacional_na_data_referencia'] = bool(elegivel_operacional)
-        if not elegivel_operacional:
-            novo['elegivel'] = False
-            if motivo_operacional:
-                novo['motivo_bloqueio'] = motivo_operacional
-            if limpar_texto(novo.get('origem_status')) in {'confirmado', 'parcial', 'estimado'}:
-                novo['origem_status'] = 'bloqueado_operacional'
-        saida.append(novo)
-    return saida
-
 def _construir_candidatos_decisao_local_v1(
     pagamento: dict[str, Any],
     quadro_saldo: pd.DataFrame,
@@ -1241,9 +1199,6 @@ def _construir_candidatos_decisao_local_v1(
             'fonte_base_escolhida': 'saldo_disponivel_geral',
             'lote_id': None,
             'recebido_id': None,
-            'data_recebimento_origem': None,
-            'data_aplicacao_origem': None,
-            'carencia_ate_origem': None,
         })
 
     fontes_pagamento = quadro_fontes[quadro_fontes['pagamento_id'] == pagamento_id].copy() if len(quadro_fontes) else pd.DataFrame()
@@ -1270,9 +1225,6 @@ def _construir_candidatos_decisao_local_v1(
             'recebido_id': limpar_texto(row.get('recebido_id')) or None,
             'metodo_valor': limpar_texto(row.get('metodo_valor_disponivel')),
             'fonte_base_escolhida': limpar_texto(row.get('fonte_id')) or tipo_fonte,
-            'data_recebimento_origem': row.get('data_recebimento_origem'),
-            'data_aplicacao_origem': row.get('data_aplicacao_origem'),
-            'carencia_ate_origem': row.get('carencia_ate_origem'),
         })
     return candidatos
 

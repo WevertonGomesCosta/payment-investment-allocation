@@ -17,20 +17,6 @@ def _coerce_date(valor: Any) -> date | None:
     return None
 
 
-def _fonte_operacionalmente_disponivel_na_data_referencia(row: pd.Series | dict[str, Any], data_referencia: date) -> bool:
-    tipo_fonte = str((row.get('tipo_fonte') if hasattr(row, 'get') else '') or '').strip()
-    elegivel_pagamento = bool((row.get('elegivel_na_data_pagamento') if hasattr(row, 'get') else False))
-    if not elegivel_pagamento and tipo_fonte != 'saldo_disponivel_geral':
-        return False
-    data_recebimento = _coerce_date(row.get('data_recebimento_origem') if hasattr(row, 'get') else None)
-    data_aplicacao = _coerce_date(row.get('data_aplicacao_origem') if hasattr(row, 'get') else None)
-    if tipo_fonte in {'recebido_disponivel', 'caixa_pre_aplicacao'} and data_recebimento is not None and data_recebimento > data_referencia:
-        return False
-    if tipo_fonte == 'lote_resgatavel' and data_aplicacao is not None and data_aplicacao > data_referencia:
-        return False
-    return True
-
-
 @dataclass(slots=True)
 class PacoteMotorRecomendacaoPagamentosSwitchingV1:
     quadro_recomendacoes: pd.DataFrame
@@ -144,7 +130,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
     gastos = gastos.sort_values(by=['data', 'despesa_id'], kind='stable')
 
     quadro_fontes = fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy()
-    quadro_fontes = quadro_fontes[quadro_fontes.apply(lambda row: _fonte_operacionalmente_disponivel_na_data_referencia(row, data_referencia), axis=1)].copy()
+    quadro_fontes = quadro_fontes[quadro_fontes['elegivel_na_data_pagamento'] == True].copy()
     quadro_fontes['valor_liquido_disponivel'] = quadro_fontes['valor_liquido_disponivel'].fillna(0.0).astype(float)
 
     quadro_local = decisao_local_v1.quadro_decisao_local_v1.copy() if decisao_local_v1 is not None else pd.DataFrame()

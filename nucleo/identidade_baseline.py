@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-VERSAO_BASELINE = "V141"
+VERSAO_BASELINE = "V138"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
 
@@ -20,20 +20,8 @@ def nome_auditoria_diaria_lote(lote_id: str, extensao: str) -> str:
     return f"auditoria_diaria_{slug_lote(lote_id)}_{VERSAO_SLUG}.{extensao.lstrip('.')}"
 
 
-def caminho_saida_oficial(raiz: Path, nome_arquivo: str) -> Path:
-    return raiz / 'saidas' / 'oficial' / nome_arquivo
-
-
-def caminho_saida_diagnostico(raiz: Path, nome_arquivo: str) -> Path:
-    return raiz / 'saidas' / 'diagnostico' / nome_arquivo
-
-
-def caminho_saida_historico(raiz: Path, nome_arquivo: str) -> Path:
-    return raiz / 'saidas' / 'historico' / nome_arquivo
-
-
 def caminho_saida_operacional(raiz: Path, nome_arquivo: str) -> Path:
-    return caminho_saida_oficial(raiz, nome_arquivo)
+    return raiz / 'saidas' / 'operacional' / nome_arquivo
 
 
 def caminho_artifact(nome_arquivo: str) -> Path:
