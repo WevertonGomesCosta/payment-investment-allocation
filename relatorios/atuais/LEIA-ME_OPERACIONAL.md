@@ -34,3 +34,10 @@
 3. Validar pagamentos e switchings contra o objetivo final do projeto e contra o modelo oficial V179.
 4. Exigir auditabilidade por lote/fonte/conta/pacote nas saídas diárias.
 5. Não aceitar runner ou comparador que oculte os componentes reais do pagamento vencedor ou os cenários de switching do dia.
+
+
+## Referência normativa vigente
+
+- Contrato mestre vigente: `CONTRATO_OPERACIONAL_PROJETO.md`
+- Modelo metodológico vinculante: `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
+- Baseline única vigente: V183

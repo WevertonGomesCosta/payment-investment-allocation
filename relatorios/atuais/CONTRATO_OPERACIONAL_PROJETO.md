@@ -1,319 +1,357 @@
-# Contrato operacional mestre do projeto `payment-investment-allocation` — V181
+# CONTRATO OPERACIONAL MESTRE DO PROJETO `payment-investment-allocation` — V183
 
-Este documento passa a ser o **documento mestre vigente** do projeto `payment-investment-allocation`.
+## 1. Status, função e baseline única
 
-Ele deve servir simultaneamente como:
+### 1.1. Documento mestre vigente
+Este documento é o **Contrato Operacional Mestre vigente** do projeto `payment-investment-allocation`.
 
-- referência normativa principal do projeto nas conversas futuras;
-- base metodológica e operacional para novas implementações;
-- ponto único de entrada para leitura do estado atual do repositório;
-- registro histórico condensado da evolução das baselines centrais até a V179/V180;
-- camada de governança superior em relação ao modelo oficial, suplementos e documentos históricos.
+### 1.2. Baseline única vigente
+A **baseline única vigente** do projeto é a **V183**.
 
-A partir da V181, este contrato deixa de ser apenas um resumo curto das regras vigentes e passa a ser um **contrato mestre completo, atual e historicamente contextualizado**.
+A V183 deve ser tratada simultaneamente como:
+
+- baseline contratual vigente;
+- baseline metodológica vigente;
+- baseline operacional de referência vigente.
+
+### 1.3. Estrutura normativa da baseline única
+Dentro da baseline única V183:
+
+- este contrato é o **documento normativo superior**;
+- o arquivo `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` é o **anexo metodológico vinculante** do projeto;
+- implementações, relatórios, runners, auditorias, saídas operacionais e documentos históricos não têm prevalência sobre este contrato nem sobre o anexo metodológico vinculante.
+
+### 1.4. Regra de prevalência
+Em caso de divergência entre:
+
+- implementação;
+- relatório;
+- saída de runner;
+- heurística local;
+- documento histórico;
+- interpretação de conversa anterior;
+- output de console;
+- arquivo intermediário;
+
+**prevalece este contrato mestre**.
+
+Para formulação matemática, econômica e estatística detalhada, a leitura correta é conjunta:
+
+- este contrato mestre como norma superior;
+- o anexo metodológico vinculante como formulação detalhada.
+
+### 1.5. Cláusula de estabilização
+O núcleo lógico, econômico e matemático definido por este contrato e por seu anexo metodológico vinculante é tratado como **estabilizado**.
+
+É vedado reabrir sua estrutura em conversas futuras ou em implementações novas sem justificativa explícita de revisão contratual.
 
 ---
 
-## 1. Finalidade e função normativa
+## 2. Nome canônico e localização dos documentos
 
-### 1.1. Função normativa principal
+### 2.1. Contrato canônico
+O arquivo canônico do contrato mestre no repositório é:
 
-Este contrato define o que deve ser considerado **vigente**, **obrigatório** e **interpretativamente prioritário** no projeto.
+`relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 
-Sempre que houver dúvida entre documentos, implementações, versões antigas, relatórios intermediários ou heurísticas locais, a leitura correta deve começar por este contrato mestre.
+### 2.2. Anexo metodológico vinculante
+O arquivo metodológico vinculante do projeto é:
 
-### 1.2. Função histórica controlada
+`relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
 
-Este contrato também registra, no próprio corpo principal, as principais baselines históricas e sua função na evolução do projeto, para evitar regressões futuras e perda de contexto em outros chats.
+### 2.3. Artefatos versionados
+Arquivos com nomes versionados, como exportações, cópias de revisão ou arquivos de congelamento, devem ser tratados apenas como artefatos de:
 
-### 1.3. Escopo normativo
+- exportação;
+- revisão;
+- auditoria;
+- distribuição.
 
-Este contrato cobre:
-
-- objetivo final do projeto;
-- unidade de decisão do motor;
-- regras de pagamento;
-- regras de elegibilidade;
-- regras de pós-vencimento;
-- regras de switching;
-- modelo econômico e critério terminal;
-- validação diária user-facing;
-- convenções de governança;
-- hierarquia documental;
-- lugar das baselines históricas.
+Eles não substituem os arquivos canônicos internos do repositório.
 
 ---
 
-## 2. Hierarquia documental vigente
+## 3. Hierarquia documental vigente
 
-A hierarquia documental do projeto passa a ser:
+A hierarquia documental vigente do projeto é:
 
 1. `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`  
-   **Contrato mestre vigente**.
-2. `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`  
-   **Anexo metodológico oficial**, subordinado ao contrato mestre.
-3. `relatorios/atuais/CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md` e `relatorios/atuais/CONTRATO_SUPLEMENTAR_POS_VENCIMENTO_GATE_V177.md`  
-   **Suplementos vigentes**, subordinados ao contrato mestre e ao modelo oficial.
-4. Auditorias e validações vigentes (`V175`, `V176`, `V177`, `V178` e posteriores)  
-   **Camada de verificação e evidência**.
-5. `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`  
-   **Camada de backlog**, sem poder normativo principal.
-6. Documentos históricos (como `V117`, `V108` e afins)  
-   **Camada histórica preservada**, sem força normativa principal.
+   **Contrato mestre normativo superior**.
+2. `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`  
+   **Anexo metodológico vinculante**.
+3. Suplementos históricos de validação e auditoria  
+   **Documentos auxiliares relevantes, sem prevalência normativa superior**.
+4. Auditorias, reexecuções e validações vigentes  
+   **Camada de evidência e verificação**.
+5. Backlogs e documentos de fases futuras  
+   **Camada de planejamento, sem força normativa principal**.
+6. Documentos históricos intermediários e antigos  
+   **Camada histórica preservada**.
 
 Quando houver conflito:
 
-- prevalece este contrato mestre;
-- depois, o modelo oficial;
-- depois, os suplementos vigentes;
-- depois, as auditorias e validações vigentes;
-- por fim, o material histórico.
+- prevalece o contrato mestre;
+- depois, o anexo metodológico vinculante;
+- depois, a evidência de auditoria mais recente compatível com ambos;
+- por fim, os documentos históricos.
 
 ---
 
-## 3. Baseline vigente e núcleo normativo atual
+## 4. Status dos documentos anteriores
 
-### 3.1. Baseline vigente
+### 4.1. Documentos históricos preservados
+Documentos anteriores são preservados para:
 
-A baseline documental e metodológica vigente do projeto é a **V179**, consolidada e governada pela reescrita contratual da **V180** e pela ampliação histórica/documental da **V181**.
+- rastreabilidade;
+- auditoria de regressão;
+- comparação metodológica;
+- compreensão da evolução do projeto.
 
-### 3.2. Núcleo normativo atual
+### 4.2. Sem autonomia normativa
+É vedado tratar documentos anteriores como normas autônomas diante da V183.
 
-O núcleo normativo atual do projeto é composto por:
+### 4.3. V176 e V177
+Os documentos V176 e V177 permanecem como **suplementos históricos de validação e auditoria**, úteis para:
 
-- este `CONTRATO_OPERACIONAL_PROJETO.md`;
-- `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`;
-- `CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`;
-- `CONTRATO_SUPLEMENTAR_POS_VENCIMENTO_GATE_V177.md`.
+- rastreabilidade da validação diária;
+- correções de pós-vencimento;
+- correções de gate de switching;
+- comparação de regressão.
 
-### 3.3. Interpretação correta do projeto
+Eles não prevalecem sobre este contrato nem sobre o anexo metodológico vinculante.
 
-O projeto deve ser interpretado como um **motor conjunto diário de decisão financeira**, e não como uma coleção de heurísticas independentes de:
-
-- pagamento;
-- switching;
-- recomputação;
-- runner;
-- auditoria;
-- impressão de saída.
-
----
-
-## 4. Linha histórica condensada das baselines centrais
-
-Esta seção existe para manter o contrato mestre útil em outros chats sem depender de releitura de muitas conversas passadas.
-
-### 4.1. Camada histórica antiga — V108
-
-A V108 foi uma baseline importante para a frente central porque consolidou uma camada operacional relevante do motor, especialmente na evolução da recomputação e das decisões por pagamento.  
-Ela permanece relevante como **marco histórico de estabilidade central**, mas **não** deve mais ser lida como referência normativa principal do projeto.
-
-### 4.2. Camada contratual intermediária — V117
-
-A V117 foi importante para formalizar o “motor conjunto temporal” e a relação entre:
-
-- alocador de pagamentos terminal;
-- planejador de switching temporal;
-- simulador central;
-- runner de análise.
-
-Ela permanece relevante como **contrato intermediário histórico**, útil para rastrear a transição da arquitetura antiga para a arquitetura atual.  
-No entanto, a V117 já não descreve completamente o modelo final aprovado e, portanto, não deve orientar novas implementações como norma principal.
-
-### 4.3. Marco estrutural local — V174
-
-A V174 consolidou o congelamento estrutural local da frente de switching dentro do simulador central.  
-Ela é importante porque marca o ponto em que a reorganização local de baixo risco foi considerada suficientemente madura.
-
-### 4.4. Marco de validação diária — V176 e V177
-
-A V176 formalizou a validação diária orientada ao objetivo final e melhorou a auditabilidade das saídas.  
-A V177 corrigiu dois pontos cruciais:
-
-- materialização/auditabilidade pós-vencimento dos lotes críticos;
-- gate de execução do switching promovível em dias sem pagamento.
-
-### 4.5. Marco de reexecução com dados/cache atualizados — V178
-
-A V178 confirmou que, após atualização do cache BCB e reexecução, o gargalo remanescente já não era mais a defasagem dos dados, mas sim a política decisória em dias com pagamento.
-
-### 4.6. Marco metodológico oficial — V179
-
-A V179 formalizou o **modelo matemático estatístico-financeiro oficial** do projeto.  
-Esse é o marco metodológico principal atualmente vigente.
-
-### 4.7. Marco contratual de hierarquia — V180
-
-A V180 reescreveu o contrato operacional em formato de contrato mestre alinhado ao modelo oficial, rebaixando V117/V108 a contexto histórico.
-
-### 4.8. Marco de ampliação histórica do contrato — V181
-
-A V181 amplia o contrato mestre para que ele seja:
-
-- completo;
-- atual;
-- historicamente contextualizado;
-- e útil como referência principal em conversas futuras.
+### 4.4. V117 e V108
+Os documentos V117 e V108 permanecem como **histórico útil para auditoria e comparação de regressão**, sem força normativa principal.
 
 ---
 
 ## 5. Objetivo final do projeto
 
-O objetivo final do projeto é construir um **motor conjunto, diário, auditável e economicamente coerente** para decidir, em cada dia `t`, sobre:
+O objetivo final do projeto é construir um **motor conjunto, diário, auditável e economicamente coerente** que decida, em cada dia \(t\), sobre:
 
-- pagamentos obrigatórios do dia;
+- pagamento das contas do dia;
 - uso de saldo disponível;
 - uso de lotes aportados;
-- uso de lotes vencidos e normalizados para disponibilidade;
+- uso de lotes vencidos já normalizados;
 - switching entre produtos;
-- manutenção ou não ação.
+- manutenção ou não ação;
 
-A decisão do dia deve buscar **maximizar o patrimônio líquido terminal líquido**, respeitando simultaneamente:
+com o objetivo de **maximizar o patrimônio líquido terminal líquido** no horizonte principal vigente.
+
+O projeto deve respeitar simultaneamente:
 
 - pagamento obrigatório das contas do dia;
-- restrições de disponibilidade temporal;
+- disponibilidade temporal real;
 - liquidez;
 - carência;
 - tributação;
 - regras dos produtos;
-- precedência intradiária do pacote escolhido;
-- auditabilidade completa por lote, fonte, conta e pacote.
+- cronologia intradiária do pacote escolhido;
+- auditabilidade por lote, fonte, conta, grupo, produto e pacote.
 
-O projeto **não** tem como objetivo final otimizar isoladamente:
+É vedado interpretar o projeto como:
 
-- uma única conta;
-- um único lote;
-- um único switching;
-- uma única janela local desconectada do estado global do dia.
+- otimizador isolado de conta;
+- planejador de switching separado do estado do dia;
+- heurística local sem núcleo econômico;
+- runner de auditoria sem função decisória conjunta.
 
 ---
 
-## 6. Unidade de decisão vigente
+## 6. Definições normativas
 
-### 6.1. Unidade decisória
+Para este contrato, os termos abaixo têm significado fixo.
 
-A unidade decisória oficial do projeto é o **dia `t`**.
+### 6.1. Fonte
+É qualquer recurso economicamente utilizável no dia, incluindo:
 
-### 6.2. Condição inicial do dia
+- saldo disponível geral;
+- recebido disponível;
+- lote aportado elegível;
+- lote vencido já normalizado.
 
-Em cada dia `t`, o motor deve primeiro verificar se existem contas com vencimento no dia.
+### 6.2. Lote
+É a unidade financeira rastreável com identidade própria, histórico, custo fiscal, regras de rendimento e regras de disponibilidade.
 
-### 6.3. Pacotes factíveis
+### 6.3. Residual
+É o valor remanescente de uma fonte ao fim de uma fase ou de um pacote do dia.
 
-Se não houver contas no dia, os pacotes factíveis são apenas:
+### 6.4. Pacote do dia
+É a estrutura decisória completa do dia \(t\), dentre os pacotes permitidos por este contrato.
+
+### 6.5. Grupo factível de switching
+É o subconjunto de fontes elegíveis que pode ser migrado conjuntamente para um produto destino, respeitando todas as restrições do dia.
+
+### 6.6. Horizonte principal
+É o horizonte \(H\) oficialmente adotado para a decisão-base do motor.
+
+### 6.7. Sensibilidade
+É análise complementar em horizonte alternativo, sem substituir a decisão-base, salvo regra explícita em contrário.
+
+### 6.8. Saldo disponível geral
+Para fins contratuais, o saldo disponível geral é tratado como **uma única fonte lógica**, salvo se o projeto vier a formalizar explicitamente múltiplos saldos operacionais independentes.
+
+### 6.9. Carteira ranqueada oficial
+É a carteira resultante da aplicação do módulo oficial de ranking da aba `Carteira`, usada como base obrigatória de priorização de destinos elegíveis.
+
+---
+
+## 7. Unidade oficial de decisão
+
+### 7.1. Unidade temporal
+A unidade oficial de decisão do projeto é o **dia \(t\)**.
+
+### 7.2. Condição inicial do dia
+Em cada dia \(t\), é obrigatório verificar primeiro se existem contas com vencimento em \(t\).
+
+Defina:
+
+\[
+\mathbb I_t^{pay}=
+egin{cases}
+1, & 	ext{se existe pelo menos uma conta com vencimento em } t \
+0, & 	ext{caso contrário}
+\end{cases}
+\]
+
+com
+
+\[
+\mathcal J_t=\{j:	ext{data da conta }j=t\}
+\]
+
+### 7.3. Pacotes factíveis
+Se \(\mathbb I_t^{pay}=0\), os pacotes factíveis são:
 
 - `no_action`;
 - `switch_only`.
 
-Se houver contas no dia, os pacotes factíveis são apenas:
+Se \(\mathbb I_t^{pay}=1\), os pacotes factíveis são:
 
 - `pay_only`;
 - `switch_then_pay`;
 - `pay_then_switch`.
 
-### 6.4. Comparação no mesmo estado
+### 7.4. Comparação no mesmo estado
+É obrigatório comparar os pacotes factíveis sobre o **mesmo estado econômico inicial do dia**, respeitando:
 
-A decisão do dia deve comparar os pacotes factíveis sobre o **mesmo estado econômico do dia**, usando:
-
-- o mesmo critério terminal;
-- a mesma governança de desempate;
-- a mesma cronologia intradiária oficial.
+- a mesma valoração;
+- a mesma cronologia intradiária;
+- a mesma regra de desempate;
+- o mesmo horizonte principal.
 
 ---
 
-## 7. Regras obrigatórias de pagamento
+## 8. Regras obrigatórias de pagamento
 
-### 7.1. Data de pagamento
+### 8.1. Data correta
+É obrigatório pagar cada conta na data da planilha.
 
-A data da planilha é a data correta de pagamento da conta.
+### 8.2. Restrições duras
+É vedado considerar:
 
-### 7.2. Restrições duras de pagamento
-
-O projeto não deve considerar:
-
-- atraso de pagamento;
-- antecipação de pagamento;
+- atraso;
+- antecipação;
 - não pagamento;
 - pagamento parcial da conta.
 
-### 7.3. Pagamento integral
+### 8.3. Pagamento integral
+É obrigatório pagar integralmente cada conta do dia.
 
-Cada conta do dia deve ser paga **integralmente no próprio dia**.
-
-### 7.4. Resolução conjunta das contas do dia
-
-O pagamento do dia deve ser resolvido **conjuntamente** sobre o conjunto das contas com vencimento em `t`.
-
-### 7.5. Regra operacional global do residual no pagamento do dia
-
-O pagamento combinatório de uma ou mais contas do dia é permitido, mas deve obedecer à seguinte regra operacional global:
-
-- se apenas uma fonte for usada no pagamento do dia, tudo certo;
-- se múltiplas fontes forem usadas no pagamento do dia, então **no máximo uma** dessas fontes pode terminar a fase de pagamento com residual positivo;
-- todas as demais fontes usadas devem zerar nessa fase.
-
-Essa regra vale para o **conjunto dos pagamentos do dia**, e não por conta isolada.
-
-### 7.6. Objetivo operacional da regra
-
-O objetivo dessa regra é:
-
-- evitar pulverização desnecessária de resíduos;
-- preservar simplicidade operacional;
-- reduzir fragmentação artificial de lotes;
-- manter a decisão econômica compatível com o uso real dos recursos.
+### 8.4. Resolução conjunta do dia
+É obrigatório resolver o pagamento sobre o **conjunto das contas do dia**, e não conta por conta de forma isolada.
 
 ---
 
-## 8. Elegibilidade prévia e pós-vencimento
+## 9. Regra global do residual no pagamento do dia
 
-### 8.1. Filtragem antes da otimização
+### 9.1. Regra principal
+Se apenas uma fonte for usada no pagamento do dia, não há restrição adicional de residual.
 
-O motor não deve começar diretamente do conjunto bruto de recursos como conjunto elegível.
+Se múltiplas fontes forem usadas no pagamento do dia, então:
 
-Antes da otimização, o projeto deve derivar explicitamente:
+> **no máximo uma** das fontes usadas pode terminar a fase de pagamento com residual positivo.
+
+Todas as demais fontes usadas nessa fase devem zerar.
+
+### 9.2. Escopo
+Essa regra vale para o **conjunto dos pagamentos do dia**, e não por conta isolada.
+
+### 9.3. Saldo disponível geral
+O saldo disponível geral conta como fonte para essa regra e está sujeito à mesma restrição.
+
+### 9.4. Finalidade
+Essa regra existe para:
+
+- evitar pulverização de resíduos;
+- simplificar o pagamento do dia;
+- reduzir fragmentação artificial de fontes;
+- manter operacionalidade coerente com o objetivo econômico.
+
+---
+
+## 10. Universo bruto e elegibilidade prévia
+
+### 10.1. Universo bruto
+É obrigatório iniciar de um universo bruto de recursos observáveis no dia, incluindo:
+
+- saldo disponível;
+- recebidos disponíveis;
+- lotes aportados;
+- lotes vencidos;
+- lotes futuros;
+- demais recursos presentes no estado.
+
+### 10.2. Filtragem prévia
+Antes da otimização, é obrigatório derivar explicitamente:
 
 - fontes elegíveis para pagamento;
 - fontes elegíveis para switching.
 
-### 8.2. Filtros obrigatórios
-
-Uma fonte só pode entrar como elegível se passar pelos filtros de:
+### 10.3. Filtros obrigatórios
+Uma fonte só pode ser tratada como elegível se passar por:
 
 - disponibilidade temporal;
 - liquidez/resgate;
 - carência de retirada ou saída;
-- regras operacionais do produto.
-
-### 8.3. Regra de pós-vencimento
-
-Se um lote venceu em `t` ou antes, ele deixa de ser tratado como lote aportado ativo e passa a ser tratado como **fonte disponível do dia**.
-
-Se um lote vence depois de `t`, ele não pode ser tratado como disponível por vencimento.
-
-### 8.4. Status normativo do pós-vencimento
-
-O tratamento de pós-vencimento é parte do **estado econômico do dia** e não apenas uma camada de auditoria posterior.
+- regra operacional do produto;
+- restrições específicas aplicáveis.
 
 ---
 
-## 9. Regras obrigatórias de switching
+## 11. Regra de pós-vencimento
 
-### 9.1. Formas permitidas
+### 11.1. Regra principal
+Se um lote venceu em \(t\) ou antes, ele deixa de ser lote aportado ativo e passa a ser **fonte disponível do dia**.
 
-O projeto adota somente três formas de switching:
+Formalmente:
+
+\[
+m_i \le t \Rightarrow 	ext{fonte disponível do dia}
+\]
+
+### 11.2. Regra negativa
+É vedado tratar lote com vencimento posterior a \(t\) como disponível por vencimento.
+
+### 11.3. Status normativo
+O pós-vencimento é parte do **estado econômico oficial do dia** e não mera camada de auditoria.
+
+---
+
+## 12. Regras obrigatórias de switching
+
+### 12.1. Formas permitidas
+É permitido apenas switching nas formas:
 
 - **individual**;
 - **agrupado combinatório**;
 - **integral**.
 
-### 9.2. Agrupado combinatório
+### 12.2. Agrupado combinatório
+É obrigatório que o agrupado seja realmente combinatório e baseado em grupos factíveis.
 
-O agrupado deve ser realmente combinatório, e não apenas junção simples ou heurística nominal de poucos casos fixos.
-
-### 9.3. Integral
-
-O integral deve ser interpretado como o **maior grupo factível elegível do pacote do dia**, após filtros de:
+### 12.3. Switching integral
+Switching integral é o switching do **maior grupo factível elegível para um produto destino específico dentro do pacote do dia**, após filtros de:
 
 - disponibilidade;
 - liquidez;
@@ -321,137 +359,202 @@ O integral deve ser interpretado como o **maior grupo factível elegível do pac
 - ticket;
 - compatibilidade com o produto destino.
 
-### 9.4. Limites por fonte
+### 12.4. Limite por fonte
+É vedado que uma fonte participe de mais de um switching no mesmo dia.
 
-Uma mesma fonte não pode participar de mais de um switching no mesmo dia.
-
-### 9.5. Pagamento e switching na mesma fonte
-
-Uma mesma fonte pode:
-
-- participar da fase de pagamento;
-- e depois, com o residual, participar de um único switching.
-
-### 9.6. Distinção entre pré e pós pagamento
-
-No pacote `pay_then_switch`, o switching deve atuar sobre o residual pós-pagamento elegível.
-
-No pacote `switch_then_pay`, o switching deve atuar sobre o conjunto elegível pré-pagamento.
-
-A distinção entre pré-pagamento e pós-pagamento é obrigatória tanto na modelagem quanto na implementação.
+### 12.5. Convivência com pagamento
+É permitido que uma fonte participe do pagamento e depois, com residual elegível, participe de um único switching.
 
 ---
 
-## 10. Valoração, rendimento e critério econômico
+## 13. Distinção obrigatória entre switching pré e pós pagamento
 
-### 10.1. Submodelo de rendimento e valoração
+### 13.1. `switch_then_pay`
+No pacote `switch_then_pay`, o switching atua sobre o conjunto elegível **pré-pagamento**.
 
-O projeto deve usar explicitamente o submodelo de rendimento e valoração dos lotes já validado no repositório e alinhado à saída do console.
+### 13.2. `pay_then_switch`
+No pacote `pay_then_switch`, o switching atua sobre o **estado pós-pagamento do dia**, incluindo:
 
-### 10.2. Função contratual do submodelo de rendimento
+- resíduos das fontes usadas no pagamento;
+- fontes elegíveis não utilizadas nessa fase;
 
-Esse submodelo é parte do contrato vigente porque fornece, no mínimo:
+salvo restrição explícita em contrário.
+
+Esse estado pós-pagamento deve ser entendido como o conjunto efetivamente remanescente e elegível após a liquidação integral das contas do dia.
+
+### 13.3. Obrigatoriedade
+É obrigatório manter essa distinção:
+
+- na formulação;
+- na implementação;
+- na auditoria;
+- na saída diária.
+
+---
+
+## 14. Valoração, rendimento e critério econômico
+
+### 14.1. Submodelo de rendimento obrigatório
+É obrigatório usar o submodelo de rendimento e valoração já validado no projeto e alinhado à lógica da saída do console.
+
+### 14.2. Função normativa do submodelo
+Esse submodelo fornece, no mínimo:
 
 - valor economicamente disponível da fonte no dia;
 - valor terminal líquido de manter;
 - valor terminal líquido dos grupos em switching;
-- custo de oportunidade de usar a fonte em pagamento.
+- custo de oportunidade do pagamento;
+- base econômica para comparação de pacotes.
 
-### 10.3. Critério econômico do pagamento
+### 14.3. Critério econômico do pagamento
+É obrigatório escolher a fonte ou combinação de fontes pelo **menor custo de oportunidade terminal líquido**, respeitando as restrições operacionais do pacote.
 
-O critério econômico do pagamento **não** é “menor taxa nominal”.
+É vedado usar “menor taxa nominal” como critério contratual principal.
 
-O critério correto é usar a fonte ou combinação de fontes com **menor custo de oportunidade terminal líquido**, respeitando as restrições operacionais do pacote do dia.
-
-### 10.4. Critério econômico do switching
-
-O critério econômico do switching também deve ser comparado pelo efeito terminal líquido, e não por ganho local isolado.
-
----
-
-## 11. Conservação de valor e residual mantido
-
-### 11.1. Status normativo da conservação de valor
-
-A conservação de valor faz parte do núcleo normativo do modelo.
-
-### 11.2. Valor mantido
-
-O termo de valor mantido deve permanecer no modelo, com interpretação de **residual final mantido ao fim do pacote**.
-
-### 11.3. Residual no `pay_then_switch`
-
-No pacote `pay_then_switch`, o switching atua integralmente sobre o residual elegível da fonte: o residual entra inteiro ou não entra.
-
-### 11.4. Proibição de fracionamento livre do switching residual
-
-O projeto não deve permitir fracionamento livre do switching sobre o residual.
-
-### 11.5. Auditabilidade do residual
-
-O residual final do pacote precisa permanecer auditável por lote/fonte.
+### 14.4. Critério econômico do switching
+É obrigatório comparar switching pelo efeito terminal líquido, e não por ganho local isolado.
 
 ---
 
-## 12. Cronologia intradiária oficial
+## 14-A. Camada oficial de ranqueamento da carteira
 
-### 12.1. Regra geral
+### 14-A.1. Natureza
+O projeto incorpora uma **camada oficial de ranqueamento da carteira** como **módulo auxiliar vinculante de priorização de destinos**.
 
-A cronologia intradiária do dia deve ser congelada e respeitada pela implementação.
+### 14-A.2. Função obrigatória
+É obrigatório que essa camada:
 
-### 12.2. Etapas iniciais comuns
+- produza o ranqueamento oficial dos produtos da aba `Carteira`;
+- defina o conjunto priorizado de produtos destino elegíveis para switching;
+- alimente a priorização dos destinos considerados pelo motor diário;
+- permaneça coerente com os artefatos oficiais exportados para validação.
 
-Todo pacote do dia deve começar por:
+### 14-A.3. Relação com o motor diário
+É obrigatório que o motor diário trate o ranqueamento da carteira como base oficial de priorização do universo de destinos.
 
-- incorporar recebidos disponíveis no dia;
-- normalizar lotes vencidos em `t`.
+É vedado selecionar destinos de switching de forma desconectada da camada oficial de ranqueamento da carteira, salvo justificativa operacional explícita, auditável e compatível com este contrato.
 
-### 12.3. Ordem por pacote
+### 14-A.4. Papel metodológico
+Essa camada:
 
-Depois disso:
+- **não substitui** o motor diário de decisão;
+- **não substitui** o comparador de pacotes do dia;
+- **não substitui** o objetivo terminal do projeto.
 
-- `no_action` apenas mantém o estado;
-- `switch_only` executa o switching vencedor e fecha o estado;
-- `pay_only` paga integralmente as contas e fecha o estado;
-- `switch_then_pay` executa switching, depois paga e então fecha o estado;
-- `pay_then_switch` paga, depois executa switching sobre o residual e então fecha o estado.
+Seu papel é:
 
-### 12.4. Disponibilidade por etapa
+- priorizar destinos;
+- estruturar a leitura oficial da carteira;
+- apoiar a triagem de produtos elegíveis;
+- reforçar a auditabilidade da decisão.
 
-Um recurso só pode ser usado em uma etapa se ele já existir economicamente naquela etapa.
+### 14-A.5. Relação com a aba `Carteira`
+A aba **Carteira** do arquivo final oficial deve refletir a **carteira ranqueada oficial do projeto**, incluindo, no mínimo:
+
+- score;
+- ranking;
+- elegibilidade;
+- informações relevantes para priorização de destinos;
+- informações relevantes para validação manual.
 
 ---
 
-## 13. Convenções de governança obrigatórias
+## 15. Conservação de valor e residual mantido
 
-O contrato congela quatro convenções de governança transversal:
+### 15.1. Conservação de valor
+A conservação de valor integra o núcleo normativo do projeto.
 
-- arredondamento;
-- horizonte principal e sensibilidades;
-- hierarquia de desempate;
-- convenção intradiária de disponibilidade.
+### 15.2. Valor mantido
+O termo de valor mantido é obrigatório e representa o **residual final mantido** ao fim do pacote.
 
-### 13.1. Arredondamento
+### 15.3. Residual no `pay_then_switch`
+No pacote `pay_then_switch`, o switching atua integralmente sobre o residual elegível:
 
-O documento formal e a implementação devem congelar uma política uniforme de arredondamento monetário a centavos.
+- o residual entra inteiro;
+- ou não entra.
 
-A política deve ser aplicada de forma consistente para:
+### 15.4. Vedação ao fracionamento livre
+É vedado fracionar livremente o switching sobre o residual.
 
-- pagamentos;
-- impostos;
-- residuais;
-- valores líquidos;
-- comparação entre pacotes.
+### 15.5. Auditabilidade
+É obrigatório manter auditabilidade do residual final por lote e por fonte.
 
-### 13.2. Horizonte principal e sensibilidades
+---
 
-O projeto deve operar com um **horizonte principal `H`** para a decisão base.
+## 16. Cronologia intradiária oficial
 
-Sensibilidades adicionais devem ser tratadas como auditoria ou análise complementar, salvo regra explícita em contrário.
+### 16.1. Regra geral
+A cronologia intradiária do dia fica **normativamente congelada**.
 
-### 13.3. Hierarquia de desempate
+### 16.2. Ordem inicial comum
+Todo pacote do dia deve começar nesta ordem obrigatória:
 
-Quando dois pacotes tiverem valor terminal praticamente equivalente, a decisão deve obedecer à seguinte hierarquia documental de desempate:
+1. incorporar recebidos disponíveis do dia;
+2. normalizar lotes vencidos em \(t\).
+
+### 16.3. Ordem por pacote
+
+#### `no_action`
+3. manter o estado.
+
+#### `switch_only`
+3. executar o switching vencedor;  
+4. fechar o estado do dia.
+
+#### `pay_only`
+3. pagar integralmente as contas do dia;  
+4. fechar o estado do dia.
+
+#### `switch_then_pay`
+3. executar switching sobre o conjunto pré-pagamento;  
+4. pagar integralmente as contas do dia no estado pós-switching;  
+5. fechar o estado do dia.
+
+#### `pay_then_switch`
+3. pagar integralmente as contas do dia;  
+4. construir o estado pós-pagamento;  
+5. executar switching sobre o estado pós-pagamento;  
+6. fechar o estado do dia.
+
+### 16.4. Disponibilidade por etapa
+É vedado usar recurso em etapa na qual ele ainda não exista economicamente.
+
+---
+
+## 17. Convenções de governança obrigatórias
+
+### 17.1. Arredondamento
+Fica congelada a seguinte política oficial:
+
+- arredondamento monetário a centavos;
+- arredondamento decimal **half-up**;
+- aplicação consistente em:
+  - pagamentos,
+  - impostos,
+  - valores líquidos,
+  - residuais,
+  - comparação econômica final.
+
+É permitido usar maior precisão intermediária internamente, desde que a camada contratual e auditável feche em centavos com half-up.
+
+### 17.2. Horizonte principal e sensibilidades
+O projeto opera com um **horizonte principal \(H\)** para a decisão-base.
+
+Sensibilidades:
+
+- são permitidas;
+- são complementares;
+- não substituem a decisão-base;
+- salvo regra explícita em contrário.
+
+### 17.3. Hierarquia de desempate
+Quando dois pacotes forem praticamente equivalentes, isto é:
+
+\[
+|Z_t^{(k_1)} - Z_t^{(k_2)}| \le arepsilon
+\]
+
+com \(arepsilon\) definido no `config` vigente como **parâmetro contratualmente único por baseline e auditável**, a decisão deve obedecer à seguinte ordem:
 
 1. maior valor terminal líquido;
 2. maior liquidez residual útil;
@@ -459,100 +562,233 @@ Quando dois pacotes tiverem valor terminal praticamente equivalente, a decisão 
 4. menor número de switchings executados;
 5. menor complexidade operacional global.
 
-### 13.4. Disponibilidade intradiária
+### 17.4. Disponibilidade intradiária
+Recursos incorporados em \(t\) entram no estado antes da decisão do pacote.
 
-Recursos incorporados em `t` entram no estado antes da decisão do pacote do dia.
-
-Recursos só podem ser consumidos por uma etapa se já estiverem economicamente disponíveis naquela etapa.
+Recursos só podem ser consumidos por uma etapa se estiverem economicamente disponíveis naquela etapa.
 
 ---
 
-## 14. Validação diária user-facing
+## 18. Validação diária user-facing
 
-Toda camada user-facing de validação diária deve ser compatível com:
+A camada user-facing de validação diária deve ser compatível com:
 
 - este contrato mestre;
-- o modelo oficial V179;
-- os suplementos vigentes.
+- o anexo metodológico vinculante;
+- a baseline única vigente.
 
-Não deve ser aceita saída diária que:
+É vedado aceitar saída diária que:
 
 - oculte os componentes reais do pagamento vencedor;
 - oculte as fontes candidatas do pagamento;
-- oculte as ações e cenários de switching do dia;
+- oculte candidatos e cenários de switching;
 - apresente lotes futuros ou ilíquidos como elegíveis antes da hora;
-- apresente inconsistência entre decisão econômica, execução e monitoramento do estado.
-
-A validação diária permanece subordinada aos contratos suplementares vigentes (`V176` e `V177`), mas esses contratos suplementares não substituem o núcleo deste contrato mestre.
+- apresente inconsistência entre decisão, execução e monitoramento do estado.
 
 ---
 
-## 15. Governança do repositório
+## 19. Governança das saídas operacionais, console e arquivos gerados
 
+### 19.1. Princípio geral
+As saídas operacionais do projeto devem ser:
+
+- auditáveis;
+- não redundantes;
+- não duplicadas sem função;
+- legíveis para validação humana;
+- consistentes com a baseline vigente;
+- estratificadas por finalidade.
+
+É vedado gerar múltiplas saídas que repitam a mesma informação sem diferença clara de propósito.
+
+### 19.2. Regra de não redundância
+Cada camada de saída deve ter uma função principal única.
+
+É vedado que:
+
+- console;
+- markdown;
+- json;
+- excel;
+- logs auxiliares;
+
+repitam o mesmo conteúdo no mesmo nível de detalhe sem justificativa operacional explícita.
+
+Quando duas saídas coexistirem, deve ser possível identificar claramente:
+
+- qual é a saída resumida;
+- qual é a saída detalhada;
+- qual é a saída oficial de auditoria;
+- qual é apenas apoio diagnóstico.
+
+### 19.3. Função do console
+O console é a **camada de leitura operacional rápida**.
+
+É obrigatório que o console priorize:
+
+- data de referência e janela analisada;
+- origem dos dados e status da obtenção;
+- pagamentos do dia;
+- componentes reais do pagamento;
+- pacote vencedor do dia;
+- switching promovido e/ou executado;
+- lotes críticos monitorados;
+- mensagens essenciais de validação.
+
+É vedado usar o console como despejo bruto de estruturas extensas, repetitivas ou de baixa utilidade para leitura humana.
+
+### 19.4. Função do markdown
+O markdown é a **camada de auditoria humana estruturada**.
+
+É obrigatório que o markdown:
+
+- resuma a execução;
+- organize os dias auditados;
+- destaque decisões vencedoras;
+- preserve rastreabilidade textual de lotes, contas, grupos e produtos.
+
+### 19.5. Função do JSON
+O JSON é a **camada detalhada, estruturada e machine-readable**.
+
+É permitido que o JSON tenha maior detalhamento do que o console e o markdown, desde que:
+
+- seja coerente com eles;
+- não os contradiga;
+- não substitua a necessidade de resumo humano.
+
+### 19.6. Arquivo final oficial para validação e manipulação
+É obrigatório gerar um **arquivo final em formato `.xlsx`** nas **execuções oficiais de validação, auditoria e entrega**, para facilitar:
+
+- manipulação;
+- leitura;
+- auditoria;
+- validação manual.
+
+Em microexecuções internas de teste, o `.xlsx` pode ser dispensado, desde que isso não comprometa a auditabilidade da etapa.
+
+### 19.7. Abas obrigatórias do arquivo `.xlsx`
+O arquivo final `.xlsx` deve conter, no mínimo, as seguintes abas, com esta grafia, salvo revisão contratual explícita:
+
+- **Extrato Passado**
+- **Extrato Futuro**
+- **Switching**
+- **Carteira**
+- **Situação Atual**
+
+É vedado consolidar essas camadas em uma única aba quando isso prejudicar legibilidade, validação ou rastreabilidade.
+
+### 19.8. Função das abas obrigatórias
+As abas devem servir, respectivamente, para:
+
+- **Extrato Passado**: rastrear e validar eventos e movimentos já ocorridos;
+- **Extrato Futuro**: rastrear e validar projeções e decisões à frente;
+- **Switching**: explicitar candidatos, decisões, grupos e resultados de switching;
+- **Carteira**: refletir a carteira oficial ranqueada do projeto, incluindo score, ranking, elegibilidade e informações relevantes para priorização de destinos de switching e validação manual;
+- **Situação Atual**: resumir o estado operacional presente para leitura rápida e conferência.
+
+### 19.9. Arquivos auxiliares
+Logs, diagnósticos e arquivos auxiliares só devem ser gerados quando tiverem função clara de:
+
+- auditoria de regressão;
+- depuração controlada;
+- validação metodológica;
+- checagem de release.
+
+É vedado promover arquivos auxiliares ao mesmo status de artefatos oficiais sem necessidade contratual explícita.
+
+### 19.10. Regra de unicidade informacional
+Cada informação essencial do projeto deve possuir uma camada principal de referência:
+
+- leitura rápida → console;
+- leitura auditável humana → markdown;
+- leitura estruturada completa → json;
+- manipulação e validação operacional → `.xlsx`;
+- regra e norma → contrato mestre e anexo metodológico vinculante.
+
+É vedado deixar informação crítica espalhada sem camada principal identificável.
+
+### 19.11. Regra de legibilidade
+As saídas oficiais devem favorecer:
+
+- validação humana rápida;
+- comparação entre dias;
+- comparação entre pacotes;
+- identificação explícita de lotes, contas, produtos e grupos;
+- interpretação econômica direta.
+
+É vedado priorizar completude bruta às custas da legibilidade operacional.
+
+---
+
+## 20. Governança do repositório
+
+### 20.1. Repositório oficial
 O repositório-base oficial é `payment-investment-allocation`.
 
+### 20.2. Entrega e versionamento
 Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial.
 
-O `.zip` deve abrir sem pasta interna raiz, com arquivos e pastas diretamente na raiz do pacote.
+### 20.3. Estrutura do `.zip`
+O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas diretamente na raiz.
 
-Todo o projeto deve permanecer em português.
+### 20.4. Idioma
+É obrigatório manter o projeto em português.
 
-Antes de cada entrega, a etapa implementada deve ser executada e validada localmente no ambiente disponível.
+### 20.5. Validação pré-entrega
+É obrigatório executar e validar localmente a etapa implementada antes de cada entrega.
 
-A checagem de release em `scripts/diagnostico/verificar_release_baseline.py` permanece gate obrigatório antes das entregas.
+### 20.6. Gate de release
+A checagem de release permanece gate obrigatório.
 
-O pacote final não deve incluir artefatos efêmeros como `__pycache__`, `.pyc`, logs brutos auxiliares, caches não oficiais e saídas redundantes temporárias.
+### 20.7. Artefatos efêmeros
+É vedado incluir no pacote final artefatos efêmeros como:
 
+- `__pycache__`
+- `.pyc`
+- logs auxiliares temporários
+- caches não oficiais
+- saídas redundantes não oficiais
+
+### 20.8. Índice oficial
 O índice oficial de navegação documental é `relatorios/INDICE_RELATORIOS.md`.
 
 ---
 
-## 16. Leitura histórica preservada
+## 21. Histórico preservado
 
-### 16.1. Status dos documentos históricos
+### 21.1. Status
+Documentos históricos permanecem preservados, sem força normativa autônoma.
 
-Os documentos V117 e V108 deixam de ser referência normativa principal do projeto.
+### 21.2. Uso permitido
+Eles servem para:
 
-Eles permanecem preservados por rastreabilidade histórica, contextual e arquitetural.
+- rastreabilidade;
+- auditoria de regressão;
+- compreensão da evolução do projeto;
+- comparação metodológica histórica.
 
-### 16.2. Função dos históricos preservados
+### 21.3. Exemplos
+São históricos preservados, entre outros:
 
-Esses documentos devem ser lidos apenas como:
-
-- contexto intermediário de evolução do motor;
-- registro de baselines históricas;
-- material de comparação para auditorias de regressão;
-- apoio para entender decisões antigas já superadas.
-
-### 16.3. Documentos explicitamente rebaixados
-
-São explicitamente rebaixados a contexto histórico:
-
-- `CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`;
-- `CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md`;
-- `RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`.
+- contratos V117;
+- referências V108;
+- suplementos V176 e V177;
+- demais documentos intermediários superados pela baseline única vigente.
 
 ---
 
-## 17. Relação entre contrato mestre e modelo oficial
+## 22. Relação entre contrato mestre e modelo metodológico
 
-O documento `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md` permanece como **anexo metodológico normativo** deste contrato.
+O arquivo `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` permanece como **anexo metodológico vinculante** do projeto.
 
 A leitura correta é:
 
-- este contrato define o que é vigente, obrigatório e interpretativamente prioritário;
-- o modelo oficial define a formulação matemática e econômico-financeira detalhada que implementa esse contrato.
-
-Se houver divergência aparente entre formulação e governança, prevalece a interpretação definida por este contrato mestre.
+- este contrato define a norma superior;
+- o anexo metodológico detalha a formulação matemática, econômica e estatística vinculada a esta norma;
+- ambos coexistem dentro da baseline única V183, sem competição normativa entre si.
 
 ---
 
-## 18. Status final da V181
+## 23. Status final da V183
 
-A V181 passa a representar:
-
-- o contrato mestre completo do projeto;
-- a referência principal para próximos chats;
-- a base documental final antes da derivação da especificação operacional de `resolver_dia(t, E_t)`;
-- o ponto único de entrada para leitura do estado normativo e histórico do repositório.
-
+A V183 representa a baseline única vigente do projeto e a referência principal para sua continuidade contratual, metodológica e operacional.

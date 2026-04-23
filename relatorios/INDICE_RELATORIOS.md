@@ -79,3 +79,6 @@
 - `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 
 - `relatorios/atuais/AMPLIACAO_CONTRATO_MESTRE_V181.md`
+
+- `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md` — contrato mestre vigente da baseline V183
+- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` — anexo metodológico vinculante da baseline V183
