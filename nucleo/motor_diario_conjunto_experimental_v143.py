@@ -22,6 +22,7 @@ from nucleo.planejador_switching_temporal_v1 import planejar_switching_temporal_
 from nucleo.simulador_central_eventos_v1 import (
     _aplicar_switching_eventos,
     _ativar_recebidos_futuros_no_dia,
+    _normalizar_lote_pos_vencimento_no_dia,
     _calcular_metrica,
     _coerce_date,
     _consumir_componentes,
@@ -179,6 +180,7 @@ def _melhor_plano_switching_diario_v143(
 ) -> dict[str, Any] | None:
     estado_local = deepcopy(estado)
     estado_local['data_evento_corrente'] = data_atual
+    _normalizar_lote_pos_vencimento_no_dia(estado_local, data_atual, config, None)
     horizonte = {'data_inicio': data_atual.isoformat(), 'data_fim': data_fim.isoformat()}
     baseline = simular_cenario_eventos_v1(deepcopy(estado_local), [], config, horizonte=horizonte)
     plano = planejar_switching_temporal_v1(
@@ -227,6 +229,7 @@ def _executar_pacote_dia(
 ) -> dict[str, Any]:
     estado = deepcopy(estado_inicial)
     historico_local: list[dict[str, Any]] = []
+    _normalizar_lote_pos_vencimento_no_dia(estado, dia, config, historico_local)
     eventos_executados: list[dict[str, Any]] = []
     ganho_switching = 0.0
     perda_liquidez_switching = 0.0
@@ -364,6 +367,7 @@ def rodar_motor_diario_conjunto_experimental_v143(
     dia = data_inicio
     while dia <= data_fim:
         estado_corrente['data_evento_corrente'] = dia
+        _normalizar_lote_pos_vencimento_no_dia(estado_corrente, dia, config, historico_execucao)
         _ativar_recebidos_futuros_no_dia(estado_corrente, dia, historico_execucao)
         pagamentos_dia = _ordenar_pagamentos(pagamentos_por_dia.get(dia.isoformat(), []))
         plano_switching = _melhor_plano_switching_diario_v143(
@@ -493,7 +497,7 @@ def rodar_motor_diario_conjunto_experimental_v143(
     ).para_dict()
     return {
         'status': 'ok',
-        'versao': 'V143',
+        'versao': 'V146',
         'janela': {'data_inicio': data_inicio.isoformat(), 'data_fim': data_fim.isoformat()},
         'limites_busca_switching': {
             'limite_candidatos_por_data': int(limite_candidatos_por_data),

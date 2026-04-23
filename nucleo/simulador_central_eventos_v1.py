@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date, datetime, timedelta
+
+from nucleo.calendario_financeiro import proximo_dia_util_bancario_em_ou_apos
 from pathlib import Path
 from typing import Any
 
@@ -216,6 +218,7 @@ def construir_estado_global_recorte_curto_v117(
         pagamentos = pagamentos.loc[pagamentos['data'] <= data_fim].copy().reset_index(drop=True)
 
     mapa_produtos = _mapa_produtos_proxy(contexto)
+    mapa_produtos_carteira = (getattr(getattr(contexto, 'carteira_canonica', None), 'mapa_produtos', None) or {}).get('by_key') or {}
     lotes: list[dict[str, Any]] = []
     for lote in contexto.replay_passado.lotes_apos_replay:
         if getattr(lote, 'esgotado', False):
@@ -230,11 +233,26 @@ def construir_estado_global_recorte_curto_v117(
         ) or 0.0), 2)
         if valor_liquido <= 0.0:
             continue
-        produto = mapa_produtos.get(str(getattr(lote, 'produto_key', '') or '').strip(), {})
+        produto_key = str(getattr(lote, 'produto_key', '') or '').strip()
+        produto = mapa_produtos.get(produto_key, {})
+        produto_carteira = mapa_produtos_carteira.get(produto_key, {})
+        data_aplicacao_lote = getattr(lote, 'data_aplicacao', None)
+        prazo_dias_atual = int(produto_carteira.get('prazo_dias') or produto.get('prazo_dias') or 0)
+        regime_liquidez_atual = str(produto_carteira.get('regime_liquidez') or produto.get('regime_liquidez') or '')
+        data_vencimento = None
+        if data_aplicacao_lote is not None and prazo_dias_atual > 0:
+            data_vencimento_bruta = data_aplicacao_lote + timedelta(days=prazo_dias_atual)
+            try:
+                data_vencimento = proximo_dia_util_bancario_em_ou_apos(data_vencimento_bruta, contexto.calendario_financeiro)
+            except Exception:
+                data_vencimento = data_vencimento_bruta
         lotes.append({
             'id': str(lote.id),
             'investimento': str(lote.investimento),
             'produto_key': str(getattr(lote, 'produto_key', '') or ''),
+            'prazo_dias_atual': prazo_dias_atual,
+            'regime_liquidez_atual': regime_liquidez_atual,
+            'data_vencimento': data_vencimento,
             'valor_inicial': round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2),
             'principal_remanescente': round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2),
             'valor_liquido_resgatavel': valor_liquido,
@@ -312,6 +330,71 @@ def construir_estado_global_recorte_curto_v117(
         },
     }
 
+
+
+def _politica_pos_vencimento(config: dict[str, Any] | None) -> dict[str, Any]:
+    politicas = dict((config or {}).get('politicas') or {})
+    return dict(politicas.get('pos_vencimento') or {})
+
+
+def _normalizar_lote_pos_vencimento_no_dia(
+    estado: dict[str, Any],
+    data_atual: date,
+    config: dict[str, Any] | None,
+    historico: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    politica = _politica_pos_vencimento(config)
+    if str(politica.get('acao') or '') != 'disponivel_para_resgate':
+        return []
+    if str(politica.get('rendimento') or '') != 'parar':
+        return []
+
+    convertidos: list[dict[str, Any]] = []
+    lotes_remanescentes: list[dict[str, Any]] = []
+    disponiveis = estado.setdefault('recebidos_nao_aportados_disponiveis', [])
+    ids_disponiveis = {str(item.get('id') or item.get('fonte_id') or '') for item in disponiveis}
+    for lote in list(estado.get('lotes_aportados') or []):
+        data_vencimento = _coerce_date(lote.get('data_vencimento'))
+        prazo_dias = int(lote.get('prazo_dias_atual') or 0)
+        liquidez_dias = int(lote.get('liquidez_dias_atual') or 0)
+        regime_liquidez = str(lote.get('regime_liquidez_atual') or '')
+        lote_id = str(lote.get('id') or '')
+        vencido = (
+            data_vencimento is not None
+            and prazo_dias > 0
+            and data_vencimento <= data_atual
+            and (regime_liquidez == 'vencimento' or liquidez_dias <= 0)
+        )
+        if not vencido:
+            lotes_remanescentes.append(lote)
+            continue
+
+        valor_liquido = round(float(lote.get('valor_liquido_resgatavel') or 0.0), 2)
+        if valor_liquido > 0.0 and lote_id not in ids_disponiveis:
+            recebido = {
+                'id': lote_id,
+                'valor_disponivel': valor_liquido,
+                'proxy_terminal_atual': 0.0,
+                'data_recebimento': data_atual,
+                'origem_pos_vencimento': True,
+                'produto_origem': str(lote.get('investimento') or ''),
+                'data_vencimento_origem': data_vencimento,
+            }
+            disponiveis.append(recebido)
+            ids_disponiveis.add(lote_id)
+            convertidos.append(recebido)
+            if historico is not None:
+                historico.append({
+                    'tipo_evento': 'normalizacao_pos_vencimento',
+                    'data_evento': data_atual.isoformat(),
+                    'lote_id': lote_id,
+                    'produto_origem': str(lote.get('investimento') or ''),
+                    'valor_disponivel': valor_liquido,
+                    'data_vencimento': data_vencimento.isoformat() if data_vencimento else None,
+                })
+
+    estado['lotes_aportados'] = lotes_remanescentes
+    return convertidos
 
 
 def _ativar_recebidos_futuros_no_dia(estado: dict[str, Any], data_atual: date, historico: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
@@ -641,6 +724,7 @@ def simular_cenario_eventos_v1(
 
     for data_atual in agenda:
         estado['data_evento_corrente'] = data_atual
+        _normalizar_lote_pos_vencimento_no_dia(estado, data_atual, config, historico)
         _ativar_recebidos_futuros_no_dia(estado, data_atual, historico)
         novos_eventos, ganho_switch, perda_liq, custo_fiscal_switch = _aplicar_switching_eventos(estado, eventos, data_atual, historico)
         eventos_executados.extend(novos_eventos)
