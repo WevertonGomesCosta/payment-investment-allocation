@@ -9,7 +9,6 @@ from typing import Any
 
 from nucleo.alocador_pagamentos_terminal_v1 import alocar_pagamento_terminal_v1
 from nucleo.avaliador_cenarios_conjuntos_v1 import avaliar_cenarios_conjuntos_v1
-from nucleo.benchmark_runner_futuro_shadow import _pagamentos_futuros
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.planejador_switching_temporal_v1 import planejar_switching_temporal_v1
 from nucleo.recomputacao_sequencial_central_v1 import _perfil_pagamento_operacional
@@ -217,130 +216,16 @@ def construir_estado_global_recorte_curto_v117(
     data_fim: date | None = None,
     limite_pagamentos: int = 15,
 ) -> dict[str, Any]:
-    data_inicio = data_inicio or contexto.execucao.data_referencia
-    pagamentos = _pagamentos_futuros(contexto.dados_operacionais, data_referencia=data_inicio)
-    if limite_pagamentos > 0:
-        pagamentos = pagamentos.head(limite_pagamentos).copy()
-    if len(pagamentos) == 0:
-        data_fim = data_fim or data_inicio
-    else:
-        data_limite_padrao = data_inicio + timedelta(days=30)
-        data_fim = data_fim or min(max(pagamentos['data']), data_limite_padrao)
-        pagamentos = pagamentos.loc[pagamentos['data'] <= data_fim].copy().reset_index(drop=True)
+    from nucleo.builders.simulador_central_estado_v117 import (
+        construir_estado_global_recorte_curto_v117 as _builder_impl,
+    )
 
-    mapa_produtos = _mapa_produtos_proxy(contexto)
-    mapa_produtos_carteira = (getattr(getattr(contexto, 'carteira_canonica', None), 'mapa_produtos', None) or {}).get('by_key') or {}
-    lotes: list[dict[str, Any]] = []
-    for lote in contexto.replay_passado.lotes_apos_replay:
-        if getattr(lote, 'esgotado', False):
-            continue
-        valor_liquido = round(float(lote.valor_liquido_em_data(
-            data_inicio,
-            contexto.calendario_financeiro,
-            tabela_iof=contexto.tabela_iof,
-            faixas_ir=contexto.faixas_ir,
-            serie_cdi=contexto.cache_cdi.serie_cdi,
-            data_base_referencia=contexto.execucao.data_referencia,
-        ) or 0.0), 2)
-        if valor_liquido <= 0.0:
-            continue
-        produto_key = str(getattr(lote, 'produto_key', '') or '').strip()
-        produto = mapa_produtos.get(produto_key, {})
-        produto_carteira = mapa_produtos_carteira.get(produto_key, {})
-        data_aplicacao_lote = getattr(lote, 'data_aplicacao', None)
-        prazo_dias_atual = int(produto_carteira.get('prazo_dias') or produto.get('prazo_dias') or 0)
-        regime_liquidez_atual = str(produto_carteira.get('regime_liquidez') or produto.get('regime_liquidez') or '')
-        data_vencimento = None
-        if data_aplicacao_lote is not None and prazo_dias_atual > 0:
-            data_vencimento_bruta = data_aplicacao_lote + timedelta(days=prazo_dias_atual)
-            try:
-                data_vencimento = proximo_dia_util_bancario_em_ou_apos(data_vencimento_bruta, contexto.calendario_financeiro)
-            except Exception:
-                data_vencimento = data_vencimento_bruta
-        lotes.append({
-            'id': str(lote.id),
-            'investimento': str(lote.investimento),
-            'produto_key': str(getattr(lote, 'produto_key', '') or ''),
-            'prazo_dias_atual': prazo_dias_atual,
-            'regime_liquidez_atual': regime_liquidez_atual,
-            'data_vencimento': data_vencimento,
-            'valor_inicial': round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2),
-            'principal_remanescente': round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2),
-            'valor_liquido_resgatavel': valor_liquido,
-            'carencia_ate': getattr(lote, 'carencia_ate', None),
-            'data_aplicacao': getattr(lote, 'data_aplicacao', None),
-            'data_recebimento': getattr(lote, 'data_recebimento', None),
-            'taxa_base_cdi': float(getattr(lote, 'taxa_base_cdi', 0.0) or 0.0),
-            'taxa_bonus_cdi': float(getattr(lote, 'taxa_bonus_cdi', 0.0) or 0.0),
-            'proxy_terminal_atual': produto.get('proxy_terminal') if produto else _proxy_fallback_lote(lote, contexto),
-            'proxy_score_atual': produto.get('score_final', 0.0),
-            'retorno_anual_proxy_atual': float(produto.get('retorno_anual_proxy') or 0.0),
-            'liquidez_dias_atual': int(produto.get('liquidez_dias') or 0),
-            'carencia_dias_atual': int(produto.get('carencia_dias') or 0),
-            'valor_terminal_estimado': valor_liquido,
-            'produto_destino_key': None,
-            'custo_fiscal_acumulado': 0.0,
-        })
-
-    recebidos_disponiveis: list[dict[str, Any]] = []
-    recebidos_futuros: list[dict[str, Any]] = []
-    inventario = contexto.dados_operacionais.inventario_canonico.copy()
-    if len(inventario):
-        mask = inventario['nao_aportado_disponivel'].fillna(False)
-        for _, row in inventario.loc[mask].iterrows():
-            recebidos_disponiveis.append({
-                'id': str(row.get('lote_id') or ''),
-                'valor_disponivel': round(float(row.get('valor_original') or 0.0), 2),
-                'proxy_terminal_atual': 0.0,
-                'data_recebimento': row.get('data_recebimento'),
-            })
-        mask_fut = inventario.get('recebido_futuro_nao_disponivel', False)
-        if hasattr(mask_fut, 'fillna'):
-            mask_fut = mask_fut.fillna(False)
-        for _, row in inventario.loc[mask_fut].iterrows():
-            recebidos_futuros.append({
-                'id': str(row.get('lote_id') or ''),
-                'valor_disponivel': round(float(row.get('valor_original') or 0.0), 2),
-                'proxy_terminal_atual': 0.0,
-                'data_recebimento': row.get('data_recebimento'),
-            })
-
-    pagamentos_norm: list[dict[str, Any]] = []
-    for _, row in pagamentos.iterrows():
-        perfil = _perfil_pagamento_operacional(str(row.get('descricao') or ''))
-        pagamentos_norm.append({
-            'pagamento_id': str(row.get('despesa_id') or ''),
-            'despesa_id': str(row.get('despesa_id') or ''),
-            'data': row.get('data'),
-            'descricao': str(row.get('descricao') or ''),
-            'valor': round(float(row.get('valor') or 0.0), 2),
-            'classe_pagamento': perfil['classe'],
-            'subclasse_pagamento': perfil['subclasse'],
-            'prioridade_classe': perfil['prioridade_classe'],
-            'prioridade_intraclasse': perfil['prioridade_intraclasse'],
-        })
-
-    return {
-        'data_referencia': data_inicio,
-        'data_evento_corrente': data_inicio,
-        'data_fim_recorte': data_fim,
-        'saldo_disponivel_geral': 0.0,
-        'recebidos_nao_aportados_disponiveis': recebidos_disponiveis,
-        'recebidos_nao_aportados_futuros': recebidos_futuros,
-        'lotes_aportados': lotes,
-        'pagamentos_futuros': pagamentos_norm,
-        'produto_destino_padrao': _top_destino_switch(contexto),
-        'produtos_destino_elegiveis': _destinos_switch_elegiveis(contexto, limite=12),
-        'cdi_anual_modelo': float(getattr(contexto.calendario_financeiro, 'cdi_anual_modelo', 0.0) or 0.0),
-        'metadados_recorte': {
-            'limite_pagamentos': limite_pagamentos,
-            'quantidade_pagamentos': len(pagamentos_norm),
-            'quantidade_lotes': len(lotes),
-            'quantidade_recebidos_nao_aportados': len(recebidos_disponiveis),
-            'quantidade_recebidos_nao_aportados_futuros': len(recebidos_futuros),
-        },
-    }
-
+    return _builder_impl(
+        contexto,
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        limite_pagamentos=limite_pagamentos,
+    )
 
 
 def _politica_pos_vencimento(config: dict[str, Any] | None) -> dict[str, Any]:
@@ -824,18 +709,18 @@ def rodar_integracao_funcional_minima_v117(
     data_fim: date | None = None,
     limite_pagamentos: int = 15,
 ) -> dict[str, Any]:
-    contexto = carregar_contexto_baseline(raiz_repositorio=raiz_repositorio, instalar_automaticamente=False)
-    estado = construir_estado_global_recorte_curto_v117(
-        contexto,
+    """Wrapper de compatibilidade para o runner extraído do simulador central."""
+
+    from nucleo.runners.simulador_central_runner_v117 import (
+        rodar_integracao_funcional_minima_v117 as _runner_extraido_v117,
+    )
+
+    return _runner_extraido_v117(
+        raiz_repositorio=raiz_repositorio,
         data_inicio=data_inicio,
         data_fim=data_fim,
         limite_pagamentos=limite_pagamentos,
     )
-    config = contexto.pacote_config.conteudo
-    horizonte = {
-        'data_inicio': (data_inicio or contexto.execucao.data_referencia).isoformat(),
-        'data_fim': (_coerce_date(estado.get('data_fim_recorte')) or (data_inicio or contexto.execucao.data_referencia)).isoformat(),
-    }
     plano = planejar_switching_temporal_v1(
         estado_global=estado,
         config=config,
