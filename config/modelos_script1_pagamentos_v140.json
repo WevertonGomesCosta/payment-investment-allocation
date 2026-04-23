@@ -1,0 +1,37 @@
+{
+  "versao": "V140",
+  "camada_alvo": "alocador_pagamentos_terminal_v1",
+  "fases": {
+    "fase_1": [
+      "score_hibrido_5p_fonte",
+      "penalidade_cliff_idade",
+      "oportunidade_vpl_marginal"
+    ],
+    "fase_2": [
+      "seletor_modo_individual_ou_combinado",
+      "triagem_topk_fontes_combinacao"
+    ]
+  },
+  "regras": {
+    "switching_precisa_ser_hibrido_promovivel": true,
+    "proibir_solver_legado_pesado_nesta_etapa": true,
+    "proibir_leitura_direta_do_legado": true,
+    "permitir_uso_como_score_auxiliar": true,
+    "permitir_uso_como_filtro_de_triagem": true,
+    "permitir_uso_como_desempate": true
+  },
+  "parametros_fase_1": {
+    "peso_deficit_rel": 4.0,
+    "peso_custo_fiscal_rel": 1.5,
+    "peso_perda_terminal_rel": 3.0,
+    "peso_penalidade_liquidez_rel": 1.0,
+    "peso_penalidade_estrategica_rel": 1.25,
+    "peso_cliff_curto": 0.75,
+    "peso_cliff_medio": 0.35,
+    "peso_oportunidade_vpl_rel": 2.0,
+    "janela_cliff_curta_dias": 15,
+    "janela_cliff_media_dias": 30,
+    "epsilon_empate_terminal": 5.0,
+    "epsilon_empate_deficit": 1.0
+  }
+}
