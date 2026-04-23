@@ -107,8 +107,19 @@ def _aplicar_heuristicas_script1(
     dias_horizonte: int,
     config: dict[str, Any] | None,
 ) -> FontePagamentoCandidata:
-    params = carregar_parametros_fase1(config)
     meta = dict(candidato.metadados_extras or {})
+    if bool((config or {}).get('desabilitar_modelos_script1_fase1')):
+        meta['heuristicas_script1_fase1'] = {
+            'desabilitada': True,
+            'justificativa': 'Heurísticas H1-H3 explicitamente desabilitadas para comparação controlada.',
+            'score_auxiliar_script1': (0.0, 0.0, 0.0),
+        }
+        candidato.score_auxiliar_script1 = (0.0, 0.0, 0.0)
+        candidato.chave_decisao_final = _montar_chave_decisao_final(candidato)
+        candidato.metadados_extras = meta
+        return candidato
+
+    params = carregar_parametros_fase1(config)
     heur = avaliar_heuristicas_fase1_por_fonte(
         tipo_fonte=candidato.tipo_fonte,
         valor_pagamento=valor_pagamento,
