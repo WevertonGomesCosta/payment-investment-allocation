@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V138'
-VERSAO_ANTERIOR = 'V137'
+VERSAO_VIGENTE = "V139"
+VERSAO_ANTERIOR = "V138"
 
 
 def repo_root() -> Path:
@@ -30,43 +30,25 @@ def validar_indice_documental(base: Path) -> list[str]:
     esperado = [
         'relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md',
         'relatorios/atuais/CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md',
+        'relatorios/atuais/CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md',
+        'relatorios/atuais/CONTRATO_RANKING_CARTEIRA_V123.md',
         'relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md',
-        'relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md',
         'relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md',
-        'relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md',
         'relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md',
-        f'relatorios/atuais/BASELINE_FIXA_{VERSAO_VIGENTE}.md',
-        'relatorios/atuais/INTEGRACAO_FUNCIONAL_MINIMA_V117_RECORTE_CURTO.md',
-        'relatorios/atuais/EXPANSAO_MULTIDESTINO_PLANEJADOR_SWITCHING_TEMPORAL_V121.md',
-        'relatorios/atuais/TESTE_HORIZONTE_LONGO_PLANEJADOR_SWITCHING_TEMPORAL_V123.md',
-        'relatorios/atuais/SIMULACAO_CENTRAL_CONTROLADA_HORIZONTE_LONGO_V124.md',
-        'relatorios/atuais/AUDITORIA_MULTIHORIZONTE_CENARIOS_TEMPO_V125.md',
-        'relatorios/atuais/AVALIACAO_DIARIA_DATA_OTIMA_SWITCHING_V127.md',
-        'relatorios/atuais/AUDITORIA_PARAMETROS_PRODUTOS_SWITCHING_V129.md',
-        'relatorios/atuais/AVALIACAO_DIARIA_PARAMETRIZADA_JANELA_V130.md',
-        'relatorios/atuais/AUDITORIA_CIRURGICA_BLOCO_8500_PICPAY_V131.md',
-        'relatorios/atuais/COMPARADOR_HIBRIDO_SWITCHING_V132.md',
-        'relatorios/atuais/GRADE_DIARIA_OFICIAL_HIBRIDA_V133.md',
-        'relatorios/atuais/GRADE_DIARIA_OFICIAL_HIBRIDA_V134.md',
-        'relatorios/atuais/AUDITORIA_FECHAMENTO_FRENTE_TEMPORAL_V135.md',
-        'relatorios/atuais/AUDITORIA_ATIVACAO_LOTES_NAO_APORTADOS_FUTUROS_V136.md',
-        'relatorios/atuais/AUDITORIA_ATIVACAO_E_EXPANSAO_FUTUROS_V136.md',
-        'relatorios/atuais/ALOCADOR_PAGAMENTOS_TERMINAL_V137.md',
-        'relatorios/atuais/FLUXO_PAGAMENTOS_TERMINAL_RECORTE_CURTO_V138.md',
-        f'relatorios/atuais/VALIDACAO_LOCAL_{VERSAO_VIGENTE}.md',
-        f'relatorios/atuais/ESTRUTURA_REPOSITORIO_{VERSAO_VIGENTE}.md',
         'relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md',
         'relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md',
-        'relatorios/atuais/MAPA_ABSORCAO_EXECUCAO_PRINCIPAL_SCRIPT_2.md',
-        'relatorios/atuais/BENCHMARK_SHADOW_AGRUPADO_VS_INDIVIDUAL_SCRIPT1.md',
-        'relatorios/atuais/BENCHMARK_SHADOW_RUNNER_SIMULACAO_FUTURA_SCRIPT2.md',
-        'relatorios/atuais/AUDITORIA_RESIDUAL_DIVERGENCIAS_PROXY_V3_VS_HIBRIDO.md',
-        'relatorios/atuais/AUDITORIA_CIRURGICA_42_CASOS_REAPROVEITAVEIS.md',
-        'relatorios/atuais/AUDITORIA_FINA_TRANSICAO_DOMINANTE_3000B_8500MAR.md',
-        'relatorios/atuais/AUDITORIA_ESTRUTURAL_REDUNDANCIA_COMPATIBILIDADE.md',
-        'relatorios/atuais/CONSOLIDACAO_HELPERS_DUPLICADOS_BAIXO_RISCO.md',
-        'relatorios/atuais/AUDITORIA_CASOS_CRITICOS_RUNNER_FUTURO_SHADOW.md',
-        'relatorios/atuais/AUDITORIA_PRIMEIRA_QUEBRA_RUNNER_FUTURO_SHADOW.md',
+        'relatorios/atuais/COMPARADOR_HIBRIDO_SWITCHING_V132.md',
+        'relatorios/atuais/GRADE_DIARIA_OFICIAL_HIBRIDA_V134.md',
+        'relatorios/atuais/AUDITORIA_ATIVACAO_LOTES_NAO_APORTADOS_FUTUROS_V136.md',
+        'relatorios/atuais/AUDITORIA_ATIVACAO_E_EXPANSAO_FUTUROS_V136.md',
+        'relatorios/atuais/AUDITORIA_FECHAMENTO_FRENTE_TEMPORAL_V135.md',
+        'relatorios/atuais/ALOCADOR_PAGAMENTOS_TERMINAL_V137.md',
+        'relatorios/atuais/FLUXO_PAGAMENTOS_TERMINAL_RECORTE_CURTO_V138.md',
+        'relatorios/atuais/LEIA-ME_OPERACIONAL.md',
+        'relatorios/atuais/PREPARACAO_MODELOS_SCRIPT1_PAGAMENTOS_V139.md',
+        'relatorios/atuais/BASELINE_FIXA_V139.md',
+        'relatorios/atuais/VALIDACAO_LOCAL_V139.md',
+        'relatorios/atuais/ESTRUTURA_REPOSITORIO_V139.md',
     ]
     if not indice.exists():
         return ['relatorios/INDICE_RELATORIOS.md ausente']
@@ -94,12 +76,7 @@ def validar_referencias_ativas(base: Path) -> list[str]:
         f'ESTRUTURA_REPOSITORIO_{VERSAO_ANTERIOR}.md',
     ]
     script_proprio = (base / 'scripts' / 'diagnostico' / 'verificar_release_baseline.py').resolve()
-    ignorar = {
-        script_proprio,
-        (base / 'relatorios' / 'historico' / 'baselines' / f'BASELINE_FIXA_{VERSAO_ANTERIOR}.md').resolve(),
-        (base / 'relatorios' / 'historico' / 'validacoes' / f'VALIDACAO_LOCAL_{VERSAO_ANTERIOR}.md').resolve(),
-        (base / 'relatorios' / 'historico' / 'estruturas' / f'ESTRUTURA_REPOSITORIO_{VERSAO_ANTERIOR}.md').resolve(),
-    }
+    ignorar = {script_proprio}
     for alvo in alvos:
         caminhos = [alvo] if alvo.is_file() else [p for p in alvo.rglob('*') if p.is_file() and p.suffix in {'.py', '.md'}]
         for caminho in caminhos:
@@ -124,6 +101,11 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'nucleo/alocador_pagamentos_terminal_v1.py',
         'nucleo/simulador_central_eventos_v1.py',
         'nucleo/avaliador_cenarios_conjuntos_v1.py',
+        'nucleo/pagamentos/modelos_script1/README.md',
+        'saidas/oficial/README.md',
+        'saidas/diagnostico/README.md',
+        'saidas/historico/README.md',
+        'saidas/operacional/README_COMPATIBILIDADE.md',
     ]
     erros: list[str] = []
     for caminho in esperados:
