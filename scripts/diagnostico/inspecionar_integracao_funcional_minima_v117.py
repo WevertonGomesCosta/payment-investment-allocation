@@ -15,17 +15,42 @@ RELATORIO = Path(RAIZ) / 'relatorios' / 'atuais' / 'INTEGRACAO_FUNCIONAL_MINIMA_
 def _formatar_bloco(resultados: dict) -> str:
     avaliacao = resultados['avaliacao_cenarios']
     melhor = avaliacao.get('melhor_cenario') or {}
+    plano = resultados.get('plano_switching_temporal') or {}
+    acoes = [
+        x for x in plano.get('acoes_candidatas', [])
+        if x.get('tipo_acao') == 'switching_simples'
+    ]
     linhas = [
-        '# Integração funcional mínima V117/V118 — recorte curto',
+        '# Integração funcional mínima V117/V120 — recorte curto',
         '',
         f"- Data de referência: {resultados.get('contexto_data_referencia')}",
         f"- Horizonte: {resultados.get('horizonte')}",
+        f"- Critério do planejador temporal: {plano.get('criterio_ranqueamento')}",
+        f"- Candidatos elegíveis de switching: {plano.get('quantidade_candidatos_elegiveis_switching')}",
         f"- Melhor cenário atual: {melhor.get('cenario_id')}",
         f"- Vetor lexicográfico: {melhor.get('vetor_lexicografico')}",
         '',
-        '## Cenários avaliados',
+        '## Ranking do planejador temporal',
         '',
     ]
+    for acao in acoes[:5]:
+        linhas.extend([
+            f"### {acao.get('id_acao')}",
+            f"- Lote: {acao.get('lote_origem_id')}",
+            f"- Data: {acao.get('data_acao')}",
+            f"- Produto destino: {acao.get('produto_destino')}",
+            f"- Elegível: {acao.get('elegivel')}",
+            f"- Ganho terminal econômico mínimo estimado: {acao.get('ganho_terminal_economico_minimo_estimado')}",
+            f"- Patrimônio terminal origem estimado: {acao.get('patrimonio_terminal_origem_estimado')}",
+            f"- Patrimônio terminal destino estimado: {acao.get('patrimonio_terminal_destino_estimado')}",
+            f"- Custo fiscal estimado: {acao.get('custo_fiscal_estimado')}",
+            f"- Penalidade carência reprojetada: {acao.get('penalidade_carencia_reprojetada')}",
+            '',
+        ])
+    linhas.extend([
+        '## Cenários avaliados',
+        '',
+    ])
     for item in avaliacao.get('ranking_cenarios', []):
         sim = resultados['simulacoes'].get(item['cenario_id'], {})
         linhas.extend([

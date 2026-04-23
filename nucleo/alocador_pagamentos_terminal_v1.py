@@ -28,7 +28,7 @@ class FontePagamentoCandidata:
     score_terminal_comparativo: tuple[float, float, float, float, float, float, float, float]
     justificativa: str
     componentes: list[dict[str, Any]] = field(default_factory=list)
-    status_modelo: str = 'integracao_minima_v118'
+    status_modelo: str = 'integracao_minima_v119'
 
     def para_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -121,7 +121,7 @@ def alocar_pagamento_terminal_v1(
     permitir_combinacao_minima: bool = True,
     limite_fontes_candidatas: int | None = None,
 ) -> dict[str, Any]:
-    """Compara fontes de pagamento pelo vetor terminal mínimo da V118.
+    """Compara fontes de pagamento pelo vetor terminal mínimo da V119.
 
     A função continua simples, mas agora já considera:
     - proxy terminal do lote/fonte;
@@ -333,7 +333,7 @@ def alocar_pagamento_terminal_v1(
 
     melhor = min(candidatos, key=lambda item: item.score_terminal_comparativo)
     return {
-        'status': 'integracao_minima_v118',
+        'status': 'integracao_minima_v119',
         'implementado': True,
         'pagamento_id': pagamento.get('id') or pagamento.get('pagamento_id') or pagamento.get('despesa_id') or '',
         'data_pagamento': data_pagamento.isoformat() if data_pagamento else None,

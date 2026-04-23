@@ -55,6 +55,10 @@ def _top_destino_switch(contexto: Any) -> dict[str, Any]:
         'score_final': float(melhor.get('score_final') or 0.0),
         'proxy_terminal_destino': _normalizar_proxy_terminal(melhor.get('score_final')),
         'retorno_anual_proxy': float(melhor.get('retorno_anual_proxy') or 0.0),
+        'liquidez_dias': int(melhor.get('liquidez_dias') or 0),
+        'carencia_dias': int(melhor.get('carencia_dias') or 0),
+        'taxa_base_cdi': float(melhor.get('taxa_base_cdi') or 0.0),
+        'taxa_bonus_cdi': float(melhor.get('taxa_bonus_cdi') or 0.0),
     }
 
 
@@ -72,6 +76,10 @@ def _mapa_produtos_proxy(contexto: Any) -> dict[str, dict[str, float]]:
             'proxy_terminal': _normalizar_proxy_terminal(row.get('score_final')),
             'retorno_anual_proxy': float(row.get('retorno_anual_proxy') or 0.0),
             'nome': str(row.get('nome') or ''),
+            'liquidez_dias': int(row.get('liquidez_dias') or 0),
+            'carencia_dias': int(row.get('carencia_dias') or 0),
+            'taxa_base_cdi': float(row.get('taxa_base_cdi') or 0.0),
+            'taxa_bonus_cdi': float(row.get('taxa_bonus_cdi') or 0.0),
         }
     return mapa
 
@@ -80,6 +88,47 @@ def _proxy_fallback_lote(lote: Any, contexto: Any) -> float:
     taxa_ref = max(float(getattr(lote, 'taxa_bonus_cdi', 0.0) or 0.0), float(getattr(lote, 'taxa_base_cdi', 0.0) or 0.0))
     cdi = float(getattr(contexto.calendario_financeiro, 'cdi_anual_modelo', 0.0) or 0.0)
     return max(min(taxa_ref * cdi, 0.95), 0.05)
+
+
+def _aliquota_ir_estimada(data_aplicacao: date | None, data_acao: date | None) -> float:
+    if data_aplicacao is None or data_acao is None:
+        return 0.15
+    dias = max((data_acao - data_aplicacao).days, 0)
+    if dias <= 180:
+        return 0.225
+    if dias <= 360:
+        return 0.20
+    if dias <= 720:
+        return 0.175
+    return 0.15
+
+
+def _estimar_imposto_resgate(valor_liquido: float, principal: float, aliquota_ir: float) -> float:
+    ganho_liquido = max(float(valor_liquido or 0.0) - float(principal or 0.0), 0.0)
+    if ganho_liquido <= 0.0 or aliquota_ir <= 0.0 or aliquota_ir >= 1.0:
+        return 0.0
+    ganho_bruto = ganho_liquido / max(1.0 - aliquota_ir, 1e-9)
+    imposto = ganho_bruto * aliquota_ir
+    return round(max(imposto, 0.0), 2)
+
+
+def _projetar_valor_terminal(valor_base: float, retorno_anual: float, dias: int) -> float:
+    valor_base = float(valor_base or 0.0)
+    retorno_anual = max(float(retorno_anual or 0.0), 0.0)
+    dias = max(int(dias or 0), 0)
+    if valor_base <= 0.0 or dias <= 0:
+        return round(valor_base, 2)
+    fator = (1.0 + retorno_anual / 100.0) ** (dias / 365.0)
+    return round(valor_base * fator, 2)
+
+
+def _valor_terminal_estimado_lote(lote: dict[str, Any], data_final: date | None, data_base: date | None) -> float:
+    valor_liquido = float(lote.get('valor_liquido_resgatavel') or 0.0)
+    retorno = float(lote.get('retorno_anual_proxy_atual') or 0.0)
+    if data_final is None or data_base is None:
+        return round(valor_liquido, 2)
+    dias = max((data_final - data_base).days, 0)
+    return _projetar_valor_terminal(valor_liquido, retorno, dias)
 
 
 def construir_estado_global_recorte_curto_v117(
@@ -130,6 +179,12 @@ def construir_estado_global_recorte_curto_v117(
             'taxa_bonus_cdi': float(getattr(lote, 'taxa_bonus_cdi', 0.0) or 0.0),
             'proxy_terminal_atual': produto.get('proxy_terminal') if produto else _proxy_fallback_lote(lote, contexto),
             'proxy_score_atual': produto.get('score_final', 0.0),
+            'retorno_anual_proxy_atual': float(produto.get('retorno_anual_proxy') or 0.0),
+            'liquidez_dias_atual': int(produto.get('liquidez_dias') or 0),
+            'carencia_dias_atual': int(produto.get('carencia_dias') or 0),
+            'valor_terminal_estimado': valor_liquido,
+            'produto_destino_key': None,
+            'custo_fiscal_acumulado': 0.0,
         })
 
     recebidos_disponiveis: list[dict[str, Any]] = []
@@ -167,6 +222,7 @@ def construir_estado_global_recorte_curto_v117(
         'lotes_aportados': lotes,
         'pagamentos_futuros': pagamentos_norm,
         'produto_destino_padrao': _top_destino_switch(contexto),
+        'cdi_anual_modelo': float(getattr(contexto.calendario_financeiro, 'cdi_anual_modelo', 0.0) or 0.0),
         'metadados_recorte': {
             'limite_pagamentos': limite_pagamentos,
             'quantidade_pagamentos': len(pagamentos_norm),
@@ -176,10 +232,12 @@ def construir_estado_global_recorte_curto_v117(
     }
 
 
-def _aplicar_switching_eventos(estado: dict[str, Any], eventos: list[dict[str, Any]], data_atual: date, historico: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], float, float]:
+def _aplicar_switching_eventos(estado: dict[str, Any], eventos: list[dict[str, Any]], data_atual: date, historico: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], float, float, float]:
     executados: list[dict[str, Any]] = []
     ganho_total = 0.0
     perda_liquidez = 0.0
+    custo_fiscal_total = 0.0
+    data_final = _coerce_date(estado.get('data_fim_recorte'))
     for evento in eventos:
         data_acao = _coerce_date(evento.get('data_acao'))
         if not evento.get('elegivel') or data_acao is None or data_acao != data_atual:
@@ -190,21 +248,55 @@ def _aplicar_switching_eventos(estado: dict[str, Any], eventos: list[dict[str, A
         for lote in estado.get('lotes_aportados', []):
             if str(lote.get('id') or '') != lote_id:
                 continue
-            lote['investimento'] = str(evento.get('produto_destino') or lote.get('investimento') or '')
+            valor_liquido_origem = round(float(lote.get('valor_liquido_resgatavel') or 0.0), 2)
+            principal = round(float(lote.get('principal_remanescente') or 0.0), 2)
+            aliquota = _aliquota_ir_estimada(_coerce_date(lote.get('data_aplicacao')), data_atual)
+            custo_fiscal = round(float(evento.get('custo_fiscal_estimado') or _estimar_imposto_resgate(valor_liquido_origem, principal, aliquota)), 2)
+            valor_migrado = round(max(float(evento.get('valor_migrado_estimado') or 0.0), valor_liquido_origem - custo_fiscal), 2)
+            produto_origem = str(lote.get('investimento') or evento.get('produto_origem') or '')
+            produto_destino = str(evento.get('produto_destino') or lote.get('investimento') or '')
+            retorno_destino = float(evento.get('retorno_anual_destino') or lote.get('retorno_anual_proxy_atual') or 0.0)
+            liquidez_destino = int(evento.get('liquidez_dias_destino') or 0)
+            carencia_destino = int(evento.get('carencia_dias_destino') or 0)
+            data_base_terminal = max(data_atual, _coerce_date(estado.get('data_evento_corrente')) or data_atual)
+            valor_terminal_estimado = _valor_terminal_estimado_lote(
+                {'valor_liquido_resgatavel': valor_migrado, 'retorno_anual_proxy_atual': retorno_destino},
+                data_final,
+                data_base_terminal,
+            )
+            lote['investimento'] = produto_destino
+            lote['produto_key'] = str(evento.get('produto_destino_key') or lote.get('produto_key') or '')
+            lote['produto_destino_key'] = str(evento.get('produto_destino_key') or lote.get('produto_destino_key') or '')
+            lote['valor_liquido_resgatavel'] = valor_migrado
+            lote['principal_remanescente'] = valor_migrado
             lote['proxy_terminal_atual'] = float(evento.get('proxy_terminal_destino') or lote.get('proxy_terminal_atual') or 0.0)
+            lote['retorno_anual_proxy_atual'] = retorno_destino
+            lote['liquidez_dias_atual'] = liquidez_destino
+            lote['carencia_dias_atual'] = carencia_destino
+            lote['carencia_ate'] = data_atual + timedelta(days=carencia_destino) if carencia_destino > 0 else None
+            lote['data_aplicacao'] = data_atual
+            lote['custo_fiscal_acumulado'] = round(float(lote.get('custo_fiscal_acumulado') or 0.0) + custo_fiscal, 2)
+            lote['valor_terminal_estimado'] = valor_terminal_estimado
             historico.append({
                 'tipo_evento': 'switching',
                 'data_evento': data_atual.isoformat(),
                 'lote_id': lote_id,
-                'produto_origem': evento.get('produto_origem'),
-                'produto_destino': evento.get('produto_destino'),
+                'produto_origem': produto_origem,
+                'produto_destino': produto_destino,
+                'valor_liquido_origem': valor_liquido_origem,
+                'valor_migrado': valor_migrado,
+                'custo_fiscal_realizado': custo_fiscal,
+                'liquidez_dias_destino': liquidez_destino,
+                'carencia_dias_destino': carencia_destino,
+                'valor_terminal_estimado': valor_terminal_estimado,
                 'ganho_terminal_proxy_estimado': float(evento.get('ganho_terminal_proxy_estimado') or 0.0),
             })
-            executados.append(evento)
+            executados.append({**evento, 'custo_fiscal_realizado': custo_fiscal, 'valor_migrado_realizado': valor_migrado, 'valor_terminal_estimado': valor_terminal_estimado})
             ganho_total += float(evento.get('ganho_terminal_proxy_estimado') or 0.0)
             perda_liquidez += float(evento.get('perda_liquidez_estimada') or 0.0)
+            custo_fiscal_total += custo_fiscal
             break
-    return executados, round(ganho_total, 2), round(perda_liquidez, 2)
+    return executados, round(ganho_total, 2), round(perda_liquidez, 2), round(custo_fiscal_total, 2)
 
 
 def _consumir_componentes(estado: dict[str, Any], componentes: list[dict[str, Any]]) -> None:
@@ -234,14 +326,14 @@ def _consumir_componentes(estado: dict[str, Any], componentes: list[dict[str, An
                 break
 
 
-def _calcular_metrica(resultados_pagamento: list[dict[str, Any]], *, ganho_switching: float, perda_liquidez_switching: float, eventos_executados: list[dict[str, Any]]) -> dict[str, Any]:
+def _calcular_metrica(resultados_pagamento: list[dict[str, Any]], *, ganho_switching: float, perda_liquidez_switching: float, custo_fiscal_switching: float, eventos_executados: list[dict[str, Any]]) -> dict[str, Any]:
     violacoes_protegida = 0
     deficit_total = 0.0
     pagamentos_sem_cobertura = 0
     perda_terminal = 0.0
     destruicao_estrategica = 0.0
     deterioracao_liquidez = 0.0
-    custo_fiscal = 0.0
+    custo_fiscal = float(custo_fiscal_switching or 0.0)
     custo_operacional = float(len(eventos_executados))
 
     for row in resultados_pagamento:
@@ -275,7 +367,9 @@ def _calcular_metrica(resultados_pagamento: list[dict[str, Any]], *, ganho_switc
 def _patrimonio_terminal_proxy(estado: dict[str, Any], metrica: dict[str, Any], ganho_switching: float) -> float:
     saldo = float(estado.get('saldo_disponivel_geral') or 0.0)
     recebidos = sum(float(x.get('valor_disponivel') or x.get('valor') or 0.0) for x in estado.get('recebidos_nao_aportados_disponiveis', []))
-    lotes = sum(float(x.get('valor_liquido_resgatavel') or 0.0) for x in estado.get('lotes_aportados', []))
+    data_final = _coerce_date(estado.get('data_fim_recorte'))
+    data_corrente = _coerce_date(estado.get('data_evento_corrente')) or _coerce_date(estado.get('data_referencia'))
+    lotes = sum(_valor_terminal_estimado_lote(x, data_final, data_corrente) for x in estado.get('lotes_aportados', []))
     base = saldo + recebidos + lotes + float(ganho_switching or 0.0)
     perda = float(metrica.get('perda_patrimonio_liquido_terminal') or 0.0)
     return round(base - perda, 2)
@@ -287,7 +381,7 @@ def simular_cenario_eventos_v1(
     config: dict[str, Any] | None,
     horizonte: Any = None,
 ) -> dict[str, Any]:
-    """Executa a primeira integração funcional mínima da V118.
+    """Executa a integração temporal recalibrada da V120.
 
     O simulador ainda não substitui o motor econômico final, mas agora integra:
     - switching temporal autônomo por data;
@@ -314,6 +408,7 @@ def simular_cenario_eventos_v1(
     eventos_executados: list[dict[str, Any]] = []
     ganho_switching_total = 0.0
     perda_liquidez_switching_total = 0.0
+    custo_fiscal_switching_total = 0.0
 
     datas_eventos = {
         _coerce_date(item.get('data_acao'))
@@ -324,10 +419,11 @@ def simular_cenario_eventos_v1(
 
     for data_atual in agenda:
         estado['data_evento_corrente'] = data_atual
-        novos_eventos, ganho_switch, perda_liq = _aplicar_switching_eventos(estado, eventos, data_atual, historico)
+        novos_eventos, ganho_switch, perda_liq, custo_fiscal_switch = _aplicar_switching_eventos(estado, eventos, data_atual, historico)
         eventos_executados.extend(novos_eventos)
         ganho_switching_total += ganho_switch
         perda_liquidez_switching_total += perda_liq
+        custo_fiscal_switching_total += custo_fiscal_switch
 
         pagamentos_data = [item for item in pagamentos if _coerce_date(item.get('data')) == data_atual]
         for pagamento in pagamentos_data:
@@ -361,12 +457,13 @@ def simular_cenario_eventos_v1(
         resultados_pagamento,
         ganho_switching=ganho_switching_total,
         perda_liquidez_switching=perda_liquidez_switching_total,
+        custo_fiscal_switching=custo_fiscal_switching_total,
         eventos_executados=eventos_executados,
     )
     patrimonio_proxy = _patrimonio_terminal_proxy(estado, metrica, ganho_switching_total)
 
     return {
-        'status': 'integracao_minima_v118',
+        'status': 'integracao_recalibrada_v120',
         'implementado': True,
         'horizonte': horizonte,
         'estado_inicial_normalizado': deepcopy(dict(estado_inicial or {})),
@@ -379,10 +476,11 @@ def simular_cenario_eventos_v1(
         'pagamentos_sem_cobertura': pagamentos_sem_cobertura,
         'ganho_switching_total': round(ganho_switching_total, 2),
         'perda_liquidez_switching_total': round(perda_liquidez_switching_total, 2),
+        'custo_fiscal_switching_total': round(custo_fiscal_switching_total, 2),
         'patrimonio_liquido_terminal_proxy': patrimonio_proxy,
         'metrica_central': metrica,
         'config_resumido': dict(config or {}),
-        'observacao': 'Integração funcional mínima: switching temporal + alocação terminal + vetor auditável no recorte curto.',
+        'observacao': 'Integração temporal recalibrada: planejador ranqueado por ganho terminal econômico mínimo real estimado antes do simulador central.',
     }
 
 
@@ -448,7 +546,7 @@ def rodar_integracao_funcional_minima_v117(
 
     avaliacao = avaliar_cenarios_conjuntos_v1(cenarios_avaliados, config=config)
     return {
-        'status': 'integracao_minima_v118',
+        'status': 'integracao_recalibrada_v120',
         'implementado': True,
         'contexto_data_referencia': contexto.execucao.data_referencia.isoformat(),
         'horizonte': horizonte,
