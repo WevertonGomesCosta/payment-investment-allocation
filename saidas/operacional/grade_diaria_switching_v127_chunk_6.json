@@ -1,0 +1,2214 @@
+{
+  "data_referencia": "2026-04-21",
+  "start_offset": 6,
+  "max_dias_executados": 3,
+  "data_fim": "2027-03-31",
+  "quantidade_pagamentos": 149,
+  "baseline_inicial": {
+    "descricao": "baseline do dia zero sem switching, apenas para referência global do horizonte completo"
+  },
+  "resultados": [
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "individual_integral",
+      "rotulo": "Lote 3000 mar. B",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 554.28
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7438.48,
+      "vetor_lexicografico": [
+        64.0,
+        142854.69,
+        134.0,
+        8505.32,
+        11018.59,
+        0.0,
+        28.52,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -53.36,
+      "delta_deficit_vs_baseline": 28.52,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1120.2
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "individual_integral",
+      "rotulo": "Lote 3000 mar. V",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 553.8
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7437.47,
+      "vetor_lexicografico": [
+        64.0,
+        142855.58,
+        134.0,
+        8505.07,
+        11019.11,
+        0.0,
+        29.41,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -53.61,
+      "delta_deficit_vs_baseline": 29.41,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1121.21
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "individual_integral",
+      "rotulo": "Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 292.48
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8253.84,
+      "vetor_lexicografico": [
+        64.0,
+        142848.12,
+        134.0,
+        8253.84,
+        9517.74,
+        0.0,
+        21.95,
+        4.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -304.84,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 304.84
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "individual_integral",
+      "rotulo": "Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8558.58,
+      "vetor_lexicografico": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.42,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.1
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 554.28
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 553.8
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6342.07,
+      "vetor_lexicografico": [
+        64.0,
+        142884.1,
+        134.0,
+        8476.51,
+        12161.4,
+        0.0,
+        57.93,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -82.17,
+      "delta_deficit_vs_baseline": 57.93,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2216.61
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 554.28
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 292.48
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7133.56,
+      "vetor_lexicografico": [
+        64.0,
+        142876.64,
+        134.0,
+        8200.4,
+        10660.03,
+        0.0,
+        50.47,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -358.28,
+      "delta_deficit_vs_baseline": 50.47,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1425.12
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 554.28
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7438.38,
+      "vetor_lexicografico": [
+        64.0,
+        142854.69,
+        134.0,
+        8505.32,
+        11018.7,
+        0.0,
+        28.52,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -53.36,
+      "delta_deficit_vs_baseline": 28.52,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1120.3
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. V + Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 553.8
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 292.48
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7132.53,
+      "vetor_lexicografico": [
+        64.0,
+        142877.53,
+        134.0,
+        8200.13,
+        10660.54,
+        0.0,
+        51.36,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -358.55,
+      "delta_deficit_vs_baseline": 51.36,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1426.15
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. V + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 553.8
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7437.37,
+      "vetor_lexicografico": [
+        64.0,
+        142855.58,
+        134.0,
+        8505.07,
+        11019.22,
+        0.0,
+        29.41,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -53.61,
+      "delta_deficit_vs_baseline": 29.41,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1121.31
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 292.48
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8253.74,
+      "vetor_lexicografico": [
+        64.0,
+        142848.12,
+        134.0,
+        8253.84,
+        9517.84,
+        0.0,
+        21.95,
+        4.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -304.84,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 304.94
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 554.28
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 553.8
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 292.48
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6037.08,
+      "vetor_lexicografico": [
+        64.0,
+        142906.05,
+        134.0,
+        8171.52,
+        11802.83,
+        0.0,
+        79.88,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -387.16,
+      "delta_deficit_vs_baseline": 79.88,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2521.6
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 554.28
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 553.8
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6341.97,
+      "vetor_lexicografico": [
+        64.0,
+        142884.1,
+        134.0,
+        8476.51,
+        12161.51,
+        0.0,
+        57.93,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -82.17,
+      "delta_deficit_vs_baseline": 57.93,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2216.71
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 554.28
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 292.48
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7133.46,
+      "vetor_lexicografico": [
+        64.0,
+        142876.64,
+        134.0,
+        8200.4,
+        10660.14,
+        0.0,
+        50.47,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -358.28,
+      "delta_deficit_vs_baseline": 50.47,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1425.22
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. V + Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 553.8
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 292.48
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7132.44,
+      "vetor_lexicografico": [
+        64.0,
+        142877.53,
+        134.0,
+        8200.14,
+        10660.65,
+        0.0,
+        51.36,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -358.54,
+      "delta_deficit_vs_baseline": 51.36,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1426.24
+    },
+    {
+      "data_solicitada": "2026-04-27",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 554.28
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 553.8
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 292.48
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-27",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6036.98,
+      "vetor_lexicografico": [
+        64.0,
+        142906.05,
+        134.0,
+        8171.52,
+        11802.94,
+        0.0,
+        79.88,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -387.16,
+      "delta_deficit_vs_baseline": 79.88,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2521.7
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "individual_integral",
+      "rotulo": "Lote 3000 mar. B",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 552.4
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7444.8,
+      "vetor_lexicografico": [
+        64.0,
+        142854.69,
+        134.0,
+        8508.48,
+        11018.59,
+        0.0,
+        28.52,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -50.2,
+      "delta_deficit_vs_baseline": 28.52,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1113.88
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "individual_integral",
+      "rotulo": "Lote 3000 mar. V",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 551.92
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7443.79,
+      "vetor_lexicografico": [
+        64.0,
+        142855.58,
+        134.0,
+        8508.23,
+        11019.11,
+        0.0,
+        29.41,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -50.45,
+      "delta_deficit_vs_baseline": 29.41,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1114.89
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "individual_integral",
+      "rotulo": "Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 291.41
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8253.84,
+      "vetor_lexicografico": [
+        64.0,
+        142848.12,
+        134.0,
+        8253.84,
+        9517.74,
+        0.0,
+        21.95,
+        4.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -304.84,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 304.84
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "individual_integral",
+      "rotulo": "Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8558.58,
+      "vetor_lexicografico": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.42,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.1
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 552.4
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 551.92
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6354.71,
+      "vetor_lexicografico": [
+        64.0,
+        142884.1,
+        134.0,
+        8482.83,
+        12161.4,
+        0.0,
+        57.93,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -75.85,
+      "delta_deficit_vs_baseline": 57.93,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2203.97
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 552.4
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 291.41
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7139.88,
+      "vetor_lexicografico": [
+        64.0,
+        142876.64,
+        134.0,
+        8203.56,
+        10660.03,
+        0.0,
+        50.47,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -355.12,
+      "delta_deficit_vs_baseline": 50.47,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1418.8
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 552.4
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7444.7,
+      "vetor_lexicografico": [
+        64.0,
+        142854.69,
+        134.0,
+        8508.48,
+        11018.7,
+        0.0,
+        28.52,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -50.2,
+      "delta_deficit_vs_baseline": 28.52,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1113.98
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. V + Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 551.92
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 291.41
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7138.85,
+      "vetor_lexicografico": [
+        64.0,
+        142877.53,
+        134.0,
+        8203.29,
+        10660.54,
+        0.0,
+        51.36,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -355.39,
+      "delta_deficit_vs_baseline": 51.36,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1419.83
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. V + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 551.92
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7443.69,
+      "vetor_lexicografico": [
+        64.0,
+        142855.58,
+        134.0,
+        8508.23,
+        11019.22,
+        0.0,
+        29.41,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -50.45,
+      "delta_deficit_vs_baseline": 29.41,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1114.99
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 291.41
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8253.74,
+      "vetor_lexicografico": [
+        64.0,
+        142848.12,
+        134.0,
+        8253.84,
+        9517.84,
+        0.0,
+        21.95,
+        4.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -304.84,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 304.94
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 552.4
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 551.92
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 291.41
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6049.72,
+      "vetor_lexicografico": [
+        64.0,
+        142906.05,
+        134.0,
+        8177.84,
+        11802.83,
+        0.0,
+        79.88,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -380.84,
+      "delta_deficit_vs_baseline": 79.88,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2508.96
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 552.4
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 551.92
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6354.61,
+      "vetor_lexicografico": [
+        64.0,
+        142884.1,
+        134.0,
+        8482.83,
+        12161.51,
+        0.0,
+        57.93,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -75.85,
+      "delta_deficit_vs_baseline": 57.93,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2204.07
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 552.4
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 291.41
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7139.78,
+      "vetor_lexicografico": [
+        64.0,
+        142876.64,
+        134.0,
+        8203.56,
+        10660.14,
+        0.0,
+        50.47,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -355.12,
+      "delta_deficit_vs_baseline": 50.47,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1418.9
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. V + Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 551.92
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 291.41
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7138.76,
+      "vetor_lexicografico": [
+        64.0,
+        142877.53,
+        134.0,
+        8203.3,
+        10660.65,
+        0.0,
+        51.36,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -355.38,
+      "delta_deficit_vs_baseline": 51.36,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1419.92
+    },
+    {
+      "data_solicitada": "2026-04-28",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 552.4
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 551.92
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 291.41
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-28",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6049.62,
+      "vetor_lexicografico": [
+        64.0,
+        142906.05,
+        134.0,
+        8177.84,
+        11802.94,
+        0.0,
+        79.88,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -380.84,
+      "delta_deficit_vs_baseline": 79.88,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2509.06
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "individual_integral",
+      "rotulo": "Lote 3000 mar. B",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.52
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7451.1,
+      "vetor_lexicografico": [
+        64.0,
+        142854.69,
+        134.0,
+        8511.63,
+        11018.59,
+        0.0,
+        28.52,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -47.05,
+      "delta_deficit_vs_baseline": 28.52,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1107.58
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "individual_integral",
+      "rotulo": "Lote 3000 mar. V",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.03
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7450.11,
+      "vetor_lexicografico": [
+        64.0,
+        142855.58,
+        134.0,
+        8511.39,
+        11019.11,
+        0.0,
+        29.41,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -47.29,
+      "delta_deficit_vs_baseline": 29.41,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1108.57
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "individual_integral",
+      "rotulo": "Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 290.35
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8253.84,
+      "vetor_lexicografico": [
+        64.0,
+        142848.12,
+        134.0,
+        8253.84,
+        9517.74,
+        0.0,
+        21.95,
+        4.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -304.84,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 304.84
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "individual_integral",
+      "rotulo": "Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8558.58,
+      "vetor_lexicografico": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.42,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.1
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.52
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.03
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6367.33,
+      "vetor_lexicografico": [
+        64.0,
+        142884.1,
+        134.0,
+        8489.14,
+        12161.4,
+        0.0,
+        57.93,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -69.54,
+      "delta_deficit_vs_baseline": 57.93,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2191.35
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.52
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 290.35
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7146.18,
+      "vetor_lexicografico": [
+        64.0,
+        142876.64,
+        134.0,
+        8206.71,
+        10660.03,
+        0.0,
+        50.47,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -351.97,
+      "delta_deficit_vs_baseline": 50.47,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1412.5
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.52
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7451.0,
+      "vetor_lexicografico": [
+        64.0,
+        142854.69,
+        134.0,
+        8511.63,
+        11018.7,
+        0.0,
+        28.52,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -47.05,
+      "delta_deficit_vs_baseline": 28.52,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1107.68
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. V + Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.03
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 290.35
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7145.17,
+      "vetor_lexicografico": [
+        64.0,
+        142877.53,
+        134.0,
+        8206.45,
+        10660.54,
+        0.0,
+        51.36,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -352.23,
+      "delta_deficit_vs_baseline": 51.36,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1413.51
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. V + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.03
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7450.01,
+      "vetor_lexicografico": [
+        64.0,
+        142855.58,
+        134.0,
+        8511.39,
+        11019.22,
+        0.0,
+        29.41,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -47.29,
+      "delta_deficit_vs_baseline": 29.41,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1108.67
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 290.35
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8253.74,
+      "vetor_lexicografico": [
+        64.0,
+        142848.12,
+        134.0,
+        8253.84,
+        9517.84,
+        0.0,
+        21.95,
+        4.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -304.84,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 304.94
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 8500 mar.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.52
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.03
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 290.35
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6062.34,
+      "vetor_lexicografico": [
+        64.0,
+        142906.05,
+        134.0,
+        8184.15,
+        11802.83,
+        0.0,
+        79.88,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -374.53,
+      "delta_deficit_vs_baseline": 79.88,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2496.34
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.52
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.03
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6367.23,
+      "vetor_lexicografico": [
+        64.0,
+        142884.1,
+        134.0,
+        8489.14,
+        12161.51,
+        0.0,
+        57.93,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -69.54,
+      "delta_deficit_vs_baseline": 57.93,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2191.45
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.52
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 290.35
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7146.08,
+      "vetor_lexicografico": [
+        64.0,
+        142876.64,
+        134.0,
+        8206.71,
+        10660.14,
+        0.0,
+        50.47,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -351.97,
+      "delta_deficit_vs_baseline": 50.47,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1412.6
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. V + Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.03
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 290.35
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7145.08,
+      "vetor_lexicografico": [
+        64.0,
+        142877.53,
+        134.0,
+        8206.46,
+        10660.65,
+        0.0,
+        51.36,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -352.22,
+      "delta_deficit_vs_baseline": 51.36,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 1413.6
+    },
+    {
+      "data_solicitada": "2026-04-29",
+      "familia": "agrupado_integral",
+      "rotulo": "Lote 3000 mar. B + Lote 3000 mar. V + Lote 8500 mar. + Lote 6630,64 fev.",
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.52
+        },
+        {
+          "lote_origem_id": "Lote 3000 mar. V",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 550.03
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 290.35
+        },
+        {
+          "lote_origem_id": "Lote 6630,64 fev.",
+          "produto_destino": "CDB XP 150%",
+          "data_acao": "2026-04-29",
+          "fracao_lote": 1.0,
+          "ganho_planejador": 0.04
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -6062.24,
+      "vetor_lexicografico": [
+        64.0,
+        142906.05,
+        134.0,
+        8184.15,
+        11802.94,
+        0.0,
+        79.88,
+        5.0
+      ],
+      "vetor_baseline": [
+        64.0,
+        142826.17,
+        134.0,
+        8558.68,
+        9876.31,
+        0.0,
+        0.0,
+        3.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -374.53,
+      "delta_deficit_vs_baseline": 79.88,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 2496.44
+    }
+  ]
+}
