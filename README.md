@@ -1,9 +1,9 @@
 # payment-investment-allocation
 
-**Baseline atual:** V179  
-**Contrato mestre vigente:** V179
+**Baseline atual:** V181  
+**Contrato mestre vigente:** V181
 
-A V179 formaliza o modelo matemático estatístico-financeiro oficial do projeto e estabelece o contrato operacional mestre vigente, reorganizando a governança do repositório em torno do objetivo final e rebaixando V117/V108 a contexto histórico.
+A V181 mantém a V179 como baseline metodológica oficial do modelo e amplia o contrato mestre para um formato completo, atual e historicamente contextualizado, adequado para servir de referência em conversas futuras e como base final do projeto.
 
 ## Objetivo final do projeto
 Construir um motor conjunto, auditável e economicamente coerente para:
@@ -14,12 +14,12 @@ Construir um motor conjunto, auditável e economicamente coerente para:
 
 A decisão final deve maximizar o **patrimônio líquido terminal**, respeitando cobertura, liquidez, carência, tributação, precedência intradiária parametrizada e auditabilidade por lote/fonte.
 
-## O que a V179 consolida
-- consolida o contrato operacional mestre do projeto;
-- formaliza o modelo matemático estatístico-financeiro oficial da V179;
+## O que a V181 consolida
+- mantém a V179 como modelo matemático estatístico-financeiro oficial do projeto;
+- amplia o contrato operacional mestre para um formato completo, atual e historicamente contextualizado;
 - mantém os suplementos de validação diária e pós-vencimento/gate como camadas complementares vigentes;
 - rebaixa explicitamente V117/V108 a contexto histórico e não normativo principal;
-- preserva a trilha de validação diária e o congelamento estrutural local já conquistados nas versões anteriores.
+- preserva a trilha de validação diária, o congelamento estrutural local e a linha histórica das baselines centrais no próprio corpo do contrato mestre.
 
 ## Documentos operacionais prioritários
 Consulte primeiro:
@@ -31,5 +31,5 @@ Consulte primeiro:
 - `relatorios/atuais/AUDITORIA_REEXECUCAO_CACHE_DADOS_V178.md`
 - `relatorios/atuais/VALIDACAO_DIARIA_OPERACIONAL_V178_2026-04-23_2026-05-23.md`
 
-## Próxima frente após a V179
-Derivar a especificação operacional completa de `resolver_dia(t, E_t)` diretamente a partir do contrato mestre e do modelo oficial.
+## Próxima frente após a V181
+Derivar a especificação operacional completa de `resolver_dia(t, E_t)` diretamente a partir do contrato mestre V181 e do modelo oficial V179.

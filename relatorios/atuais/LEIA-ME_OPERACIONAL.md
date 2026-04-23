@@ -1,7 +1,7 @@
-# LEIA-ME operacional — V179
+# LEIA-ME operacional — V181
 
 ## Baseline vigente
-- Baseline vigente: **V179**
+- Baseline vigente: **V181**
 - Contrato mestre vigente: **CONTRATO_OPERACIONAL_PROJETO.md**
 - Modelo oficial vigente: **MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md**
 - Baseline anterior relevante de validação diária: **V178**
@@ -29,7 +29,7 @@
 - `RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 
 ## Regra operacional desta etapa
-1. Interpretar o projeto pela V179 como contrato mestre e modelo oficial.
+1. Interpretar o projeto pela V181 como contrato mestre vigente e pela V179 como modelo oficial vigente.
 2. Não usar V108 ou V117 como base normativa principal para novas implementações.
 3. Validar pagamentos e switchings contra o objetivo final do projeto e contra o modelo oficial V179.
 4. Exigir auditabilidade por lote/fonte/conta/pacote nas saídas diárias.
