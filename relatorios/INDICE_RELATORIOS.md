@@ -15,10 +15,11 @@
 - `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V108.md`
 
-### Camada documental/técnica mínima V117
-- `relatorios/atuais/BASELINE_FIXA_V117.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V117.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V117.md`
+### Camada temporal mínima integrada V118
+- `relatorios/atuais/BASELINE_FIXA_V118.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V118.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V118.md`
+- `relatorios/atuais/INTEGRACAO_FUNCIONAL_MINIMA_V117_RECORTE_CURTO.md`
 
 ### Camada operacional por conta
 - `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`

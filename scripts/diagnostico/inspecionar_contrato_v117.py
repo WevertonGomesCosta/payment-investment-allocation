@@ -7,7 +7,7 @@ except ModuleNotFoundError:  # execucao direta
 
 from pprint import pprint
 
-from nucleo.alocador_pagamentos_terminal_v1 import DecisaoPagamentoTerminal, alocar_pagamentos_terminal_v1
+from nucleo.alocador_pagamentos_terminal_v1 import FontePagamentoCandidata, alocar_pagamento_terminal_v1
 from nucleo.planejador_switching_temporal_v1 import AcaoSwitchingTemporalCandidata, planejar_switching_temporal_v1
 
 
@@ -19,11 +19,11 @@ def main() -> int:
     print('- alocador_pagamentos_terminal_v1')
     print('tipos exportados:')
     print(f'- {AcaoSwitchingTemporalCandidata.__name__}')
-    print(f'- {DecisaoPagamentoTerminal.__name__}')
+    print(f'- {FontePagamentoCandidata.__name__}')
     print('chamada_stub_planejador:')
-    pprint(planejar_switching_temporal_v1(estado_global={}))
+    pprint(planejar_switching_temporal_v1(estado_global={}, config={}))
     print('chamada_stub_alocador:')
-    pprint(alocar_pagamentos_terminal_v1(estado_global={}))
+    pprint(alocar_pagamento_terminal_v1(pagamento={}, estado_global={}, config={}))
     return 0
 
 
