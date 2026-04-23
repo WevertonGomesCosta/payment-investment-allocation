@@ -193,6 +193,17 @@ def _projetar_valor_terminal(valor_base: float, retorno_anual: float, dias: int)
 def _valor_terminal_estimado_lote(lote: dict[str, Any], data_final: date | None, data_base: date | None) -> float:
     valor_liquido = float(lote.get('valor_liquido_resgatavel') or 0.0)
     retorno = float(lote.get('retorno_anual_proxy_atual') or 0.0)
+    valor_terminal_registrado = float(lote.get('valor_terminal_estimado') or 0.0)
+    data_final_registrada = _coerce_date(lote.get('data_final_valor_terminal_estimado'))
+    valor_base_registrado = float(lote.get('valor_liquido_base_terminal_estimado') or 0.0)
+    origem_switching = bool(lote.get('origem_switching_evento'))
+    if origem_switching and valor_terminal_registrado > 0.0 and data_final is not None and data_final_registrada == data_final:
+        if valor_base_registrado > 0.0:
+            proporcao = max(min(valor_liquido / valor_base_registrado, 1.0), 0.0)
+            valor_ajustado = round(valor_terminal_registrado * proporcao, 2)
+        else:
+            valor_ajustado = round(valor_terminal_registrado, 2)
+        return round(max(valor_liquido, valor_ajustado), 2)
     if data_final is None or data_base is None:
         return round(valor_liquido, 2)
     dias = max((data_final - data_base).days, 0)
@@ -477,6 +488,11 @@ def _aplicar_switching_eventos(estado: dict[str, Any], eventos: list[dict[str, A
                     'taxa_base_cdi': 0.0,
                     'taxa_bonus_cdi': 0.0,
                     'valor_terminal_estimado': valor_terminal_estimado,
+                    'data_base_valor_terminal_estimado': data_base_terminal,
+                    'data_final_valor_terminal_estimado': data_final,
+                    'valor_liquido_base_terminal_estimado': valor_disponivel,
+                    'origem_switching_evento': True,
+                    'origem_tipo_evento': 'aporte_nao_aportado',
                     'custo_fiscal_acumulado': 0.0,
                 }
                 estado.setdefault('lotes_aportados', []).append(novo_lote)
@@ -553,6 +569,11 @@ def _aplicar_switching_eventos(estado: dict[str, Any], eventos: list[dict[str, A
                 lote['data_aplicacao'] = data_atual
                 lote['custo_fiscal_acumulado'] = round(float(lote.get('custo_fiscal_acumulado') or 0.0) + custo_fiscal, 2)
                 lote['valor_terminal_estimado'] = valor_terminal_estimado
+                lote['data_base_valor_terminal_estimado'] = data_base_terminal
+                lote['data_final_valor_terminal_estimado'] = data_final
+                lote['valor_liquido_base_terminal_estimado'] = valor_migrado
+                lote['origem_switching_evento'] = True
+                lote['origem_tipo_evento'] = 'switching_integral'
             else:
                 valor_residual = round(max(valor_liquido_total - valor_liquido_origem, 0.0), 2)
                 principal_residual = round(max(principal_total - principal, 0.0), 2)
@@ -575,6 +596,11 @@ def _aplicar_switching_eventos(estado: dict[str, Any], eventos: list[dict[str, A
                 novo_lote['data_aplicacao'] = data_atual
                 novo_lote['custo_fiscal_acumulado'] = round(float(lote.get('custo_fiscal_acumulado') or 0.0) + custo_fiscal, 2)
                 novo_lote['valor_terminal_estimado'] = valor_terminal_estimado
+                novo_lote['data_base_valor_terminal_estimado'] = data_base_terminal
+                novo_lote['data_final_valor_terminal_estimado'] = data_final
+                novo_lote['valor_liquido_base_terminal_estimado'] = valor_migrado
+                novo_lote['origem_switching_evento'] = True
+                novo_lote['origem_tipo_evento'] = 'switching_parcial'
                 estado.setdefault('lotes_aportados', []).append(novo_lote)
             historico.append({
                 'tipo_evento': 'switching',
