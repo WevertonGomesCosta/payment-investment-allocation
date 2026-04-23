@@ -1,6 +1,6 @@
 # payment-investment-allocation
 
-**Baseline atual:** V176  
+**Baseline atual:** V179  
 **Baseline central/contratual da frente principal:** V108
 
 A V176 preserva o congelamento estrutural local do switching consolidado até a V174, mantém a correção temporal operacional da V175 e reorganiza a validação diária para ficar alinhada ao objetivo final do projeto.
@@ -30,6 +30,7 @@ A decisão final deve maximizar o **patrimônio líquido terminal**, respeitando
 Consulte primeiro:
 - `relatorios/atuais/LEIA-ME_OPERACIONAL.md`
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
+- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`
 - `relatorios/atuais/CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`
 - `relatorios/atuais/AUDITORIA_ALINHAMENTO_CONTRATO_OBJETIVO_FINAL_V176.md`
 - `relatorios/atuais/VALIDACAO_DIARIA_OPERACIONAL_V176_2026-04-23_2026-05-23.md`

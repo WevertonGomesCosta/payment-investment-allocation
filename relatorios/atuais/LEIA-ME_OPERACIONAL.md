@@ -1,7 +1,7 @@
 # LEIA-ME operacional — V176
 
 ## Baseline vigente
-- Baseline vigente: **V176**
+- Baseline vigente: **V179**
 - Baseline anterior preservada: **V175**
 - Marco de congelamento estrutural local do switching: **V174**
 - Baseline central/contratual da frente principal: **V108**
@@ -10,6 +10,7 @@
 
 ### Contrato e direção metodológica
 - `CONTRATO_OPERACIONAL_PROJETO.md`
+- `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`
 - `CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`
 - `CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`
 - `CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md`
