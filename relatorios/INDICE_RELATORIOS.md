@@ -90,3 +90,9 @@
 - relatorios/atuais/VALIDACAO_LOCAL_V132.md
 
 - relatorios/atuais/ESTRUTURA_REPOSITORIO_V132.md
+
+
+- relatorios/atuais/BASELINE_FIXA_V133.md
+- relatorios/atuais/VALIDACAO_LOCAL_V133.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V133.md
+- relatorios/atuais/GRADE_DIARIA_OFICIAL_HIBRIDA_V133.md

@@ -109,3 +109,9 @@ A V131 adiciona uma auditoria cirúrgica do bloco `2026-05-13` a `2026-05-20` e 
 ## Atualização V132
 
 A V132 introduz um comparador híbrido para classificar cenários diários em vencedor operacional, vencedor terminal ou vencedor híbrido aceitável, bloqueando promoção automática de switchings que piorem patrimônio líquido terminal frente ao baseline.
+
+
+- relatorios/atuais/BASELINE_FIXA_V133.md
+- relatorios/atuais/VALIDACAO_LOCAL_V133.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V133.md
+- relatorios/atuais/GRADE_DIARIA_OFICIAL_HIBRIDA_V133.md

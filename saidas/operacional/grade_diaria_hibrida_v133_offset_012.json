@@ -1,0 +1,1271 @@
+{
+  "janela_inicio": "2026-04-30",
+  "janela_fim": "2026-05-20",
+  "start_offset": 12,
+  "max_dias": 3,
+  "quantidade_pagamentos_horizonte_total": 149,
+  "dias_auditados": [
+    {
+      "data": "2026-05-12",
+      "quantidade_acoes_elegiveis_planejador": 15,
+      "quantidade_cenarios_parametrizados": 15
+    },
+    {
+      "data": "2026-05-13",
+      "quantidade_acoes_elegiveis_planejador": 5,
+      "quantidade_cenarios_parametrizados": 3
+    },
+    {
+      "data": "2026-05-14",
+      "quantidade_acoes_elegiveis_planejador": 5,
+      "quantidade_cenarios_parametrizados": 3
+    }
+  ],
+  "resultados": [
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B -> Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "valor_total_alocado": 2714.65,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+          "rank_destino_sugerido": 1,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 1.0,
+          "aplicacao_maxima_destino": 10000.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7624.24,
+      "vetor_lexicografico": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B -> Combo PicPay 100-120 3m",
+      "produto_destino": "Combo PicPay 100-120 3m",
+      "valor_total_alocado": 2714.65,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "Combo PicPay 100-120 3m",
+          "rank_destino_sugerido": 4,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7624.24,
+      "vetor_lexicografico": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B -> Combo PicPay 100-120 6m",
+      "produto_destino": "Combo PicPay 100-120 6m",
+      "valor_total_alocado": 2714.65,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "Combo PicPay 100-120 6m",
+          "rank_destino_sugerido": 5,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7624.24,
+      "vetor_lexicografico": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B -> Mercado Pago Cofrinho 115% CDI",
+      "produto_destino": "Mercado Pago Cofrinho 115% CDI",
+      "valor_total_alocado": 2714.65,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "Mercado Pago Cofrinho 115% CDI",
+          "rank_destino_sugerido": 9,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 1.0,
+          "aplicacao_maxima_destino": 5000.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7624.24,
+      "vetor_lexicografico": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B -> Tesouro Selic 2029",
+      "produto_destino": "Tesouro Selic 2029",
+      "valor_total_alocado": 2714.65,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "Tesouro Selic 2029",
+          "rank_destino_sugerido": 6,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 30.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7624.24,
+      "vetor_lexicografico": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B -> CDB BMG Super Poupança",
+      "produto_destino": "CDB BMG Super Poupança",
+      "valor_total_alocado": 2714.65,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB BMG Super Poupança",
+          "rank_destino_sugerido": 11,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 50.0,
+          "aplicacao_maxima_destino": 500000000.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7624.24,
+      "vetor_lexicografico": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B -> CDB BMG Escalonado - até 109% CDI - 5 anos",
+      "produto_destino": "CDB BMG Escalonado - até 109% CDI - 5 anos",
+      "valor_total_alocado": 2714.65,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB BMG Escalonado - até 109% CDI - 5 anos",
+          "rank_destino_sugerido": 2,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 50.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7624.24,
+      "vetor_lexicografico": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B -> CDB Sofisa 105%",
+      "produto_destino": "CDB Sofisa 105%",
+      "valor_total_alocado": 2714.65,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB Sofisa 105%",
+          "rank_destino_sugerido": 3,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 1.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7624.24,
+      "vetor_lexicografico": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B -> CDB Neon Cofrinho Escalonado - 100% a 113% CDI",
+      "produto_destino": "CDB Neon Cofrinho Escalonado - 100% a 113% CDI",
+      "valor_total_alocado": 2714.65,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "CDB Neon Cofrinho Escalonado - 100% a 113% CDI",
+          "rank_destino_sugerido": 10,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 1.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7624.24,
+      "vetor_lexicografico": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": 0.0,
+      "delta_deficit_vs_baseline": 0.0,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 0.0,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 8500 mar. -> Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "valor_total_alocado": 5507.13,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+          "rank_destino_sugerido": 1,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 1.0,
+          "aplicacao_maxima_destino": 10000.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7579.5,
+      "vetor_lexicografico": [
+        65.0,
+        146303.17,
+        138.0,
+        7608.74,
+        8708.21,
+        0.0,
+        21.95,
+        3.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -15.5,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 44.74,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": true,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": true,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 8500 mar. -> Combo PicPay 100-120 3m",
+      "produto_destino": "Combo PicPay 100-120 3m",
+      "valor_total_alocado": 5507.13,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Combo PicPay 100-120 3m",
+          "rank_destino_sugerido": 4,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7500.16,
+      "vetor_lexicografico": [
+        65.0,
+        146303.17,
+        138.0,
+        7500.16,
+        8548.5,
+        0.0,
+        21.95,
+        3.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -124.08,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 124.08,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": true,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": true,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 8500 mar. -> Combo PicPay 100-120 6m",
+      "produto_destino": "Combo PicPay 100-120 6m",
+      "valor_total_alocado": 5507.13,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Combo PicPay 100-120 6m",
+          "rank_destino_sugerido": 5,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7500.16,
+      "vetor_lexicografico": [
+        65.0,
+        146303.17,
+        138.0,
+        7500.16,
+        8548.5,
+        0.0,
+        21.95,
+        3.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -124.08,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 124.08,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": true,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": true,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "agrupado_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B + Lote 8500 mar. -> Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "valor_total_alocado": 8221.78,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+          "rank_destino_sugerido": 1,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 1.0,
+          "aplicacao_maxima_destino": 10000.0,
+          "somente_combo_destino": false
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+          "rank_destino_sugerido": 1,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 1.0,
+          "aplicacao_maxima_destino": 10000.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7579.5,
+      "vetor_lexicografico": [
+        65.0,
+        146303.17,
+        138.0,
+        7608.74,
+        8708.21,
+        0.0,
+        21.95,
+        3.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -15.5,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 44.74,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": true,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": true,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "agrupado_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B + Lote 8500 mar. -> Combo PicPay 100-120 3m",
+      "produto_destino": "Combo PicPay 100-120 3m",
+      "valor_total_alocado": 8221.78,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "Combo PicPay 100-120 3m",
+          "rank_destino_sugerido": 4,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Combo PicPay 100-120 3m",
+          "rank_destino_sugerido": 4,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7500.16,
+      "vetor_lexicografico": [
+        65.0,
+        146303.17,
+        138.0,
+        7500.16,
+        8548.5,
+        0.0,
+        21.95,
+        3.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -124.08,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 124.08,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": true,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": true,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-12",
+      "familia": "agrupado_integral_parametrizado",
+      "rotulo": "Lote 3000 mar. B + Lote 8500 mar. -> Combo PicPay 100-120 6m",
+      "produto_destino": "Combo PicPay 100-120 6m",
+      "valor_total_alocado": 8221.78,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 3000 mar. B",
+          "produto_destino": "Combo PicPay 100-120 6m",
+          "rank_destino_sugerido": 5,
+          "valor_migrado_estimado": 2714.65,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        },
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Combo PicPay 100-120 6m",
+          "rank_destino_sugerido": 5,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -7500.16,
+      "vetor_lexicografico": [
+        65.0,
+        146303.17,
+        138.0,
+        7500.16,
+        8548.5,
+        0.0,
+        21.95,
+        3.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        146281.22,
+        138.0,
+        7624.24,
+        8692.28,
+        0.0,
+        0.0,
+        2.0
+      ],
+      "continua_vencedor_central": false,
+      "vitoria_material": false,
+      "delta_perda_terminal_vs_baseline": -124.08,
+      "delta_deficit_vs_baseline": 21.95,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": 124.08,
+      "classe_comparador_hibrido": "dominado_pelo_baseline",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "não oferece combinação suficiente de ganho operacional e preservação terminal",
+      "melhora_terminal_material": true,
+      "piora_terminal_material": false,
+      "melhora_operacional_material": false,
+      "piora_operacional_material": true,
+      "prioridade_classe_hibrida": 9
+    },
+    {
+      "data_solicitada": "2026-05-13",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 8500 mar. -> Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "valor_total_alocado": 5507.13,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+          "rank_destino_sugerido": 1,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 1.0,
+          "aplicacao_maxima_destino": 10000.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8599.19,
+      "vetor_lexicografico": [
+        65.0,
+        146486.03,
+        138.0,
+        8628.34,
+        9829.59,
+        0.0,
+        21.95,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        150144.57,
+        138.0,
+        6166.21,
+        6942.88,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "continua_vencedor_central": true,
+      "vitoria_material": true,
+      "delta_perda_terminal_vs_baseline": 2462.13,
+      "delta_deficit_vs_baseline": -3658.54,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": -2432.98,
+      "classe_comparador_hibrido": "vencedor_operacional",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "vence na métrica central atual, mas piora patrimônio terminal frente ao baseline",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": true,
+      "melhora_operacional_material": true,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 2
+    },
+    {
+      "data_solicitada": "2026-05-13",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 8500 mar. -> Combo PicPay 100-120 3m",
+      "produto_destino": "Combo PicPay 100-120 3m",
+      "valor_total_alocado": 5507.13,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Combo PicPay 100-120 3m",
+          "rank_destino_sugerido": 4,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8519.61,
+      "vetor_lexicografico": [
+        65.0,
+        146486.03,
+        138.0,
+        8519.61,
+        9669.88,
+        0.0,
+        21.95,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        150144.57,
+        138.0,
+        6166.21,
+        6942.88,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "continua_vencedor_central": true,
+      "vitoria_material": true,
+      "delta_perda_terminal_vs_baseline": 2353.4,
+      "delta_deficit_vs_baseline": -3658.54,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": -2353.4,
+      "classe_comparador_hibrido": "vencedor_operacional",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "vence na métrica central atual, mas piora patrimônio terminal frente ao baseline",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": true,
+      "melhora_operacional_material": true,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 2
+    },
+    {
+      "data_solicitada": "2026-05-13",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 8500 mar. -> Combo PicPay 100-120 6m",
+      "produto_destino": "Combo PicPay 100-120 6m",
+      "valor_total_alocado": 5507.13,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Combo PicPay 100-120 6m",
+          "rank_destino_sugerido": 5,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8519.61,
+      "vetor_lexicografico": [
+        65.0,
+        146486.03,
+        138.0,
+        8519.61,
+        9669.88,
+        0.0,
+        21.95,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        150144.57,
+        138.0,
+        6166.21,
+        6942.88,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "continua_vencedor_central": true,
+      "vitoria_material": true,
+      "delta_perda_terminal_vs_baseline": 2353.4,
+      "delta_deficit_vs_baseline": -3658.54,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": -2353.4,
+      "classe_comparador_hibrido": "vencedor_operacional",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "vence na métrica central atual, mas piora patrimônio terminal frente ao baseline",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": true,
+      "melhora_operacional_material": true,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 2
+    },
+    {
+      "data_solicitada": "2026-05-14",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 8500 mar. -> Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+      "valor_total_alocado": 5507.13,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Mercado Pago Cofrinho 120% CDI (Meli+)",
+          "rank_destino_sugerido": 1,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 1.0,
+          "aplicacao_maxima_destino": 10000.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8599.37,
+      "vetor_lexicografico": [
+        65.0,
+        146486.03,
+        138.0,
+        8628.43,
+        9829.59,
+        0.0,
+        21.95,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        150144.57,
+        138.0,
+        6166.21,
+        6942.88,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "continua_vencedor_central": true,
+      "vitoria_material": true,
+      "delta_perda_terminal_vs_baseline": 2462.22,
+      "delta_deficit_vs_baseline": -3658.54,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": -2433.16,
+      "classe_comparador_hibrido": "vencedor_operacional",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "vence na métrica central atual, mas piora patrimônio terminal frente ao baseline",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": true,
+      "melhora_operacional_material": true,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 2
+    },
+    {
+      "data_solicitada": "2026-05-14",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 8500 mar. -> Combo PicPay 100-120 3m",
+      "produto_destino": "Combo PicPay 100-120 3m",
+      "valor_total_alocado": 5507.13,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Combo PicPay 100-120 3m",
+          "rank_destino_sugerido": 4,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8519.61,
+      "vetor_lexicografico": [
+        65.0,
+        146486.03,
+        138.0,
+        8519.61,
+        9669.88,
+        0.0,
+        21.95,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        150144.57,
+        138.0,
+        6166.21,
+        6942.88,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "continua_vencedor_central": true,
+      "vitoria_material": true,
+      "delta_perda_terminal_vs_baseline": 2353.4,
+      "delta_deficit_vs_baseline": -3658.54,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": -2353.4,
+      "classe_comparador_hibrido": "vencedor_operacional",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "vence na métrica central atual, mas piora patrimônio terminal frente ao baseline",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": true,
+      "melhora_operacional_material": true,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 2
+    },
+    {
+      "data_solicitada": "2026-05-14",
+      "familia": "individual_integral_parametrizado",
+      "rotulo": "Lote 8500 mar. -> Combo PicPay 100-120 6m",
+      "produto_destino": "Combo PicPay 100-120 6m",
+      "valor_total_alocado": 5507.13,
+      "validacao_ticket": {
+        "ok": true,
+        "motivo": ""
+      },
+      "eventos": [
+        {
+          "lote_origem_id": "Lote 8500 mar.",
+          "produto_destino": "Combo PicPay 100-120 6m",
+          "rank_destino_sugerido": 5,
+          "valor_migrado_estimado": 5507.13,
+          "aplicacao_minima_destino": 300.0,
+          "aplicacao_maxima_destino": 0.0,
+          "somente_combo_destino": false
+        }
+      ],
+      "patrimonio_liquido_terminal_proxy": -8519.61,
+      "vetor_lexicografico": [
+        65.0,
+        146486.03,
+        138.0,
+        8519.61,
+        9669.88,
+        0.0,
+        21.95,
+        2.0
+      ],
+      "vetor_baseline": [
+        65.0,
+        150144.57,
+        138.0,
+        6166.21,
+        6942.88,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "continua_vencedor_central": true,
+      "vitoria_material": true,
+      "delta_perda_terminal_vs_baseline": 2353.4,
+      "delta_deficit_vs_baseline": -3658.54,
+      "delta_violacoes_protegida_vs_baseline": 0.0,
+      "delta_patrimonio_proxy_vs_baseline": -2353.4,
+      "classe_comparador_hibrido": "vencedor_operacional",
+      "promovivel_hibrido": false,
+      "bloqueado_promocao_automatica": true,
+      "motivo_comparador_hibrido": "vence na métrica central atual, mas piora patrimônio terminal frente ao baseline",
+      "melhora_terminal_material": false,
+      "piora_terminal_material": true,
+      "melhora_operacional_material": true,
+      "piora_operacional_material": false,
+      "prioridade_classe_hibrida": 2
+    }
+  ]
+}
