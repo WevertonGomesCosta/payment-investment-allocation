@@ -319,6 +319,12 @@ def _chave_pacote_tau(resultado: dict[str, Any], tau: float) -> tuple[Any, ...]:
     return primeiros_sete + (-patrimonio_ajustado, custo_operacional, -patrimonio)
 
 
+def _selecionar_vencedor_pacote(candidatos: list[dict[str, Any]], tau: float | None = None) -> dict[str, Any]:
+    if tau is None:
+        return min(candidatos, key=_chave_pacote)
+    return min(candidatos, key=lambda item: _chave_pacote_tau(item, tau))
+
+
 def _carregar_estado_janela(
     *,
     contexto: Any,
@@ -357,6 +363,7 @@ def rodar_motor_diario_conjunto_experimental_v143(
     data_fim: date,
     limite_candidatos_por_data: int = 24,
     cap_fontes_destino: int = 5,
+    tau_custo_operacional: float | None = None,
 ) -> dict[str, Any]:
     base = Path(raiz_repositorio)
     contexto = carregar_contexto_baseline(
@@ -442,17 +449,23 @@ def rodar_motor_diario_conjunto_experimental_v143(
                 ))
             tipo_dia = 'dia_sem_pagamento'
 
-        vencedor = min(candidatos, key=_chave_pacote)
+        vencedor = _selecionar_vencedor_pacote(candidatos, tau_custo_operacional)
         estado_corrente = deepcopy(vencedor.get('estado_pos_dia') or estado_corrente)
         _remover_pagamentos_ate_dia(estado_corrente, dia)
         for pagamento in vencedor.get('resultados_pagamento') or []:
             resultados_pagamento_executados.append(deepcopy(pagamento))
             contagem_fontes[str(pagamento.get('fonte_principal_tipo') or 'sem_fonte')] += 1
 
-        justificativa = (
-            f"Vencedor por vetor total estimado {tuple(vencedor.get('vetor_total_estimado') or ())} "
-            f"e patrimônio terminal proxy estimado R$ {float(vencedor.get('patrimonio_terminal_proxy_estimado') or 0.0):.2f}."
-        )
+        if tau_custo_operacional is None:
+            justificativa = (
+                f"Vencedor por vetor total estimado {tuple(vencedor.get('vetor_total_estimado') or ())} "
+                f"e patrimônio terminal proxy estimado R$ {float(vencedor.get('patrimonio_terminal_proxy_estimado') or 0.0):.2f}."
+            )
+        else:
+            justificativa = (
+                f"Vencedor por chave tau={tau_custo_operacional:.2f}, vetor base {tuple(vencedor.get('vetor_total_estimado') or ())} "
+                f"e patrimônio terminal proxy estimado R$ {float(vencedor.get('patrimonio_terminal_proxy_estimado') or 0.0):.2f}."
+            )
         decisoes.append(DecisaoDiaV143(
             data=dia.isoformat(),
             tipo_dia=tipo_dia,
@@ -527,6 +540,7 @@ def rodar_motor_diario_conjunto_experimental_v143(
         'historico_execucao': historico_execucao,
         'estado_final_estimado': deepcopy(estado_corrente),
         'resultados_pagamento_executados': resultados_pagamento_executados,
+        'parametro_tau_custo_operacional': tau_custo_operacional,
         'observacao_metodologica': (
             'Motor diário conjunto experimental: a escolha do pacote do dia usa continuação neutra até o fim da janela '\
             'sem novo switching proativo após o dia avaliado. A comparação é útil para auditar precedência diária, '\
