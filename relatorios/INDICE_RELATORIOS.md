@@ -54,6 +54,16 @@
 - `relatorios/atuais/VALIDACAO_LOCAL_V139.md`
 - `relatorios/atuais/VALIDACAO_LOCAL_V141.md`
 
+- `relatorios/atuais/CONTRATO_SUPLEMENTAR_POS_VENCIMENTO_GATE_V177.md`
+
+- `relatorios/atuais/CORRECAO_POS_VENCIMENTO_GATE_SWITCHING_V177.md`
+
+- `relatorios/atuais/ATUALIZACAO_CACHE_DADOS_E_REEXECUCAO_V178.md`
+
+- `relatorios/atuais/AUDITORIA_REEXECUCAO_CACHE_DADOS_V178.md`
+
+- `relatorios/atuais/VALIDACAO_DIARIA_OPERACIONAL_V178_2026-04-23_2026-05-23.md`
+
 ## Histórico documental
 - `relatorios/historico/baselines/`
 - `relatorios/historico/validacoes/`
