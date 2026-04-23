@@ -102,3 +102,9 @@
 - `relatorios/atuais/BASELINE_FIXA_V135.md`
 - `relatorios/atuais/VALIDACAO_LOCAL_V135.md`
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V135.md`
+
+- `relatorios/atuais/BASELINE_FIXA_V136.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V136.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V136.md`
+- `relatorios/atuais/AUDITORIA_ATIVACAO_LOTES_NAO_APORTADOS_FUTUROS_V136.md`
+- `relatorios/atuais/AUDITORIA_ATIVACAO_E_EXPANSAO_FUTUROS_V136.md`

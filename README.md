@@ -125,3 +125,8 @@ A V134 expande a grade diária oficial híbrida além de 2026-05-20 e confirma p
 ## Atualização V135
 
 A V135 consolida a auditoria de fechamento da frente temporal e decide **não encerrar ainda** a frente de switching oficial. A justificativa é que a base ainda contém lotes futuros não aportados e pagamentos relevantes até `2027-03-31`, então a dominância do baseline até `2026-08-18` não é evidência suficiente para fechamento.
+
+
+## Estado atual V136
+
+A V136 corrige a ativação de lotes futuros não aportados no fluxo oficial híbrido e adiciona scripts para expansão da grade diária até `2027-03-31`.

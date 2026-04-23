@@ -1,0 +1,22 @@
+[
+  {
+    "data": "2026-09-01",
+    "recebidos_disponiveis": 11,
+    "futuros_restantes": 13,
+    "modo_execucao": "grade_oficial_hibrida_probe_cap3",
+    "max_fontes_por_destino": 3,
+    "cenarios_avaliados": 58,
+    "promocao_oficial": "baseline_sem_switching",
+    "classe_promocao": "baseline"
+  },
+  {
+    "data": "2027-03-03",
+    "recebidos_disponiveis": 23,
+    "futuros_restantes": 1,
+    "modo_execucao": "grade_oficial_hibrida_probe_cap3",
+    "max_fontes_por_destino": 3,
+    "cenarios_avaliados": 8,
+    "promocao_oficial": "baseline_sem_switching",
+    "classe_promocao": "baseline"
+  }
+]

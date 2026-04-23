@@ -35,11 +35,28 @@ def _parse_date_env(var: str, default: str) -> date:
     valor = os.getenv(var, default) or default
     return date.fromisoformat(valor)
 
-JANELA_INICIO = _parse_date_env('V134_JANELA_INICIO', '2026-05-21')
-JANELA_FIM = _parse_date_env('V134_JANELA_FIM', '2026-08-18')
-START_OFFSET = int(os.getenv('V134_START_OFFSET', '0') or 0)
-MAX_DIAS = int(os.getenv('V134_MAX_DIAS', '0') or 0)
-CHUNK_JSON = BASE_OPERACIONAL / f'grade_diaria_hibrida_v134_{JANELA_INICIO.isoformat()}_{JANELA_FIM.isoformat()}_offset_{START_OFFSET:03d}.json'
+JANELA_INICIO = _parse_date_env('V136_JANELA_INICIO', '2026-05-21')
+JANELA_FIM = _parse_date_env('V136_JANELA_FIM', '2027-03-31')
+START_OFFSET = int(os.getenv('V136_START_OFFSET', '0') or 0)
+MAX_DIAS = int(os.getenv('V136_MAX_DIAS', '0') or 0)
+CHUNK_JSON = BASE_OPERACIONAL / f'grade_diaria_hibrida_v136_{JANELA_INICIO.isoformat()}_{JANELA_FIM.isoformat()}_offset_{START_OFFSET:03d}.json'
+
+
+MAX_FONTES_POR_DESTINO = int(os.getenv('V136_MAX_FONTES_POR_DESTINO', '6') or 6)
+
+
+def _cap_fontes_por_destino(acoes, max_fontes: int):
+    if max_fontes <= 0:
+        return list(acoes)
+    por_destino = defaultdict(list)
+    for acao in acoes:
+        destino = str(acao.get('produto_destino_key') or acao.get('produto_destino') or '')
+        por_destino[destino].append(deepcopy(acao))
+    saida = []
+    for _, grupo in por_destino.items():
+        grupo = sorted(grupo, key=lambda a: float(a.get('ganho_terminal_economico_minimo_estimado') or 0.0), reverse=True)
+        saida.extend(grupo[:max_fontes])
+    return saida
 
 
 def _carregar_estado_completo(contexto):
@@ -202,7 +219,17 @@ def _comparar_com_baseline(sim: dict, baseline: dict) -> dict:
 
 
 def executar() -> dict:
-    contexto = carregar_contexto_baseline(raiz_repositorio=Path(RAIZ), instalar_automaticamente=False)
+    contexto = carregar_contexto_baseline(
+        raiz_repositorio=Path(RAIZ),
+        instalar_automaticamente=False,
+        incluir_switching_shadow=False,
+        incluir_triagem=True,
+        incluir_switching_economico_shadow=False,
+        incluir_resolver_hibrido_5p_shadow=False,
+        incluir_benchmark_agrupado_individual_shadow=False,
+        incluir_benchmark_runner_futuro_shadow=False,
+        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
+    )
     config = contexto.pacote_config.conteudo
     estado_base, data_fim, qtd_pagamentos = _carregar_estado_completo(contexto)
     horizonte = {'data_inicio': contexto.execucao.data_referencia.isoformat(), 'data_fim': data_fim.isoformat()}
@@ -224,6 +251,7 @@ def executar() -> dict:
             limite_candidatos_por_data=500,
         )
         acoes = _melhores_por_fonte_destino(plano.get('acoes_candidatas', []))
+        acoes = _cap_fontes_por_destino(acoes, MAX_FONTES_POR_DESTINO)
         cenarios = _gerar_cenarios_parametrizados(acoes)
         dias_auditados.append({
             'data': dia.isoformat(),
@@ -269,6 +297,7 @@ def executar() -> dict:
         'janela_fim': JANELA_FIM.isoformat(),
         'start_offset': START_OFFSET,
         'max_dias': MAX_DIAS,
+        'max_fontes_por_destino': MAX_FONTES_POR_DESTINO,
         'quantidade_pagamentos_horizonte_total': qtd_pagamentos,
         'dias_auditados': dias_auditados,
         'resultados': resultados,

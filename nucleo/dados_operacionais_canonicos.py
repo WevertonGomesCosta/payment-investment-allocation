@@ -220,12 +220,16 @@ def carregar_inventario_canonico(
     for idx, row in df.iterrows():
         lote_id = normalizar_identificador(row.get(col_lote_id))
         data_recebimento = para_data(row.get(col_data_recebimento)) if col_data_recebimento else None
+        produto_informado_raw = row.get(col_produto) if col_produto else None
+        produto_informado_txt = limpar_texto(produto_informado_raw)
         data_aplicacao = para_data(row.get(col_data_aplicacao))
         valor_original = para_float_monetario(row.get(col_valor_original), 0.0)
 
         if not lote_id:
             auditoria["linhas_descartadas"].append({"idx": int(idx), "motivo": "lote_id_vazio"})
             continue
+        if data_aplicacao is None and produto_informado_txt == "" and data_recebimento is not None:
+            data_aplicacao = data_recebimento
         if data_aplicacao is None:
             auditoria["linhas_descartadas"].append({"idx": int(idx), "motivo": "data_aplicacao_invalida", "lote_id": lote_id})
             continue
@@ -236,7 +240,7 @@ def carregar_inventario_canonico(
         if data_recebimento is None:
             data_recebimento = data_aplicacao
         classificacao = _classificar_investimento(
-            row.get(col_produto) if col_produto else None,
+            produto_informado_raw,
             data_aplicacao,
             data_referencia,
             data_recebimento=data_recebimento,

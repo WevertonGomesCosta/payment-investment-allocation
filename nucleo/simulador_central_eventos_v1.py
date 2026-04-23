@@ -254,6 +254,7 @@ def construir_estado_global_recorte_curto_v117(
         })
 
     recebidos_disponiveis: list[dict[str, Any]] = []
+    recebidos_futuros: list[dict[str, Any]] = []
     inventario = contexto.dados_operacionais.inventario_canonico.copy()
     if len(inventario):
         mask = inventario['nao_aportado_disponivel'].fillna(False)
@@ -262,6 +263,17 @@ def construir_estado_global_recorte_curto_v117(
                 'id': str(row.get('lote_id') or ''),
                 'valor_disponivel': round(float(row.get('valor_original') or 0.0), 2),
                 'proxy_terminal_atual': 0.0,
+                'data_recebimento': row.get('data_recebimento'),
+            })
+        mask_fut = inventario.get('recebido_futuro_nao_disponivel', False)
+        if hasattr(mask_fut, 'fillna'):
+            mask_fut = mask_fut.fillna(False)
+        for _, row in inventario.loc[mask_fut].iterrows():
+            recebidos_futuros.append({
+                'id': str(row.get('lote_id') or ''),
+                'valor_disponivel': round(float(row.get('valor_original') or 0.0), 2),
+                'proxy_terminal_atual': 0.0,
+                'data_recebimento': row.get('data_recebimento'),
             })
 
     pagamentos_norm: list[dict[str, Any]] = []
@@ -285,6 +297,7 @@ def construir_estado_global_recorte_curto_v117(
         'data_fim_recorte': data_fim,
         'saldo_disponivel_geral': 0.0,
         'recebidos_nao_aportados_disponiveis': recebidos_disponiveis,
+        'recebidos_nao_aportados_futuros': recebidos_futuros,
         'lotes_aportados': lotes,
         'pagamentos_futuros': pagamentos_norm,
         'produto_destino_padrao': _top_destino_switch(contexto),
@@ -295,8 +308,40 @@ def construir_estado_global_recorte_curto_v117(
             'quantidade_pagamentos': len(pagamentos_norm),
             'quantidade_lotes': len(lotes),
             'quantidade_recebidos_nao_aportados': len(recebidos_disponiveis),
+            'quantidade_recebidos_nao_aportados_futuros': len(recebidos_futuros),
         },
     }
+
+
+
+def _ativar_recebidos_futuros_no_dia(estado: dict[str, Any], data_atual: date, historico: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    ativados: list[dict[str, Any]] = []
+    futuros = list(estado.get('recebidos_nao_aportados_futuros') or [])
+    remanescentes: list[dict[str, Any]] = []
+    disponiveis = estado.setdefault('recebidos_nao_aportados_disponiveis', [])
+    ids_disponiveis = {str(item.get('id') or item.get('fonte_id') or '') for item in disponiveis}
+    for recebido in futuros:
+        data_recebimento = _coerce_date(recebido.get('data_recebimento'))
+        recebido_id = str(recebido.get('id') or recebido.get('fonte_id') or '')
+        if data_recebimento is not None and data_recebimento <= data_atual:
+            if recebido_id not in ids_disponiveis:
+                novo = deepcopy(recebido)
+                novo['ativado_em'] = data_atual
+                disponiveis.append(novo)
+                ids_disponiveis.add(recebido_id)
+                ativados.append(novo)
+                if historico is not None:
+                    historico.append({
+                        'tipo_evento': 'ativacao_nao_aportado_futuro',
+                        'data_evento': data_atual.isoformat(),
+                        'lote_id': recebido_id,
+                        'valor_disponivel': round(float(novo.get('valor_disponivel') or novo.get('valor') or 0.0), 2),
+                        'data_recebimento': data_recebimento.isoformat(),
+                    })
+            continue
+        remanescentes.append(recebido)
+    estado['recebidos_nao_aportados_futuros'] = remanescentes
+    return ativados
 
 
 def _aplicar_switching_eventos(estado: dict[str, Any], eventos: list[dict[str, Any]], data_atual: date, historico: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], float, float, float]:
@@ -587,10 +632,16 @@ def simular_cenario_eventos_v1(
         for item in eventos if _coerce_date(item.get('data_acao')) is not None
     }
     datas_pagamentos = {_coerce_date(item.get('data')) for item in pagamentos if _coerce_date(item.get('data')) is not None}
-    agenda = sorted([d for d in (datas_eventos | datas_pagamentos) if d is not None])
+    datas_recebidos_futuros = {
+        _coerce_date(item.get('data_recebimento'))
+        for item in (estado.get('recebidos_nao_aportados_futuros') or [])
+        if _coerce_date(item.get('data_recebimento')) is not None
+    }
+    agenda = sorted([d for d in (datas_eventos | datas_pagamentos | datas_recebidos_futuros) if d is not None])
 
     for data_atual in agenda:
         estado['data_evento_corrente'] = data_atual
+        _ativar_recebidos_futuros_no_dia(estado, data_atual, historico)
         novos_eventos, ganho_switch, perda_liq, custo_fiscal_switch = _aplicar_switching_eventos(estado, eventos, data_atual, historico)
         eventos_executados.extend(novos_eventos)
         ganho_switching_total += ganho_switch
