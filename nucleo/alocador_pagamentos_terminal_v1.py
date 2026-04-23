@@ -5,6 +5,11 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 from typing import Any, Iterable
 
+from nucleo.pagamentos.modelos_script1.heuristicas_fase1 import (
+    avaliar_heuristicas_fase1_por_fonte,
+    carregar_parametros_fase1,
+)
+
 
 TIPOS_FONTE_SUPORTADOS = (
     'saldo_disponivel',
@@ -32,7 +37,9 @@ class FontePagamentoCandidata:
     score_terminal_comparativo: tuple[float, float, float, float, float, float, float, float]
     justificativa: str
     componentes: list[dict[str, Any]] = field(default_factory=list)
-    status_modelo: str = 'funcional_v137'
+    status_modelo: str = 'funcional_v141'
+    score_auxiliar_script1: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    chave_decisao_final: tuple[Any, ...] = field(default_factory=tuple)
     metadados_extras: dict[str, Any] = field(default_factory=dict)
 
     def para_dict(self) -> dict[str, Any]:
@@ -65,6 +72,62 @@ def _safe_float(valor: Any, default: float = 0.0) -> float:
 
 def _safe_str(valor: Any) -> str:
     return '' if valor is None else str(valor)
+
+
+def _dias_idade_fonte(data_base: date | None, data_origem: date | None) -> int:
+    if data_base is None or data_origem is None:
+        return 0
+    return max((data_base - data_origem).days, 0)
+
+
+def _montar_chave_decisao_final(candidato: FontePagamentoCandidata) -> tuple[Any, ...]:
+    score = tuple(candidato.score_terminal_comparativo)
+    aux = tuple(candidato.score_auxiliar_script1 or (0.0, 0.0, 0.0))
+    return (
+        score[0],
+        score[1],
+        score[2],
+        score[3],
+        aux[0],
+        aux[1],
+        aux[2],
+        score[4],
+        score[5],
+        score[6],
+        score[7],
+        _safe_str(candidato.tipo_fonte),
+        _safe_str(candidato.fonte_id),
+    )
+
+
+def _aplicar_heuristicas_script1(
+    candidato: FontePagamentoCandidata,
+    *,
+    valor_pagamento: float,
+    dias_horizonte: int,
+    config: dict[str, Any] | None,
+) -> FontePagamentoCandidata:
+    params = carregar_parametros_fase1(config)
+    meta = dict(candidato.metadados_extras or {})
+    heur = avaliar_heuristicas_fase1_por_fonte(
+        tipo_fonte=candidato.tipo_fonte,
+        valor_pagamento=valor_pagamento,
+        valor_coberto=candidato.valor_coberto,
+        valor_deficit=candidato.valor_deficit,
+        custo_fiscal_imediato=candidato.custo_fiscal_imediato,
+        perda_retorno_terminal_estimada=candidato.perda_retorno_terminal_estimada,
+        penalidade_liquidez_futura=candidato.penalidade_liquidez_futura,
+        penalidade_estrategica_lote=candidato.penalidade_estrategica_lote,
+        dias_horizonte=dias_horizonte,
+        dias_idade_fonte=int(meta.get('dias_idade_fonte') or 0),
+        proxy_terminal_fonte=float(meta.get('proxy_terminal_fonte') or 0.0),
+        params=params,
+    )
+    meta['heuristicas_script1_fase1'] = heur.para_dict()
+    candidato.score_auxiliar_script1 = heur.score_auxiliar_script1
+    candidato.chave_decisao_final = _montar_chave_decisao_final(candidato)
+    candidato.metadados_extras = meta
+    return candidato
 
 
 def _valor_pagamento(pagamento: dict[str, Any] | None) -> float:
@@ -176,6 +239,28 @@ def _impacto_unitario_combo(item: dict[str, Any]) -> tuple[float, float, float, 
     return (proxy + custo_rate + liquidez, custo_rate, -valor_disponivel, _safe_str(item.get('fonte_id')))
 
 
+def _chave_combo_script1(item: dict[str, Any], *, valor_pagamento: float, dias_horizonte: int, config: dict[str, Any] | None) -> tuple[Any, ...]:
+    heur = avaliar_heuristicas_fase1_por_fonte(
+        tipo_fonte=_safe_str(item.get('tipo_fonte')),
+        valor_pagamento=valor_pagamento,
+        valor_coberto=min(valor_pagamento, max(_safe_float(item.get('valor_disponivel')), 0.0)),
+        valor_deficit=max(valor_pagamento - max(_safe_float(item.get('valor_disponivel')), 0.0), 0.0),
+        custo_fiscal_imediato=max(_safe_float(item.get('custo_fiscal_total_estimado')), 0.0),
+        perda_retorno_terminal_estimada=_perda_terminal_por_fonte(
+            min(valor_pagamento, max(_safe_float(item.get('valor_disponivel')), 0.0)),
+            _normalizar_proxy_terminal(item.get('proxy_terminal')),
+            dias_horizonte,
+        ),
+        penalidade_liquidez_futura=max(_safe_float(item.get('penalidade_liquidez_unitaria')), 0.0) * min(valor_pagamento, max(_safe_float(item.get('valor_disponivel')), 0.0)),
+        penalidade_estrategica_lote=min(valor_pagamento, max(_safe_float(item.get('valor_disponivel')), 0.0)) * _normalizar_proxy_terminal(item.get('proxy_terminal')),
+        dias_horizonte=dias_horizonte,
+        dias_idade_fonte=int(item.get('dias_idade_fonte') or 0),
+        proxy_terminal_fonte=_normalizar_proxy_terminal(item.get('proxy_terminal')),
+        params=carregar_parametros_fase1(config),
+    )
+    return tuple(heur.score_auxiliar_script1) + _impacto_unitario_combo(item)
+
+
 def _iterar_planos_switching(plano_switching_candidato: Any) -> Iterable[dict[str, Any]]:
     if not plano_switching_candidato:
         return []
@@ -213,9 +298,9 @@ def alocar_pagamento_terminal_v1(
     *,
     _permitir_cenario_switching: bool = True,
 ) -> dict[str, Any]:
-    """Primeira versão funcional do alocador terminal.
+    """Primeira versão funcional do alocador terminal com Fase 1 do Script 1.
 
-    A V137 compara explicitamente:
+    A V141 compara explicitamente:
     - saldo disponível;
     - lote não aportado disponível na data;
     - lote aportado resgatável na data, com custo fiscal estimado;
@@ -289,6 +374,7 @@ def alocar_pagamento_terminal_v1(
             ),
             justificativa='Fonte contratual baseada no saldo disponível geral do estado corrente.',
             componentes=[{'tipo_fonte': 'saldo_disponivel', 'fonte_id': 'saldo_disponivel_geral', 'valor_utilizado': valor_coberto_saldo}],
+            metadados_extras={'proxy_terminal_fonte': 0.0, 'dias_idade_fonte': 0},
         ))
 
     candidatos_combo: list[dict[str, Any]] = []
@@ -300,6 +386,7 @@ def alocar_pagamento_terminal_v1(
             'proxy_terminal': 0.0,
             'custo_fiscal_total_estimado': 0.0,
             'penalidade_liquidez_unitaria': 0.005,
+            'dias_idade_fonte': 0,
         })
 
     for indice, item in enumerate(estado.get('recebidos_nao_aportados_disponiveis') or [], start=1):
@@ -322,6 +409,7 @@ def alocar_pagamento_terminal_v1(
             'proxy_terminal': proxy_terminal,
             'custo_fiscal_total_estimado': 0.0,
             'penalidade_liquidez_unitaria': 0.0,
+            'dias_idade_fonte': _dias_idade_fonte(data_pagamento, _coerce_date(bruto.get('data_recebimento'))),
         })
         adicionar(FontePagamentoCandidata(
             tipo_fonte='lote_nao_aportado',
@@ -345,7 +433,7 @@ def alocar_pagamento_terminal_v1(
             ),
             justificativa='Recebido/lote não aportado já disponível na data do pagamento.',
             componentes=[{'tipo_fonte': 'lote_nao_aportado', 'fonte_id': fonte_id, 'valor_utilizado': coberto}],
-            metadados_extras={'motivo_temporal': motivo},
+            metadados_extras={'motivo_temporal': motivo, 'proxy_terminal_fonte': proxy_terminal, 'dias_idade_fonte': _dias_idade_fonte(data_pagamento, _coerce_date(bruto.get('data_aplicacao') or bruto.get('data_recebimento')))},
         ))
 
     for indice, item in enumerate(estado.get('lotes_aportados') or [], start=1):
@@ -370,6 +458,7 @@ def alocar_pagamento_terminal_v1(
             'proxy_terminal': proxy_terminal,
             'custo_fiscal_total_estimado': _estimar_custo_fiscal_lote(bruto, valor_fonte, data_pagamento),
             'penalidade_liquidez_unitaria': 0.0,
+            'dias_idade_fonte': _dias_idade_fonte(data_pagamento, _coerce_date(bruto.get('data_aplicacao') or bruto.get('data_recebimento'))),
         })
         adicionar(FontePagamentoCandidata(
             tipo_fonte='lote_aportado',
@@ -393,13 +482,13 @@ def alocar_pagamento_terminal_v1(
             ),
             justificativa=justificativa,
             componentes=[{'tipo_fonte': 'lote_aportado', 'fonte_id': fonte_id, 'valor_utilizado': coberto}],
-            metadados_extras={'motivo_temporal': motivo},
+            metadados_extras={'motivo_temporal': motivo, 'proxy_terminal_fonte': proxy_terminal, 'dias_idade_fonte': _dias_idade_fonte(data_pagamento, _coerce_date(bruto.get('data_aplicacao') or bruto.get('data_recebimento')))},
         ))
 
     if permitir_combinacao_minima and valor > 0.0 and candidatos_combo:
         ranking_combo = sorted(
             [x for x in candidatos_combo if _safe_float(x.get('valor_disponivel')) > 0.0],
-            key=_impacto_unitario_combo,
+            key=lambda item: _chave_combo_script1(item, valor_pagamento=valor, dias_horizonte=dias_horizonte, config=config),
         )
         restante = valor
         componentes: list[dict[str, Any]] = []
@@ -453,6 +542,11 @@ def alocar_pagamento_terminal_v1(
             ),
             justificativa='Combinação mínima funcional entre fontes elegíveis, ordenada por menor impacto terminal unitário.',
             componentes=componentes,
+            metadados_extras={
+                'proxy_terminal_fonte': round(perda_total / max(valor_coberto, 1.0) * max(365 / max(dias_horizonte, 1), 1), 6) if valor_coberto > 0 else 0.0,
+                'dias_idade_fonte': 0,
+                'componentes_combinacao': componentes,
+            },
         ))
 
     if _permitir_cenario_switching:
@@ -514,6 +608,8 @@ def alocar_pagamento_terminal_v1(
                     'justificativa_plano': _safe_str(plano.get('motivo_comparador_hibrido') or plano.get('justificativa')),
                     'fonte_pos_switching_tipo': subresultado.get('fonte_principal_tipo'),
                     'fonte_pos_switching_id': subresultado.get('fonte_principal_id'),
+                    'proxy_terminal_fonte': float((subresultado.get('metadados_escolhidos') or {}).get('proxy_terminal_fonte') or 0.0),
+                    'dias_idade_fonte': int((subresultado.get('metadados_escolhidos') or {}).get('dias_idade_fonte') or 0),
                 },
             ))
 
@@ -539,16 +635,21 @@ def alocar_pagamento_terminal_v1(
                 custo_operacional=0.0,
             ),
             justificativa='Ausência de fonte viável no estado corrente.',
+            metadados_extras={'proxy_terminal_fonte': 0.0, 'dias_idade_fonte': 0},
         ))
 
-    melhor = min(candidatos, key=lambda item: item.score_terminal_comparativo)
+    candidatos = [
+        _aplicar_heuristicas_script1(item, valor_pagamento=valor, dias_horizonte=dias_horizonte, config=config)
+        for item in candidatos
+    ]
+    melhor = min(candidatos, key=lambda item: item.chave_decisao_final or _montar_chave_decisao_final(item))
     resumo_switching = {
         'planos_recebidos': len(list(_iterar_planos_switching(plano_switching_candidato))),
         'candidatos_switching_elegivel': sum(1 for item in candidatos if item.tipo_fonte == 'cenario_switching_elegivel'),
         'melhor_envolve_switching': melhor.tipo_fonte == 'cenario_switching_elegivel',
     }
     return {
-        'status': 'funcional_v137',
+        'status': 'funcional_v141',
         'implementado': True,
         'pagamento_id': pagamento.get('id') or pagamento.get('pagamento_id') or pagamento.get('despesa_id') or '',
         'data_pagamento': data_pagamento.isoformat() if data_pagamento else None,
@@ -568,9 +669,12 @@ def alocar_pagamento_terminal_v1(
         'penalidade_liquidez_futura': melhor.penalidade_liquidez_futura,
         'penalidade_estrategica_lote': melhor.penalidade_estrategica_lote,
         'score_terminal_comparativo': melhor.score_terminal_comparativo,
+        'score_auxiliar_script1': melhor.score_auxiliar_script1,
+        'chave_decisao_final': melhor.chave_decisao_final,
         'justificativa': melhor.justificativa,
         'componentes_escolhidos': melhor.componentes,
         'metadados_escolhidos': melhor.metadados_extras,
         'resumo_comparacao_switching': resumo_switching,
         'config_resumido': dict(config or {}),
+        'parametros_script1_fase1': carregar_parametros_fase1(config),
     }

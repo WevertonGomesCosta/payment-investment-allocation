@@ -4,7 +4,7 @@ Camada reservada para absorção incremental das heurísticas do Script 1 que ai
 
 ## Estado atual
 
-A V140 formaliza o contrato de absorção em duas fases:
+A V141 mantém o contrato da V140 e implementa a Fase 1 no alocador:
 
 ### Fase 1 — integração imediata ao alocador
 - `score_hibrido_5p_fonte`
@@ -18,6 +18,7 @@ A V140 formaliza o contrato de absorção em duas fases:
 ## Arquivos principais
 - `contrato_modelos_script1.py`
 - `registro_modelos_script1.py`
+- `heuristicas_fase1.py`
 
 ## Regra central
 Os modelos do Script 1 entram como heurísticas auxiliares do `alocador_pagamentos_terminal_v1` e não como substituição do comparador terminal nem do comparador híbrido de switching.
