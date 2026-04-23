@@ -183,7 +183,8 @@ Este contrato não deve misturar regras executáveis correntes com backlog estra
 52. A documentação vigente deve ficar concentrada em `relatorios/atuais/`.
 53. Relatórios de versões anteriores devem permanecer preservados em `relatorios/historico/`, organizados por tipo documental.
 54. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como mapa oficial de navegação documental.
-55. O README deve refletir a baseline vigente e a separação formal entre frente central e trilha experimental local.
+55. A validação diária user-facing deve seguir também o contrato suplementar `relatorios/atuais/CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`, para evitar regressões entre baseline vigente e objetivo final do projeto.
+56. O README deve refletir a baseline vigente e a separação formal entre frente central e trilha experimental local.
 
 ---
 
