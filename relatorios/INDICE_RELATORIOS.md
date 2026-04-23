@@ -108,3 +108,8 @@
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V136.md`
 - `relatorios/atuais/AUDITORIA_ATIVACAO_LOTES_NAO_APORTADOS_FUTUROS_V136.md`
 - `relatorios/atuais/AUDITORIA_ATIVACAO_E_EXPANSAO_FUTUROS_V136.md`
+
+- `relatorios/atuais/ALOCADOR_PAGAMENTOS_TERMINAL_V137.md`
+- `relatorios/atuais/BASELINE_FIXA_V137.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V137.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V137.md`

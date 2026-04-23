@@ -130,3 +130,8 @@ A V135 consolida a auditoria de fechamento da frente temporal e decide **não en
 ## Estado atual V136
 
 A V136 corrige a ativação de lotes futuros não aportados no fluxo oficial híbrido e adiciona scripts para expansão da grade diária até `2027-03-31`.
+
+
+## V137 — alocador de pagamentos terminal
+
+A V137 eleva o `alocador_pagamentos_terminal_v1` para uma primeira versão funcional: compara saldo disponível, lote não aportado, lote aportado, combinação mínima e cenário com switching elegível já filtrado pelo comparador híbrido, com foco explícito em patrimônio líquido terminal.

@@ -1,0 +1,57 @@
+{
+  "status": "ok",
+  "versao": "V137",
+  "sem_switching": {
+    "melhor_acao_pagamento": "usar_combinacao_minima_fontes",
+    "fonte_principal_tipo": "combinacao_minima_fontes",
+    "score_terminal_comparativo": [
+      0.0,
+      0.0,
+      0.0,
+      27.16,
+      168.0,
+      200.0,
+      8.44,
+      2.0
+    ]
+  },
+  "com_switching_elegivel": {
+    "melhor_acao_pagamento": "usar_cenario_switching_elegivel",
+    "fonte_principal_tipo": "cenario_switching_elegivel",
+    "score_terminal_comparativo": [
+      0.0,
+      0.0,
+      0.0,
+      -11.49,
+      65.0,
+      200.0,
+      35.0,
+      1.0
+    ],
+    "resumo_comparacao_switching": {
+      "planos_recebidos": 1,
+      "candidatos_switching_elegivel": 1,
+      "melhor_envolve_switching": true
+    },
+    "metadados_escolhidos": {
+      "classe_comparador_hibrido": "vencedor_terminal",
+      "promovivel_hibrido": true,
+      "justificativa_plano": "cenário sintético promotível para validação funcional do alocador",
+      "fonte_pos_switching_tipo": "combinacao_minima_fontes",
+      "fonte_pos_switching_id": "combinacao_minima_controlada"
+    }
+  },
+  "switching_bloqueado": {
+    "melhor_acao_pagamento": "usar_combinacao_minima_fontes",
+    "fonte_principal_tipo": "combinacao_minima_fontes",
+    "resumo_comparacao_switching": {
+      "planos_recebidos": 1,
+      "candidatos_switching_elegivel": 0,
+      "melhor_envolve_switching": false
+    }
+  },
+  "assertivas": {
+    "considera_cenario_switching_promovivel": true,
+    "bloqueia_switching_nao_promovivel": true
+  }
+}

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-VERSAO_BASELINE = "V136"
+VERSAO_BASELINE = "V137"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
 
