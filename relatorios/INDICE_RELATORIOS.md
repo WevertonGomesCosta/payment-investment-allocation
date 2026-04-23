@@ -82,3 +82,11 @@
 - `relatorios/atuais/BASELINE_FIXA_V131.md` — baseline fixa da V131.
 - `relatorios/atuais/VALIDACAO_LOCAL_V131.md` — validação local da V131.
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V131.md` — estrutura do repositório na V131.
+
+- relatorios/atuais/COMPARADOR_HIBRIDO_SWITCHING_V132.md
+
+- relatorios/atuais/BASELINE_FIXA_V132.md
+
+- relatorios/atuais/VALIDACAO_LOCAL_V132.md
+
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V132.md

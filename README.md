@@ -104,3 +104,8 @@ A V130 reroda a janela crítica `2026-04-30` a `2026-05-20` com validação para
 ## V131
 
 A V131 adiciona uma auditoria cirúrgica do bloco `2026-05-13` a `2026-05-20` e mostra que o cenário `Lote 8500 mar. -> Combo PicPay 100-120 3m` não é superior em patrimônio líquido terminal ao baseline. Ele vence a métrica central apenas porque reduz déficit líquido sem piorar `PROTEGIDA` ou cobertura.
+
+
+## Atualização V132
+
+A V132 introduz um comparador híbrido para classificar cenários diários em vencedor operacional, vencedor terminal ou vencedor híbrido aceitável, bloqueando promoção automática de switchings que piorem patrimônio líquido terminal frente ao baseline.

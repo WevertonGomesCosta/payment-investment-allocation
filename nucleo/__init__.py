@@ -6,4 +6,5 @@ __all__ = [
     'simulador_central_eventos_v1',
     'avaliador_cenarios_conjuntos_v1',
     'ranking_carteira_estabilizado',
+    'comparador_hibrido_switching_v1',
 ]
