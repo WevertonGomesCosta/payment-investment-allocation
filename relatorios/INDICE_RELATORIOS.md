@@ -9,12 +9,13 @@
 
 ## Histórico documental
 
-### Histórico rebaixado a partir da limpeza V184
+### Histórico rebaixado a partir das limpezas V184–V186
 - `relatorios/historico/documentacao_baseline/`
 - `relatorios/historico/validacoes_diarias/`
 - `relatorios/historico/reorganizacao_local_switching/`
 - `relatorios/historico/objetivo_final/`
 - `relatorios/historico/contratos_intermediarios/`
+- `relatorios/historico/artefatos_soltos/`
 
 ### Histórico preservado já existente
 - `relatorios/historico/baselines/`
@@ -27,3 +28,4 @@
 2. Ler `CONTRATO_OPERACIONAL_PROJETO.md` como norma superior.
 3. Ler `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` como anexo metodológico vinculante.
 4. Consultar o histórico apenas quando houver necessidade de rastreabilidade, regressão ou contexto.
+5. Ler `saidas/oficial/` como caminho canônico de artefatos ativos e `saidas/historico/` como trilha rebaixada.
