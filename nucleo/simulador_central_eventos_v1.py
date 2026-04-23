@@ -38,28 +38,38 @@ def _normalizar_proxy_terminal(valor: Any) -> float:
     return max(numero, 0.0)
 
 
-def _top_destino_switch(contexto: Any) -> dict[str, Any]:
+def _destinos_switch_elegiveis(contexto: Any, limite: int = 12) -> list[dict[str, Any]]:
     triagem = contexto.triagem_motor.quadro_candidatos.copy()
     if len(triagem) == 0:
-        return {}
+        return []
     if 'elegivel_switch_in' in triagem.columns:
         triagem = triagem.loc[triagem['elegivel_switch_in'].fillna(False)].copy()
     if len(triagem) == 0:
-        return {}
+        return []
     cols_ordem = [col for col in ('score_final', 'retorno_anual_proxy') if col in triagem.columns]
     triagem = triagem.sort_values(cols_ordem, ascending=[False] * len(cols_ordem), kind='stable')
-    melhor = triagem.iloc[0].to_dict()
-    return {
-        'produto_key': melhor.get('produto_key'),
-        'nome': melhor.get('nome'),
-        'score_final': float(melhor.get('score_final') or 0.0),
-        'proxy_terminal_destino': _normalizar_proxy_terminal(melhor.get('score_final')),
-        'retorno_anual_proxy': float(melhor.get('retorno_anual_proxy') or 0.0),
-        'liquidez_dias': int(melhor.get('liquidez_dias') or 0),
-        'carencia_dias': int(melhor.get('carencia_dias') or 0),
-        'taxa_base_cdi': float(melhor.get('taxa_base_cdi') or 0.0),
-        'taxa_bonus_cdi': float(melhor.get('taxa_bonus_cdi') or 0.0),
-    }
+    destinos: list[dict[str, Any]] = []
+    for posicao, (_, row) in enumerate(triagem.iterrows(), start=1):
+        destinos.append({
+            'rank_destino': posicao,
+            'produto_key': row.get('produto_key'),
+            'nome': row.get('nome'),
+            'score_final': float(row.get('score_final') or 0.0),
+            'proxy_terminal_destino': _normalizar_proxy_terminal(row.get('score_final')),
+            'retorno_anual_proxy': float(row.get('retorno_anual_proxy') or 0.0),
+            'liquidez_dias': int(row.get('liquidez_dias') or 0),
+            'carencia_dias': int(row.get('carencia_dias') or 0),
+            'taxa_base_cdi': float(row.get('taxa_base_cdi') or 0.0),
+            'taxa_bonus_cdi': float(row.get('taxa_bonus_cdi') or 0.0),
+        })
+        if len(destinos) >= max(int(limite or 0), 1):
+            break
+    return destinos
+
+
+def _top_destino_switch(contexto: Any) -> dict[str, Any]:
+    destinos = _destinos_switch_elegiveis(contexto, limite=1)
+    return destinos[0] if destinos else {}
 
 
 def _mapa_produtos_proxy(contexto: Any) -> dict[str, dict[str, float]]:
@@ -222,6 +232,7 @@ def construir_estado_global_recorte_curto_v117(
         'lotes_aportados': lotes,
         'pagamentos_futuros': pagamentos_norm,
         'produto_destino_padrao': _top_destino_switch(contexto),
+        'produtos_destino_elegiveis': _destinos_switch_elegiveis(contexto, limite=12),
         'cdi_anual_modelo': float(getattr(contexto.calendario_financeiro, 'cdi_anual_modelo', 0.0) or 0.0),
         'metadados_recorte': {
             'limite_pagamentos': limite_pagamentos,
@@ -381,7 +392,7 @@ def simular_cenario_eventos_v1(
     config: dict[str, Any] | None,
     horizonte: Any = None,
 ) -> dict[str, Any]:
-    """Executa a integração temporal recalibrada da V120.
+    """Executa a integração temporal multidestino da V121.
 
     O simulador ainda não substitui o motor econômico final, mas agora integra:
     - switching temporal autônomo por data;
@@ -463,7 +474,7 @@ def simular_cenario_eventos_v1(
     patrimonio_proxy = _patrimonio_terminal_proxy(estado, metrica, ganho_switching_total)
 
     return {
-        'status': 'integracao_recalibrada_v120',
+        'status': 'integracao_multidestino_v121',
         'implementado': True,
         'horizonte': horizonte,
         'estado_inicial_normalizado': deepcopy(dict(estado_inicial or {})),
@@ -480,7 +491,7 @@ def simular_cenario_eventos_v1(
         'patrimonio_liquido_terminal_proxy': patrimonio_proxy,
         'metrica_central': metrica,
         'config_resumido': dict(config or {}),
-        'observacao': 'Integração temporal recalibrada: planejador ranqueado por ganho terminal econômico mínimo real estimado antes do simulador central.',
+        'observacao': 'Integração temporal multidestino: planejador ranqueado por ganho terminal econômico mínimo real estimado com múltiplos destinos elegíveis por lote antes do simulador central.',
     }
 
 
@@ -508,7 +519,7 @@ def rodar_integracao_funcional_minima_v117(
         config=config,
         horizonte_planejamento=horizonte,
         filtros_eventos=None,
-        limite_candidatos_por_data=3,
+        limite_candidatos_por_data=20,
     )
     acoes = [x for x in plano.get('acoes_candidatas', []) if x.get('tipo_acao') == 'switching_simples' and x.get('elegivel')]
     cenarios_brutos = [
@@ -546,7 +557,7 @@ def rodar_integracao_funcional_minima_v117(
 
     avaliacao = avaliar_cenarios_conjuntos_v1(cenarios_avaliados, config=config)
     return {
-        'status': 'integracao_recalibrada_v120',
+        'status': 'integracao_multidestino_v121',
         'implementado': True,
         'contexto_data_referencia': contexto.execucao.data_referencia.isoformat(),
         'horizonte': horizonte,

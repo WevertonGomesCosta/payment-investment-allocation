@@ -5,6 +5,7 @@ try:
 except ModuleNotFoundError:  # execucao direta
     from _bootstrap import RAIZ
 
+from collections import defaultdict
 from pathlib import Path
 
 from nucleo.simulador_central_eventos_v1 import rodar_integracao_funcional_minima_v117
@@ -12,39 +13,73 @@ from nucleo.simulador_central_eventos_v1 import rodar_integracao_funcional_minim
 RELATORIO = Path(RAIZ) / 'relatorios' / 'atuais' / 'INTEGRACAO_FUNCIONAL_MINIMA_V117_RECORTE_CURTO.md'
 
 
+def _melhores_por_lote(acoes: list[dict]) -> list[dict]:
+    melhores: dict[str, dict] = {}
+    for acao in acoes:
+        lote = str(acao.get('lote_origem_id') or '')
+        if not lote:
+            continue
+        atual = melhores.get(lote)
+        if atual is None or float(acao.get('ganho_terminal_economico_minimo_estimado') or 0.0) > float(atual.get('ganho_terminal_economico_minimo_estimado') or 0.0):
+            melhores[lote] = acao
+    return sorted(
+        melhores.values(),
+        key=lambda item: float(item.get('ganho_terminal_economico_minimo_estimado') or 0.0),
+        reverse=True,
+    )
+
+
 def _formatar_bloco(resultados: dict) -> str:
     avaliacao = resultados['avaliacao_cenarios']
     melhor = avaliacao.get('melhor_cenario') or {}
     plano = resultados.get('plano_switching_temporal') or {}
-    acoes = [
-        x for x in plano.get('acoes_candidatas', [])
-        if x.get('tipo_acao') == 'switching_simples'
-    ]
+    acoes = [x for x in plano.get('acoes_candidatas', []) if x.get('tipo_acao') == 'switching_simples']
+    elegiveis = [x for x in acoes if x.get('elegivel')]
+    melhores_por_lote = _melhores_por_lote(acoes)
     linhas = [
-        '# Integração funcional mínima V117/V120 — recorte curto',
+        '# Integração funcional mínima V117/V121 — recorte curto',
         '',
         f"- Data de referência: {resultados.get('contexto_data_referencia')}",
         f"- Horizonte: {resultados.get('horizonte')}",
         f"- Critério do planejador temporal: {plano.get('criterio_ranqueamento')}",
+        f"- Destinos elegíveis considerados por lote: {plano.get('quantidade_destinos_elegiveis_considerados')}",
         f"- Candidatos elegíveis de switching: {plano.get('quantidade_candidatos_elegiveis_switching')}",
         f"- Melhor cenário atual: {melhor.get('cenario_id')}",
         f"- Vetor lexicográfico: {melhor.get('vetor_lexicografico')}",
         '',
-        '## Ranking do planejador temporal',
+        '## Melhor destino por lote',
         '',
     ]
-    for acao in acoes[:5]:
+    if not melhores_por_lote:
+        linhas.append('- Nenhum lote com destino candidato disponível no recorte.')
+        linhas.append('')
+    else:
+        for acao in melhores_por_lote:
+            linhas.extend([
+                f"### {acao.get('lote_origem_id')}",
+                f"- Melhor destino no recorte: {acao.get('produto_destino')}",
+                f"- Rank do destino: {acao.get('rank_destino_sugerido')}",
+                f"- Elegível: {acao.get('elegivel')}",
+                f"- Ganho terminal econômico mínimo estimado: {acao.get('ganho_terminal_economico_minimo_estimado')}",
+                f"- Patrimônio terminal origem estimado: {acao.get('patrimonio_terminal_origem_estimado')}",
+                f"- Patrimônio terminal destino estimado: {acao.get('patrimonio_terminal_destino_estimado')}",
+                f"- Custo fiscal estimado: {acao.get('custo_fiscal_estimado')}",
+                f"- Penalidade carência reprojetada: {acao.get('penalidade_carencia_reprojetada')}",
+                '',
+            ])
+    linhas.extend([
+        '## Top candidatos do planejador temporal',
+        '',
+    ])
+    for acao in acoes[:8]:
         linhas.extend([
             f"### {acao.get('id_acao')}",
             f"- Lote: {acao.get('lote_origem_id')}",
             f"- Data: {acao.get('data_acao')}",
             f"- Produto destino: {acao.get('produto_destino')}",
+            f"- Rank do destino: {acao.get('rank_destino_sugerido')}",
             f"- Elegível: {acao.get('elegivel')}",
             f"- Ganho terminal econômico mínimo estimado: {acao.get('ganho_terminal_economico_minimo_estimado')}",
-            f"- Patrimônio terminal origem estimado: {acao.get('patrimonio_terminal_origem_estimado')}",
-            f"- Patrimônio terminal destino estimado: {acao.get('patrimonio_terminal_destino_estimado')}",
-            f"- Custo fiscal estimado: {acao.get('custo_fiscal_estimado')}",
-            f"- Penalidade carência reprojetada: {acao.get('penalidade_carencia_reprojetada')}",
             '',
         ])
     linhas.extend([
@@ -63,6 +98,13 @@ def _formatar_bloco(resultados: dict) -> str:
             f"- Pagamentos sem cobertura: {len(sim.get('pagamentos_sem_cobertura', []))}",
             '',
         ])
+    linhas.extend([
+        '## Síntese',
+        '',
+        f"- Destinos alternativos economicamente sobreviventes: {len(elegiveis)}.",
+        '- Quando esse total é zero, o destino padrão falhou e nenhum destino alternativo melhorou suficientemente o cenário no recorte.',
+        '',
+    ])
     return '\n'.join(linhas).strip() + '\n'
 
 

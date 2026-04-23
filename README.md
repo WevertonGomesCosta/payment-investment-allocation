@@ -2,10 +2,10 @@
 
 Repositório de unificação incremental do motor de **pagamentos, recebidos, aportes e switching** com base única, `config` central e rastreabilidade por lote.
 
-**Baseline entregue do repositório:** V120  
+**Baseline entregue do repositório:** V121  
 **Baseline central/contratual da frente principal:** V108
 
-A V120 preserva a V117 como contrato do motor conjunto temporal e acrescenta a **recalibração econômica mínima do planejador temporal de switching**, para enviar ao simulador apenas candidatos com ganho terminal econômico mínimo real estimado positivo.
+A V121 preserva a V117 como contrato do motor conjunto temporal, mantém a recalibração econômica mínima da V120 e acrescenta a **expansão multidestino do planejador temporal de switching**, para testar se algum destino alternativo sobrevive economicamente onde o destino padrão falhou.
 
 ## Objetivo final do projeto
 
@@ -27,7 +27,7 @@ A decisão final deve buscar **maximizar o patrimônio líquido terminal**, resp
 
 O projeto **não** tem como objetivo final otimizar isoladamente um único pagamento ou uma janela local sem reconexão com o cenário conjunto.
 
-## O que a V120 faz
+## O que a V121 faz
 
 - preserva o `CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md` como referência do desenho da nova camada central;
 - integra minimamente:
@@ -37,6 +37,7 @@ O projeto **não** tem como objetivo final otimizar isoladamente um único pagam
   - `avaliador_cenarios_conjuntos_v1`;
 - executa um recorte curto real de datas críticas com vetor terminal auditável;
 - recalibra a triagem do `planejador_switching_temporal_v1` por custo fiscal + reprojeção terminal + carência incremental;
+- expande o planejador para múltiplos destinos elegíveis por lote com o mesmo critério econômico mínimo real;
 - mantém a baseline central V108 e a camada operacional V116 sem reabrir a lógica econômica principal.
 
 ## Camadas vigentes
@@ -70,10 +71,10 @@ O projeto **não** tem como objetivo final otimizar isoladamente um único pagam
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
 - `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 - `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`
-- `relatorios/atuais/BASELINE_FIXA_V120.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V120.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V120.md`
+- `relatorios/atuais/BASELINE_FIXA_V121.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V121.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V121.md`
 - `relatorios/atuais/INTEGRACAO_FUNCIONAL_MINIMA_V117_RECORTE_CURTO.md`
-- `relatorios/atuais/RECALIBRACAO_PLANEJADOR_SWITCHING_TEMPORAL_V120.md`
+- `relatorios/atuais/EXPANSAO_MULTIDESTINO_PLANEJADOR_SWITCHING_TEMPORAL_V121.md`
 - `relatorios/atuais/AUDITORIA_COMPARADOR_MOTOR_RECOMENDACAO_V116.md`
 - `relatorios/INDICE_RELATORIOS.md`

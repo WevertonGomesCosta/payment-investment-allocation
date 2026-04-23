@@ -37,7 +37,8 @@ class AcaoSwitchingTemporalCandidata:
     dias_carencia_incremental: int = 0
     retorno_anual_origem_estimado: float = 0.0
     score_ranqueamento_economico: float = 0.0
-    status_modelo: str = 'recalibrado_v120'
+    rank_destino_sugerido: int = 0
+    status_modelo: str = 'multidestino_v121'
 
     def para_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -65,6 +66,7 @@ def _normalizar_lote(item: Any) -> dict[str, Any]:
     for campo in (
         'id',
         'investimento',
+        'produto_key',
         'valor_inicial',
         'principal_remanescente',
         'valor_liquido_resgatavel',
@@ -165,13 +167,12 @@ def planejar_switching_temporal_v1(
     filtros_eventos: dict[str, Any] | None = None,
     limite_candidatos_por_data: int | None = None,
 ) -> dict[str, Any]:
-    """Gera candidatos temporais auditáveis para o recorte curto da V120.
+    """Gera candidatos temporais auditáveis para o recorte curto da V121.
 
-    Nesta recalibração, o planejador deixa de ranquear por ganho proxy simples e
-    passa a estimar um ganho terminal econômico mínimo real, incorporando:
-    - custo fiscal do resgate;
-    - patrimônio terminal reprojetado da origem e do destino;
-    - penalidade incremental de carência/liquidez até a nova disponibilidade.
+    Nesta expansão, o planejador compara múltiplos destinos elegíveis por lote e
+    ranqueia cada candidato pelo ganho terminal econômico mínimo real estimado,
+    incorporando custo fiscal do resgate, patrimônio terminal reprojetado da
+    origem e do destino, e penalidade incremental de carência/liquidez.
     """
 
     estado = dict(estado_global or {})
@@ -181,19 +182,11 @@ def planejar_switching_temporal_v1(
         (horizonte_planejamento or {}).get('data_fim') if isinstance(horizonte_planejamento, dict) else None
     ) or _coerce_date(estado.get('data_fim_recorte')) or data_inicio
     data_inicio_str = data_inicio.isoformat() if data_inicio else ''
-    produto_destino = dict(estado.get('produto_destino_padrao') or {})
-    produto_destino_nome = str(produto_destino.get('nome') or filtros.get('produto_destino_padrao') or '')
-    produto_destino_key = str(produto_destino.get('produto_key') or '')
-    proxy_destino = _normalizar_proxy_terminal(produto_destino.get('proxy_terminal_destino') or produto_destino.get('score_final'))
+    produto_destino_padrao = dict(estado.get('produto_destino_padrao') or {})
+    destinos_brutos = list(estado.get('produtos_destino_elegiveis') or [])
+    if not destinos_brutos and produto_destino_padrao:
+        destinos_brutos = [produto_destino_padrao]
     cdi_anual_modelo = float(estado.get('cdi_anual_modelo') or 0.0)
-    retorno_anual_destino = _normalizar_retorno_anual(
-        produto_destino.get('retorno_anual_proxy'),
-        produto_destino.get('taxa_base_cdi'),
-        produto_destino.get('taxa_bonus_cdi'),
-        cdi_anual_modelo,
-    )
-    liquidez_dias_destino = int(produto_destino.get('liquidez_dias') or 0)
-    carencia_dias_destino = int(produto_destino.get('carencia_dias') or 0)
     pagamentos_futuros = list(estado.get('pagamentos_futuros') or [])
 
     candidatos: list[AcaoSwitchingTemporalCandidata] = [
@@ -232,6 +225,8 @@ def planejar_switching_temporal_v1(
         aliquota_ir = _aliquota_ir_estimada(data_aplicacao, data_acao)
         custo_fiscal = _estimar_custo_fiscal(valor_liquido, principal, aliquota_ir)
         valor_migrado = round(max(valor_liquido - custo_fiscal, 0.0), 2)
+        if valor_migrado <= 0.0:
+            continue
 
         proxy_origem = _normalizar_proxy_terminal(lote.get('proxy_terminal_atual'))
         retorno_anual_origem = _normalizar_retorno_anual(
@@ -241,82 +236,98 @@ def planejar_switching_temporal_v1(
             cdi_anual_modelo,
         )
         patrimonio_terminal_origem = _projetar_valor_terminal(valor_liquido, retorno_anual_origem, dias_restantes)
-        patrimonio_terminal_destino = _projetar_valor_terminal(valor_migrado, retorno_anual_destino, dias_restantes)
-
         liquidez_dias_origem = int(lote.get('liquidez_dias_atual') or 0)
         data_disponibilidade_origem = max(
             data_acao,
             (data_carencia_origem or data_acao),
             data_acao + timedelta(days=max(liquidez_dias_origem, 0)),
         )
-        data_disponibilidade_destino = max(
-            data_acao,
-            data_acao + timedelta(days=max(liquidez_dias_destino, 0)),
-            data_acao + timedelta(days=max(carencia_dias_destino, 0)),
-        )
-        dias_carencia_incremental = max((data_disponibilidade_destino - data_disponibilidade_origem).days, 0)
-        total_pag_janela = 0.0
-        total_protegido_janela = 0.0
-        quantidade_pag_janela = 0
-        if dias_carencia_incremental > 0:
-            total_pag_janela, total_protegido_janela, quantidade_pag_janela = _somar_pagamentos_em_janela(
-                pagamentos_futuros,
-                data_disponibilidade_origem,
-                min(data_disponibilidade_destino, data_fim or data_disponibilidade_destino),
+        produto_origem_key = str(lote.get('produto_key') or '')
+
+        for rank_destino, destino_bruto in enumerate(destinos_brutos, start=1):
+            produto_destino = dict(destino_bruto or {})
+            produto_destino_nome = str(produto_destino.get('nome') or filtros.get('produto_destino_padrao') or '')
+            produto_destino_key = str(produto_destino.get('produto_key') or '')
+            if produto_destino_key and produto_destino_key == produto_origem_key:
+                continue
+
+            proxy_destino = _normalizar_proxy_terminal(produto_destino.get('proxy_terminal_destino') or produto_destino.get('score_final'))
+            retorno_anual_destino = _normalizar_retorno_anual(
+                produto_destino.get('retorno_anual_proxy'),
+                produto_destino.get('taxa_base_cdi'),
+                produto_destino.get('taxa_bonus_cdi'),
+                cdi_anual_modelo,
             )
-        penalidade_carencia = round(
-            min(valor_migrado, total_pag_janela) * 0.10 + min(valor_migrado, total_protegido_janela) * 0.15,
-            2,
-        )
-        ganho_proxy = max(proxy_destino - proxy_origem, 0.0) * valor_migrado * (dias_restantes / 365.0)
-        ganho_terminal_economico = round(
-            patrimonio_terminal_destino - patrimonio_terminal_origem - penalidade_carencia,
-            2,
-        )
-        elegivel = (
-            bool(produto_destino_nome)
-            and (data_fim is None or data_acao <= data_fim)
-            and valor_migrado > 0.0
-            and ganho_terminal_economico > 0.0
-        )
-        justificativa = (
-            f"Switching temporal recalibrado: data={data_acao.isoformat()}, "
-            f"terminal_origem={patrimonio_terminal_origem:.2f}, terminal_destino={patrimonio_terminal_destino:.2f}, "
-            f"custo_fiscal={custo_fiscal:.2f}, penalidade_carencia={penalidade_carencia:.2f}, ganho_economico={ganho_terminal_economico:.2f}."
-        )
-        registros_candidatos.append(
-            AcaoSwitchingTemporalCandidata(
-                id_acao=f'switching_candidato_{indice}',
-                tipo_acao='switching_simples',
-                data_acao=data_acao.isoformat(),
-                lote_origem_id=str(lote.get('id') or f'lote_{indice}'),
-                produto_origem=str(lote.get('investimento') or ''),
-                produto_destino=produto_destino_nome,
-                valor_bruto_origem=float(lote.get('valor_inicial') or valor_liquido),
-                valor_liquido_resgatavel=valor_liquido,
-                custo_fiscal_estimado=round(custo_fiscal, 2),
-                perda_liquidez_estimada=round(penalidade_carencia, 2),
-                ganho_terminal_proxy_estimado=round(ganho_proxy, 2),
-                impacto_pagamentos_futuros_estimado=round(total_pag_janela, 2),
-                justificativa=justificativa,
-                elegivel=elegivel,
-                proxy_terminal_origem=round(proxy_origem, 6),
-                proxy_terminal_destino=round(proxy_destino, 6),
-                produto_destino_key=produto_destino_key or None,
-                retorno_anual_destino=round(retorno_anual_destino, 6),
-                liquidez_dias_destino=liquidez_dias_destino,
-                carencia_dias_destino=carencia_dias_destino,
-                valor_migrado_estimado=valor_migrado,
-                patrimonio_terminal_origem_estimado=patrimonio_terminal_origem,
-                patrimonio_terminal_destino_estimado=patrimonio_terminal_destino,
-                penalidade_carencia_reprojetada=penalidade_carencia,
-                ganho_terminal_economico_minimo_estimado=ganho_terminal_economico,
-                dias_carencia_incremental=dias_carencia_incremental,
-                retorno_anual_origem_estimado=retorno_anual_origem,
-                score_ranqueamento_economico=ganho_terminal_economico,
-                status_modelo='recalibrado_v120',
+            liquidez_dias_destino = int(produto_destino.get('liquidez_dias') or 0)
+            carencia_dias_destino = int(produto_destino.get('carencia_dias') or 0)
+            patrimonio_terminal_destino = _projetar_valor_terminal(valor_migrado, retorno_anual_destino, dias_restantes)
+            data_disponibilidade_destino = max(
+                data_acao,
+                data_acao + timedelta(days=max(liquidez_dias_destino, 0)),
+                data_acao + timedelta(days=max(carencia_dias_destino, 0)),
             )
-        )
+            dias_carencia_incremental = max((data_disponibilidade_destino - data_disponibilidade_origem).days, 0)
+            total_pag_janela = 0.0
+            total_protegido_janela = 0.0
+            if dias_carencia_incremental > 0:
+                total_pag_janela, total_protegido_janela, _ = _somar_pagamentos_em_janela(
+                    pagamentos_futuros,
+                    data_disponibilidade_origem,
+                    min(data_disponibilidade_destino, data_fim or data_disponibilidade_destino),
+                )
+            penalidade_carencia = round(
+                min(valor_migrado, total_pag_janela) * 0.10 + min(valor_migrado, total_protegido_janela) * 0.15,
+                2,
+            )
+            ganho_proxy = max(proxy_destino - proxy_origem, 0.0) * valor_migrado * (dias_restantes / 365.0)
+            ganho_terminal_economico = round(
+                patrimonio_terminal_destino - patrimonio_terminal_origem - penalidade_carencia,
+                2,
+            )
+            elegivel = (
+                bool(produto_destino_nome)
+                and (data_fim is None or data_acao <= data_fim)
+                and ganho_terminal_economico > 0.0
+            )
+            justificativa = (
+                f"Switching temporal multidestino: data={data_acao.isoformat()}, destino={produto_destino_nome}, "
+                f"terminal_origem={patrimonio_terminal_origem:.2f}, terminal_destino={patrimonio_terminal_destino:.2f}, "
+                f"custo_fiscal={custo_fiscal:.2f}, penalidade_carencia={penalidade_carencia:.2f}, ganho_economico={ganho_terminal_economico:.2f}."
+            )
+            registros_candidatos.append(
+                AcaoSwitchingTemporalCandidata(
+                    id_acao=f'switching_candidato_{indice}_{rank_destino}',
+                    tipo_acao='switching_simples',
+                    data_acao=data_acao.isoformat(),
+                    lote_origem_id=str(lote.get('id') or f'lote_{indice}'),
+                    produto_origem=str(lote.get('investimento') or ''),
+                    produto_destino=produto_destino_nome,
+                    valor_bruto_origem=float(lote.get('valor_inicial') or valor_liquido),
+                    valor_liquido_resgatavel=valor_liquido,
+                    custo_fiscal_estimado=round(custo_fiscal, 2),
+                    perda_liquidez_estimada=round(penalidade_carencia, 2),
+                    ganho_terminal_proxy_estimado=round(ganho_proxy, 2),
+                    impacto_pagamentos_futuros_estimado=round(total_pag_janela, 2),
+                    justificativa=justificativa,
+                    elegivel=elegivel,
+                    proxy_terminal_origem=round(proxy_origem, 6),
+                    proxy_terminal_destino=round(proxy_destino, 6),
+                    produto_destino_key=produto_destino_key or None,
+                    retorno_anual_destino=round(retorno_anual_destino, 6),
+                    liquidez_dias_destino=liquidez_dias_destino,
+                    carencia_dias_destino=carencia_dias_destino,
+                    valor_migrado_estimado=valor_migrado,
+                    patrimonio_terminal_origem_estimado=patrimonio_terminal_origem,
+                    patrimonio_terminal_destino_estimado=patrimonio_terminal_destino,
+                    penalidade_carencia_reprojetada=penalidade_carencia,
+                    ganho_terminal_economico_minimo_estimado=ganho_terminal_economico,
+                    dias_carencia_incremental=dias_carencia_incremental,
+                    retorno_anual_origem_estimado=retorno_anual_origem,
+                    score_ranqueamento_economico=ganho_terminal_economico,
+                    rank_destino_sugerido=int(produto_destino.get('rank_destino') or rank_destino),
+                    status_modelo='multidestino_v121',
+                )
+            )
 
     registros_candidatos.sort(
         key=lambda item: (
@@ -325,6 +336,7 @@ def planejar_switching_temporal_v1(
             -float(item.score_ranqueamento_economico or 0.0),
             -float(item.patrimonio_terminal_destino_estimado or 0.0),
             item.lote_origem_id or '',
+            int(item.rank_destino_sugerido or 0),
         )
     )
     limite = None if limite_candidatos_por_data is None else max(limite_candidatos_por_data, 0)
@@ -333,15 +345,16 @@ def planejar_switching_temporal_v1(
     candidatos.extend(registros_candidatos)
 
     return {
-        'status': 'recalibrado_v120',
+        'status': 'multidestino_v121',
         'implementado': True,
         'horizonte_planejamento': horizonte_planejamento,
         'limite_candidatos_por_data': limite_candidatos_por_data,
         'filtros_eventos': filtros,
         'quantidade_candidatos': len(candidatos),
         'quantidade_candidatos_elegiveis_switching': sum(1 for x in registros_candidatos if x.elegivel),
+        'quantidade_destinos_elegiveis_considerados': len(destinos_brutos),
         'acoes_candidatas': [item.para_dict() for item in candidatos],
         'config_resumido': dict(config or {}),
-        'produto_destino_padrao': produto_destino,
+        'produto_destino_padrao': produto_destino_padrao,
         'criterio_ranqueamento': 'ganho_terminal_economico_minimo_estimado',
     }
