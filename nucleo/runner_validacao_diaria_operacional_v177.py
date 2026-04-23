@@ -286,7 +286,7 @@ def _resumir_normalizacao_pos_vencimento(item: dict[str, Any], dia: date) -> dic
     }
 
 
-def rodar_validacao_diaria_operacional_v176(
+def rodar_validacao_diaria_operacional_v177(
     *,
     raiz_repositorio: Path,
     data_inicio: date,
@@ -487,7 +487,7 @@ def rodar_validacao_diaria_operacional_v176(
     }
     return {
         'status': 'ok',
-        'versao': 'V176',
+        'versao': 'V177',
         'resumo': resumo,
         'decisoes_diarias': decisoes_diarias,
         'pagamentos_executados': pagamentos_executados,
@@ -495,4 +495,4 @@ def rodar_validacao_diaria_operacional_v176(
     }
 
 
-__all__ = ['rodar_validacao_diaria_operacional_v176']
+__all__ = ['rodar_validacao_diaria_operacional_v177']
