@@ -169,7 +169,7 @@ def _avaliar_continuacao_neutra(
     return dict(sim.get('metrica_central') or {}), round(_safe_float(sim.get('patrimonio_liquido_terminal_proxy')), 2)
 
 
-def _melhor_plano_switching_diario_v143(
+def _cenarios_switching_diario_v143(
     *,
     estado: dict[str, Any],
     config: dict[str, Any],
@@ -177,7 +177,7 @@ def _melhor_plano_switching_diario_v143(
     data_fim: date,
     limite_candidatos_por_data: int = 24,
     cap_fontes_destino: int = 5,
-) -> dict[str, Any] | None:
+) -> list[dict[str, Any]]:
     estado_local = deepcopy(estado)
     estado_local['data_evento_corrente'] = data_atual
     _normalizar_lote_pos_vencimento_no_dia(estado_local, data_atual, config, None)
@@ -214,7 +214,67 @@ def _melhor_plano_switching_diario_v143(
             'patrimonio_liquido_terminal_proxy': sim.get('patrimonio_liquido_terminal_proxy'),
             'metrica_central': sim.get('metrica_central'),
         })
+    return resultados
+
+
+def _melhor_plano_switching_diario_v143(
+    *,
+    estado: dict[str, Any],
+    config: dict[str, Any],
+    data_atual: date,
+    data_fim: date,
+    limite_candidatos_por_data: int = 24,
+    cap_fontes_destino: int = 5,
+) -> dict[str, Any] | None:
+    resultados = _cenarios_switching_diario_v143(
+        estado=estado,
+        config=config,
+        data_atual=data_atual,
+        data_fim=data_fim,
+        limite_candidatos_por_data=limite_candidatos_por_data,
+        cap_fontes_destino=cap_fontes_destino,
+    )
     return escolher_melhor_cenario_promovivel(resultados)
+
+
+def _melhor_plano_switching_bruto_diario_v152(
+    *,
+    estado: dict[str, Any],
+    config: dict[str, Any],
+    dia: date,
+    pagamentos_dia: list[dict[str, Any]],
+    data_fim: date,
+    limite_candidatos_por_data: int = 24,
+    cap_fontes_destino: int = 5,
+    tau_custo_operacional: float | None = None,
+) -> dict[str, Any] | None:
+    resultados = _cenarios_switching_diario_v143(
+        estado=estado,
+        config=config,
+        data_atual=dia,
+        data_fim=data_fim,
+        limite_candidatos_por_data=limite_candidatos_por_data,
+        cap_fontes_destino=cap_fontes_destino,
+    )
+    if not resultados:
+        return None
+    tipo_pacote = 'switch_then_pay' if pagamentos_dia else 'switch_only'
+    pacotes: list[dict[str, Any]] = []
+    for cenario in resultados:
+        plano = {**deepcopy(cenario), 'classe_comparador_hibrido': 'melhor_switching_bruto_v152', 'promovivel_hibrido': True}
+        pacote = _executar_pacote_dia(
+            estado_inicial=estado,
+            dia=dia,
+            pagamentos_dia=pagamentos_dia,
+            config=config,
+            data_fim=data_fim,
+            tipo_pacote=tipo_pacote,
+            plano_switching=plano,
+        )
+        pacote['_rotulo_bruto_origem'] = str(cenario.get('rotulo') or '')
+        pacote['_classe_bruta_origem'] = str(cenario.get('classe_comparador_hibrido') or '')
+        pacotes.append(pacote)
+    return _selecionar_vencedor_pacote(pacotes, tau_custo_operacional)
 
 
 def _executar_pacote_dia(
@@ -364,6 +424,9 @@ def rodar_motor_diario_conjunto_experimental_v143(
     limite_candidatos_por_data: int = 24,
     cap_fontes_destino: int = 5,
     tau_custo_operacional: float | None = None,
+    usar_melhor_switching_bruto_no_bloco_critico: bool = False,
+    data_inicio_bloco_critico: date | None = None,
+    data_fim_bloco_critico: date | None = None,
 ) -> dict[str, Any]:
     base = Path(raiz_repositorio)
     contexto = carregar_contexto_baseline(
@@ -396,14 +459,32 @@ def rodar_motor_diario_conjunto_experimental_v143(
         _normalizar_lote_pos_vencimento_no_dia(estado_corrente, dia, config, historico_execucao)
         _ativar_recebidos_futuros_no_dia(estado_corrente, dia, historico_execucao)
         pagamentos_dia = _ordenar_pagamentos(pagamentos_por_dia.get(dia.isoformat(), []))
-        plano_switching = _melhor_plano_switching_diario_v143(
-            estado=estado_corrente,
-            config=config,
-            data_atual=dia,
-            data_fim=data_fim,
-            limite_candidatos_por_data=limite_candidatos_por_data,
-            cap_fontes_destino=cap_fontes_destino,
+        usa_bruto_bloco_critico = bool(
+            usar_melhor_switching_bruto_no_bloco_critico
+            and data_inicio_bloco_critico is not None
+            and data_fim_bloco_critico is not None
+            and data_inicio_bloco_critico <= dia <= data_fim_bloco_critico
         )
+        if usa_bruto_bloco_critico:
+            plano_switching = _melhor_plano_switching_bruto_diario_v152(
+                estado=estado_corrente,
+                config=config,
+                dia=dia,
+                pagamentos_dia=pagamentos_dia,
+                data_fim=data_fim,
+                limite_candidatos_por_data=limite_candidatos_por_data,
+                cap_fontes_destino=cap_fontes_destino,
+                tau_custo_operacional=tau_custo_operacional,
+            )
+        else:
+            plano_switching = _melhor_plano_switching_diario_v143(
+                estado=estado_corrente,
+                config=config,
+                data_atual=dia,
+                data_fim=data_fim,
+                limite_candidatos_por_data=limite_candidatos_por_data,
+                cap_fontes_destino=cap_fontes_destino,
+            )
 
         candidatos: list[dict[str, Any]] = []
         if pagamentos_dia:
@@ -541,6 +622,11 @@ def rodar_motor_diario_conjunto_experimental_v143(
         'estado_final_estimado': deepcopy(estado_corrente),
         'resultados_pagamento_executados': resultados_pagamento_executados,
         'parametro_tau_custo_operacional': tau_custo_operacional,
+        'parametro_usar_melhor_switching_bruto_no_bloco_critico': usar_melhor_switching_bruto_no_bloco_critico,
+        'parametro_bloco_critico': None if (data_inicio_bloco_critico is None or data_fim_bloco_critico is None) else {
+            'data_inicio': data_inicio_bloco_critico.isoformat(),
+            'data_fim': data_fim_bloco_critico.isoformat(),
+        },
         'observacao_metodologica': (
             'Motor diário conjunto experimental: a escolha do pacote do dia usa continuação neutra até o fim da janela '\
             'sem novo switching proativo após o dia avaliado. A comparação é útil para auditar precedência diária, '\
