@@ -300,6 +300,25 @@ def _chave_pacote(resultado: dict[str, Any]) -> tuple[Any, ...]:
     return tuple(resultado.get('vetor_total_estimado') or ()) + (-_safe_float(resultado.get('patrimonio_terminal_proxy_estimado')),)
 
 
+def _chave_pacote_tau(resultado: dict[str, Any], tau: float) -> tuple[Any, ...]:
+    """Chave experimental mantendo os 7 primeiros critérios canônicos intactos.
+
+    Após empatar nos 7 primeiros critérios, compara o patrimônio terminal ajustado
+    por um limiar ``tau`` por unidade de custo operacional. Em termos pairwise,
+    um pacote com custo operacional maior só vence se entregar ganho terminal
+    suficiente para compensar ``tau`` por operação adicional.
+    """
+
+    vetor = list(resultado.get('vetor_total_estimado') or ())
+    if len(vetor) < 8:
+        vetor = vetor + [0.0] * (8 - len(vetor))
+    primeiros_sete = tuple(float(x) for x in vetor[:7])
+    custo_operacional = float(vetor[7] or 0.0)
+    patrimonio = _safe_float(resultado.get('patrimonio_terminal_proxy_estimado'))
+    patrimonio_ajustado = patrimonio - float(tau or 0.0) * custo_operacional
+    return primeiros_sete + (-patrimonio_ajustado, custo_operacional, -patrimonio)
+
+
 def _carregar_estado_janela(
     *,
     contexto: Any,
