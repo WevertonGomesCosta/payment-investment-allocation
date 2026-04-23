@@ -59,3 +59,7 @@
 - relatorios/atuais/ESTRUTURA_REPOSITORIO_V125.md
 - relatorios/atuais/SIMULACAO_CENTRAL_CONTROLADA_HORIZONTE_LONGO_V124.md
 - relatorios/atuais/AUDITORIA_MULTIHORIZONTE_CENARIOS_TEMPO_V125.md
+- relatorios/atuais/BASELINE_FIXA_V126.md
+- relatorios/atuais/VALIDACAO_LOCAL_V126.md
+- relatorios/atuais/ESTRUTURA_REPOSITORIO_V126.md
+- relatorios/atuais/AVALIACAO_DIARIA_DATA_OTIMA_SWITCHING_V126.md

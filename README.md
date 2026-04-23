@@ -77,9 +77,9 @@ O projeto **não** tem como objetivo final otimizar isoladamente um único pagam
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
 - `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 - `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`
-- `relatorios/atuais/BASELINE_FIXA_V125.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V125.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V125.md`
+- `relatorios/atuais/BASELINE_FIXA_V126.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V126.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V126.md`
 - `relatorios/atuais/INTEGRACAO_FUNCIONAL_MINIMA_V117_RECORTE_CURTO.md`
 - `relatorios/atuais/EXPANSAO_MULTIDESTINO_PLANEJADOR_SWITCHING_TEMPORAL_V121.md`
 - `relatorios/atuais/TESTE_HORIZONTE_LONGO_PLANEJADOR_SWITCHING_TEMPORAL_V122.md`
@@ -88,3 +88,10 @@ O projeto **não** tem como objetivo final otimizar isoladamente um único pagam
 
 
 Documento novo desta derivação: `relatorios/atuais/AUDITORIA_MULTIHORIZONTE_CENARIOS_TEMPO_V125.md`.
+
+
+## V126
+
+- adiciona grade diária de data ótima de switching com estado condicional por dia;
+- suporta switching isolado e agrupado em modo integral e parcial 50%;
+- prepara execução em blocos e consolidação para janelas longas quando o ambiente interativo ficar pesado.

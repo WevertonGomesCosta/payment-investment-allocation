@@ -296,14 +296,30 @@ def _aplicar_switching_eventos(estado: dict[str, Any], eventos: list[dict[str, A
         if evento.get('tipo_acao') != 'switching_simples':
             continue
         lote_id = str(evento.get('lote_origem_id') or '')
-        for lote in estado.get('lotes_aportados', []):
+        for lote in list(estado.get('lotes_aportados', [])):
             if str(lote.get('id') or '') != lote_id:
                 continue
-            valor_liquido_origem = round(float(lote.get('valor_liquido_resgatavel') or 0.0), 2)
-            principal = round(float(lote.get('principal_remanescente') or 0.0), 2)
+            valor_liquido_total = round(float(lote.get('valor_liquido_resgatavel') or 0.0), 2)
+            principal_total = round(float(lote.get('principal_remanescente') or 0.0), 2)
+            if valor_liquido_total <= 0.0:
+                break
+            fracao_lote = float(evento.get('fracao_lote') or 1.0)
+            fracao_lote = min(max(fracao_lote, 0.0), 1.0)
+            if fracao_lote <= 0.0:
+                break
+            valor_liquido_origem = round(valor_liquido_total * fracao_lote, 2)
+            principal = round(principal_total * fracao_lote, 2)
             aliquota = _aliquota_ir_estimada(_coerce_date(lote.get('data_aplicacao')), data_atual)
-            custo_fiscal = round(float(evento.get('custo_fiscal_estimado') or _estimar_imposto_resgate(valor_liquido_origem, principal, aliquota)), 2)
-            valor_migrado = round(max(float(evento.get('valor_migrado_estimado') or 0.0), valor_liquido_origem - custo_fiscal), 2)
+            custo_fiscal_estimado = float(evento.get('custo_fiscal_estimado') or 0.0)
+            if fracao_lote < 0.999999:
+                custo_fiscal = round(_estimar_imposto_resgate(valor_liquido_origem, principal, aliquota), 2)
+            else:
+                custo_fiscal = round(custo_fiscal_estimado or _estimar_imposto_resgate(valor_liquido_origem, principal, aliquota), 2)
+            valor_migrado_estimado = float(evento.get('valor_migrado_estimado') or 0.0)
+            if fracao_lote < 0.999999:
+                valor_migrado = round(max(valor_liquido_origem - custo_fiscal, 0.0), 2)
+            else:
+                valor_migrado = round(max(valor_migrado_estimado, valor_liquido_origem - custo_fiscal), 2)
             produto_origem = str(lote.get('investimento') or evento.get('produto_origem') or '')
             produto_destino = str(evento.get('produto_destino') or lote.get('investimento') or '')
             retorno_destino = float(evento.get('retorno_anual_destino') or lote.get('retorno_anual_proxy_atual') or 0.0)
@@ -315,36 +331,63 @@ def _aplicar_switching_eventos(estado: dict[str, Any], eventos: list[dict[str, A
                 data_final,
                 data_base_terminal,
             )
-            lote['investimento'] = produto_destino
-            lote['produto_key'] = str(evento.get('produto_destino_key') or lote.get('produto_key') or '')
-            lote['produto_destino_key'] = str(evento.get('produto_destino_key') or lote.get('produto_destino_key') or '')
-            lote['valor_liquido_resgatavel'] = valor_migrado
-            lote['principal_remanescente'] = valor_migrado
-            lote['proxy_terminal_atual'] = float(evento.get('proxy_terminal_destino') or lote.get('proxy_terminal_atual') or 0.0)
-            lote['retorno_anual_proxy_atual'] = retorno_destino
-            lote['liquidez_dias_atual'] = liquidez_destino
-            lote['carencia_dias_atual'] = carencia_destino
-            lote['carencia_ate'] = data_atual + timedelta(days=carencia_destino) if carencia_destino > 0 else None
-            lote['data_aplicacao'] = data_atual
-            lote['custo_fiscal_acumulado'] = round(float(lote.get('custo_fiscal_acumulado') or 0.0) + custo_fiscal, 2)
-            lote['valor_terminal_estimado'] = valor_terminal_estimado
+            ganho_evento = round(float(evento.get('ganho_terminal_proxy_estimado') or 0.0) * fracao_lote, 2)
+            perda_evento = round(float(evento.get('perda_liquidez_estimada') or 0.0) * fracao_lote, 2)
+            if fracao_lote >= 0.999999:
+                lote['investimento'] = produto_destino
+                lote['produto_key'] = str(evento.get('produto_destino_key') or lote.get('produto_key') or '')
+                lote['produto_destino_key'] = str(evento.get('produto_destino_key') or lote.get('produto_destino_key') or '')
+                lote['valor_liquido_resgatavel'] = valor_migrado
+                lote['principal_remanescente'] = valor_migrado
+                lote['proxy_terminal_atual'] = float(evento.get('proxy_terminal_destino') or lote.get('proxy_terminal_atual') or 0.0)
+                lote['retorno_anual_proxy_atual'] = retorno_destino
+                lote['liquidez_dias_atual'] = liquidez_destino
+                lote['carencia_dias_atual'] = carencia_destino
+                lote['carencia_ate'] = data_atual + timedelta(days=carencia_destino) if carencia_destino > 0 else None
+                lote['data_aplicacao'] = data_atual
+                lote['custo_fiscal_acumulado'] = round(float(lote.get('custo_fiscal_acumulado') or 0.0) + custo_fiscal, 2)
+                lote['valor_terminal_estimado'] = valor_terminal_estimado
+            else:
+                valor_residual = round(max(valor_liquido_total - valor_liquido_origem, 0.0), 2)
+                principal_residual = round(max(principal_total - principal, 0.0), 2)
+                lote['valor_liquido_resgatavel'] = valor_residual
+                lote['principal_remanescente'] = principal_residual
+                lote['valor_terminal_estimado'] = _valor_terminal_estimado_lote(lote, data_final, data_base_terminal)
+                novo_lote = deepcopy(lote)
+                novo_lote['id'] = f"{lote_id}_sw_{data_atual.isoformat()}_{int(fracao_lote * 100)}"
+                novo_lote['investimento'] = produto_destino
+                novo_lote['produto_key'] = str(evento.get('produto_destino_key') or lote.get('produto_key') or '')
+                novo_lote['produto_destino_key'] = str(evento.get('produto_destino_key') or lote.get('produto_destino_key') or '')
+                novo_lote['valor_inicial'] = valor_migrado
+                novo_lote['valor_liquido_resgatavel'] = valor_migrado
+                novo_lote['principal_remanescente'] = valor_migrado
+                novo_lote['proxy_terminal_atual'] = float(evento.get('proxy_terminal_destino') or lote.get('proxy_terminal_atual') or 0.0)
+                novo_lote['retorno_anual_proxy_atual'] = retorno_destino
+                novo_lote['liquidez_dias_atual'] = liquidez_destino
+                novo_lote['carencia_dias_atual'] = carencia_destino
+                novo_lote['carencia_ate'] = data_atual + timedelta(days=carencia_destino) if carencia_destino > 0 else None
+                novo_lote['data_aplicacao'] = data_atual
+                novo_lote['custo_fiscal_acumulado'] = round(float(lote.get('custo_fiscal_acumulado') or 0.0) + custo_fiscal, 2)
+                novo_lote['valor_terminal_estimado'] = valor_terminal_estimado
+                estado.setdefault('lotes_aportados', []).append(novo_lote)
             historico.append({
                 'tipo_evento': 'switching',
                 'data_evento': data_atual.isoformat(),
                 'lote_id': lote_id,
                 'produto_origem': produto_origem,
                 'produto_destino': produto_destino,
+                'fracao_lote': fracao_lote,
                 'valor_liquido_origem': valor_liquido_origem,
                 'valor_migrado': valor_migrado,
                 'custo_fiscal_realizado': custo_fiscal,
                 'liquidez_dias_destino': liquidez_destino,
                 'carencia_dias_destino': carencia_destino,
                 'valor_terminal_estimado': valor_terminal_estimado,
-                'ganho_terminal_proxy_estimado': float(evento.get('ganho_terminal_proxy_estimado') or 0.0),
+                'ganho_terminal_proxy_estimado': ganho_evento,
             })
-            executados.append({**evento, 'custo_fiscal_realizado': custo_fiscal, 'valor_migrado_realizado': valor_migrado, 'valor_terminal_estimado': valor_terminal_estimado})
-            ganho_total += float(evento.get('ganho_terminal_proxy_estimado') or 0.0)
-            perda_liquidez += float(evento.get('perda_liquidez_estimada') or 0.0)
+            executados.append({**evento, 'fracao_lote': fracao_lote, 'custo_fiscal_realizado': custo_fiscal, 'valor_migrado_realizado': valor_migrado, 'valor_terminal_estimado': valor_terminal_estimado})
+            ganho_total += ganho_evento
+            perda_liquidez += perda_evento
             custo_fiscal_total += custo_fiscal
             break
     return executados, round(ganho_total, 2), round(perda_liquidez, 2), round(custo_fiscal_total, 2)

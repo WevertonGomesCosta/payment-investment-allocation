@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = 'V125'
-VERSAO_ANTERIOR = 'V124'
+VERSAO_VIGENTE = 'V126'
+VERSAO_ANTERIOR = 'V125'
 
 
 def repo_root() -> Path:
@@ -41,6 +41,7 @@ def validar_indice_documental(base: Path) -> list[str]:
         'relatorios/atuais/TESTE_HORIZONTE_LONGO_PLANEJADOR_SWITCHING_TEMPORAL_V123.md',
         'relatorios/atuais/SIMULACAO_CENTRAL_CONTROLADA_HORIZONTE_LONGO_V124.md',
         'relatorios/atuais/AUDITORIA_MULTIHORIZONTE_CENARIOS_TEMPO_V125.md',
+        'relatorios/atuais/AVALIACAO_DIARIA_DATA_OTIMA_SWITCHING_V126.md',
         f'relatorios/atuais/VALIDACAO_LOCAL_{VERSAO_VIGENTE}.md',
         f'relatorios/atuais/ESTRUTURA_REPOSITORIO_{VERSAO_VIGENTE}.md',
         'relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md',
