@@ -15,12 +15,13 @@
 - `relatorios/atuais/VALIDACAO_LOCAL_V108.md`
 - `relatorios/atuais/ESTRUTURA_REPOSITORIO_V108.md`
 
-### Camada temporal mínima integrada V121
-- `relatorios/atuais/BASELINE_FIXA_V121.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V121.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V121.md`
+### Camada temporal mínima integrada V122
+- `relatorios/atuais/BASELINE_FIXA_V122.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V122.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V122.md`
 - `relatorios/atuais/INTEGRACAO_FUNCIONAL_MINIMA_V117_RECORTE_CURTO.md`
 - `relatorios/atuais/EXPANSAO_MULTIDESTINO_PLANEJADOR_SWITCHING_TEMPORAL_V121.md`
+- `relatorios/atuais/TESTE_HORIZONTE_LONGO_PLANEJADOR_SWITCHING_TEMPORAL_V122.md`
 
 ### Camada operacional por conta
 - `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`

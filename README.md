@@ -2,10 +2,10 @@
 
 Repositório de unificação incremental do motor de **pagamentos, recebidos, aportes e switching** com base única, `config` central e rastreabilidade por lote.
 
-**Baseline entregue do repositório:** V121  
+**Baseline entregue do repositório:** V122  
 **Baseline central/contratual da frente principal:** V108
 
-A V121 preserva a V117 como contrato do motor conjunto temporal, mantém a recalibração econômica mínima da V120 e acrescenta a **expansão multidestino do planejador temporal de switching**, para testar se algum destino alternativo sobrevive economicamente onde o destino padrão falhou.
+A V122 preserva a V117 como contrato do motor conjunto temporal, mantém a expansão multidestino da V121 e acrescenta um **teste multihorizonte do planejador temporal**, para verificar se algum switching sobrevive economicamente quando o horizonte deixa de penalizar excessivamente o custo fiscal inicial.
 
 ## Objetivo final do projeto
 
@@ -27,7 +27,7 @@ A decisão final deve buscar **maximizar o patrimônio líquido terminal**, resp
 
 O projeto **não** tem como objetivo final otimizar isoladamente um único pagamento ou uma janela local sem reconexão com o cenário conjunto.
 
-## O que a V121 faz
+## O que a V122 faz
 
 - preserva o `CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md` como referência do desenho da nova camada central;
 - integra minimamente:
@@ -71,10 +71,11 @@ O projeto **não** tem como objetivo final otimizar isoladamente um único pagam
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
 - `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 - `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`
-- `relatorios/atuais/BASELINE_FIXA_V121.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V121.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V121.md`
+- `relatorios/atuais/BASELINE_FIXA_V122.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V122.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V122.md`
 - `relatorios/atuais/INTEGRACAO_FUNCIONAL_MINIMA_V117_RECORTE_CURTO.md`
 - `relatorios/atuais/EXPANSAO_MULTIDESTINO_PLANEJADOR_SWITCHING_TEMPORAL_V121.md`
+- `relatorios/atuais/TESTE_HORIZONTE_LONGO_PLANEJADOR_SWITCHING_TEMPORAL_V122.md`
 - `relatorios/atuais/AUDITORIA_COMPARADOR_MOTOR_RECOMENDACAO_V116.md`
 - `relatorios/INDICE_RELATORIOS.md`
