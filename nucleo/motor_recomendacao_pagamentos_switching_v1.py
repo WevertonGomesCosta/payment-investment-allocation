@@ -59,6 +59,8 @@ def _melhor_switching_para_pagamento(
     *,
     data_referencia: date,
     valor_pagamento: float,
+    saldo_residual_temporal_por_lote: dict[str, float],
+    saldo_inicial_temporal_por_lote: dict[str, float],
 ) -> dict[str, Any]:
     if quadro_switching is None or quadro_switching.empty or candidatos_eligiveis.empty:
         return {}
@@ -79,10 +81,16 @@ def _melhor_switching_para_pagamento(
             continue
         subset = subset.sort_values(by=['recomendado_shadow', 'ganho_liquido_estimado', 'score_switch_shadow'], ascending=[False, False, False], kind='stable')
         melhor = subset.iloc[0].to_dict()
-        ganho_horizonte = float(melhor.get('ganho_liquido_estimado') or 0.0)
-        ganho_ate_pagamento = round(ganho_horizonte * min(dias_ate, horizonte_ref) / horizonte_ref, 2)
         valor_base = round(float(cand.get('valor_liquido_disponivel') or 0.0), 2)
-        cobertura = round(min(valor_pagamento, valor_base + max(ganho_ate_pagamento, 0.0)), 2)
+        valor_inicial_temporal = round(float(saldo_inicial_temporal_por_lote.get(lote, valor_base) or 0.0), 2)
+        valor_residual_temporal = round(min(valor_base, float(saldo_residual_temporal_por_lote.get(lote, valor_base) or 0.0)), 2)
+        if valor_residual_temporal <= 0.0:
+            continue
+        fracao_residual_temporal = min(max((valor_residual_temporal / valor_inicial_temporal), 0.0), 1.0) if valor_inicial_temporal > 0 else 0.0
+        ganho_horizonte = float(melhor.get('ganho_liquido_estimado') or 0.0)
+        ganho_horizonte_ajustado = ganho_horizonte * fracao_residual_temporal
+        ganho_ate_pagamento = round(ganho_horizonte_ajustado * min(dias_ate, horizonte_ref) / horizonte_ref, 2)
+        cobertura = round(min(valor_pagamento, valor_residual_temporal + max(ganho_ate_pagamento, 0.0)), 2)
         melhores.append({
             'estrategia': 'switching_simples',
             'lote_origem_switching': lote,
@@ -98,6 +106,8 @@ def _melhor_switching_para_pagamento(
             'lote_reserva': '',
             'fonte_reserva_id': '',
             'valor_liquido_origem': valor_base,
+            'valor_residual_temporal_lote': valor_residual_temporal,
+            'fracao_residual_temporal_lote': round(fracao_residual_temporal, 6),
         })
     if not melhores:
         return {}
@@ -126,6 +136,13 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
     quadro_local = decisao_local_v1.quadro_decisao_local_v1.copy() if decisao_local_v1 is not None else pd.DataFrame()
     quadro_central = recomputacao_sequencial_central_v1.quadro_recomputacao_sequencial_central.copy() if recomputacao_sequencial_central_v1 is not None else pd.DataFrame()
     quadro_switching = switching_economico_shadow.quadro_oportunidades.copy() if switching_economico_shadow is not None else pd.DataFrame()
+
+    quadro_fontes_temporais = quadro_fontes[quadro_fontes['lote_id'].fillna('').astype(str).str.strip() != ''].copy()
+    saldo_inicial_temporal_por_lote = {
+        str(lote): round(float(valor or 0.0), 2)
+        for lote, valor in quadro_fontes_temporais.groupby('lote_id')['valor_liquido_disponivel'].max().items()
+    }
+    saldo_residual_temporal_por_lote = dict(saldo_inicial_temporal_por_lote)
 
     mapa_local = {str(r.get('pagamento_id') or ''): r for _, r in quadro_local.iterrows()}
     mapa_central = {str(r.get('pagamento_id') or ''): r for _, r in quadro_central.iterrows()}
@@ -178,6 +195,8 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             quadro_switching,
             data_referencia=data_referencia,
             valor_pagamento=valor_pagamento,
+            saldo_residual_temporal_por_lote=saldo_residual_temporal_por_lote,
+            saldo_inicial_temporal_por_lote=saldo_inicial_temporal_por_lote,
         )
         if estrategia_switch:
             lote_reserva_sw, fonte_reserva_sw = _selecionar_backup(candidatos, estrategia_switch.get('lote_recomendado', ''), estrategia_switch.get('fonte_origem_id', ''))
@@ -233,27 +252,53 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
 
         dias_ate_pagamento = max((data_pagamento - data_referencia).days, 0) if data_pagamento is not None else 0
         limiar_switch_forte = round(max(50.0, 0.02 * valor_pagamento), 2)
+        melhoria_minima_cobertura = round(max(25.0, 0.05 * valor_pagamento), 2)
+        fallback_automatico_sem_switching = False
+        motivo_fallback_automatico = ''
 
-        # Regra operacional objetiva v1: preferir sem switching quando já há cobertura suficiente no curto prazo
+        # Regra operacional recalibrada: switching simples só compete quando há saldo temporal residual auditável.
         melhor = estrategia_base
         if estrategia_base.get('cobertura_integral'):
             if estrategia_switch:
                 ganho_switch = float(estrategia_switch.get('ganho_liquido_estimado_switching') or 0.0)
                 switch_cobre = bool(estrategia_switch.get('cobertura_integral'))
+                cobertura_switch = float(estrategia_switch.get('cobertura_esperada') or 0.0)
+                valor_residual_temporal = float(estrategia_switch.get('valor_residual_temporal_lote') or 0.0)
                 if classe == 'PROTEGIDA':
-                    if dias_ate_pagamento >= 45 and switch_cobre and ganho_switch >= limiar_switch_forte and float(estrategia_switch.get('cobertura_esperada') or 0.0) >= cobertura_no_switch:
+                    if dias_ate_pagamento >= 45 and switch_cobre and ganho_switch >= limiar_switch_forte and cobertura_switch >= cobertura_no_switch and valor_residual_temporal >= valor_pagamento:
                         melhor = estrategia_switch
+                    elif valor_residual_temporal < valor_pagamento:
+                        fallback_automatico_sem_switching = True
+                        motivo_fallback_automatico = 'fallback_sem_switching_por_residual_temporal_insuficiente'
                 else:
-                    if dias_ate_pagamento >= 30 and switch_cobre and ganho_switch >= limiar_switch_forte and float(estrategia_switch.get('cobertura_esperada') or 0.0) >= cobertura_no_switch:
+                    if dias_ate_pagamento >= 30 and switch_cobre and ganho_switch >= limiar_switch_forte and cobertura_switch >= cobertura_no_switch and valor_residual_temporal >= valor_pagamento:
                         melhor = estrategia_switch
+                    elif valor_residual_temporal < valor_pagamento:
+                        fallback_automatico_sem_switching = True
+                        motivo_fallback_automatico = 'fallback_sem_switching_por_residual_temporal_insuficiente'
         else:
             candidatos_validos = [estrategia_base]
             if estrategia_combo:
                 candidatos_validos.append(estrategia_combo)
             if estrategia_switch:
                 ganho_switch = float(estrategia_switch.get('ganho_liquido_estimado_switching') or 0.0)
-                if dias_ate_pagamento >= 21 and ganho_switch >= limiar_switch:
+                cobertura_switch = float(estrategia_switch.get('cobertura_esperada') or 0.0)
+                valor_residual_temporal = float(estrategia_switch.get('valor_residual_temporal_lote') or 0.0)
+                melhoria_cobertura = round(cobertura_switch - cobertura_no_switch, 2)
+                if dias_ate_pagamento >= 21 and ganho_switch >= limiar_switch and melhoria_cobertura >= melhoria_minima_cobertura and valor_residual_temporal >= valor_pagamento:
                     candidatos_validos.append(estrategia_switch)
+                else:
+                    fallback_automatico_sem_switching = True
+                    motivos = []
+                    if dias_ate_pagamento < 21:
+                        motivos.append('janela_curta')
+                    if ganho_switch < limiar_switch:
+                        motivos.append('ganho_abaixo_materialidade')
+                    if melhoria_cobertura < melhoria_minima_cobertura:
+                        motivos.append('melhoria_cobertura_insuficiente')
+                    if valor_residual_temporal < valor_pagamento:
+                        motivos.append('residual_temporal_insuficiente')
+                    motivo_fallback_automatico = 'fallback_sem_switching_por_' + '_'.join(motivos or ['comparador_local'])
             melhor = min(candidatos_validos, key=lambda x: x['comparador_rank'])
             if estrategia_combo and estrategia_combo.get('cobertura_integral') and not bool(getattr(melhor, 'get', lambda *_: False)('cobertura_integral')):
                 melhor = estrategia_combo
@@ -262,6 +307,13 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         if melhor['estrategia'] == 'switching_simples':
             switching_acionado += 1
             ganhos_switch += float(melhor.get('ganho_liquido_estimado_switching') or 0.0)
+            lote_switch = str(melhor.get('lote_recomendado') or '')
+            if lote_switch:
+                saldo_atual = round(float(saldo_residual_temporal_por_lote.get(lote_switch, 0.0) or 0.0), 2)
+                consumo_temporal = round(min(valor_pagamento, saldo_atual), 2)
+                saldo_residual_temporal_por_lote[lote_switch] = round(max(saldo_atual - consumo_temporal, 0.0), 2)
+                melhor['consumo_residual_temporal_estimado'] = consumo_temporal
+                melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_residual_temporal_por_lote[lote_switch]
         if melhor['estrategia'] == 'combinacao_minima':
             combinacao_acionada += 1
 
@@ -288,6 +340,12 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'tipo_fonte_recomendada': melhor.get('tipo_fonte_recomendada') or '',
             'fonte_reserva_id': melhor.get('fonte_reserva_id') or '',
             'materialidade_minima_switching': limiar_switch,
+            'valor_residual_temporal_lote': round(float(melhor.get('valor_residual_temporal_lote') or 0.0), 2),
+            'fracao_residual_temporal_lote': round(float(melhor.get('fracao_residual_temporal_lote') or 0.0), 6),
+            'consumo_residual_temporal_estimado': round(float(melhor.get('consumo_residual_temporal_estimado') or 0.0), 2),
+            'saldo_residual_temporal_pos_recomendacao': round(float(melhor.get('saldo_residual_temporal_pos_recomendacao') or 0.0), 2),
+            'fallback_automatico_sem_switching': bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching'),
+            'motivo_fallback_automatico': motivo_fallback_automatico if bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching') else '',
             'motivo_recomendacao': melhor.get('motivo_recomendacao') or '',
         })
 
@@ -301,6 +359,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'switching_acionado': int(switching_acionado),
             'combinacao_acionada': int(combinacao_acionada),
             'ganho_liquido_switching_estimado_total': round(ganhos_switch, 2),
+            'pagamentos_com_fallback_automatico_sem_switching': int(quadro['fallback_automatico_sem_switching'].sum()) if len(quadro) else 0,
             'pagamentos_com_cobertura_integral_recomendada': int(quadro['cobertura_integral_recomendada'].sum()) if len(quadro) else 0,
         },
         'amostras': {

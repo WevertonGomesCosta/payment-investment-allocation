@@ -13,7 +13,7 @@ Este contrato não deve misturar regras executáveis correntes com backlog estra
 
 1. A baseline central/contratual vigente da frente principal é a **V108**.
 2. A V106 executa o saneamento contratual do repositório; a **V107** implementa a primeira camada da frente central; a **V108** recalibra essa camada com penalidade explícita de escassez futura para `PROTEGIDA`, prioridade intraclasse no mesmo dia e fallback auditável de “sem fonte viável”.
-3. Camadas posteriores do repositório podem acrescentar recursos operacionais ou saneamento estrutural sem substituir automaticamente a baseline central; na entrega atual, a **V115** cumpre papel organizacional e a **V114** permanece como camada operacional por conta.
+3. Camadas posteriores do repositório podem acrescentar recursos operacionais ou saneamento estrutural sem substituir automaticamente a baseline central; na entrega atual, a **V115** cumpre papel organizacional e a **V116** recalibra localmente o comparador do `motor_recomendacao_pagamentos_switching_v1`, mantendo a frente central ancorada na **V108**.
 4. A V108 preserva a V105 como **baseline experimental local** do bloco crítico e mantém a V106 como marco contratual de separação de trilhas.
 5. O contrato executável deve descrever apenas o que já está implementado e observável na baseline central, separando o que é núcleo principal do que é experimento local ou camada operacional auxiliar.
 6. Regras futuras, metas estratégicas e camadas ainda não abertas permanecem em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.

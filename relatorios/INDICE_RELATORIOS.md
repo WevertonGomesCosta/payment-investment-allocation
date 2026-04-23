@@ -17,11 +17,12 @@
 ### Camada operacional por conta
 - `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`
 
-### Reorganização estrutural vigente do repositório
+### Reorganização estrutural e recalibração operacional vigente do repositório
 - `relatorios/atuais/REORGANIZACAO_REPOSITORIO_V115.md`
-- `relatorios/atuais/BASELINE_FIXA_V115.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V115.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V115.md`
+- `relatorios/atuais/BASELINE_FIXA_V116.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V116.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V116.md`
+- `relatorios/atuais/AUDITORIA_COMPARADOR_MOTOR_RECOMENDACAO_V116.md`
 
 ### Contratos auxiliares, mapas e auditorias ativas
 - `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`

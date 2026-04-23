@@ -2,10 +2,10 @@
 
 Repositório de unificação incremental do motor de **pagamentos, recebidos, aportes e switching** com base única, `config` central e rastreabilidade por lote.
 
-**Baseline entregue do repositório:** V115  
+**Baseline entregue do repositório:** V116  
 **Baseline central/contratual da frente principal:** V108
 
-A V115 é uma etapa de **reorganização e saneamento estrutural** para recolocar o repositório sob o objetivo final do projeto, sem introduzir nova regra econômica decisória.
+A V116 preserva a reorganização estrutural da V115 e acrescenta uma **recalibração cirúrgica do comparador local** do `motor_recomendacao_pagamentos_switching_v1`, com consumo residual temporal por lote e fallback automático para `sem_switching`.
 
 ## Objetivo final do projeto
 
@@ -27,7 +27,7 @@ A decisão final deve buscar **maximizar o patrimônio líquido terminal**, resp
 
 O projeto **não** tem como objetivo final otimizar isoladamente um único pagamento ou uma janela local sem reconexão com o cenário conjunto.
 
-## O que a V115 faz
+## O que a V116 faz
 
 - recentra a documentação ativa no objetivo final conjunto;
 - move documentação histórica redundante para `relatorios/historico/`;
@@ -59,8 +59,9 @@ O projeto **não** tem como objetivo final otimizar isoladamente um único pagam
 - `relatorios/atuais/SANEAMENTO_CONTRATUAL_V106.md`
 - `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 - `relatorios/atuais/MOTOR_RECOMENDACAO_PAGAMENTOS_SWITCHING_V114.md`
-- `relatorios/atuais/BASELINE_FIXA_V115.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V115.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V115.md`
+- `relatorios/atuais/BASELINE_FIXA_V116.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V116.md`
+- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V116.md`
+- `relatorios/atuais/AUDITORIA_COMPARADOR_MOTOR_RECOMENDACAO_V116.md`
 - `relatorios/atuais/REORGANIZACAO_REPOSITORIO_V115.md`
 - `relatorios/INDICE_RELATORIOS.md`
