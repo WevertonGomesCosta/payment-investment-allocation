@@ -22,6 +22,8 @@
 - `relatorios/atuais/COMPARADOR_HIBRIDO_SWITCHING_V132.md`
 - `relatorios/atuais/CONTRATO_ABSORCAO_MODELOS_SCRIPT1_PAGAMENTOS_V140.md`
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
+- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`
+- `relatorios/atuais/FORMALIZACAO_MODELO_OFICIAL_V179.md`
 - `relatorios/atuais/CONTRATO_RANKING_CARTEIRA_V123.md`
 - `relatorios/atuais/CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md`
 - `relatorios/atuais/CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`
@@ -69,3 +71,9 @@
 - `relatorios/historico/validacoes/`
 - `relatorios/historico/estruturas/`
 - `relatorios/historico/auditorias_especificas/`
+
+## Contexto histórico relevante preservado em `relatorios/atuais`
+
+- `relatorios/atuais/CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md`
+- `relatorios/atuais/CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`
+- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`

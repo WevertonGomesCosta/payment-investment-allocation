@@ -1,206 +1,275 @@
-# Contrato operacional executável do projeto `payment-investment-allocation`
+# Contrato operacional mestre do projeto `payment-investment-allocation` — V179
 
-Este documento define o que pode ser cobrado **agora** da baseline vigente e separa formalmente:
+Este documento passa a ser o **contrato operacional mestre vigente** do projeto.
 
-- a **frente central do projeto**, que deve voltar a conduzir a evolução principal do repositório;
-- a **trilha experimental local do bloco crítico**, que permanece como sandbox metodológico auditável.
+Ele consolida a governança operacional do repositório em torno da **V179**, absorvendo explicitamente o modelo oficial do projeto e rebaixando documentos anteriores como **V108** e **V117** a **contexto histórico/documental intermediário**, sem força normativa principal.
 
-Este contrato não deve misturar regras executáveis correntes com backlog estratégico, changelog histórico ou hipóteses experimentais ainda não promovidas.
+Este contrato deve ser lido em conjunto com:
+
+- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`
+- `relatorios/atuais/CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`
+- `relatorios/atuais/CONTRATO_SUPLEMENTAR_POS_VENCIMENTO_GATE_V177.md`
+
+Quando houver conflito entre documentos:
+
+1. prevalece este **Contrato Operacional Mestre**;
+2. em seguida, o **Modelo Matemático Estatístico-Financeiro Oficial V179**;
+3. depois, os contratos suplementares de validação diária e pós-vencimento/gate;
+4. por fim, auditorias, relatórios de baseline e documentos históricos.
 
 ---
 
-## 1. Escopo e status da baseline atual
+## 1. Status normativo e escopo vigente
 
-1. A baseline central/contratual vigente da frente principal é a **V108**.
-2. A V106 executa o saneamento contratual do repositório; a **V107** implementa a primeira camada da frente central; a **V108** recalibra essa camada com penalidade explícita de escassez futura para `PROTEGIDA`, prioridade intraclasse no mesmo dia e fallback auditável de “sem fonte viável”.
-3. Camadas posteriores do repositório podem acrescentar recursos operacionais ou saneamento estrutural sem substituir automaticamente a baseline central; na entrega atual, a **V115** cumpre papel organizacional e a **V116** recalibra localmente o comparador do `motor_recomendacao_pagamentos_switching_v1`, mantendo a frente central ancorada na **V108**.
-4. A V108 preserva a V105 como **baseline experimental local** do bloco crítico e mantém a V106 como marco contratual de separação de trilhas.
-5. O contrato executável deve descrever apenas o que já está implementado e observável na baseline central, separando o que é núcleo principal do que é experimento local ou camada operacional auxiliar.
-6. Regras futuras, metas estratégicas e camadas ainda não abertas permanecem em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
+1. A baseline documental e metodológica vigente do projeto é a **V179**.
+2. O núcleo normativo atual do projeto é composto por:
+   - este `CONTRATO_OPERACIONAL_PROJETO.md`;
+   - `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`;
+   - `CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`;
+   - `CONTRATO_SUPLEMENTAR_POS_VENCIMENTO_GATE_V177.md`.
+3. O projeto deve ser interpretado como um **motor conjunto diário de decisão financeira**, e não como uma coleção de heurísticas independentes de pagamento, switching, runner ou diagnóstico.
+4. Este contrato não deve misturar:
+   - regras vigentes do projeto;
+   - backlog futuro;
+   - changelog histórico;
+   - hipóteses locais experimentais ainda não promovidas.
+5. Metas futuras e frentes ainda não abertas continuam em `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`.
 
 ---
 
 ## 2. Objetivo final do projeto
 
-6. O objetivo final do projeto é construir um **motor conjunto, auditável e economicamente coerente** para:
+6. O objetivo final do projeto é construir um **motor conjunto, auditável e economicamente coerente** para decidir, dia a dia, sobre:
    - pagamentos;
-   - recebidos;
-   - aportes;
-   - e futuras decisões de switching.
-7. Esse motor deve operar sobre a mesma base de dados e o mesmo `config`, com rastreabilidade por lote.
-8. A decisão final do projeto deve buscar **maximizar o patrimônio líquido terminal**, respeitando:
-   - cobertura dos pagamentos;
-   - restrições de liquidez e carência;
+   - uso de saldo disponível;
+   - uso de lotes aportados;
+   - uso de lotes vencidos e normalizados;
+   - switching entre produtos;
+   - manutenção ou não ação.
+7. A decisão do dia deve buscar **maximizar o patrimônio líquido terminal líquido**, respeitando simultaneamente:
+   - pagamento obrigatório das contas do dia;
+   - restrições de disponibilidade temporal;
+   - liquidez;
+   - carência;
    - tributação;
-   - precedência intradiária parametrizada;
-   - preservação de pagamentos protegidos;
-   - auditabilidade completa por lote/fonte.
-9. O projeto **não** tem como objetivo final otimizar isoladamente um único pagamento ou uma única janela local sem reconexão com o cenário conjunto.
+   - regras dos produtos;
+   - precedência intradiária do pacote escolhido;
+   - auditabilidade completa por lote, fonte, conta e pacote.
+8. O projeto não tem como objetivo final otimizar isoladamente:
+   - uma única conta;
+   - um único lote;
+   - um único switching;
+   - uma única janela local sem reconexão ao cenário conjunto do dia.
 
 ---
 
-## 3. Governança do repositório
+## 3. Modelo decisório vigente
 
-10. O repositório-base oficial é `payment-investment-allocation`.
-11. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial.
-12. O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas do repositório diretamente na raiz.
-13. Todo o projeto deve permanecer em português.
-14. Antes de cada entrega, a etapa implementada deve ser executada e validada localmente no ambiente disponível.
-15. A checagem de release em `scripts/diagnostico/verificar_release_baseline.py` é gate obrigatório antes das entregas.
-16. O pacote final não deve incluir artefatos temporários como `__pycache__`, `.pyc`, logs brutos auxiliares, caches efêmeros não oficiais ou saídas redundantes de versões antigas.
-17. O mapa vigente de absorção legado dos Scripts 1 e 2 deve ser consultado antes de qualquer migração de regra de negócio ainda ausente.
-18. O mapa vigente de absorção da execução principal do Script 2 deve ser consultado antes de qualquer tentativa de migração do runner legado ou da competição final entre estratégias.
-
----
-
-## 4. Separação formal das trilhas do projeto
-
-### 4.1 Frente central do projeto
-
-19. A **frente central** é a única trilha autorizada a conduzir a evolução principal do motor do projeto.
-20. A frente central inclui, no mínimo:
-   - `caixa_recebidos_auditaveis`;
-   - `fonte_elegivel_pagamento`;
-   - `saldo_disponivel_geral`;
-   - `decisao_local_v1`;
-   - `auditoria_temporal_decisao_local`;
-   - `reescolha_dinamica_pos_quebra`;
-   - e a futura `recomputacao_sequencial_central_v1`.
-21. A frente central deve ser governada por uma **métrica canônica mínima central**, e não por âncoras locais isoladas.
-22. A frente central é a única trilha que pode ser promovida à condição de motor principal do projeto.
-
-### 4.2 Trilha experimental local do bloco crítico
-
-23. A trilha experimental local permanece ativa, mas fica formalmente rebaixada a **sandbox metodológico**.
-24. Fazem parte dessa trilha, no estado atual:
-   - `heuristica_conjunta_parcial_bloco_critico`;
-   - `planejamento_conjunto_local_bloco_critico_v1`;
-   - `microplanejamento_conjunto_bloco_critico_v2`.
-25. Essa trilha pode:
-   - provar hipóteses locais;
-   - medir trade-offs;
-   - gerar subrotinas reaproveitáveis;
-   - apoiar auditorias comparativas.
-26. Essa trilha **não** pode governar o motor principal sem promoção explícita.
-27. Nenhuma camada dessa trilha pode virar baseline principal apenas por melhorar localmente um bloco curto ou um evento-âncora.
+9. A unidade decisória oficial do projeto é o **dia `t`**.
+10. Em cada dia `t`, o motor deve primeiro verificar se existem contas com vencimento no dia.
+11. Se não houver contas no dia, os pacotes factíveis são apenas:
+    - `no_action`;
+    - `switch_only`.
+12. Se houver contas no dia, os pacotes factíveis são apenas:
+    - `pay_only`;
+    - `switch_then_pay`;
+    - `pay_then_switch`.
+13. A decisão do dia deve comparar os pacotes factíveis sobre o **mesmo estado econômico do dia**, usando o mesmo critério terminal e a mesma governança de desempate.
+14. O modelo matemático oficial do projeto é o documento `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`, que passa a ser o anexo metodológico normativo deste contrato.
 
 ---
 
-## 5. Critério de promoção de experimento local para a frente central
+## 4. Regras obrigatórias de pagamento
 
-28. Uma camada da trilha experimental local só pode ser promovida se cumprir simultaneamente:
-   - melhora ou não piora da métrica canônica mínima central;
-   - não violação de pagamentos `PROTEGIDA` em relação à baseline central de referência;
-   - ganho auditável fora do bloco local, ou justificativa econômica suficiente na métrica central;
-   - compatibilidade com rastreabilidade por lote/fonte;
-   - documentação explícita do trade-off aceito.
-29. Melhoria exclusivamente local de cobertura de um evento-âncora **não** é condição suficiente para promoção.
-
----
-
-## 6. Métrica canônica mínima central
-
-30. A métrica canônica mínima central passa a ser documento oficial do repositório em `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`.
-31. A futura `recomputacao_sequencial_central_v1` deve ser governada por essa métrica.
-32. Até nova decisão explícita, a comparação central mínima deve seguir a ordenação hierárquica abaixo:
-
-1. minimizar violações de pagamentos `PROTEGIDA`;
-2. minimizar déficit líquido total dos pagamentos;
-3. minimizar número de pagamentos sem cobertura integral;
-4. maximizar patrimônio líquido terminal proxy do cenário;
-5. minimizar destruição estratégica de lotes relevantes;
-6. minimizar fragmentação residual e deterioração desnecessária da liquidez futura.
-
-33. Quando for necessário comparar cenários de forma programática, essa métrica deve ser materializada como comparador lexicográfico ou score equivalente auditável, preservando a mesma hierarquia.
-34. Nenhuma camada central futura deve ser avaliada apenas por excesso local, âncora local ou score proxy instantâneo.
+15. A data da planilha é a data correta de pagamento da conta.
+16. O projeto não deve considerar:
+    - atraso de pagamento;
+    - antecipação de pagamento;
+    - não pagamento;
+    - pagamento parcial da conta.
+17. Cada conta do dia deve ser paga **integralmente no próprio dia**.
+18. O pagamento do dia deve ser resolvido **conjuntamente** sobre o conjunto das contas com vencimento em `t`.
+19. O pagamento combinatório de uma ou mais contas do dia é permitido, mas deve obedecer à seguinte regra operacional global:
+    - se apenas uma fonte for usada no pagamento do dia, tudo certo;
+    - se múltiplas fontes forem usadas no pagamento do dia, então **no máximo uma** dessas fontes pode terminar a fase de pagamento com residual positivo;
+    - todas as demais fontes usadas devem zerar nessa fase.
+20. Essa regra vale para o conjunto dos pagamentos do dia, e não apenas por conta isolada.
+21. O objetivo operacional dessa regra é evitar pulverização desnecessária de resíduos e preservar simplicidade operacional compatível com o uso real dos recursos.
 
 ---
 
-## 7. F1 e camada monofonte vigente
+## 5. Regras obrigatórias de elegibilidade e pós-vencimento
 
-35. A baseline mantém como contrato vigente da F1:
-   - `recebido_auditavel`;
-   - `fonte_elegivel_pagamento`;
-   - `saldo_disponivel_geral`;
-   - `decisao_local_v1`.
-36. A `decisao_local_v1` permanece monofonte e auditável nesta etapa.
-37. A F1 continua a usar o `proxy econômico v3` como critério vigente de decisão local, até nova evidência concreta.
-38. A F1 não implica, por si só:
-   - decisão econômica final do projeto;
-   - solver global;
-   - decisão multifonte oficial do motor principal;
-   - integração conjunta completa com switching.
-
----
-
-## 8. Camadas temporais e sequenciais atualmente abertas
-
-39. A baseline mantém e reconhece como observáveis:
-   - `auditoria_temporal_decisao_local`;
-   - `reescolha_dinamica_pos_quebra`.
-40. Essas camadas têm papel auditável e de diagnóstico de trajetória.
-41. A futura `recomputacao_sequencial_central_v1` deverá evoluir a partir dessa base, mas já governada pela métrica canônica mínima central.
-42. Enquanto essa camada central não existir, as camadas temporais/sequenciais atuais não devem ser confundidas com o motor conjunto final.
+22. O motor não deve começar diretamente do conjunto bruto de recursos como conjunto elegível.
+23. Antes da otimização, o projeto deve derivar explicitamente:
+    - fontes elegíveis para pagamento;
+    - fontes elegíveis para switching.
+24. Essa filtragem deve ocorrer antes da comparação dos pacotes do dia.
+25. Uma fonte só pode entrar como elegível se passar pelos filtros de:
+    - disponibilidade temporal;
+    - liquidez/resgate;
+    - carência de retirada ou saída;
+    - regras operacionais do produto.
+26. Se um lote venceu em `t` ou antes, ele deixa de ser tratado como lote aportado ativo e passa a ser tratado como **fonte disponível do dia**.
+27. Se um lote vence depois de `t`, ele não pode ser tratado como disponível por vencimento.
+28. O tratamento de pós-vencimento deve ser parte do estado econômico do dia e não apenas uma camada de auditoria posterior.
 
 ---
 
-## 9. Camadas shadow e diagnósticas preservadas
+## 6. Regras obrigatórias de switching
 
-43. A baseline mantém as camadas:
-   - `switching_shadow_reconciliacao`;
-   - `switching_economico_shadow`;
-   - `resolver_hibrido_5p_shadow`;
-   - `benchmark_agrupado_individual_shadow`;
-   - `benchmark_runner_futuro_shadow`.
-44. Todas essas camadas permanecem diagnósticas nesta etapa.
-45. Nenhuma delas substitui automaticamente a decisão vigente do fluxo principal.
-46. O runner shadow do Script 2 continua apenas diagnóstico e não deve ser promovido sem nova decisão explícita e evidência suficiente.
-
----
-
-## 10. Classes operacionais de pagamentos
-
-47. A classificação operacional de pagamentos em `PROTEGIDA`, `SEMIPROTEGIDA` e `FLEXIVEL`, quando usada, deve servir como camada de governança e restrição explícita.
-48. Nenhuma política central futura pode piorar pagamentos `PROTEGIDA` sem regra contratual nova e explícita.
-49. Políticas experimentais que sacrifiquem pagamentos `SEMIPROTEGIDA` ou `FLEXIVEL` devem permanecer na trilha experimental até passarem pelo critério de promoção definido neste contrato.
+29. O projeto adota somente três formas de switching:
+    - **individual**;
+    - **agrupado combinatório**;
+    - **integral**.
+30. O agrupado deve ser realmente combinatório, e não apenas junção simples ou heurística nominal de poucos casos fixos.
+31. O integral deve ser interpretado como o **maior grupo factível elegível do pacote do dia**, após filtros de disponibilidade, liquidez, carência, ticket e compatibilidade com o produto destino.
+32. Uma mesma fonte não pode participar de mais de um switching no mesmo dia.
+33. Uma mesma fonte pode:
+    - participar da fase de pagamento;
+    - e depois, com o residual, participar de um único switching.
+34. No pacote `pay_then_switch`, o switching deve atuar sobre o residual pós-pagamento elegível.
+35. No pacote `switch_then_pay`, o switching deve atuar sobre o conjunto elegível pré-pagamento.
+36. A distinção entre pré-pagamento e pós-pagamento é obrigatória tanto na modelagem quanto na implementação.
 
 ---
 
-## 11. O que continua fora do contrato executável
+## 7. Valoração, rendimento e critério econômico
 
-50. Ainda não fazem parte do contrato executável principal:
-   - solver global completo;
-   - decisão conjunta final de pagamentos + aportes + switching;
-   - competição final entre estratégias legadas e motor principal;
-   - switching operacional acoplado à frente central;
-   - promoção automática das políticas V103–V105.
-51. Esses itens só podem ser abertos por etapa posterior explicitamente auditada e documentada.
-
----
-
-## 12. Hierarquia documental oficial
-
-52. A documentação vigente deve ficar concentrada em `relatorios/atuais/`.
-53. Relatórios de versões anteriores devem permanecer preservados em `relatorios/historico/`, organizados por tipo documental.
-54. O arquivo `relatorios/INDICE_RELATORIOS.md` deve ser tratado como mapa oficial de navegação documental.
-55. A validação diária user-facing deve seguir também o contrato suplementar `relatorios/atuais/CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`, para evitar regressões entre baseline vigente e objetivo final do projeto.
-56. O README deve refletir a baseline vigente e a separação formal entre frente central e trilha experimental local.
+37. O projeto deve usar explicitamente o submodelo de rendimento e valoração dos lotes já validado no repositório e alinhado à saída do console.
+38. Esse submodelo é parte do contrato vigente porque fornece, no mínimo:
+    - valor economicamente disponível da fonte no dia;
+    - valor terminal líquido de manter;
+    - valor terminal líquido dos grupos em switching;
+    - custo de oportunidade de usar a fonte em pagamento.
+39. O critério econômico do pagamento não é “menor taxa nominal”.
+40. O critério correto é usar a fonte ou combinação de fontes com **menor custo de oportunidade terminal líquido**, respeitando as restrições operacionais do pacote do dia.
+41. O critério econômico do switching também deve ser comparado pelo efeito terminal líquido, e não por ganho local isolado.
 
 ---
 
-## 13. Regra de foco do projeto a partir da V108
+## 8. Conservação de valor e residual mantido
 
-56. A partir da V106, o foco principal do projeto volta a ser a construção do motor conjunto e auditável orientado pela métrica canônica mínima central.
-57. O bloco crítico 20/04/2026–20/05/2026 permanece como laboratório local, mas deixa de ser o eixo central de evolução do repositório.
-58. Novas iterações locais só devem ser abertas se estiverem explicitamente conectadas a hipótese nova relevante para a frente central.
+42. A conservação de valor faz parte do núcleo normativo do modelo.
+43. O termo de valor mantido deve permanecer no modelo, com interpretação de **residual final mantido ao fim do pacote**.
+44. No pacote `pay_then_switch`, o switching atua integralmente sobre o residual elegível da fonte: o residual entra inteiro ou não entra.
+45. O projeto não deve permitir fracionamento livre do switching sobre o residual.
+46. O residual final do pacote precisa permanecer auditável por lote/fonte.
 
+---
 
-## 14. Recomputação sequencial central v1
+## 9. Cronologia intradiária oficial
 
-57. A `recomputacao_sequencial_central_v1` passa a ser a primeira camada executável da frente central após o saneamento contratual.
-58. Ela deve recalcular a melhor fonte a cada pagamento com estado residual atualizado e comparador governado pela métrica canônica mínima central.
-59. Enquanto não houver nova decisão explícita, a `recomputacao_sequencial_central_v1` não substitui o solver global nem promove automaticamente políticas experimentais locais.
+47. A cronologia intradiária do dia deve ser congelada e respeitada pela implementação.
+48. Todo pacote do dia deve começar por:
+    - incorporar recebidos disponíveis no dia;
+    - normalizar lotes vencidos em `t`.
+49. Depois disso:
+    - `no_action` apenas mantém o estado;
+    - `switch_only` executa o switching vencedor e fecha o estado;
+    - `pay_only` paga integralmente as contas e fecha o estado;
+    - `switch_then_pay` executa switching, depois paga e então fecha o estado;
+    - `pay_then_switch` paga, depois executa switching sobre o residual e então fecha o estado.
+50. Um recurso só pode ser usado em uma etapa se ele já existir economicamente naquela etapa.
 
+---
 
-58. A V108 adiciona reserva mínima implícita para `PROTEGIDA` futura, prioridade intraclasse operacional no mesmo dia e fallback auditável de “sem fonte viável” dentro da `recomputacao_sequencial_central_v1`.
-59. A V108 continua sem solver global completo e deve ser interpretada como calibração da frente central, não como camada final do motor conjunto.
+## 10. Convenções de governança obrigatórias
+
+51. O contrato congela quatro convenções de governança transversal:
+    - arredondamento;
+    - horizonte principal e sensibilidades;
+    - hierarquia de desempate;
+    - convenção intradiária de disponibilidade.
+
+### 10.1. Arredondamento
+
+52. O documento formal e a implementação devem congelar uma política uniforme de arredondamento monetário a centavos.
+53. A política deve ser aplicada de forma consistente para:
+    - pagamentos;
+    - impostos;
+    - residuais;
+    - valores líquidos;
+    - comparação entre pacotes.
+
+### 10.2. Horizonte principal e sensibilidades
+
+54. O projeto deve operar com um **horizonte principal `H`** para a decisão base.
+55. Sensibilidades adicionais devem ser tratadas como auditoria ou análise complementar, salvo regra explícita em contrário.
+
+### 10.3. Hierarquia de desempate
+
+56. Quando dois pacotes tiverem valor terminal praticamente equivalente, a decisão deve obedecer à seguinte hierarquia documental de desempate:
+    1. maior valor terminal líquido;
+    2. maior liquidez residual útil;
+    3. menor número de fontes usadas no pagamento do dia;
+    4. menor número de switchings executados;
+    5. menor complexidade operacional global.
+
+### 10.4. Disponibilidade intradiária
+
+57. Recursos incorporados em `t` entram no estado antes da decisão do pacote do dia.
+58. Recursos só podem ser consumidos por uma etapa se já estiverem economicamente disponíveis naquela etapa.
+
+---
+
+## 11. Validação diária user-facing
+
+59. Toda camada user-facing de validação diária deve ser compatível com este contrato mestre e com o modelo oficial V179.
+60. Não deve ser aceita saída diária que:
+    - oculte os componentes reais do pagamento vencedor;
+    - oculte as fontes candidatas do pagamento;
+    - oculte as ações e cenários de switching do dia;
+    - apresente lotes futuros ou ilíquidos como elegíveis antes da hora;
+    - apresente inconsistência entre decisão econômica, execução e monitoramento do estado.
+61. A validação diária deve permanecer subordinada aos contratos suplementares vigentes (`V176` e `V177`), mas esses contratos suplementares não substituem o núcleo deste contrato mestre.
+
+---
+
+## 12. Governança do repositório
+
+62. O repositório-base oficial é `payment-investment-allocation`.
+63. Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial.
+64. O `.zip` deve abrir sem pasta interna raiz, com arquivos e pastas diretamente na raiz do pacote.
+65. Todo o projeto deve permanecer em português.
+66. Antes de cada entrega, a etapa implementada deve ser executada e validada localmente no ambiente disponível.
+67. A checagem de release em `scripts/diagnostico/verificar_release_baseline.py` permanece gate obrigatório antes das entregas.
+68. O pacote final não deve incluir artefatos efêmeros como `__pycache__`, `.pyc`, logs brutos auxiliares, caches não oficiais e saídas redundantes temporárias.
+69. O índice oficial de navegação documental é `relatorios/INDICE_RELATORIOS.md`.
+
+---
+
+## 13. Hierarquia documental vigente
+
+70. A hierarquia documental vigente do projeto passa a ser:
+    1. `CONTRATO_OPERACIONAL_PROJETO.md` — contrato mestre vigente;
+    2. `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md` — anexo metodológico oficial;
+    3. contratos suplementares vigentes (`V176` e `V177`);
+    4. auditorias e validações vigentes;
+    5. backlog contratual;
+    6. documentos históricos.
+71. O `README.md` e o `LEIA-ME_OPERACIONAL.md` devem refletir essa hierarquia.
+
+---
+
+## 14. Rebaixamento explícito de V117 e V108 a contexto histórico
+
+72. Os documentos V117 e V108 deixam de ser referência normativa principal do projeto.
+73. Eles permanecem preservados por rastreabilidade histórica, contextual e arquitetural, mas passam a ser lidos apenas como:
+    - contexto intermediário de evolução do motor;
+    - registro de baseline histórica;
+    - documentação auxiliar de transição.
+74. Em particular:
+    - `CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`;
+    - `CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md`;
+    - `RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
+   não devem mais ser usados como base normativa principal para novas decisões de implementação.
+75. Havendo conflito entre qualquer documento histórico e este contrato mestre, prevalece este contrato mestre.
+
+---
+
+## 15. Definição operacional final do contrato mestre
+
+76. O projeto deve ser interpretado, a partir da V179, como um motor diário conjunto de decisão financeira, auditável por lote, fonte, conta e pacote, ancorado no modelo matemático estatístico-financeiro oficial da V179.
+77. Qualquer nova implementação central do projeto deve derivar diretamente deste contrato mestre e do modelo oficial V179.
+78. Nenhuma nova camada central deve ser aberta com base em contratos históricos intermediários sem reconciliação explícita com a V179.

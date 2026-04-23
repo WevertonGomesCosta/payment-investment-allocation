@@ -1,38 +1,36 @@
-# LEIA-ME operacional — V176
+# LEIA-ME operacional — V179
 
 ## Baseline vigente
 - Baseline vigente: **V179**
-- Baseline anterior preservada: **V175**
+- Contrato mestre vigente: **CONTRATO_OPERACIONAL_PROJETO.md**
+- Modelo oficial vigente: **MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md**
+- Baseline anterior relevante de validação diária: **V178**
 - Marco de congelamento estrutural local do switching: **V174**
-- Baseline central/contratual da frente principal: **V108**
 
 ## Leitura obrigatória inicial
 
-### Contrato e direção metodológica
+### Núcleo normativo vigente
 - `CONTRATO_OPERACIONAL_PROJETO.md`
 - `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`
 - `CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`
-- `CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`
-- `CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md`
+- `CONTRATO_SUPLEMENTAR_POS_VENCIMENTO_GATE_V177.md`
 - `METRICA_CANONICA_MINIMA_CENTRAL.md`
 - `BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
 
-### Auditorias que governam esta etapa
+### Auditorias e validações que governam a etapa atual
 - `AUDITORIA_REPOSITORIO_OBJETIVO_FINAL_V175.md`
 - `AUDITORIA_ALINHAMENTO_CONTRATO_OBJETIVO_FINAL_V176.md`
-- `AUDITORIA_CONGELAMENTO_APLICAR_SWITCHING_EVENTOS_V174.md`
-- `VALIDACAO_DIARIA_OPERACIONAL_V175_2026-04-23_2026-05-23.md`
-- `VALIDACAO_DIARIA_OPERACIONAL_V176_2026-04-23_2026-05-23.md`
+- `AUDITORIA_REEXECUCAO_CACHE_DADOS_V178.md`
+- `VALIDACAO_DIARIA_OPERACIONAL_V178_2026-04-23_2026-05-23.md`
+
+### Contexto histórico preservado (não normativo principal)
+- `CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`
+- `CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md`
+- `RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
 
 ## Regra operacional desta etapa
-1. Não interpretar saídas user-facing apenas pelo contrato executável mínimo da baseline.
-2. Validar pagamentos e switchings contra o **objetivo final do projeto**.
-3. Exigir auditabilidade por lote/fonte nas saídas diárias.
-4. Não aceitar runner diário que oculte componentes reais do pagamento vencedor.
-5. Não aceitar runner diário que omita ações e cenários de switching do dia.
-
-## Artefatos principais da V176
-- `nucleo/runner_validacao_diaria_operacional_v176.py`
-- `scripts/diagnostico/inspecionar_validacao_diaria_operacional_v176.py`
-- `saidas/validacao_diaria_operacional_v176_2026-04-23_2026-05-23.json`
-- `relatorios/atuais/VALIDACAO_DIARIA_OPERACIONAL_V176_2026-04-23_2026-05-23.md`
+1. Interpretar o projeto pela V179 como contrato mestre e modelo oficial.
+2. Não usar V108 ou V117 como base normativa principal para novas implementações.
+3. Validar pagamentos e switchings contra o objetivo final do projeto e contra o modelo oficial V179.
+4. Exigir auditabilidade por lote/fonte/conta/pacote nas saídas diárias.
+5. Não aceitar runner ou comparador que oculte os componentes reais do pagamento vencedor ou os cenários de switching do dia.
