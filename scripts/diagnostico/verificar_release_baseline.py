@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-VERSAO_VIGENTE = "V141"
-VERSAO_ANTERIOR = "V140"
+VERSAO_VIGENTE = "V142"
+VERSAO_ANTERIOR = "V141"
 
 
 def repo_root() -> Path:
@@ -42,14 +42,15 @@ def validar_indice_documental(base: Path) -> list[str]:
         'relatorios/atuais/AUDITORIA_ATIVACAO_LOTES_NAO_APORTADOS_FUTUROS_V136.md',
         'relatorios/atuais/AUDITORIA_ATIVACAO_E_EXPANSAO_FUTUROS_V136.md',
         'relatorios/atuais/AUDITORIA_FECHAMENTO_FRENTE_TEMPORAL_V135.md',
-        'relatorios/atuais/ALOCADOR_PAGAMENTOS_TERMINAL_V141.md',
+        'relatorios/atuais/ALOCADOR_PAGAMENTOS_TERMINAL_V142.md',
+        'relatorios/atuais/FLUXO_PAGAMENTOS_TERMINAL_RECORTE_AMPLIADO_V142.md',
         'relatorios/atuais/FLUXO_PAGAMENTOS_TERMINAL_RECORTE_CURTO_V138.md',
         'relatorios/atuais/LEIA-ME_OPERACIONAL.md',
         'relatorios/atuais/CONTRATO_ABSORCAO_MODELOS_SCRIPT1_PAGAMENTOS_V140.md',
         'relatorios/atuais/MAPA_HEURISTICAS_PRIORITARIAS_SCRIPT1_V140.md',
-        'relatorios/atuais/BASELINE_FIXA_V141.md',
-        'relatorios/atuais/VALIDACAO_LOCAL_V141.md',
-        'relatorios/atuais/ESTRUTURA_REPOSITORIO_V141.md',
+        'relatorios/atuais/BASELINE_FIXA_V142.md',
+        'relatorios/atuais/VALIDACAO_LOCAL_V142.md',
+        'relatorios/atuais/ESTRUTURA_REPOSITORIO_V142.md',
     ]
     if not indice.exists():
         return ['relatorios/INDICE_RELATORIOS.md ausente']

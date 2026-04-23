@@ -1,7 +1,7 @@
 # LEIA-ME operacional — V139
 
 ## Baseline vigente
-- Baseline vigente: **V141**
+- Baseline vigente: **V142**
 - Baseline anterior preservada: **V140**
 - Baseline central/contratual da frente principal: **V108**
 
@@ -24,13 +24,13 @@
 - `AUDITORIA_ATIVACAO_LOTES_NAO_APORTADOS_FUTUROS_V136.md`
 - `AUDITORIA_ATIVACAO_E_EXPANSAO_FUTUROS_V136.md`
 - `AUDITORIA_FECHAMENTO_FRENTE_TEMPORAL_V135.md`
-- `ALOCADOR_PAGAMENTOS_TERMINAL_V141.md`
+- `ALOCADOR_PAGAMENTOS_TERMINAL_V142.md`
 - `FLUXO_PAGAMENTOS_TERMINAL_RECORTE_CURTO_V138.md`
 
 ### Reorganização vigente
-- `BASELINE_FIXA_V141.md`
-- `VALIDACAO_LOCAL_V141.md`
-- `ESTRUTURA_REPOSITORIO_V141.md`
+- `BASELINE_FIXA_V142.md`
+- `VALIDACAO_LOCAL_V142.md`
+- `ESTRUTURA_REPOSITORIO_V142.md`
 - `CONTRATO_ABSORCAO_MODELOS_SCRIPT1_PAGAMENTOS_V140.md`
 - `LEIA-ME_OPERACIONAL.md`
 
@@ -40,6 +40,8 @@
 - `saidas/historico/` → artefatos antigos preservados por rastreabilidade
 - `saidas/operacional/` → camada de compatibilidade temporária durante a migração dos writers
 
-## Próxima etapa após a V141
+## Próxima etapa após a V142
 1. expandir o fluxo real de pagamentos já com H1–H3 ativos;
 2. só depois abrir a fase 2 das combinações do Script 1.
+
+- `FLUXO_PAGAMENTOS_TERMINAL_RECORTE_AMPLIADO_V142.md`

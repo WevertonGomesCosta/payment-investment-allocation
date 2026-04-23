@@ -4,7 +4,7 @@ Camada reservada para absorção incremental das heurísticas do Script 1 que ai
 
 ## Estado atual
 
-A V141 mantém o contrato da V140 e implementa a Fase 1 no alocador:
+A V142 mantém o contrato da V140 e implementa a Fase 1 no alocador:
 
 ### Fase 1 — integração imediata ao alocador
 - `score_hibrido_5p_fonte`
@@ -22,3 +22,8 @@ A V141 mantém o contrato da V140 e implementa a Fase 1 no alocador:
 
 ## Regra central
 Os modelos do Script 1 entram como heurísticas auxiliares do `alocador_pagamentos_terminal_v1` e não como substituição do comparador terminal nem do comparador híbrido de switching.
+
+
+## Validação ampliada V142
+
+- `relatorios/atuais/FLUXO_PAGAMENTOS_TERMINAL_RECORTE_AMPLIADO_V142.md`

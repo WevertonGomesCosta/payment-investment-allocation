@@ -50,6 +50,11 @@ _DEFAULTS = {
 
 
 def carregar_parametros_fase1(config: Mapping[str, Any] | None = None) -> dict[str, float]:
+    if isinstance(config, Mapping) and bool(config.get('desabilitar_modelos_script1_fase1')):
+        params = dict(_DEFAULTS)
+        for chave in list(params.keys()):
+            params[chave] = 0.0
+        return params
     params = dict(_DEFAULTS)
     if CONFIG_FASE1.exists():
         try:
