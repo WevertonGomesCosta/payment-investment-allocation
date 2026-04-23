@@ -1,6 +1,6 @@
 # payment-investment-allocation
 
-Baseline atual: **V123**.
+Baseline atual: **V124**.
 
 Esta derivação incorpora o ranking estabilizado Carteira-only ao projeto principal, preservando a aba `Carteira` como entrada única do score/ranking e usando esse ranking como fonte preferencial de destinos do switching temporal antes da avaliação de longo prazo.
 
