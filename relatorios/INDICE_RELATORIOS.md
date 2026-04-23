@@ -2,83 +2,28 @@
 
 ## Vigentes em `relatorios/atuais`
 
-- `relatorios/atuais/ALOCADOR_PAGAMENTOS_TERMINAL_V137.md`
-- `relatorios/atuais/ALOCADOR_PAGAMENTOS_TERMINAL_V141.md`
-- `relatorios/atuais/AUDITORIA_ALINHAMENTO_CONTRATO_OBJETIVO_FINAL_V176.md`
-- `relatorios/atuais/AUDITORIA_ATIVACAO_E_EXPANSAO_FUTUROS_V136.md`
-- `relatorios/atuais/AUDITORIA_ATIVACAO_LOTES_NAO_APORTADOS_FUTUROS_V136.md`
-- `relatorios/atuais/AUDITORIA_CONGELAMENTO_APLICAR_SWITCHING_EVENTOS_V174.md`
-- `relatorios/atuais/AUDITORIA_CONGELAMENTO_SWITCHING_PARCIAL_V172.md`
-- `relatorios/atuais/AUDITORIA_DUPLICACAO_SCRIPTS_V154.md`
-- `relatorios/atuais/AUDITORIA_FECHAMENTO_FRENTE_TEMPORAL_V135.md`
-- `relatorios/atuais/AUDITORIA_ORQUESTRADOR_LOCAL_SWITCHING_V173.md`
-- `relatorios/atuais/AUDITORIA_POS_VENCIMENTO_V145.md`
-- `relatorios/atuais/AUDITORIA_REPOSITORIO_OBJETIVO_FINAL_V175.md`
-- `relatorios/atuais/AUDITORIA_REPOSITORIO_V142.md`
-- `relatorios/atuais/AUDITORIA_TEMATICA_SCRIPTS_TEMPORAIS_V155.md`
-- `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `relatorios/atuais/BASELINE_FIXA_V139.md`
-- `relatorios/atuais/BASELINE_FIXA_V141.md`
-- `relatorios/atuais/COMPARADOR_HIBRIDO_SWITCHING_V132.md`
-- `relatorios/atuais/CONTRATO_ABSORCAO_MODELOS_SCRIPT1_PAGAMENTOS_V140.md`
-- `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`
-- `relatorios/atuais/FORMALIZACAO_MODELO_OFICIAL_V179.md`
-- `relatorios/atuais/CONTRATO_RANKING_CARTEIRA_V123.md`
-- `relatorios/atuais/CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md`
-- `relatorios/atuais/CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`
-- `relatorios/atuais/CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V139.md`
-- `relatorios/atuais/ESTRUTURA_REPOSITORIO_V141.md`
-- `relatorios/atuais/EXTRACAO_APLICACAO_EFEITO_EVENTO_SWITCHING_V163.md`
-- `relatorios/atuais/EXTRACAO_BUILDER_ESTADO_SIMULADOR_V158.md`
-- `relatorios/atuais/EXTRACAO_CAMADA_COMUM_DESTINO_SWITCHING_V170.md`
-- `relatorios/atuais/EXTRACAO_HELPERS_INTEGRAL_PARCIAL_APLICAR_SWITCHING_V162.md`
-- `relatorios/atuais/EXTRACAO_HISTORICO_EXECUTADOS_ACUMULADORES_V164.md`
-- `relatorios/atuais/EXTRACAO_MUTACAO_LOTE_ORIGEM_SWITCHING_PARCIAL_V171.md`
-- `relatorios/atuais/EXTRACAO_PAYLOAD_MUTACAO_SWITCHING_INTEGRAL_V169.md`
-- `relatorios/atuais/EXTRACAO_RUNNER_SIMULADOR_CENTRAL_V157.md`
-- `relatorios/atuais/F1_CONTRATO_MINIMO_CAIXA_RECEBIDOS.md`
-- `relatorios/atuais/FLUXO_PAGAMENTOS_TERMINAL_RECORTE_AMPLO_V142.md`
-- `relatorios/atuais/FLUXO_PAGAMENTOS_TERMINAL_RECORTE_CURTO_V138.md`
-- `relatorios/atuais/GRADE_DIARIA_OFICIAL_HIBRIDA_V134.md`
-- `relatorios/atuais/LEIA-ME_OPERACIONAL.md`
-- `relatorios/atuais/MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md`
-- `relatorios/atuais/MAPA_HEURISTICAS_PRIORITARIAS_SCRIPT1_V140.md`
-- `relatorios/atuais/METRICA_CANONICA_MINIMA_CENTRAL.md`
-- `relatorios/atuais/MOTOR_DIARIO_CONJUNTO_EXPERIMENTAL_V143_2026-04-21_2026-05-06.md`
-- `relatorios/atuais/MOTOR_DIARIO_CONJUNTO_POS_VENCIMENTO_V146_2026-05-03_2026-05-06.md`
-- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
-- `relatorios/atuais/REORGANIZACAO_ESTRUTURAL_V153.md`
-- `relatorios/atuais/REORGANIZACAO_VALIDACAO_DIARIA_V176.md`
-- `relatorios/atuais/VALIDACAO_DIARIA_OPERACIONAL_V175_2026-04-23_2026-05-23.md`
-- `relatorios/atuais/VALIDACAO_DIARIA_OPERACIONAL_V176_2026-04-23_2026-05-23.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V139.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V141.md`
-
-- `relatorios/atuais/CONTRATO_SUPLEMENTAR_POS_VENCIMENTO_GATE_V177.md`
-
-- `relatorios/atuais/CORRECAO_POS_VENCIMENTO_GATE_SWITCHING_V177.md`
-
-- `relatorios/atuais/ATUALIZACAO_CACHE_DADOS_E_REEXECUCAO_V178.md`
-
-- `relatorios/atuais/AUDITORIA_REEXECUCAO_CACHE_DADOS_V178.md`
-
-- `relatorios/atuais/VALIDACAO_DIARIA_OPERACIONAL_V178_2026-04-23_2026-05-23.md`
+- `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md` — contrato mestre vigente da baseline V183
+- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` — anexo metodológico vinculante da baseline V183
+- `relatorios/atuais/LEIA-ME_OPERACIONAL.md` — guia de leitura da camada documental vigente
+- `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md` — backlog oficial subordinado ao contrato e ao modelo
 
 ## Histórico documental
+
+### Histórico rebaixado a partir da limpeza V184
+- `relatorios/historico/documentacao_baseline/`
+- `relatorios/historico/validacoes_diarias/`
+- `relatorios/historico/reorganizacao_local_switching/`
+- `relatorios/historico/objetivo_final/`
+- `relatorios/historico/contratos_intermediarios/`
+
+### Histórico preservado já existente
 - `relatorios/historico/baselines/`
 - `relatorios/historico/validacoes/`
 - `relatorios/historico/estruturas/`
 - `relatorios/historico/auditorias_especificas/`
 
-## Contexto histórico relevante preservado em `relatorios/atuais`
-
-- `relatorios/atuais/CONTRATO_V117_ALOCADOR_PAGAMENTOS_TERMINAL_E_PLANEJADOR_SWITCHING_TEMPORAL.md`
-- `relatorios/atuais/CONTRATO_V117_MOTOR_CONJUNTO_TEMPORAL.md`
-- `relatorios/atuais/RECOMPUTACAO_SEQUENCIAL_CENTRAL_V108.md`
-
-- `relatorios/atuais/AMPLIACAO_CONTRATO_MESTRE_V181.md`
-
-- `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md` — contrato mestre vigente da baseline V183
-- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` — anexo metodológico vinculante da baseline V183
+## Regra de navegação
+1. Começar por `relatorios/atuais/LEIA-ME_OPERACIONAL.md`.
+2. Ler `CONTRATO_OPERACIONAL_PROJETO.md` como norma superior.
+3. Ler `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` como anexo metodológico vinculante.
+4. Consultar o histórico apenas quando houver necessidade de rastreabilidade, regressão ou contexto.

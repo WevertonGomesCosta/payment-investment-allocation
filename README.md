@@ -1,9 +1,10 @@
 # payment-investment-allocation
 
-**Baseline atual:** V181  
-**Contrato mestre vigente:** V181
+**Pacote operacional atual:** V184  
+**Baseline contratual vigente:** V183  
+**Modelo metodológico vinculante vigente:** V182
 
-A V181 mantém a V179 como baseline metodológica oficial do modelo e amplia o contrato mestre para um formato completo, atual e historicamente contextualizado, adequado para servir de referência em conversas futuras e como base final do projeto.
+A V184 é uma limpeza residual fina da camada documental e de navegação do repositório. Ela **não altera** o núcleo econômico, o contrato mestre, o modelo oficial nem a estrutura diária por pacotes já congelados.
 
 ## Objetivo final do projeto
 Construir um motor conjunto, auditável e economicamente coerente para:
@@ -14,22 +15,18 @@ Construir um motor conjunto, auditável e economicamente coerente para:
 
 A decisão final deve maximizar o **patrimônio líquido terminal**, respeitando cobertura, liquidez, carência, tributação, precedência intradiária parametrizada e auditabilidade por lote/fonte.
 
-## O que a V181 consolida
-- mantém a V179 como modelo matemático estatístico-financeiro oficial do projeto;
-- amplia o contrato operacional mestre para um formato completo, atual e historicamente contextualizado;
-- mantém os suplementos de validação diária e pós-vencimento/gate como camadas complementares vigentes;
-- rebaixa explicitamente V117/V108 a contexto histórico e não normativo principal;
-- preserva a trilha de validação diária, o congelamento estrutural local e a linha histórica das baselines centrais no próprio corpo do contrato mestre.
+## O que a V184 consolida
+- limpa `relatorios/atuais/`, mantendo apenas os documentos canônicos vigentes;
+- rebaixa fisicamente documentos históricos para `relatorios/historico/`;
+- preserva a trilha histórica sem deixá-la competir com o caminho ativo;
+- corrige a navegação documental em `README`, `LEIA-ME_OPERACIONAL` e `INDICE_RELATORIOS`.
 
 ## Documentos operacionais prioritários
 Consulte primeiro:
 - `relatorios/atuais/LEIA-ME_OPERACIONAL.md`
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V179.md`
-- `relatorios/atuais/CONTRATO_VALIDACAO_DIARIA_OBJETIVO_FINAL_V176.md`
-- `relatorios/atuais/CONTRATO_SUPLEMENTAR_POS_VENCIMENTO_GATE_V177.md`
-- `relatorios/atuais/AUDITORIA_REEXECUCAO_CACHE_DADOS_V178.md`
-- `relatorios/atuais/VALIDACAO_DIARIA_OPERACIONAL_V178_2026-04-23_2026-05-23.md`
+- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
+- `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
 
-## Próxima frente após a V181
-Derivar a especificação operacional completa de `resolver_dia(t, E_t)` diretamente a partir do contrato mestre V181 e do modelo oficial V179.
+## Próxima frente após a V184
+Derivar a especificação operacional completa de `resolver_dia(t, E_t)` diretamente a partir do contrato mestre V183 e do modelo oficial V182.
