@@ -89,6 +89,99 @@ def _apply_table_style(ws, headers: list[str], rows: list[list], *, start_row: i
 
 
 
+
+
+
+def _sheet_exists(wb, title: str) -> bool:
+    return any(ws.title == title for ws in wb.worksheets)
+
+
+def _drop_sheet_if_exists(wb, title: str) -> None:
+    for ws in list(wb.worksheets):
+        if ws.title == title:
+            wb.remove(ws)
+            break
+
+
+def _dataframe_to_rows(df):
+    if df is None or len(df) == 0:
+        return []
+    rows = []
+    for row in df.fillna('').to_dict('records'):
+        rows.append(list(row.values()))
+    return rows
+
+
+def _adicionar_abas_ranking(wb, contexto):
+    ranking = getattr(contexto, 'ranking_carteira', None)
+    if ranking is None:
+        return
+
+    # Carteira operacional resumida
+    _drop_sheet_if_exists(wb, 'Carteira')
+    ws_carteira = wb.create_sheet('Carteira')
+    quadro_carteira = ranking.quadro_destinos_switch.copy()
+    cols_carteira = [
+        'rank_destino', 'nome', 'score_final', 'proxy_terminal_destino', 'retorno_anual_proxy',
+        'liquidez_dias', 'carencia_dias', 'aplicacao_minima', 'aplicacao_maxima',
+        'tipo_produto', 'somente_combo', 'Status_Confirmação', 'Campos_Pendentes'
+    ]
+    cols_carteira = [c for c in cols_carteira if c in quadro_carteira.columns]
+    quadro_carteira = quadro_carteira[cols_carteira].copy()
+    headers_carteira = [
+        'Rank', 'Produto', 'Score Final', 'Proxy Terminal', 'Retorno Proxy aa', 'Liquidez Dias',
+        'Carência Dias', 'Aplicação Mínima', 'Aplicação Máxima', 'Tipo Produto',
+        'Somente Combo', 'Status Confirmação', 'Campos Pendentes'
+    ][:len(cols_carteira)]
+    _apply_table_style(ws_carteira, headers_carteira, _dataframe_to_rows(quadro_carteira), freeze=True)
+
+    # Abas do ranking estabilizado
+    _drop_sheet_if_exists(wb, 'Ranking_Completo')
+    ws_rank = wb.create_sheet('Ranking_Completo')
+    quadro_rank = ranking.quadro_ranking.copy()
+    _apply_table_style(ws_rank, list(quadro_rank.columns), _dataframe_to_rows(quadro_rank), freeze=True)
+
+    _drop_sheet_if_exists(wb, 'Top30')
+    ws_top30 = wb.create_sheet('Top30')
+    top30 = ranking.top30.copy()
+    _apply_table_style(ws_top30, list(top30.columns), _dataframe_to_rows(top30), freeze=True)
+
+    _drop_sheet_if_exists(wb, 'Destinos_Switch')
+    ws_dest = wb.create_sheet('Destinos_Switch')
+    destinos = ranking.quadro_destinos_switch.copy()
+    _apply_table_style(ws_dest, list(destinos.columns), _dataframe_to_rows(destinos), freeze=True)
+
+    _drop_sheet_if_exists(wb, 'Resumo')
+    ws_resumo = wb.create_sheet('Resumo')
+    resumo_rows = [
+        ['produtos_total', ranking.resumo.get('produtos_total')],
+        ['produtos_ativos_ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')],
+        ['qtd_destinos_switch', ranking.auditoria.get('qtd_destinos_switch')],
+        ['destino_top1', ranking.auditoria.get('destino_top1')],
+        ['qtd_diffs_materiais_nucleo', ranking.validacao.get('qtd_diffs_materiais_nucleo')],
+        ['aceite_nucleo', ranking.validacao.get('aceite_nucleo')],
+    ]
+    _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows, freeze=False)
+
+    _drop_sheet_if_exists(wb, 'Validacao')
+    ws_val = wb.create_sheet('Validacao')
+    validacao_rows = []
+    validacao_rows.append([str(ranking.validacao.get('colunas')), ranking.validacao.get('qtd_diffs_materiais_nucleo'), ranking.validacao.get('aceite_nucleo'), ranking.auditoria.get('metodo')])
+    _apply_table_style(ws_val, ['colunas', 'qtd_diffs_materiais_nucleo', 'aceite_nucleo', 'metodo'], validacao_rows, freeze=False)
+
+
+def _limpar_abas_legadas(wb):
+    legadas = [
+        'Auditoria temporal', 'Reescolha dinâmica', 'Heurística conjunta', 'Planejamento conjunto',
+        'Microplanejamento v2', 'Recomp. central v1', 'Melhores produtos'
+    ]
+    for title in legadas:
+        _drop_sheet_if_exists(wb, title)
+    for ws in wb.worksheets:
+        if ws.title == 'Rec. pgto+switch':
+            ws.title = 'Switching'
+            break
+
 def _calcular_resumo_financeiro_fonte(contexto, decisao: dict) -> dict[str, object]:
     if not decisao:
         return {
@@ -173,7 +266,7 @@ def _classificar_lotes_situacao_atual(contexto):
             serie_cdi=cache.serie_cdi,
             data_fechamento_referencia=data_economica,
         )
-        lote_exaurido_na_situacao = bool(lote.esgotado or saldo_bruto <= limiar)
+        lote_exaurido_na_situacao = bool(lote.esgotado or saldo_bruto <= limiar or saldo_liquido <= limiar or saldo_rem <= limiar)
         saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao = normalizar_valores_situacao_atual_exaurida(
             saldo_bruto=saldo_bruto,
             saldo_liquido=saldo_liquido,
@@ -209,7 +302,7 @@ def main() -> None:
 
     wb = Workbook()
     ws_passado = wb.active
-    ws_passado.title = 'Extrato passado'
+    ws_passado.title = 'Extrato Passado'
     log = rep.log_passado.copy().sort_values(by=['Data', 'Sequencia Saque'], kind='stable')
     cols_passado = [
         ('Data', 'Data'), ('Conta', 'Conta'), ('Despesa ID', 'Despesa ID'), ('Lote', 'Lote'),
@@ -220,7 +313,7 @@ def main() -> None:
     rows_passado = list(_as_rows(log.to_dict('records'), cols_passado))
     _apply_table_style(ws_passado, [dst for _, dst in cols_passado], rows_passado, freeze=True)
 
-    ws_futuro = wb.create_sheet('Extrato futuro')
+    ws_futuro = wb.create_sheet('Extrato Futuro')
     gastos_futuros = dados.gastos_canonicos[dados.gastos_canonicos['futuro_ou_pendente_na_data_referencia'] == True].copy().sort_values(by=['data', 'despesa_id'], kind='stable')
     quadro_decisao = contexto.decisao_local_v1.quadro_decisao_local_v1.copy() if contexto.decisao_local_v1 is not None else None
     quadro_temporal = contexto.auditoria_temporal_decisao_local.quadro_auditoria_temporal.copy() if contexto.auditoria_temporal_decisao_local is not None else None
@@ -646,7 +739,7 @@ def main() -> None:
     headers_melhores = ['Produto', 'Família', 'Regime', 'Taxa Base CDI', 'Taxa Bônus CDI', 'Dias Bônus', 'Carência Dias', 'Aplicação Mínima', 'Score Final', 'Rank Global', 'Rank Família']
     _apply_table_style(ws_melhores, headers_melhores, rows_melhores, freeze=True)
 
-    ws_atual = wb.create_sheet('Situação atual')
+    ws_atual = wb.create_sheet('Situação Atual')
     resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
         data_referencia=ctx.data_referencia,
         calendario_financeiro=cal,
@@ -679,6 +772,9 @@ def main() -> None:
     ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_ativos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes ativos')
     ultima_linha = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_recebidos_resumo, start_row=ultima_linha + 3, title='Resumo dos recebidos auditáveis (inclui exauridos)')
     _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=ultima_linha + 3, title='Fechamento econômico da situação atual')
+
+    _limpar_abas_legadas(wb)
+    _adicionar_abas_ranking(wb, contexto)
 
     SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
     wb.save(SAIDA_INTERNA)

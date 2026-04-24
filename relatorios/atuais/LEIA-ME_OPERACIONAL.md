@@ -52,3 +52,8 @@
 
 ## Observação sobre a raiz de `scripts/`
 Na raiz de `scripts/` permanecem apenas wrappers mínimos de compatibilidade e arquivos de suporte compartilhado. A leitura operacional canônica continua sendo: `scripts/diagnostico/`, `scripts/operacional/` e `scripts/auditoria/`.
+
+
+## Observação operacional vigente
+
+A saída oficial `.xlsx` deve manter as abas canônicas `Extrato Passado`, `Extrato Futuro`, `Switching`, `Carteira` e `Situação Atual`, além das abas do ranking estabilizado `Ranking_Completo`, `Top30`, `Destinos_Switch`, `Resumo` e `Validacao`, quando geradas pela trilha operacional oficial.

@@ -324,3 +324,8 @@ Retorno mínimo por dia:
 ## 11. Decisão metodológica
 
 A especificação de `resolver_dia(t, E_t)` deve ser derivada **somente após** a consolidação desta camada observável, para evitar retrabalho na interface de retorno e nos artefatos oficiais.
+
+
+## Observação operacional vigente
+
+A saída oficial `.xlsx` deve manter as abas canônicas `Extrato Passado`, `Extrato Futuro`, `Switching`, `Carteira` e `Situação Atual`, além das abas do ranking estabilizado `Ranking_Completo`, `Top30`, `Destinos_Switch`, `Resumo` e `Validacao`, quando geradas pela trilha operacional oficial.

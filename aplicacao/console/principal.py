@@ -287,6 +287,71 @@ def _preparar_tabela_recebidos_situacao_atual(recebidos_auditaveis):
     return linhas
 
 
+
+
+
+def _render_secao_ranking_oficial(contexto_baseline):
+    ranking = getattr(contexto_baseline, 'ranking_carteira', None)
+    if ranking is None:
+        return
+    _imprimir_titulo('RANQUEAMENTO OFICIAL DA CARTEIRA')
+    _imprimir_pares([
+        ('produtos totais', ranking.resumo.get('produtos_total')),
+        ('produtos ativos ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')),
+        ('destinos elegíveis de switching', ranking.auditoria.get('qtd_destinos_switch')),
+        ('destino top 1', ranking.auditoria.get('destino_top1')),
+        ('método', ranking.auditoria.get('metodo')),
+    ])
+    destinos = ranking.quadro_destinos_switch.copy()
+    linhas = []
+    for _, row in destinos.head(10).iterrows():
+        linhas.append({
+            'Rank': row.get('rank_destino'),
+            'Produto': row.get('nome'),
+            'Score': row.get('score_final'),
+            'Proxy terminal': row.get('proxy_terminal_destino'),
+            'Liquidez': row.get('liquidez_dias'),
+            'Carência': row.get('carencia_dias'),
+            'Ticket mín.': row.get('aplicacao_minima'),
+            'Status': 'elegível' if str(row.get('Status_Confirmação') or '').strip() in {'', 'Confirmado', 'confirmado'} else str(row.get('Status_Confirmação') or ''),
+        })
+    print('- amostra do ranking relevante do dia:')
+    _imprimir_tabela(['Rank', 'Produto', 'Score', 'Proxy terminal', 'Liquidez', 'Carência', 'Ticket mín.', 'Status'], linhas, limite=10)
+
+
+def _render_secao_switchings_oficiais(contexto_baseline):
+    motor = getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None)
+    if motor is None:
+        return
+    _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
+    auditoria = motor.auditoria or {}
+    _imprimir_pares([
+        ('pagamentos auditados', auditoria.get('total_pagamentos_auditados')),
+        ('estratégia sem switching', auditoria.get('qtd_sem_switching')),
+        ('switching simples', auditoria.get('qtd_switching_simples')),
+        ('combinação mínima', auditoria.get('qtd_combinacao_minima')),
+        ('switchings acionados', auditoria.get('qtd_switchings_acionados')),
+        ('ganho líquido estimado de switching', auditoria.get('ganho_liquido_estimado_total_switching')),
+    ])
+    quadro = motor.quadro_recomendacoes.copy()
+    if len(quadro):
+        quadro = quadro[quadro['estrategia_recomendada'].astype(str) != 'sem_switching'].copy()
+        quadro = quadro.sort_values(by=['data_pagamento','ganho_liquido_estimado_switching'], ascending=[True,False], kind='stable')
+    linhas=[]
+    if len(quadro):
+        for _, row in quadro.head(10).iterrows():
+            linhas.append({
+                'Data': row.get('data_pagamento').isoformat() if hasattr(row.get('data_pagamento'),'isoformat') else row.get('data_pagamento'),
+                'Conta': row.get('descricao_pagamento'),
+                'Estratégia': row.get('estrategia_recomendada'),
+                'Origem': row.get('lote_origem_switching') or row.get('lote_recomendado'),
+                'Destino': row.get('produto_destino_switching'),
+                'Ganho estimado': row.get('ganho_liquido_estimado_switching'),
+                'Status': 'classificado',
+            })
+    print('- amostra de switchings relevantes:')
+    _imprimir_tabela(['Data','Conta','Estratégia','Origem','Destino','Ganho estimado','Status'], linhas, limite=10)
+
 def main() -> None:
     contexto_baseline = carregar_contexto_baseline(raiz_repositorio=RAIZ_REPOSITORIO, instalar_automaticamente=False)
     pacote_config = contexto_baseline.pacote_config
@@ -372,96 +437,13 @@ def main() -> None:
         abas_auxiliares=abas_auxiliares,
     )
 
-    render_secao_canonicas(
-        carteira_canonica=carteira_canonica,
-        dados_operacionais=dados_operacionais,
-        switching_shadow=switching_shadow,
-        severidade_carteira=severidade_carteira,
-        severidade_inventario=severidade_inventario,
-        severidade_gastos=severidade_gastos,
-        severidade_lotes_shadow=severidade_lotes_shadow,
-        severidade_eventos_shadow=severidade_eventos_shadow,
-        severidade_triagem=severidade_triagem,
-        severidade_nucleo=severidade_nucleo,
-        resumo_inventario=resumo_inventario,
-        resumo_gastos=resumo_gastos,
-        validacao_carteira=validacao_carteira,
-        validacao_inventario=validacao_inventario,
-        validacao_gastos=validacao_gastos,
-        resumo_lotes_shadow=resumo_lotes_shadow,
-        auditoria_eventos_shadow=auditoria_eventos_shadow,
-        reconciliacao_shadow=reconciliacao_shadow,
-        auditoria_triagem=auditoria_triagem,
-        auditoria_nucleo=auditoria_nucleo,
-    )
-
-    render_secao_nucleo(
-        auditoria_nucleo=auditoria_nucleo,
-        validacao_nucleo=validacao_nucleo,
-        severidade_nucleo=severidade_nucleo,
-    )
-
-    render_secao_replay(
-        auditoria_replay=auditoria_replay,
-        validacao_replay=validacao_replay,
-        severidade_replay=severidade_replay,
-        limiar_residuo_resolvido=limiar_residuo_resolvido,
-    )
-
-    render_secao_triagem(
-        auditoria_triagem=auditoria_triagem,
-        contexto_triagem=contexto_triagem,
-        severidade_triagem=severidade_triagem,
-    )
-
-    auditoria_metodo_pagamentos, amostra_mudancas_metodo = _preparar_auditoria_metodo_pagamentos(contexto_baseline)
     pagamentos_realizados_console, pagamentos_proximos_console = _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, contexto_baseline.decisao_local_v1, contexto_baseline, limite=5)
-    render_secao_metodo_pagamentos(
-        auditoria_metodo=auditoria_metodo_pagamentos,
-        amostra_mudancas_metodo=amostra_mudancas_metodo,
-    )
     render_secao_amostras_pagamentos(
         pagamentos_realizados=pagamentos_realizados_console,
         pagamentos_proximos=pagamentos_proximos_console,
     )
-    render_secao_auditoria_temporal_pagamentos(
-        auditoria_temporal=contexto_baseline.auditoria_temporal_decisao_local.auditoria if contexto_baseline.auditoria_temporal_decisao_local is not None else {},
-        amostra_primeiras_quebras=((contexto_baseline.auditoria_temporal_decisao_local.auditoria or {}).get('amostra_primeiras_quebras', []) if contexto_baseline.auditoria_temporal_decisao_local is not None else []),
-    )
-    render_secao_reescolha_dinamica_pagamentos(
-        auditoria_reescolha=contexto_baseline.reescolha_dinamica_pos_quebra.auditoria if contexto_baseline.reescolha_dinamica_pos_quebra is not None else {},
-        amostra_reescolhas=((contexto_baseline.reescolha_dinamica_pos_quebra.auditoria or {}).get('amostra_reescolhas', []) if contexto_baseline.reescolha_dinamica_pos_quebra is not None else []),
-        amostra_sem_cobertura=((contexto_baseline.reescolha_dinamica_pos_quebra.auditoria or {}).get('amostra_sem_cobertura', []) if contexto_baseline.reescolha_dinamica_pos_quebra is not None else []),
-    )
-
-    render_secao_motor_recomendacao_pagamentos_switching_v1(
-        auditoria_recomendacao=contexto_baseline.motor_recomendacao_pagamentos_switching_v1.auditoria if getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None) is not None else {},
-        amostra_switching=((contexto_baseline.motor_recomendacao_pagamentos_switching_v1.auditoria or {}).get('amostras', {}).get('recomendacoes_switching', []) if getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None) is not None else []),
-        amostra_combinacao=((contexto_baseline.motor_recomendacao_pagamentos_switching_v1.auditoria or {}).get('amostras', {}).get('recomendacoes_combinacao', []) if getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None) is not None else []),
-    )
-    render_secao_recomputacao_sequencial_central_v1(
-        auditoria_central=contexto_baseline.recomputacao_sequencial_central_v1.auditoria if getattr(contexto_baseline, 'recomputacao_sequencial_central_v1', None) is not None else {},
-        amostra_mudancas=((contexto_baseline.recomputacao_sequencial_central_v1.auditoria or {}).get('amostra_mudancas', []) if getattr(contexto_baseline, 'recomputacao_sequencial_central_v1', None) is not None else []),
-        amostra_sem_cobertura=((contexto_baseline.recomputacao_sequencial_central_v1.auditoria or {}).get('amostra_sem_cobertura', []) if getattr(contexto_baseline, 'recomputacao_sequencial_central_v1', None) is not None else []),
-    )
-    render_secao_heuristica_conjunta_parcial(
-        auditoria_heuristica=contexto_baseline.heuristica_conjunta_parcial_bloco_critico.auditoria if contexto_baseline.heuristica_conjunta_parcial_bloco_critico is not None else {},
-        amostra_trocas_preventivas=((contexto_baseline.heuristica_conjunta_parcial_bloco_critico.auditoria or {}).get('amostra_trocas_preventivas', []) if contexto_baseline.heuristica_conjunta_parcial_bloco_critico is not None else []),
-        amostra_planejamento_reservas=((contexto_baseline.heuristica_conjunta_parcial_bloco_critico.auditoria or {}).get('amostra_planejamento_reservas', []) if contexto_baseline.heuristica_conjunta_parcial_bloco_critico is not None else []),
-        amostra_sem_cobertura=((contexto_baseline.heuristica_conjunta_parcial_bloco_critico.auditoria or {}).get('amostra_sem_cobertura', []) if contexto_baseline.heuristica_conjunta_parcial_bloco_critico is not None else []),
-    )
-
-    render_secao_planejamento_conjunto_local(
-        auditoria_planejamento=contexto_baseline.planejamento_conjunto_local_bloco_critico_v1.auditoria if contexto_baseline.planejamento_conjunto_local_bloco_critico_v1 is not None else {},
-        amostra_comparativo_politicas=((contexto_baseline.planejamento_conjunto_local_bloco_critico_v1.auditoria or {}).get('amostra_comparativo_politicas', []) if contexto_baseline.planejamento_conjunto_local_bloco_critico_v1 is not None else []),
-        amostra_mudancas_vs_v103=((contexto_baseline.planejamento_conjunto_local_bloco_critico_v1.auditoria or {}).get('amostra_mudancas_vs_v103', []) if contexto_baseline.planejamento_conjunto_local_bloco_critico_v1 is not None else []),
-    )
-
-    render_secao_microplanejamento_conjunto_v2(
-        auditoria_microplanejamento=contexto_baseline.microplanejamento_conjunto_bloco_critico_v2.auditoria if contexto_baseline.microplanejamento_conjunto_bloco_critico_v2 is not None else {},
-        amostra_comparativo_politicas=((contexto_baseline.microplanejamento_conjunto_bloco_critico_v2.auditoria or {}).get('amostra_comparativo_politicas', []) if contexto_baseline.microplanejamento_conjunto_bloco_critico_v2 is not None else []),
-        amostra_mudancas_vs_v104=((contexto_baseline.microplanejamento_conjunto_bloco_critico_v2.auditoria or {}).get('amostra_mudancas_vs_v104', []) if contexto_baseline.microplanejamento_conjunto_bloco_critico_v2 is not None else []),
-    )
+    _render_secao_ranking_oficial(contexto_baseline)
+    _render_secao_switchings_oficiais(contexto_baseline)
 
     lotes_ativos, lotes_exauridos = _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
     recebidos_situacao_atual = _preparar_tabela_recebidos_situacao_atual(contexto_baseline.recebidos_auditaveis)
@@ -478,270 +460,6 @@ def main() -> None:
         resumo_recebidos=contexto_baseline.recebidos_auditaveis.auditoria.get('resumo', {}),
     )
 
-
-
-
-
-
-def _normalizar_texto_curto(valor, *, limite=180):
-    texto = ' '.join(str(valor or '').split())
-    if len(texto) <= limite:
-        return texto
-    return texto[: max(limite - 3, 0)].rstrip() + '...'
-
-
-def _preparar_auditoria_metodo_pagamentos(contexto_baseline):
-    auditoria_v2_v3 = auditar_comparativo_proxy_v2_v3(
-        contexto_baseline.dados_operacionais,
-        contexto_baseline.fontes_elegiveis_pagamento,
-        contexto_baseline.saldo_disponivel_geral,
-        data_referencia=contexto_baseline.execucao.data_referencia,
-        carteira_canonica=contexto_baseline.carteira_canonica,
-    )
-    resumo_comp = auditoria_v2_v3['auditoria']['resumo']
-    resumo_decisao = (contexto_baseline.decisao_local_v1.auditoria or {}).get('resumo', {})
-    resumo_shadow = (contexto_baseline.auditoria_runner_futuro_shadow.auditoria or {}).get('resumo', {}) if contexto_baseline.auditoria_runner_futuro_shadow is not None else {}
-
-    pagamentos_shadow_sem_cobertura = int(resumo_shadow.get('pagamentos_sem_cobertura_integral_shadow') or 0)
-    pagamentos_shadow_total = int(resumo_shadow.get('total_pagamentos_benchmark') or 0)
-    pagamentos_shadow_cobertos = max(pagamentos_shadow_total - pagamentos_shadow_sem_cobertura, 0)
-
-    auditoria_metodo = {
-        'modelo_governante': 'F1 / decisão_local_v1',
-        'metodo_governante': 'proxy_economico_v3_com_cobertura_total__resgate_otimizado_proxy',
-        'proxy_ativo': 'v3',
-        'total_pagamentos_auditados': int(resumo_decisao.get('total_pagamentos_alvo') or 0),
-        'pagamentos_cobertos_metodo_atual': int(resumo_decisao.get('pagamentos_totalmente_cobertos') or 0),
-        'pagamentos_cobertos_proxy_v2': int(resumo_comp.get('pagamentos_totalmente_cobertos_v2') or 0),
-        'mudancas_materiais_v2_v3': int((resumo_comp.get('pagamentos_com_fonte_alterada') or 0) + 0),
-        'casos_v3_melhor_score_comum_v3': int((resumo_comp.get('classificacao_delta_score_comum_v3') or {}).get('v3_melhor', 0)),
-        'pagamentos_cobertos_runner_shadow': pagamentos_shadow_cobertos,
-        'pagamentos_sem_cobertura_runner_shadow': pagamentos_shadow_sem_cobertura,
-        'recomendacao_operacional': 'manter proxy econômico v3 como método governante do console',
-        'prioridade_fontes': 'saldo disponível → caixa pré-aplicação → recebido disponível → lote resgatável',
-        'janela_excesso_proxy_v3': 'max(R$ 300, 18% do valor do pagamento)',
-        'componentes_score_proxy_v3': 'gap de cobertura, excesso, taxa, prazo, carência, liquidez, regime, risco, papel estratégico, destruição estratégica, fragmentação residual, fotografia temporal e horizonte curto',
-        'leitura_temporal_fonte': 'fotografia da data de referência; projeção futura da fonte ainda não foi aberta nesta etapa',
-        'justificativa_metodo_governante': 'o proxy v3 mantém cobertura integral dos 152 pagamentos e, nas 2 únicas trocas materiais frente ao v2, melhora o score comum v3; já o runner shadow perde cobertura integral em massa e permanece apenas diagnóstico.',
-    }
-
-    quadro_mudancas = auditoria_v2_v3['quadro_mudancas'].copy()
-    quadro_mudancas = quadro_mudancas.loc[quadro_mudancas['mudou_fonte'] | quadro_mudancas['mudou_lote']].copy()
-    quadro_mudancas = quadro_mudancas.sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
-    amostra_mudancas = []
-    for _, row in quadro_mudancas.head(5).iterrows():
-        data = row.get('data_pagamento')
-        amostra_mudancas.append({
-            'Data': data.isoformat() if hasattr(data, 'isoformat') else str(data or ''),
-            'Despesa ID': str(row.get('pagamento_id') or ''),
-            'Descrição': str(row.get('descricao_pagamento') or ''),
-            'Valor': round(float(row.get('valor_pagamento') or 0.0), 2),
-            'Lote v2': str(row.get('lote_id_escolhido_v2') or ''),
-            'Lote v3': str(row.get('lote_id_escolhido_v3') or ''),
-            'Delta score comum v3': round(float(row.get('delta_score_comum_v3') or 0.0), 4),
-        })
-    return auditoria_metodo, amostra_mudancas
-
-
-def _extrair_resumo_leitura_decisao(observacao):
-    texto = ' '.join(str(observacao or '').split())
-    if not texto:
-        return ''
-    partes = []
-    if 'fotografia da data de referência' in texto:
-        partes.append('base=data_ref')
-    if 'projeção futura da fonte ainda não foi aberta' in texto:
-        partes.append('sem_projecao_futura')
-    if not partes:
-        return _normalizar_texto_curto(texto, limite=150)
-    return ' | '.join(partes)
-
-
-def _calcular_resumo_financeiro_fonte(contexto_baseline, decisao):
-    if not decisao:
-        return {
-            'Saldo Antes': '',
-            'Bruto': '',
-            'Imposto': '',
-            'Líquido': '',
-            'Saldo Remanescente': '',
-        }
-    valor_pagamento = round(float(decisao.get('valor_pagamento') or 0.0), 2)
-    saldo_antes = round(float(decisao.get('valor_disponivel_escolhido') or 0.0), 2)
-    tipo_fonte = str(decisao.get('tipo_fonte_escolhida') or '')
-    lote_id = str(decisao.get('lote_id_escolhido') or '')
-
-    if tipo_fonte == 'lote_resgatavel' and lote_id:
-        lote_original = next((l for l in contexto_baseline.replay_passado.lotes_apos_replay if str(l.id) == lote_id), None)
-        if lote_original is not None:
-            lote = deepcopy(lote_original)
-            movimento = executar_saque_lote(
-                lote,
-                valor_pagamento,
-                contexto_baseline.execucao.data_referencia,
-                tabela_iof=contexto_baseline.tabela_iof,
-                faixas_ir=contexto_baseline.faixas_ir,
-            )
-            if movimento is not None:
-                return {
-                    'Saldo Antes': round(float(movimento.get('saldo_antes') or 0.0), 2),
-                    'Bruto': round(float(movimento.get('bruto') or 0.0), 2),
-                    'Imposto': round(float(movimento.get('imposto') or 0.0), 2),
-                    'Líquido': round(float(movimento.get('liquido') or 0.0), 2),
-                    'Saldo Remanescente': round(float(movimento.get('saldo_remanescente') or 0.0), 2),
-                }
-
-    bruto = min(valor_pagamento, saldo_antes) if saldo_antes else valor_pagamento
-    imposto = 0.0
-    liquido = bruto
-    saldo_rem = max(saldo_antes - bruto, 0.0) if saldo_antes else ''
-    return {
-        'Saldo Antes': saldo_antes if saldo_antes else '',
-        'Bruto': round(float(bruto), 2) if bruto != '' else '',
-        'Imposto': imposto,
-        'Líquido': round(float(liquido), 2) if liquido != '' else '',
-        'Saldo Remanescente': round(float(saldo_rem), 2) if saldo_rem != '' else '',
-    }
-
-
-def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, decisao_local_v1, contexto_baseline, *, limite=5):
-    gastos = dados_operacionais.gastos_canonicos.copy()
-    if len(gastos) == 0:
-        return [], []
-
-    gastos['data'] = pd.to_datetime(gastos['data'], errors='coerce').dt.date
-
-    log = replay_passado.log_passado.copy()
-    agregados_replay = {}
-    if len(log):
-        log['Data'] = pd.to_datetime(log['Data'], errors='coerce').dt.date
-        for despesa_id, grupo in log.groupby('Despesa ID', sort=False):
-            lotes = [str(v).strip() for v in grupo['Lote'].tolist() if str(v).strip()]
-            lotes_unicos = []
-            vistos = set()
-            for lote in lotes:
-                if lote not in vistos:
-                    vistos.add(lote)
-                    lotes_unicos.append(lote)
-            data_pagamento = grupo['Data'].dropna().max() if 'Data' in grupo.columns else None
-            descricao = str(grupo.iloc[-1].get('Conta') or '').strip()
-            valor_pagamento = round(float(grupo['Valor Conta'].dropna().iloc[-1]), 2) if grupo['Valor Conta'].dropna().shape[0] else None
-            liquido_coberto = round(float(grupo['Liquido'].fillna(0.0).sum()), 2)
-            agregados_replay[str(despesa_id)] = {
-                'Data': data_pagamento.isoformat() if hasattr(data_pagamento, 'isoformat') else (str(data_pagamento) if data_pagamento is not None else ''),
-                'Despesa ID': str(despesa_id),
-                'Descrição': descricao,
-                'Valor': valor_pagamento,
-                'Saldo Antes': round(float(grupo['Saldo Antes'].fillna(0.0).sum()), 2) if 'Saldo Antes' in grupo.columns else '',
-                'Bruto': round(float(grupo['Bruto'].fillna(0.0).sum()), 2) if 'Bruto' in grupo.columns else '',
-                'Imposto': round(float(grupo['Imposto'].fillna(0.0).sum()), 2) if 'Imposto' in grupo.columns else '',
-                'Líquido': liquido_coberto,
-                'Saldo Remanescente': round(float(grupo['Saldo Remanescente'].fillna(0.0).sum()), 2) if 'Saldo Remanescente' in grupo.columns else '',
-                'Lotes usados': ' | '.join(lotes_unicos),
-            }
-
-    realizados = gastos.loc[gastos['passado_pago_ate_data_referencia'].fillna(False)].copy()
-    realizados = realizados.sort_values(['data', 'despesa_id'], ascending=[False, False], kind='stable')
-    linhas_realizados = []
-    for _, row in realizados.iterrows():
-        despesa_id = str(row.get('despesa_id') or '').strip()
-        base = agregados_replay.get(despesa_id, {})
-        lotes_informados = [str(row.get('lote_usado_1') or '').strip(), str(row.get('lote_usado_2') or '').strip()]
-        lotes_informados = [item for item in lotes_informados if item]
-        linhas_realizados.append({
-            'Data': base.get('Data') or (row['data'].isoformat() if hasattr(row['data'], 'isoformat') else str(row.get('data') or '')),
-            'Descrição': base.get('Descrição') or str(row.get('descricao') or ''),
-            'Valor': base.get('Valor') if base.get('Valor') is not None else round(float(row.get('valor') or 0.0), 2),
-            'Lotes usados': base.get('Lotes usados') or (' | '.join(lotes_informados)),
-            'Saldo Antes': base.get('Saldo Antes', ''),
-            'Bruto': base.get('Bruto', ''),
-            'Imposto': base.get('Imposto', ''),
-            'Líquido': base.get('Líquido', ''),
-            'Saldo Remanescente': base.get('Saldo Remanescente', ''),
-        })
-        if len(linhas_realizados) >= limite:
-            break
-
-    quadro_decisao = decisao_local_v1.quadro_decisao_local_v1.copy() if decisao_local_v1 is not None else pd.DataFrame()
-    mapa_decisao = {}
-    if len(quadro_decisao):
-        for _, row_dec in quadro_decisao.iterrows():
-            mapa_decisao[str(row_dec.get('pagamento_id') or '').strip()] = row_dec.to_dict()
-
-    proximos = gastos.loc[gastos['futuro_ou_pendente_na_data_referencia'].fillna(False)].copy()
-    proximos = proximos.sort_values(['data', 'despesa_id'], ascending=[True, True], kind='stable')
-    linhas_proximos = []
-    for _, row in proximos.iterrows():
-        despesa_id = str(row.get('despesa_id') or '').strip()
-        decisao = mapa_decisao.get(despesa_id, {})
-        lotes_informados = [str(row.get('lote_usado_1') or '').strip(), str(row.get('lote_usado_2') or '').strip()]
-        lotes_informados = [item for item in lotes_informados if item]
-        resumo_financeiro = _calcular_resumo_financeiro_fonte(contexto_baseline, decisao)
-        linhas_proximos.append({
-            'Data': row['data'].isoformat() if hasattr(row['data'], 'isoformat') else str(row.get('data') or ''),
-            'Descrição': str(row.get('descricao') or ''),
-            'Valor': round(float(row.get('valor') or 0.0), 2),
-            'Lote sugerido': str(decisao.get('lote_id_escolhido') or ''),
-            'Saldo Antes': resumo_financeiro.get('Saldo Antes', ''),
-            'Bruto': resumo_financeiro.get('Bruto', ''),
-            'Imposto': resumo_financeiro.get('Imposto', ''),
-            'Líquido': resumo_financeiro.get('Líquido', ''),
-            'Saldo Remanescente': resumo_financeiro.get('Saldo Remanescente', ''),
-            'Score proxy': round(float(decisao.get('custo_economico_proxy') or 0.0), 4) if decisao else '',
-            'Status local': 'integral na decisão local' if bool(decisao.get('pagamento_totalmente_coberto')) else ('parcial/ausente na decisão local' if decisao else ''),
-        })
-        if len(linhas_proximos) >= limite:
-            break
-
-    return linhas_realizados, linhas_proximos
-
-def _preparar_auditoria_recebimento_vs_aplicacao(dados_operacionais, replay_passado):
-    inventario = dados_operacionais.inventario_canonico.copy()
-    if len(inventario) == 0:
-        return []
-    janela = inventario[inventario['data_recebimento'] < inventario['data_aplicacao']].copy()
-    if len(janela) == 0:
-        return []
-    log = replay_passado.log_passado.copy()
-    inconsistencias = pd.DataFrame((replay_passado.auditoria or {}).get('amostra_inconsistencias') or [])
-    linhas = []
-    for _, row in janela.sort_values(by=['data_recebimento', 'lote_id'], kind='stable').iterrows():
-        lote_id = str(row.get('lote_id') or '')
-        sub = log[log['Lote'].astype(str) == lote_id].copy() if len(log) else log
-        for _, mov in sub.iterrows():
-            data_evt = mov.get('Data')
-            fase = 'caixa_pre_aplicacao' if row['data_recebimento'] <= data_evt <= row['data_aplicacao'] else 'aplicado'
-            linhas.append({
-                'Lote': lote_id,
-                'Recebimento': row['data_recebimento'].isoformat() if hasattr(row['data_recebimento'], 'isoformat') else str(row['data_recebimento']),
-                'Aplicação': row['data_aplicacao'].isoformat() if hasattr(row['data_aplicacao'], 'isoformat') else str(row['data_aplicacao']),
-                'Data evento': data_evt.isoformat() if hasattr(data_evt, 'isoformat') else str(data_evt),
-                'Conta': mov.get('Conta') or '',
-                'Fase': fase,
-                'Bruto': mov.get('Bruto'),
-                'Líquido': mov.get('Liquido'),
-                'Saldo rem.': mov.get('Saldo Remanescente'),
-                'Leitura': 'caixa sem rendimento' if fase == 'caixa_pre_aplicacao' else 'lote aplicado com rendimento',
-            })
-        if len(inconsistencias):
-            sub_inc = inconsistencias[inconsistencias['lotes_informados'].astype(str).str.contains(lote_id, na=False, regex=False)] if 'lotes_informados' in inconsistencias.columns else inconsistencias.iloc[0:0]
-            for _, inc in sub_inc.iterrows():
-                data_inc = inc.get('data')
-                if hasattr(data_inc, 'isoformat'):
-                    data_inc = data_inc.isoformat()
-                linhas.append({
-                    'Lote': lote_id,
-                    'Recebimento': row['data_recebimento'].isoformat() if hasattr(row['data_recebimento'], 'isoformat') else str(row['data_recebimento']),
-                    'Aplicação': row['data_aplicacao'].isoformat() if hasattr(row['data_aplicacao'], 'isoformat') else str(row['data_aplicacao']),
-                    'Data evento': data_inc,
-                    'Conta': inc.get('descricao') or '',
-                    'Fase': 'inconsistência',
-                    'Bruto': '',
-                    'Líquido': inc.get('valor_restante'),
-                    'Saldo rem.': '',
-                    'Leitura': inc.get('motivo') or '',
-                })
-    return linhas
 
 if __name__ == '__main__':
     main()

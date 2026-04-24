@@ -32,3 +32,8 @@ Consulte primeiro:
 
 ## Próxima frente após a V189
 Derivar a especificação operacional de `resolver_dia(t, E_t)` sobre uma baseline já limpa e com a camada observável oficialmente fechada.
+
+
+## Observação operacional vigente
+
+A saída oficial `.xlsx` deve manter as abas canônicas `Extrato Passado`, `Extrato Futuro`, `Switching`, `Carteira` e `Situação Atual`, além das abas do ranking estabilizado `Ranking_Completo`, `Top30`, `Destinos_Switch`, `Resumo` e `Validacao`, quando geradas pela trilha operacional oficial.
