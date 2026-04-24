@@ -161,7 +161,7 @@ def render_secao_amostras_pagamentos(*, pagamentos_realizados=None, pagamentos_p
 
     print('\n- próximos 5 pagamentos:')
     imprimir_tabela(
-        ['Data', 'Descrição', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local'],
+        ['Data', 'Descrição', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'],
         pagamentos_proximos,
         limite=5,
     )
@@ -288,9 +288,7 @@ def render_secao_heuristica_conjunta_parcial(*, auditoria_heuristica=None, amost
 def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
     imprimir_titulo('SITUAÇÃO ATUAL')
     resumo_fechamento = resumo_fechamento or {}
-    resumo_recebidos = resumo_recebidos or {}
     lotes_exauridos = lotes_exauridos or []
-    recebidos_atuais = recebidos_atuais or []
     if resumo_fechamento:
         imprimir_pares([
             ('data de referência', resumo_fechamento.get('data_referencia')),
@@ -306,7 +304,7 @@ def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos
     print('\n- lotes exauridos:')
     if lotes_exauridos:
         print('  identificação e tempo:')
-        imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_exauridos, limite=None)
+        imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Último uso', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_exauridos, limite=None)
         print('\n  valores atuais:')
         imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_exauridos, limite=None)
     else:
@@ -319,20 +317,6 @@ def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos
         imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos, limite=None)
     else:
         print('  [OK] sem lotes ativos acima do limiar nesta execução')
-    print('\n- resumo dos recebidos auditáveis (inclui exauridos):')
-    imprimir_pares([
-        ('total de recebidos', resumo_recebidos.get('total_recebidos', len(recebidos_atuais))),
-        ('valor total bruto', resumo_recebidos.get('valor_total_bruto', 0.0)),
-        ('status recebido', resumo_recebidos.get('status_recebido', {})),
-        ('destino potencial', resumo_recebidos.get('destino_potencial', {})),
-        ('recebidos com pagamento vinculado', resumo_recebidos.get('recebidos_com_pagamento_vinculado', 0)),
-        ('recebidos em janela pré-aplicação', resumo_recebidos.get('recebidos_em_janela_pre_aplicacao', 0)),
-        ('recebidos usados antes da aplicação', resumo_recebidos.get('recebidos_usados_antes_da_aplicacao_observado', 0)),
-    ])
-    if not recebidos_atuais:
-        print('  [OK] sem recebidos auditáveis materializados nesta execução')
-
-
 
 def render_secao_planejamento_conjunto_local(*, auditoria_planejamento=None, amostra_comparativo_politicas=None, amostra_mudancas_vs_v103=None):
     auditoria_planejamento = auditoria_planejamento or {}

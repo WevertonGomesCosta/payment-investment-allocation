@@ -18,7 +18,7 @@ from aplicacao.console.secoes_canonicas import render_secao_canonicas
 from aplicacao.console.secoes_execucao import render_secao_execucao
 from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos, render_secao_auditoria_temporal_pagamentos, render_secao_heuristica_conjunta_parcial, render_secao_metodo_pagamentos, render_secao_nucleo, render_secao_planejamento_conjunto_local, render_secao_reescolha_dinamica_pagamentos, render_secao_replay, render_secao_situacao_atual, render_secao_microplanejamento_conjunto_v2, render_secao_recomputacao_sequencial_central_v1, render_secao_motor_recomendacao_pagamentos_switching_v1
 from aplicacao.console.secoes_triagem import render_secao_triagem
-from nucleo.calendario_financeiro import contar_dias_rendimento
+from nucleo.calendario_financeiro import contar_dias_rendimento, proximo_dia_util_bancario_em_ou_apos
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
@@ -212,6 +212,17 @@ def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro,
     lotes_ativos = []
     lotes_exauridos = []
     data_economica = data_referencia
+    log = getattr(replay_passado, 'log_passado', None)
+
+    def _ultimo_uso_lote(lote_id):
+        if not isinstance(log, pd.DataFrame) or len(log) == 0 or 'Lote' not in log.columns:
+            return ''
+        sub = log[log['Lote'].fillna('').astype(str) == str(lote_id)]
+        if len(sub) == 0:
+            return ''
+        data_ult = sub['Data'].max() if 'Data' in sub.columns else None
+        return data_ult.isoformat() if hasattr(data_ult, 'isoformat') else str(data_ult or '')
+
     for lote in sorted(replay_passado.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
         if lote.data_recebimento > data_referencia or lote.data_aplicacao > data_referencia:
             continue
@@ -251,22 +262,23 @@ def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro,
             exaurido=lote_exaurido_na_situacao,
         )
         linha = {
+            'Lote': lote.id,
             'Recebimento': lote.data_recebimento.isoformat() if hasattr(lote.data_recebimento, 'isoformat') else str(lote.data_recebimento),
             'Aplicação': lote.data_aplicacao.isoformat() if hasattr(lote.data_aplicacao, 'isoformat') else str(lote.data_aplicacao),
+            'Último uso': _ultimo_uso_lote(lote.id),
             'Produto': lote.investimento,
-            'Valor original': round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2),
             'Dias corridos': dias_corridos,
             'Dias úteis': dias_uteis,
+            'Valor original': round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2),
             'Bruto': saldo_bruto_exibicao,
             'Líquido': saldo_liquido_exibicao,
             'Saldo rem': saldo_rem_exibicao,
-            'Lote': lote.id,
         }
         if lote_exaurido_na_situacao:
             lotes_exauridos.append(linha)
         else:
             lotes_ativos.append(linha)
-    lotes_exauridos.sort(key=lambda item: (str(item.get('Aplicação') or ''), str(item.get('Lote') or '')), reverse=True)
+    lotes_exauridos.sort(key=lambda item: (str(item.get('Último uso') or ''), str(item.get('Aplicação') or ''), str(item.get('Lote') or '')), reverse=True)
     lotes_ativos.sort(key=lambda item: (str(item.get('Aplicação') or ''), str(item.get('Lote') or '')), reverse=True)
     return lotes_ativos, lotes_exauridos
 
@@ -308,6 +320,122 @@ def _preparar_auditoria_recebimento_vs_aplicacao(dados_operacionais, replay_pass
     camada observável é consolidada.
     """
     return []
+
+
+def _valor_monetario_preferencial(*valores):
+    for v in valores:
+        if v is None or v == '':
+            continue
+        try:
+            return round(float(v), 2)
+        except Exception:
+            continue
+    return ''
+
+
+def _mapa_pagamentos_central(contexto_baseline):
+    mapa = {}
+    pacote = getattr(contexto_baseline, 'recomputacao_sequencial_central_v1', None)
+    quadro = getattr(pacote, 'quadro_recomputacao_sequencial_central', None) if pacote is not None else None
+    if isinstance(quadro, pd.DataFrame) and len(quadro):
+        for _, row in quadro.iterrows():
+            mapa[str(row.get('pagamento_id') or '').strip()] = row.to_dict()
+    return mapa
+
+
+def _resumo_financeiro_futuro_console(contexto_baseline, pagamento_id, decisao_row):
+    central = _mapa_pagamentos_central(contexto_baseline).get(str(pagamento_id or '').strip(), {})
+    if central:
+        return {
+            'Saldo Antes': _valor_monetario_preferencial(central.get('saldo_antes_central')),
+            'Bruto': _valor_monetario_preferencial(central.get('bruto_central')),
+            'Imposto': _valor_monetario_preferencial(central.get('imposto_central')),
+            'Líquido': _valor_monetario_preferencial(central.get('liquido_central')),
+            'Saldo Remanescente': _valor_monetario_preferencial(central.get('saldo_remanescente_central')),
+            'Lote sugerido': central.get('lote_final_central') or central.get('lote_sugerido_original') or '',
+        }
+    return {
+        'Saldo Antes': '',
+        'Bruto': '',
+        'Imposto': '',
+        'Líquido': '',
+        'Saldo Remanescente': '',
+        'Lote sugerido': decisao_row.get('lote_recomendado') or decisao_row.get('lote_id_escolhido') or decisao_row.get('fonte_base_escolhida') or decisao_row.get('tipo_fonte_escolhida') or '',
+    }
+
+
+def _ranking_destino_para_lote(contexto_baseline, lote):
+    ranking = getattr(contexto_baseline, 'ranking_carteira', None)
+    if ranking is None or not isinstance(getattr(ranking, 'quadro_destinos_switch', None), pd.DataFrame):
+        return None
+    destinos = ranking.quadro_destinos_switch.copy()
+    if len(destinos) == 0:
+        return None
+    valor_liquido = round(float(lote.valor_liquido_hoje(contexto_baseline.execucao.data_referencia, tabela_iof=contexto_baseline.tabela_iof, faixas_ir=contexto_baseline.faixas_ir) or 0.0), 2)
+    origem_key = str(getattr(lote, 'produto_key', '') or '').strip()
+    dest_f = destinos.copy()
+    if 'produto_key' in dest_f.columns:
+        dest_f = dest_f[dest_f['produto_key'].fillna('').astype(str).str.strip() != origem_key]
+    if 'aplicacao_minima' in dest_f.columns:
+        dest_f = dest_f[(dest_f['aplicacao_minima'].fillna(0.0).astype(float) <= valor_liquido + 1e-9)]
+    if 'aplicacao_maxima' in dest_f.columns:
+        dest_f = dest_f[(dest_f['aplicacao_maxima'].fillna(0.0).astype(float).eq(0.0)) | (dest_f['aplicacao_maxima'].fillna(0.0).astype(float) >= valor_liquido - 1e-9)]
+    status_col = 'Status_Confirmação' if 'Status_Confirmação' in dest_f.columns else ('status_confirmacao' if 'status_confirmacao' in dest_f.columns else None)
+    if status_col is not None:
+        dest_f = dest_f[dest_f[status_col].fillna('').astype(str).isin(['', 'Confirmado', 'confirmado'])]
+    if len(dest_f) == 0:
+        return None
+    if 'rank_destino' in dest_f.columns:
+        dest_f = dest_f.sort_values(['rank_destino', 'score_final', 'nome'], ascending=[True, False, True], kind='stable')
+    else:
+        dest_f = dest_f.sort_values(['score_final', 'nome'], ascending=[False, True], kind='stable')
+    return dest_f.iloc[0].to_dict()
+
+
+def _data_sugerida_switching_lote(contexto_baseline, lote):
+    carteira = getattr(contexto_baseline, 'carteira_canonica', None)
+    mapa = getattr(carteira, 'mapa_produtos', {}) if carteira is not None else {}
+    meta = ((mapa.get('by_key') or {}).get(getattr(lote, 'produto_key', None)) or {}) if isinstance(mapa, dict) else {}
+    prazo = int(meta.get('prazo_dias') or 0)
+    data_base = getattr(lote, 'carencia_ate', None) or contexto_baseline.execucao.data_referencia
+    if prazo > 0:
+        base = lote.data_aplicacao + timedelta(days=prazo)
+        try:
+            return proximo_dia_util_bancario_em_ou_apos(base, contexto_baseline.calendario_financeiro)
+        except Exception:
+            return base
+    return data_base
+
+
+def _montar_switchings_oficiais(contexto_baseline, limite=10):
+    replay = getattr(contexto_baseline, 'replay_passado', None)
+    lotes = []
+    if replay is not None:
+        limiar = obter_limiar_residuo_resolvido(contexto_baseline.pacote_config.conteudo)
+        for lote in getattr(replay, 'lotes_apos_replay', []) or []:
+            if lote.data_recebimento > contexto_baseline.execucao.data_referencia or lote.data_aplicacao > contexto_baseline.execucao.data_referencia:
+                continue
+            bruto = round(float(lote.saldo_bruto or 0.0), 2)
+            liquido = round(float(lote.valor_liquido_hoje(contexto_baseline.execucao.data_referencia, tabela_iof=contexto_baseline.tabela_iof, faixas_ir=contexto_baseline.faixas_ir) or 0.0), 2)
+            rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
+            if lote.esgotado or bruto <= limiar or liquido <= limiar or rem <= limiar:
+                continue
+            lotes.append(lote)
+    linhas = []
+    for lote in sorted(lotes, key=lambda x: str(x.id))[:limite]:
+        destino = _ranking_destino_para_lote(contexto_baseline, lote)
+        if not destino:
+            continue
+        data_sug = _data_sugerida_switching_lote(contexto_baseline, lote)
+        linhas.append({
+            'Data': data_sug.isoformat() if hasattr(data_sug, 'isoformat') else data_sug,
+            'Lote origem': lote.id,
+            'Produto origem': lote.investimento,
+            'Destino': destino.get('nome'),
+            'Proxy destino': round(float(destino.get('proxy_terminal_destino') or 0.0), 2),
+            'Status': 'priorizado pelo ranking',
+        })
+    return linhas
 
 
 def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, decisao_local_v1, contexto_baseline, limite=5):
@@ -383,32 +511,18 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, de
         for _, row in quadro_futuro.head(limite).iterrows():
             data = row.get('data_pagamento')
             valor = round(float(row.get('valor_pagamento') or 0.0), 2)
-            lote = row.get('lote_recomendado') or row.get('lote_id_escolhido') or row.get('fonte_base_escolhida') or row.get('tipo_fonte_escolhida') or ''
-            saldo_antes = row.get('saldo_antes_central')
-            bruto = row.get('bruto_central')
-            imposto = row.get('imposto_central')
-            liquido = row.get('liquido_central')
-            saldo_rem = row.get('saldo_remanescente_central')
-
-            def _fmt_maybe(v):
-                if v is None:
-                    return None
-                try:
-                    fv = round(float(v), 2)
-                except Exception:
-                    return None
-                return '' if abs(fv) <= 0.0 else fv
-
+            pagamento_id = row.get('pagamento_id')
+            resumo = _resumo_financeiro_futuro_console(contexto_baseline, pagamento_id, row)
             pagamentos_proximos.append({
                 'Data': data.isoformat() if hasattr(data, 'isoformat') else data,
                 'Descrição': row.get('descricao_pagamento') or '',
                 'Valor': valor,
-                'Lote sugerido': lote,
-                'Saldo Antes': _fmt_maybe(saldo_antes),
-                'Bruto': _fmt_maybe(bruto),
-                'Imposto': _fmt_maybe(imposto),
-                'Líquido': _fmt_maybe(liquido),
-                'Saldo Remanescente': _fmt_maybe(saldo_rem),
+                'Lote sugerido': resumo.get('Lote sugerido') or '',
+                'Saldo Antes': resumo.get('Saldo Antes', ''),
+                'Bruto': resumo.get('Bruto', ''),
+                'Imposto': resumo.get('Imposto', ''),
+                'Líquido': resumo.get('Líquido', ''),
+                'Saldo Remanescente': resumo.get('Saldo Remanescente', ''),
             })
 
     return pagamentos_realizados, pagamentos_proximos
@@ -445,53 +559,21 @@ def _render_secao_ranking_oficial(contexto_baseline):
 
 def _render_secao_switchings_oficiais(contexto_baseline):
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
-    shadow = getattr(contexto_baseline, 'switching_economico_shadow', None)
-    motor = getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None)
+    destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
+    linhas = _montar_switchings_oficiais(contexto_baseline, limite=10)
     _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
-
-    auditoria_shadow = (shadow.auditoria or {}) if shadow is not None else {}
-    resumo_shadow = auditoria_shadow.get('resumo', {}) if isinstance(auditoria_shadow, dict) else {}
-    plano = getattr(shadow, 'plano_shadow', None)
-    melhores = getattr(shadow, 'quadro_melhores_oportunidades', None)
-    quadro = None
-    if isinstance(plano, pd.DataFrame) and len(plano):
-        quadro = plano.copy()
-    elif isinstance(melhores, pd.DataFrame) and len(melhores):
-        quadro = melhores.copy()
-    else:
-        quadro = pd.DataFrame()
-
-    destino_top1 = None
-    if ranking is not None:
-        destino_top1 = ranking.auditoria.get('destino_top1')
-
     _imprimir_pares([
-        ('lotes avaliados para switching', resumo_shadow.get('qtd_lotes_ativos_avaliados', 0) if resumo_shadow else 0),
-        ('candidatos de destino avaliados', resumo_shadow.get('qtd_candidatos_switch', 0) if resumo_shadow else 0),
-        ('switchings promovidos/executados', resumo_shadow.get('qtd_recomendacoes_shadow', 0) if resumo_shadow else 0),
-        ('data da decisão de switching', resumo_shadow.get('data_referencia') if resumo_shadow else None),
-        ('data horizonte da análise', resumo_shadow.get('data_horizonte') if resumo_shadow else None),
-        ('primeira despesa futura observada', resumo_shadow.get('primeira_despesa_futura') if resumo_shadow else None),
+        ('lotes avaliados para switching', len(linhas)),
+        ('destinos elegíveis de switching', len(ranking.quadro_destinos_switch) if ranking is not None and isinstance(getattr(ranking, 'quadro_destinos_switch', None), pd.DataFrame) else 0),
+        ('switchings priorizados para análise', len(linhas)),
         ('destino top 1 do ranking', destino_top1),
     ])
+    print('- amostra de switchings priorizados por lote (independente de pagamentos):')
+    _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino', 'Proxy destino', 'Status'], linhas, limite=10)
 
-    linhas = []
-    if isinstance(quadro, pd.DataFrame) and len(quadro):
-        quadro = quadro.sort_values(['recomendado_shadow', 'ganho_liquido_estimado', 'score_switch_shadow', 'lote_id'], ascending=[False, False, False, True], kind='stable')
-        for _, row in quadro.head(10).iterrows():
-            linhas.append({
-                'Data': row.get('data_referencia'),
-                'Lote origem': row.get('lote_id'),
-                'Produto origem': row.get('produto_origem_nome'),
-                'Destino': row.get('produto_destino_nome'),
-                'Ganho estimado': row.get('ganho_liquido_estimado'),
-                'Status': 'recomendado shadow' if bool(row.get('recomendado_shadow')) else 'classificado shadow',
-            })
-
-    print('- amostra de switchings reais da janela (independente de pagamentos):')
-    _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino', 'Ganho estimado', 'Status'], linhas, limite=10)
 
 def main() -> None:
+
 
     contexto_baseline = carregar_contexto_baseline(raiz_repositorio=RAIZ_REPOSITORIO, instalar_automaticamente=False)
     pacote_config = contexto_baseline.pacote_config

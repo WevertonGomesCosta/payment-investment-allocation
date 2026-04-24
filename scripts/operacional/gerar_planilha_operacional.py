@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from copy import deepcopy
-from datetime import date
+from datetime import date, timedelta
 from typing import Iterable
 import sys
+
+import pandas as pd
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
@@ -16,7 +18,7 @@ if str(RAIZ) not in sys.path:
 
 from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
 from nucleo.identidade_baseline import caminho_artifact, caminho_saida_operacional, nome_relatorio_operacional
-from nucleo.calendario_financeiro import contar_dias_rendimento
+from nucleo.calendario_financeiro import contar_dias_rendimento, proximo_dia_util_bancario_em_ou_apos
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
 from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
@@ -231,6 +233,85 @@ def _calcular_resumo_financeiro_fonte(contexto, decisao: dict) -> dict[str, obje
     }
 
 
+def _resumo_financeiro_futuro_preferencial(contexto, pagamento_id: str, decisao: dict, central: dict | None = None) -> dict[str, object]:
+    central = central or {}
+    if central:
+        return {
+            'Lote sugerido': central.get('lote_final_central') or central.get('lote_sugerido_original') or decisao.get('lote_id_escolhido') or '',
+            'Saldo Antes': round(float(central.get('saldo_antes_central') or 0.0), 2) if central.get('saldo_antes_central') not in (None, '') else '',
+            'Bruto': round(float(central.get('bruto_central') or 0.0), 2) if central.get('bruto_central') not in (None, '') else '',
+            'Imposto': round(float(central.get('imposto_central') or 0.0), 2) if central.get('imposto_central') not in (None, '') else '',
+            'Líquido': round(float(central.get('liquido_central') or 0.0), 2) if central.get('liquido_central') not in (None, '') else '',
+            'Saldo Remanescente': round(float(central.get('saldo_remanescente_central') or 0.0), 2) if central.get('saldo_remanescente_central') not in (None, '') else '',
+        }
+    resumo = _calcular_resumo_financeiro_fonte(contexto, decisao)
+    resumo['Lote sugerido'] = str(decisao.get('lote_id_escolhido') or decisao.get('fonte_base_escolhida') or decisao.get('tipo_fonte_escolhida') or '')
+    return resumo
+
+
+def _data_sugerida_switching_planilha(contexto, lote):
+    mapa = getattr(contexto.carteira_canonica, 'mapa_produtos', {}) or {}
+    meta = ((mapa.get('by_key') or {}).get(getattr(lote, 'produto_key', None)) or {}) if isinstance(mapa, dict) else {}
+    prazo = int(meta.get('prazo_dias') or 0)
+    if prazo > 0:
+        base = lote.data_aplicacao + timedelta(days=prazo)
+        try:
+            return proximo_dia_util_bancario_em_ou_apos(base, contexto.calendario_financeiro)
+        except Exception:
+            return base
+    return getattr(lote, 'carencia_ate', None) or contexto.execucao.data_referencia
+
+
+def _destino_ranking_planilha(contexto, lote):
+    ranking = getattr(contexto, 'ranking_carteira', None)
+    if ranking is None or not isinstance(getattr(ranking, 'quadro_destinos_switch', None), pd.DataFrame):
+        return None
+    destinos = ranking.quadro_destinos_switch.copy()
+    if len(destinos) == 0:
+        return None
+    valor_liq = round(float(lote.valor_liquido_hoje(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir) or 0.0), 2)
+    origem_key = str(getattr(lote, 'produto_key', '') or '').strip()
+    if 'produto_key' in destinos.columns:
+        destinos = destinos[destinos['produto_key'].fillna('').astype(str).str.strip() != origem_key]
+    destinos = destinos[destinos['aplicacao_minima'].fillna(0.0).astype(float) <= valor_liq + 1e-9] if 'aplicacao_minima' in destinos.columns else destinos
+    if 'aplicacao_maxima' in destinos.columns:
+        maxs = destinos['aplicacao_maxima'].fillna(0.0).astype(float)
+        destinos = destinos[(maxs.eq(0.0)) | (maxs >= valor_liq - 1e-9)]
+    status_col = 'Status_Confirmação' if 'Status_Confirmação' in destinos.columns else ('status_confirmacao' if 'status_confirmacao' in destinos.columns else None)
+    if status_col is not None:
+        destinos = destinos[destinos[status_col].fillna('').astype(str).isin(['', 'Confirmado', 'confirmado'])]
+    if len(destinos) == 0:
+        return None
+    destinos = destinos.sort_values(['rank_destino', 'score_final', 'nome'], ascending=[True, False, True], kind='stable') if 'rank_destino' in destinos.columns else destinos.sort_values(['score_final', 'nome'], ascending=[False, True], kind='stable')
+    return destinos.iloc[0].to_dict()
+
+
+def _switchings_oficiais_para_saida(contexto, limite=30):
+    replay = contexto.replay_passado
+    limiar = obter_limiar_residuo_resolvido(contexto.pacote_config.conteudo)
+    rows = []
+    for lote in sorted(replay.lotes_apos_replay, key=lambda x: str(x.id)):
+        if lote.data_recebimento > contexto.execucao.data_referencia or lote.data_aplicacao > contexto.execucao.data_referencia:
+            continue
+        bruto = round(float(lote.saldo_bruto or 0.0), 2)
+        liquido = round(float(lote.valor_liquido_hoje(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir) or 0.0), 2)
+        rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
+        if lote.esgotado or bruto <= limiar or liquido <= limiar or rem <= limiar:
+            continue
+        dest = _destino_ranking_planilha(contexto, lote)
+        if not dest:
+            continue
+        data_sug = _data_sugerida_switching_planilha(contexto, lote)
+        rows.append([
+            data_sug, '', '', '', '', '', 'switching_shadow',
+            lote.id, '', '',
+            data_sug, lote.id, dest.get('nome'),
+            round(float(dest.get('proxy_terminal_destino') or 0.0), 2), liquido,
+            'sim', '', '', '', 'priorizado pelo ranking',
+        ])
+    return rows[:limite]
+
+
 def _classificar_lotes_situacao_atual(contexto):
     ctx = contexto.execucao
     cal = contexto.calendario_financeiro
@@ -244,6 +325,17 @@ def _classificar_lotes_situacao_atual(contexto):
     rows_exauridos_ident = []
     rows_exauridos_valores = []
     data_economica = ctx.data_referencia
+    log = rep.log_passado.copy() if getattr(rep, 'log_passado', None) is not None else None
+
+    def _ultimo_uso(lote_id):
+        if not isinstance(log, pd.DataFrame) or len(log) == 0 or 'Lote' not in log.columns:
+            return ''
+        sub = log[log['Lote'].fillna('').astype(str) == str(lote_id)]
+        if len(sub) == 0:
+            return ''
+        d = sub['Data'].max() if 'Data' in sub.columns else None
+        return d.isoformat() if hasattr(d, 'isoformat') else str(d or '')
+
     for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
         if lote.data_recebimento > ctx.data_referencia or lote.data_aplicacao > ctx.data_referencia:
             continue
@@ -272,23 +364,31 @@ def _classificar_lotes_situacao_atual(contexto):
         )
         lote_exaurido_na_situacao = bool(lote.esgotado or saldo_bruto <= limiar or saldo_liquido <= limiar or saldo_rem <= limiar)
         saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao = normalizar_valores_situacao_atual_exaurida(
-            saldo_bruto=saldo_bruto,
-            saldo_liquido=saldo_liquido,
-            saldo_rem=saldo_rem,
-            exaurido=lote_exaurido_na_situacao,
+            saldo_bruto=saldo_bruto, saldo_liquido=saldo_liquido, saldo_rem=saldo_rem, exaurido=lote_exaurido_na_situacao,
         )
         linha_ident = [lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, dias_corridos, dias_uteis]
+        linha_ident_ex = [lote.id, lote.data_recebimento, lote.data_aplicacao, _ultimo_uso(lote.id), lote.investimento, dias_corridos, dias_uteis]
         linha_valores = [lote.id, round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2), saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao]
         if lote_exaurido_na_situacao:
-            rows_exauridos_ident.append(linha_ident)
+            rows_exauridos_ident.append(linha_ident_ex)
             rows_exauridos_valores.append(linha_valores)
         else:
             rows_ativos_ident.append(linha_ident)
             rows_ativos_valores.append(linha_valores)
+    rows_exauridos_ident.sort(key=lambda row: (str(row[3] or ''), str(row[2] or ''), str(row[0] or '')), reverse=True)
+    # manter valores na mesma ordem da tabela de identificação dos exauridos
+    rows_ativos_ident.sort(key=lambda row: (str(row[2] or ''), str(row[0] or '')), reverse=True)
+    ordem_ex = [row[0] for row in rows_exauridos_ident]
+    ordem_at = [row[0] for row in rows_ativos_ident]
+    mapa_ex_val = {row[0]: row for row in rows_exauridos_valores}
+    mapa_at_val = {row[0]: row for row in rows_ativos_valores}
+    rows_exauridos_valores = [mapa_ex_val[lote_id] for lote_id in ordem_ex if lote_id in mapa_ex_val]
+    rows_ativos_valores = [mapa_at_val[lote_id] for lote_id in ordem_at if lote_id in mapa_at_val]
     return rows_exauridos_ident, rows_exauridos_valores, rows_ativos_ident, rows_ativos_valores
 
 
 def main() -> None:
+
     contexto = carregar_contexto_baseline(raiz_repositorio=RAIZ, instalar_automaticamente=False)
     cfg = contexto.pacote_config
     ctx = contexto.execucao
@@ -365,7 +465,7 @@ def main() -> None:
         dias_ate = max((data_evt - ctx.data_referencia).days, 0) if isinstance(data_evt, date) else None
         despesa_id = str(item.get('despesa_id') or '').strip()
         decisao = mapa_decisao.get(despesa_id, {})
-        resumo_financeiro = _calcular_resumo_financeiro_fonte(contexto, decisao)
+        resumo_financeiro = _resumo_financeiro_futuro_preferencial(contexto, despesa_id, decisao, mapa_central.get(despesa_id, {}))
         temporal = mapa_temporal.get(despesa_id, {})
         dinamico = mapa_reescolha.get(despesa_id, {})
         heuristica = mapa_heuristica.get(despesa_id, {})
@@ -379,7 +479,7 @@ def main() -> None:
             item.get('despesa_id'),
             item.get('valor'),
             item.get('pago'),
-            str(decisao.get('lote_id_escolhido') or ''),
+            resumo_financeiro.get('Lote sugerido', ''),
             resumo_financeiro.get('Saldo Antes', ''),
             resumo_financeiro.get('Bruto', ''),
             resumo_financeiro.get('Imposto', ''),
@@ -717,21 +817,7 @@ def main() -> None:
 
     ws_recomendacao = wb.create_sheet('Rec. pgto+switch')
     rows_recomendacao = []
-    shadow = getattr(contexto, 'switching_economico_shadow', None)
-    plano_shadow = shadow.plano_shadow.copy() if shadow is not None and isinstance(getattr(shadow, 'plano_shadow', None), pd.DataFrame) else pd.DataFrame()
-    melhores_shadow = shadow.quadro_melhores_oportunidades.copy() if shadow is not None and isinstance(getattr(shadow, 'quadro_melhores_oportunidades', None), pd.DataFrame) else pd.DataFrame()
-    base_switch = plano_shadow if len(plano_shadow) else melhores_shadow
-    if len(base_switch):
-        base_switch = base_switch.sort_values(['recomendado_shadow', 'ganho_liquido_estimado', 'score_switch_shadow', 'lote_id'], ascending=[False, False, False, True], kind='stable')
-        for _, row_s in base_switch.head(30).iterrows():
-            rows_recomendacao.append([
-                row_s.get('data_referencia'), '', '', '', '', '', 'switching_shadow',
-                row_s.get('lote_id'), '', '',
-                row_s.get('data_referencia'), row_s.get('lote_id'), row_s.get('produto_destino_nome'),
-                row_s.get('ganho_liquido_estimado'), row_s.get('valor_liquido_resgatavel'),
-                'sim' if bool(row_s.get('recomendado_shadow')) else '', '', '',
-                '', 'recomendação independente de pagamentos',
-            ])
+    rows_recomendacao.extend(_switchings_oficiais_para_saida(contexto, limite=30))
     if quadro_recomendacao is not None and len(quadro_recomendacao):
         quadro_switch_pagto = quadro_recomendacao[quadro_recomendacao['estrategia_recomendada'].astype(str) != 'sem_switching'].copy()
         if len(quadro_switch_pagto):
@@ -773,11 +859,12 @@ def main() -> None:
         ['Recebidos em janela pré-aplicação', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('recebidos_em_janela_pre_aplicacao', 0)],
         ['Recebidos usados antes da aplicação', contexto.recebidos_auditaveis.auditoria.get('resumo', {}).get('recebidos_usados_antes_da_aplicacao_observado', 0)],
     ]
-    headers_atual_ident = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis']
+    headers_exauridos_ident = ['Lote', 'Recebimento', 'Aplicação', 'Último uso', 'Produto', 'Dias Corridos', 'Dias Úteis']
+    headers_ativos_ident = ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias Corridos', 'Dias Úteis']
     headers_atual_valores = ['Lote', 'Valor Original', 'Bruto Atual', 'Líquido Atual', 'Saldo rem']
-    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_exauridos_ident, start_row=1, title='Identificação e tempo dos lotes exauridos')
+    ultima_linha = _apply_table_style(ws_atual, headers_exauridos_ident, rows_exauridos_ident, start_row=1, title='Identificação e tempo dos lotes exauridos')
     ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_exauridos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes exauridos')
-    ultima_linha = _apply_table_style(ws_atual, headers_atual_ident, rows_ativos_ident, start_row=ultima_linha + 3, title='Identificação e tempo dos lotes ativos')
+    ultima_linha = _apply_table_style(ws_atual, headers_ativos_ident, rows_ativos_ident, start_row=ultima_linha + 3, title='Identificação e tempo dos lotes ativos')
     ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_ativos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes ativos')
     ultima_linha = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_recebidos_resumo, start_row=ultima_linha + 3, title='Resumo dos recebidos auditáveis (inclui exauridos)')
     _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=ultima_linha + 3, title='Fechamento econômico da situação atual')
