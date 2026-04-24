@@ -290,6 +290,123 @@ def _preparar_tabela_recebidos_situacao_atual(recebidos_auditaveis):
 
 
 
+def _preparar_auditoria_recebimento_vs_aplicacao(dados_operacionais, replay_passado):
+    """Compatibilidade temporária da camada de console.
+
+    A V190 ainda não consome essa auditoria em nenhuma seção renderizada,
+    mas o ponto de montagem continua sendo chamado no fluxo principal.
+    Mantemos um preparador neutro para evitar quebra do console enquanto a
+    camada observável é consolidada.
+    """
+    return []
+
+
+def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, decisao_local_v1, contexto_baseline, limite=5):
+    import pandas as pd
+
+    pagamentos_realizados = []
+    pagamentos_proximos = []
+
+    log = getattr(replay_passado, 'log_passado', None)
+    if isinstance(log, pd.DataFrame) and len(log):
+        quadro = log.copy()
+        chave = 'Despesa ID' if 'Despesa ID' in quadro.columns else None
+        if chave is not None:
+            quadro['_ordem'] = range(len(quadro))
+            agreg = (
+                quadro.sort_values(['Data', '_ordem'], kind='stable')
+                .groupby(chave, dropna=False, sort=False)
+                .agg({
+                    'Data': 'last',
+                    'Conta': 'last' if 'Conta' in quadro.columns else 'first',
+                    'Liquido': 'sum' if 'Liquido' in quadro.columns else 'first',
+                    'Bruto': 'sum' if 'Bruto' in quadro.columns else 'first',
+                    'Imposto': 'sum' if 'Imposto' in quadro.columns else 'first',
+                    'Saldo Antes': 'first' if 'Saldo Antes' in quadro.columns else 'last',
+                    'Saldo Remanescente': 'last' if 'Saldo Remanescente' in quadro.columns else 'first',
+                    'Lote': lambda s: ' + '.join(dict.fromkeys([str(x) for x in s if str(x).strip()])) if 'Lote' in quadro.columns else '',
+                })
+                .reset_index(drop=True)
+            )
+        else:
+            agreg = quadro.copy()
+            if 'Conta' not in agreg.columns:
+                agreg['Conta'] = ''
+            if 'Liquido' not in agreg.columns:
+                agreg['Liquido'] = 0.0
+            if 'Bruto' not in agreg.columns:
+                agreg['Bruto'] = agreg['Liquido']
+            if 'Imposto' not in agreg.columns:
+                agreg['Imposto'] = 0.0
+            if 'Saldo Antes' not in agreg.columns:
+                agreg['Saldo Antes'] = None
+            if 'Saldo Remanescente' not in agreg.columns:
+                agreg['Saldo Remanescente'] = None
+            if 'Lote' not in agreg.columns:
+                agreg['Lote'] = ''
+        agreg = agreg.sort_values('Data', ascending=False, kind='stable').head(limite)
+        for _, row in agreg.iterrows():
+            data = row.get('Data')
+            pagamentos_realizados.append({
+                'Data': data.isoformat() if hasattr(data, 'isoformat') else data,
+                'Descrição': row.get('Conta') or '',
+                'Valor': round(float(row.get('Liquido') or 0.0), 2),
+                'Lotes usados': row.get('Lote') or '',
+                'Saldo Antes': round(float(row.get('Saldo Antes') or 0.0), 2) if row.get('Saldo Antes') is not None else None,
+                'Bruto': round(float(row.get('Bruto') or 0.0), 2),
+                'Imposto': round(float(row.get('Imposto') or 0.0), 2),
+                'Líquido': round(float(row.get('Liquido') or 0.0), 2),
+                'Saldo Remanescente': round(float(row.get('Saldo Remanescente') or 0.0), 2) if row.get('Saldo Remanescente') is not None else None,
+            })
+
+    quadro_futuro = None
+    motor = getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None)
+    if motor is not None and hasattr(motor, 'quadro_recomendacoes'):
+        quadro_futuro = motor.quadro_recomendacoes.copy()
+        if len(quadro_futuro):
+            quadro_futuro = quadro_futuro.sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
+    if quadro_futuro is None or not len(quadro_futuro):
+        quadro_futuro = getattr(decisao_local_v1, 'quadro_decisao_local_v1', None)
+        if isinstance(quadro_futuro, pd.DataFrame) and len(quadro_futuro):
+            quadro_futuro = quadro_futuro.sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
+
+    if isinstance(quadro_futuro, pd.DataFrame) and len(quadro_futuro):
+        for _, row in quadro_futuro.head(limite).iterrows():
+            data = row.get('data_pagamento')
+            valor = round(float(row.get('valor_pagamento') or 0.0), 2)
+            saldo_antes = row.get('valor_residual_temporal_lote')
+            if saldo_antes is None:
+                saldo_antes = row.get('valor_disponivel_escolhido')
+            saldo_antes = round(float(saldo_antes or 0.0), 2) if saldo_antes is not None else None
+            liquido = row.get('cobertura_esperada')
+            if liquido is None:
+                liquido = valor
+            liquido = round(float(liquido or 0.0), 2)
+            saldo_rem = row.get('saldo_residual_temporal_pos_recomendacao')
+            if saldo_rem is None and saldo_antes is not None:
+                saldo_rem = round(max(float(saldo_antes) - valor, 0.0), 2)
+            lote = row.get('lote_recomendado') or row.get('lote_id_escolhido') or row.get('fonte_base_escolhida') or row.get('tipo_fonte_escolhida') or ''
+            status = row.get('motivo_recomendacao') or row.get('observacao_auditavel') or row.get('estrategia_recomendada') or row.get('criterio_decisao') or ''
+            score = row.get('score_central_referencia')
+            if score is None:
+                score = row.get('custo_economico_proxy')
+            pagamentos_proximos.append({
+                'Data': data.isoformat() if hasattr(data, 'isoformat') else data,
+                'Descrição': row.get('descricao_pagamento') or '',
+                'Valor': valor,
+                'Lote sugerido': lote,
+                'Saldo Antes': saldo_antes,
+                'Bruto': valor,
+                'Imposto': 0.0,
+                'Líquido': liquido,
+                'Saldo Remanescente': round(float(saldo_rem or 0.0), 2) if saldo_rem is not None else None,
+                'Score proxy': round(float(score), 2) if score is not None else None,
+                'Status local': status,
+            })
+
+    return pagamentos_realizados, pagamentos_proximos
+
+
 def _render_secao_ranking_oficial(contexto_baseline):
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     if ranking is None:
