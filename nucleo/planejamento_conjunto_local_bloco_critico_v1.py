@@ -577,7 +577,7 @@ def carregar_planejamento_conjunto_local_bloco_critico_v1(
     mapa_v103 = {str(row.get('pagamento_id') or '').strip(): row for row in quadro_v103.to_dict(orient='records')} if len(quadro_v103) else {}
     for quadro_custom in quadros_custom.values():
         if len(quadro_custom):
-            quadro_custom['mudou_vs_v103'] = quadro_custom['pagamento_id'].map(lambda pid: str(quadro_custom[quadro_custom['pagamento_id'] == pid].iloc[0].get('lote_final_planejamento') or ''))
+            quadro_custom['mudou_vs_v103'] = False
     for pid, row_v103 in mapa_v103.items():
         lote_v103 = str(row_v103.get('lote_final_planejamento') or '')
         for quadro_custom in quadros_custom.values():

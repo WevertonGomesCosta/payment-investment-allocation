@@ -1,7 +1,7 @@
-# LEIA-ME operacional — V189
+# LEIA-ME operacional — V199
 
 ## Baseline vigente da camada documental e de navegação
-- Pacote operacional atual: **V189**
+- Pacote operacional atual: **V199**
 - Contrato mestre vigente: **CONTRATO_OPERACIONAL_PROJETO.md**
 - Modelo oficial vigente: **MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md**
 - Baseline contratual/metodológica preservada: **V183/V182**
@@ -16,7 +16,7 @@
 
 ### Regra de leitura desta etapa
 1. Interpretar o projeto pela V183 como contrato mestre vigente e pela V182 como modelo oficial vigente.
-2. Tratar a V189 como baseline de saída oficial observável, sem reabrir contrato, modelo ou núcleo econômico.
+2. Tratar a V199 como baseline de saída oficial observável, sem reabrir contrato, modelo ou núcleo econômico.
 3. Não usar documentos históricos como base normativa principal para novas implementações.
 4. Exigir auditabilidade por lote, fonte, conta, pacote e destino nas saídas oficiais.
 5. Tratar `saidas/oficial/` como caminho canônico de artefatos oficiais ativos.
@@ -37,7 +37,7 @@
 ## Referência normativa vigente
 - Contrato mestre vigente: `CONTRATO_OPERACIONAL_PROJETO.md`
 - Modelo metodológico vinculante: `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
-- Pacote operacional atual: V188
+- Pacote operacional atual: V199
 
 ## Canonização de scripts e saídas
 - use `scripts/diagnostico/` para inspeções, diagnósticos e checagem de release;
