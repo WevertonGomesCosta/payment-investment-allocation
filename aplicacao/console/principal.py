@@ -213,6 +213,8 @@ def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro,
     lotes_exauridos = []
     data_economica = data_referencia
     for lote in sorted(replay_passado.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
+        if lote.data_recebimento > data_referencia or lote.data_aplicacao > data_referencia:
+            continue
         saldo_bruto = round(float(lote.valor_bruto_em_data(
             data_economica,
             calendario_financeiro,
@@ -236,7 +238,12 @@ def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro,
             serie_cdi=serie_cdi,
             data_fechamento_referencia=data_economica,
         )
-        lote_exaurido_na_situacao = bool(lote.esgotado or saldo_bruto <= limiar)
+        lote_exaurido_na_situacao = bool(
+            lote.esgotado
+            or saldo_bruto <= limiar
+            or saldo_liquido <= limiar
+            or saldo_rem <= limiar
+        )
         saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao = normalizar_valores_situacao_atual_exaurida(
             saldo_bruto=saldo_bruto,
             saldo_liquido=saldo_liquido,
@@ -259,6 +266,8 @@ def _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro,
             lotes_exauridos.append(linha)
         else:
             lotes_ativos.append(linha)
+    lotes_exauridos.sort(key=lambda item: (str(item.get('Aplicação') or ''), str(item.get('Lote') or '')), reverse=True)
+    lotes_ativos.sort(key=lambda item: (str(item.get('Aplicação') or ''), str(item.get('Lote') or '')), reverse=True)
     return lotes_ativos, lotes_exauridos
 
 
@@ -437,36 +446,35 @@ def _render_secao_ranking_oficial(contexto_baseline):
 
 
 def _render_secao_switchings_oficiais(contexto_baseline):
+    ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     motor = getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None)
-    if motor is None:
-        return
     _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
-    auditoria = motor.auditoria or {}
+
+    auditoria = (motor.auditoria or {}) if motor is not None else {}
+    resumo = auditoria.get('resumo', {}) if isinstance(auditoria, dict) else {}
+    destinos = ranking.quadro_destinos_switch.copy() if ranking is not None else pd.DataFrame()
+    top_destinos = destinos.head(10).copy() if len(destinos) else destinos
+
     _imprimir_pares([
-        ('pagamentos auditados', auditoria.get('total_pagamentos_auditados')),
-        ('estratégia sem switching', auditoria.get('qtd_sem_switching')),
-        ('switching simples', auditoria.get('qtd_switching_simples')),
-        ('combinação mínima', auditoria.get('qtd_combinacao_minima')),
-        ('switchings acionados', auditoria.get('qtd_switchings_acionados')),
-        ('ganho líquido estimado de switching', auditoria.get('ganho_liquido_estimado_total_switching')),
+        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0) if resumo else 0),
+        ('switchings promovidos/executados', resumo.get('switching_acionado', 0) if resumo else 0),
+        ('leitura operacional', 'destinos abaixo refletem a priorização oficial do ranking vigente e independem de datas de pagamento'),
+        ('destino top 1 do ranking', ranking.auditoria.get('destino_top1') if ranking is not None else None),
     ])
-    quadro = motor.quadro_recomendacoes.copy()
-    if len(quadro):
-        quadro = quadro[quadro['estrategia_recomendada'].astype(str) != 'sem_switching'].copy()
-        quadro = quadro.sort_values(by=['data_pagamento','ganho_liquido_estimado_switching'], ascending=[True,False], kind='stable')
-    linhas=[]
-    if len(quadro):
-        for _, row in quadro.head(10).iterrows():
-            linhas.append({
-                'Data': row.get('data_pagamento').isoformat() if hasattr(row.get('data_pagamento'),'isoformat') else row.get('data_pagamento'),
-                'Conta': row.get('descricao_pagamento'),
-                'Estratégia': row.get('estrategia_recomendada'),
-                'Origem': row.get('lote_origem_switching') or row.get('lote_recomendado'),
-                'Destino': row.get('produto_destino_switching'),
-                'Ganho estimado': row.get('ganho_liquido_estimado_switching'),
-                'Status': 'classificado',
-            })
-    print('- amostra de switchings relevantes:')
+
+    linhas = []
+    for _, row in top_destinos.iterrows():
+        linhas.append({
+            'Data': 'janela livre',
+            'Conta': '',
+            'Estratégia': 'destino_priorizado',
+            'Origem': '',
+            'Destino': row.get('nome'),
+            'Ganho estimado': row.get('proxy_terminal_destino'),
+            'Status': 'priorizado pelo ranking',
+        })
+
+    print('- amostra de destinos priorizados para switching (independente de pagamentos):')
     _imprimir_tabela(['Data','Conta','Estratégia','Origem','Destino','Ganho estimado','Status'], linhas, limite=10)
 
 def main() -> None:

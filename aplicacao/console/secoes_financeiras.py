@@ -306,17 +306,17 @@ def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos
     print('\n- lotes exauridos:')
     if lotes_exauridos:
         print('  identificação e tempo:')
-        imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_exauridos)
+        imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_exauridos, limite=10)
         print('\n  valores atuais:')
-        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_exauridos)
+        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_exauridos, limite=10)
     else:
         print('  [OK] sem lotes exauridos nesta execução')
     print('\n- lotes ativos:')
     if lotes_ativos:
         print('  identificação e tempo:')
-        imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_ativos)
+        imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_ativos, limite=10)
         print('\n  valores atuais:')
-        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos)
+        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos, limite=10)
     else:
         print('  [OK] sem lotes ativos acima do limiar nesta execução')
     print('\n- resumo dos recebidos auditáveis (inclui exauridos):')

@@ -243,6 +243,8 @@ def _classificar_lotes_situacao_atual(contexto):
     rows_exauridos_valores = []
     data_economica = ctx.data_referencia
     for lote in sorted(rep.lotes_apos_replay, key=lambda x: (x.data_recebimento, x.data_aplicacao, x.id)):
+        if lote.data_recebimento > ctx.data_referencia or lote.data_aplicacao > ctx.data_referencia:
+            continue
         saldo_bruto = round(float(lote.valor_bruto_em_data(
             data_economica,
             cal,
@@ -712,32 +714,30 @@ def main() -> None:
 
 
     ws_recomendacao = wb.create_sheet('Rec. pgto+switch')
-    quadro_recomendacao_full = contexto.motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes.copy() if getattr(contexto, 'motor_recomendacao_pagamentos_switching_v1', None) is not None else None
     rows_recomendacao = []
-    if quadro_recomendacao_full is not None and len(quadro_recomendacao_full):
-        quadro_recomendacao_full = quadro_recomendacao_full.sort_values(by=['data_pagamento', 'pagamento_id'], kind='stable')
-        for _, row_r in quadro_recomendacao_full.iterrows():
+    ranking = getattr(contexto, 'ranking_carteira', None)
+    destinos_switch = ranking.quadro_destinos_switch.copy() if ranking is not None else None
+    if destinos_switch is not None and len(destinos_switch):
+        destinos_switch = destinos_switch.sort_values(by=['rank_destino'], kind='stable')
+        for _, row_dest in destinos_switch.head(30).iterrows():
             rows_recomendacao.append([
-                row_r.get('data_pagamento'), row_r.get('descricao_pagamento'), row_r.get('pagamento_id'), row_r.get('valor_pagamento'),
-                row_r.get('classe_pagamento_operacional'), row_r.get('subclasse_pagamento_operacional'), row_r.get('estrategia_recomendada'),
-                row_r.get('lote_recomendado'), row_r.get('lote_reserva'), 'sim' if bool(row_r.get('necessidade_switching')) else '',
-                row_r.get('data_sugerida_switching'), row_r.get('lote_origem_switching'), row_r.get('produto_destino_switching'),
-                row_r.get('ganho_liquido_estimado_switching'), row_r.get('cobertura_esperada'),
-                'sim' if bool(row_r.get('cobertura_integral_recomendada')) else '', row_r.get('lote_central_referencia'), row_r.get('lote_reserva_referencia'),
-                row_r.get('materialidade_minima_switching'), row_r.get('motivo_recomendacao'),
+                'janela_livre', '', '', '', '', '', 'destino_priorizado', '', '', '', '', '', row_dest.get('nome'), row_dest.get('proxy_terminal_destino'), '', '', '', '', row_dest.get('aplicacao_minima'), 'priorizado pelo ranking vigente',
             ])
+    if quadro_recomendacao is not None and len(quadro_recomendacao):
+        quadro_switch_pagto = quadro_recomendacao[quadro_recomendacao['estrategia_recomendada'].astype(str) != 'sem_switching'].copy()
+        if len(quadro_switch_pagto):
+            quadro_switch_pagto = quadro_switch_pagto.sort_values(by=['data_pagamento', 'ganho_liquido_estimado_switching'], ascending=[True, False], kind='stable')
+            for _, row_r in quadro_switch_pagto.head(20).iterrows():
+                rows_recomendacao.append([
+                    row_r.get('data_pagamento'), row_r.get('descricao_pagamento'), row_r.get('pagamento_id'), row_r.get('valor_pagamento'),
+                    row_r.get('classe_pagamento_operacional'), row_r.get('subclasse_pagamento_operacional'), row_r.get('estrategia_recomendada'),
+                    row_r.get('lote_recomendado'), row_r.get('lote_reserva'), 'sim' if bool(row_r.get('necessidade_switching')) else '',
+                    row_r.get('data_sugerida_switching'), row_r.get('lote_origem_switching'), row_r.get('produto_destino_switching'),
+                    row_r.get('ganho_liquido_estimado_switching'), row_r.get('cobertura_esperada'),
+                    'sim' if bool(row_r.get('cobertura_integral_recomendada')) else '', row_r.get('lote_central_referencia'), row_r.get('lote_reserva_referencia'),
+                    row_r.get('materialidade_minima_switching'), 'recomendação vinculada a pagamento',
+                ])
     _apply_table_style(ws_recomendacao, ['Data', 'Conta', 'Despesa ID', 'Valor', 'Classe', 'Subclasse', 'Estratégia recomendada', 'Lote recomendado', 'Lote reserva', 'Necessita switching', 'Data sugerida switching', 'Lote origem switching', 'Produto destino switching', 'Ganho líquido estimado switching', 'Cobertura esperada', 'Cobertura integral recomendada', 'Lote central referência', 'Lote reserva referência', 'Materialidade mínima switching', 'Motivo recomendação'], rows_recomendacao, freeze=True)
-
-    ws_melhores = wb.create_sheet('Melhores produtos')
-    candidatos = tri.quadro_candidatos.copy().sort_values(by=['score_final', 'score_retorno'], ascending=[False, False], kind='stable')
-    rows_melhores = []
-    for _, row in candidatos.iterrows():
-        rows_melhores.append([
-            row.get('nome'), row.get('familia_produto'), row.get('regime_taxa'), row.get('taxa_base_cdi'), row.get('taxa_bonus_cdi'),
-            row.get('dias_bonus'), row.get('carencia_dias'), row.get('aplicacao_minima'), row.get('score_final'), row.get('rank_global'), row.get('rank_familia')
-        ])
-    headers_melhores = ['Produto', 'Família', 'Regime', 'Taxa Base CDI', 'Taxa Bônus CDI', 'Dias Bônus', 'Carência Dias', 'Aplicação Mínima', 'Score Final', 'Rank Global', 'Rank Família']
-    _apply_table_style(ws_melhores, headers_melhores, rows_melhores, freeze=True)
 
     ws_atual = wb.create_sheet('Situação Atual')
     resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
