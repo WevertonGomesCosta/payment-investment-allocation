@@ -285,10 +285,12 @@ def render_secao_heuristica_conjunta_parcial(*, auditoria_heuristica=None, amost
             limite=10,
         )
 
-def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
+def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, lotes_ativos_valores=None, lotes_exauridos_valores=None, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
     imprimir_titulo('SITUAÇÃO ATUAL')
     resumo_fechamento = resumo_fechamento or {}
     lotes_exauridos = lotes_exauridos or []
+    lotes_ativos_valores = lotes_ativos_valores or lotes_ativos
+    lotes_exauridos_valores = lotes_exauridos_valores or lotes_exauridos
     if resumo_fechamento:
         imprimir_pares([
             ('data de referência', resumo_fechamento.get('data_referencia')),
@@ -306,7 +308,7 @@ def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos
         print('  identificação e tempo:')
         imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Último uso', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_exauridos, limite=None)
         print('\n  valores atuais:')
-        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_exauridos, limite=None)
+        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_exauridos_valores, limite=None)
     else:
         print('  [OK] sem lotes exauridos nesta execução')
     print('\n- lotes ativos:')
@@ -314,7 +316,7 @@ def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, recebidos
         print('  identificação e tempo:')
         imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_ativos, limite=None)
         print('\n  valores atuais:')
-        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos, limite=None)
+        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos_valores, limite=None)
     else:
         print('  [OK] sem lotes ativos acima do limiar nesta execução')
 

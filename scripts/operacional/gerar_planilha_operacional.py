@@ -233,7 +233,100 @@ def _calcular_resumo_financeiro_fonte(contexto, decisao: dict) -> dict[str, obje
     }
 
 
-def _resumo_financeiro_futuro_preferencial(contexto, pagamento_id: str, decisao: dict, central: dict | None = None) -> dict[str, object]:
+def _ultimo_fator_cache_contexto(contexto):
+    serie = getattr(getattr(contexto, 'cache_cdi', None), 'serie_cdi', {}) or {}
+    if not serie:
+        return 1.0, None
+    try:
+        data_ult = max(serie.keys())
+        fator = float(serie.get(data_ult) or 1.0)
+        return fator if fator > 0 else 1.0, data_ult
+    except Exception:
+        return 1.0, None
+
+
+def _mapa_saldo_disponivel_contexto(contexto):
+    mapa = {}
+    pacote = getattr(contexto, 'saldo_disponivel_geral', None)
+    quadro = getattr(pacote, 'quadro_saldo_disponivel', None) if pacote is not None else None
+    if isinstance(quadro, pd.DataFrame) and len(quadro):
+        for _, row in quadro.iterrows():
+            mapa[str(row.get('pagamento_id') or '').strip()] = row.to_dict()
+    return mapa
+
+
+def _avancar_lote_para_data_contexto(lote, data_origem, data_alvo, contexto):
+    if data_alvo is None or data_origem is None or data_alvo <= data_origem:
+        return
+    fator_dia, _ = _ultimo_fator_cache_contexto(contexto)
+    dias = contar_dias_rendimento(data_origem, data_alvo, contexto.calendario_financeiro, serie_cdi=None)
+    if dias <= 0:
+        return
+    mult = float(fator_dia) ** int(dias)
+    lote.saldo_bruto = round(float(lote.saldo_bruto) * mult, 10)
+    lote.fator_acumulado = float(lote.fator_acumulado) * mult
+
+
+def _mapa_resumos_futuros_contexto(contexto, quadro_futuro: pd.DataFrame) -> dict[str, dict[str, object]]:
+    if not isinstance(quadro_futuro, pd.DataFrame) or len(quadro_futuro) == 0:
+        return {}
+    tabela_iof = contexto.tabela_iof
+    faixas_ir = contexto.faixas_ir
+    replay = getattr(contexto, 'replay_passado', None)
+    lotes_orig = getattr(replay, 'lotes_apos_replay', []) if replay is not None else []
+    lotes_estado = {str(l.id): deepcopy(l) for l in lotes_orig}
+    lotes_data = {str(l.id): contexto.execucao.data_referencia for l in lotes_orig}
+    saldo_map = _mapa_saldo_disponivel_contexto(contexto)
+    consumo_saldo = 0.0
+    resumos = {}
+    quadro = quadro_futuro.copy().sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
+    for _, row in quadro.iterrows():
+        pagamento_id = str(row.get('pagamento_id') or '').strip()
+        data_pag = row.get('data_pagamento')
+        valor = round(float(row.get('valor_pagamento') or 0.0), 2)
+        lote_sug = str(row.get('lote_recomendado') or row.get('lote_id_escolhido') or row.get('fonte_base_escolhida') or row.get('tipo_fonte_escolhida') or '')
+        resumo = {'Lote sugerido': lote_sug, 'Saldo Antes': '', 'Bruto': '', 'Imposto': '', 'Líquido': '', 'Saldo Remanescente': ''}
+        if lote_sug in lotes_estado and data_pag is not None:
+            lote = lotes_estado[lote_sug]
+            _avancar_lote_para_data_contexto(lote, lotes_data.get(lote_sug, contexto.execucao.data_referencia), data_pag, contexto)
+            lotes_data[lote_sug] = data_pag
+            saldo_antes = round(float(lote.valor_liquido_hoje(data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+            mov = executar_saque_lote(lote, valor, data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
+            if mov is not None:
+                resumo = {
+                    'Lote sugerido': lote_sug,
+                    'Saldo Antes': saldo_antes,
+                    'Bruto': round(float(mov.get('bruto') or 0.0), 2),
+                    'Imposto': round(float(mov.get('imposto') or 0.0), 2),
+                    'Líquido': round(float(mov.get('liquido') or 0.0), 2),
+                    'Saldo Remanescente': round(float(mov.get('saldo_remanescente') or 0.0), 2),
+                }
+        elif lote_sug == 'saldo_disponivel_geral':
+            base = saldo_map.get(pagamento_id, {})
+            saldo_liq_base = round(float(base.get('saldo_disponivel_liquido') or base.get('saldo_disponivel_bruto') or 0.0), 2)
+            saldo_antes = max(round(saldo_liq_base - consumo_saldo, 2), 0.0)
+            bruto = min(valor, saldo_antes)
+            imposto = 0.0
+            liquido = bruto
+            saldo_rem = max(round(saldo_antes - liquido, 2), 0.0)
+            consumo_saldo = round(consumo_saldo + liquido, 2)
+            resumo = {
+                'Lote sugerido': lote_sug,
+                'Saldo Antes': saldo_antes,
+                'Bruto': bruto,
+                'Imposto': imposto,
+                'Líquido': liquido,
+                'Saldo Remanescente': saldo_rem,
+            }
+        resumos[pagamento_id] = resumo
+    return resumos
+
+
+def _resumo_financeiro_futuro_preferencial(contexto, pagamento_id: str, decisao: dict, central: dict | None = None, mapa_resumos: dict[str, dict[str, object]] | None = None) -> dict[str, object]:
+    mapa_resumos = mapa_resumos or {}
+    resumo_mapa = mapa_resumos.get(str(pagamento_id or '').strip())
+    if resumo_mapa:
+        return resumo_mapa
     central = central or {}
     if central:
         return {
@@ -253,13 +346,17 @@ def _data_sugerida_switching_planilha(contexto, lote):
     mapa = getattr(contexto.carteira_canonica, 'mapa_produtos', {}) or {}
     meta = ((mapa.get('by_key') or {}).get(getattr(lote, 'produto_key', None)) or {}) if isinstance(mapa, dict) else {}
     prazo = int(meta.get('prazo_dias') or 0)
+    datas_candidatas = []
     if prazo > 0:
-        base = lote.data_aplicacao + timedelta(days=prazo)
-        try:
-            return proximo_dia_util_bancario_em_ou_apos(base, contexto.calendario_financeiro)
-        except Exception:
-            return base
-    return getattr(lote, 'carencia_ate', None) or contexto.execucao.data_referencia
+        datas_candidatas.append(lote.data_aplicacao + timedelta(days=prazo))
+    carencia = getattr(lote, 'carencia_ate', None)
+    if carencia is not None:
+        datas_candidatas.append(carencia)
+    base = max(datas_candidatas) if datas_candidatas else contexto.execucao.data_referencia
+    try:
+        return proximo_dia_util_bancario_em_ou_apos(base, contexto.calendario_financeiro)
+    except Exception:
+        return base
 
 
 def _destino_ranking_planilha(contexto, lote):
@@ -287,28 +384,26 @@ def _destino_ranking_planilha(contexto, lote):
 
 
 def _switchings_oficiais_para_saida(contexto, limite=30):
-    replay = contexto.replay_passado
-    limiar = obter_limiar_residuo_resolvido(contexto.pacote_config.conteudo)
     rows = []
-    for lote in sorted(replay.lotes_apos_replay, key=lambda x: str(x.id)):
-        if lote.data_recebimento > contexto.execucao.data_referencia or lote.data_aplicacao > contexto.execucao.data_referencia:
-            continue
-        bruto = round(float(lote.saldo_bruto or 0.0), 2)
-        liquido = round(float(lote.valor_liquido_hoje(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir) or 0.0), 2)
-        rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
-        if lote.esgotado or bruto <= limiar or liquido <= limiar or rem <= limiar:
-            continue
-        dest = _destino_ranking_planilha(contexto, lote)
-        if not dest:
-            continue
-        data_sug = _data_sugerida_switching_planilha(contexto, lote)
-        rows.append([
-            data_sug, '', '', '', '', '', 'switching_shadow',
-            lote.id, '', '',
-            data_sug, lote.id, dest.get('nome'),
-            round(float(dest.get('proxy_terminal_destino') or 0.0), 2), liquido,
-            'sim', '', '', '', 'priorizado pelo ranking',
-        ])
+    shadow = getattr(contexto, 'switching_economico_shadow', None)
+    plano = getattr(shadow, 'plano_shadow', None) if shadow is not None else None
+    lotes_by_id = {str(l.id): l for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])}
+    if isinstance(plano, pd.DataFrame) and len(plano):
+        plano_f = plano.copy()
+        if 'recomendado_shadow' in plano_f.columns:
+            plano_f = plano_f[plano_f['recomendado_shadow'].fillna(False)]
+        plano_f = plano_f.sort_values(['ganho_liquido_estimado','score_switch_shadow','lote_id'], ascending=[False,False,True], kind='stable')
+        for _, row in plano_f.head(limite).iterrows():
+            lote_id = str(row.get('lote_id') or '')
+            lote = lotes_by_id.get(lote_id)
+            data_sug = _data_sugerida_switching_planilha(contexto, lote) if lote is not None else contexto.execucao.data_referencia
+            rows.append([
+                data_sug, '', '', '', '', '', 'switching_shadow',
+                lote_id, '', '',
+                data_sug, lote_id, row.get('produto_destino_nome') or '',
+                round(float(row.get('ganho_liquido_estimado') or 0.0), 2), round(float(getattr(lote, 'valor_liquido_hoje', lambda *_args, **_kwargs: 0.0)(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir) if lote is not None else 0.0), 2),
+                'sim', '', '', '', 'recomendado shadow',
+            ])
     return rows[:limite]
 
 
@@ -354,20 +449,27 @@ def _classificar_lotes_situacao_atual(contexto):
             data_base_referencia=ctx.data_referencia,
         ) or 0.0), 2)
         saldo_rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
-        dias_corridos = max((ctx.data_referencia - lote.data_recebimento).days, 0)
-        dias_uteis = 0 if data_economica < lote.data_aplicacao else contar_dias_rendimento(
+        ultimo_uso_txt = _ultimo_uso(lote.id)
+        data_base_tempo = ctx.data_referencia
+        if ultimo_uso_txt:
+            try:
+                data_base_tempo = date.fromisoformat(str(ultimo_uso_txt))
+            except Exception:
+                data_base_tempo = ctx.data_referencia
+        dias_corridos = max((data_base_tempo - lote.data_recebimento).days, 0)
+        dias_uteis = 0 if data_base_tempo < lote.data_aplicacao else contar_dias_rendimento(
             lote.data_base_fiscal,
-            data_economica,
+            data_base_tempo,
             cal,
             serie_cdi=cache.serie_cdi,
-            data_fechamento_referencia=data_economica,
+            data_fechamento_referencia=min(data_economica, data_base_tempo),
         )
         lote_exaurido_na_situacao = bool(lote.esgotado or saldo_bruto <= limiar or saldo_liquido <= limiar or saldo_rem <= limiar)
         saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao = normalizar_valores_situacao_atual_exaurida(
             saldo_bruto=saldo_bruto, saldo_liquido=saldo_liquido, saldo_rem=saldo_rem, exaurido=lote_exaurido_na_situacao,
         )
         linha_ident = [lote.id, lote.data_recebimento, lote.data_aplicacao, lote.investimento, dias_corridos, dias_uteis]
-        linha_ident_ex = [lote.id, lote.data_recebimento, lote.data_aplicacao, _ultimo_uso(lote.id), lote.investimento, dias_corridos, dias_uteis]
+        linha_ident_ex = [lote.id, lote.data_recebimento, lote.data_aplicacao, ultimo_uso_txt, lote.investimento, dias_corridos, dias_uteis]
         linha_valores = [lote.id, round(float(getattr(lote, 'valor_inicial', 0.0) or 0.0), 2), saldo_bruto_exibicao, saldo_liquido_exibicao, saldo_rem_exibicao]
         if lote_exaurido_na_situacao:
             rows_exauridos_ident.append(linha_ident_ex)
@@ -459,13 +561,14 @@ def main() -> None:
     if quadro_recomendacao is not None and len(quadro_recomendacao):
         for _, row_r in quadro_recomendacao.iterrows():
             mapa_recomendacao[str(row_r.get('pagamento_id') or '').strip()] = row_r.to_dict()
+    mapa_resumos_futuros = _mapa_resumos_futuros_contexto(contexto, quadro_recomendacao if quadro_recomendacao is not None and len(quadro_recomendacao) else quadro_decisao)
     rows_futuro = []
     for item in gastos_futuros.to_dict('records'):
         data_evt = item.get('data')
         dias_ate = max((data_evt - ctx.data_referencia).days, 0) if isinstance(data_evt, date) else None
         despesa_id = str(item.get('despesa_id') or '').strip()
-        decisao = mapa_decisao.get(despesa_id, {})
-        resumo_financeiro = _resumo_financeiro_futuro_preferencial(contexto, despesa_id, decisao, mapa_central.get(despesa_id, {}))
+        decisao = mapa_recomendacao.get(despesa_id, {}) or mapa_decisao.get(despesa_id, {})
+        resumo_financeiro = _resumo_financeiro_futuro_preferencial(contexto, despesa_id, decisao, mapa_central.get(despesa_id, {}), mapa_resumos=mapa_resumos_futuros)
         temporal = mapa_temporal.get(despesa_id, {})
         dinamico = mapa_reescolha.get(despesa_id, {})
         heuristica = mapa_heuristica.get(despesa_id, {})
