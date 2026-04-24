@@ -372,16 +372,41 @@ def _mapa_saldo_disponivel(contexto_baseline):
     return mapa
 
 
+def _mapa_saldos_correntes_lotes(contexto_baseline):
+    replay = getattr(contexto_baseline, 'replay_passado', None)
+    lotes = getattr(replay, 'lotes_apos_replay', []) if replay is not None else []
+    ctx = contexto_baseline.execucao
+    cal = contexto_baseline.calendario_financeiro
+    serie = getattr(getattr(contexto_baseline, 'cache_cdi', None), 'serie_cdi', None)
+    tabela_iof = contexto_baseline.tabela_iof
+    faixas_ir = contexto_baseline.faixas_ir
+    mapa = {}
+    for lote in lotes:
+        try:
+            bruto = round(float(lote.valor_bruto_em_data(ctx.data_referencia, cal, serie_cdi=serie, data_base_referencia=ctx.data_referencia) or 0.0), 2)
+            liquido = round(float(lote.valor_liquido_em_data(ctx.data_referencia, cal, tabela_iof=tabela_iof, faixas_ir=faixas_ir, serie_cdi=serie, data_base_referencia=ctx.data_referencia) or 0.0), 2)
+        except Exception:
+            bruto = round(float(getattr(lote, 'saldo_bruto', 0.0) or 0.0), 2)
+            liquido = round(float(lote.valor_liquido_hoje(ctx.data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+        mapa[str(lote.id)] = {'bruto': bruto, 'liquido': liquido, 'saldo_rem': round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)}
+    return mapa
+
+
 def _avancar_lote_para_data(lote, data_origem, data_alvo, contexto_baseline):
     if data_alvo is None or data_origem is None or data_alvo <= data_origem:
         return
     fator_dia, _ = _ultimo_fator_cache_cdi(contexto_baseline)
-    dias = contar_dias_rendimento(data_origem, data_alvo, contexto_baseline.calendario_financeiro, serie_cdi=None)
-    if dias <= 0:
-        return
-    mult = float(fator_dia) ** int(dias)
-    lote.saldo_bruto = round(float(lote.saldo_bruto) * mult, 10)
-    lote.fator_acumulado = float(lote.fator_acumulado) * mult
+    taxa_diaria = max(float(fator_dia) - 1.0, 0.0)
+    data_cursor = data_origem
+    while data_cursor < data_alvo:
+        data_cursor = data_cursor + timedelta(days=1)
+        lote.atualizar_juros(
+            data_cursor,
+            taxa_diaria,
+            contexto_baseline.calendario_financeiro,
+            serie_cdi=None,
+            data_fechamento_referencia=data_cursor,
+        )
 
 
 def _mapa_resumos_futuros_operacionais(contexto_baseline, quadro_futuro):
@@ -394,6 +419,7 @@ def _mapa_resumos_futuros_operacionais(contexto_baseline, quadro_futuro):
     lotes_estado = {str(l.id): deepcopy(l) for l in lotes_orig}
     lotes_data = {str(l.id): contexto_baseline.execucao.data_referencia for l in lotes_orig}
     saldo_map = _mapa_saldo_disponivel(contexto_baseline)
+    saldos_correntes = _mapa_saldos_correntes_lotes(contexto_baseline)
     consumo_saldo = 0.0
     resumos = {}
     quadro = quadro_futuro.copy().sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
@@ -405,23 +431,34 @@ def _mapa_resumos_futuros_operacionais(contexto_baseline, quadro_futuro):
         resumo = {'Lote sugerido': lote_sug, 'Saldo Antes': '', 'Bruto': '', 'Imposto': '', 'Líquido': '', 'Saldo Remanescente': ''}
         if lote_sug in lotes_estado and data_pag is not None:
             lote = lotes_estado[lote_sug]
+            corrente = saldos_correntes.get(lote_sug, {})
+            saldo_corrente_bruto = round(float(corrente.get('bruto') or 0.0), 2)
+            fator_atual = max(float(getattr(lote, 'fator_acumulado', 1.0) or 1.0), 1.0)
+            principal = max(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 0.0)
+            if saldo_corrente_bruto > 0:
+                lote.saldo_bruto = saldo_corrente_bruto
+                if principal > 0:
+                    lote.fator_acumulado = max(saldo_corrente_bruto / principal, fator_atual)
             _avancar_lote_para_data(lote, lotes_data.get(lote_sug, contexto_baseline.execucao.data_referencia), data_pag, contexto_baseline)
             lotes_data[lote_sug] = data_pag
-            saldo_antes = round(float(lote.valor_liquido_hoje(data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+            saldo_antes = round(float(getattr(lote, 'saldo_bruto', 0.0) or 0.0), 2)
             mov = executar_saque_lote(lote, valor, data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
             if mov is not None:
+                saldo_rem = round(float(mov.get('saldo_remanescente') or 0.0), 2)
+                if saldo_rem <= obter_limiar_residuo_resolvido(contexto_baseline.pacote_config.conteudo):
+                    saldo_rem = 0.0
                 resumo = {
                     'Lote sugerido': lote_sug,
-                    'Saldo Antes': saldo_antes,
+                    'Saldo Antes': round(float(mov.get('saldo_antes') or saldo_antes), 2),
                     'Bruto': round(float(mov.get('bruto') or 0.0), 2),
                     'Imposto': round(float(mov.get('imposto') or 0.0), 2),
                     'Líquido': round(float(mov.get('liquido') or 0.0), 2),
-                    'Saldo Remanescente': round(float(mov.get('saldo_remanescente') or 0.0), 2),
+                    'Saldo Remanescente': saldo_rem,
                 }
         elif lote_sug == 'saldo_disponivel_geral':
             base = saldo_map.get(pagamento_id, {})
-            saldo_liq_base = round(float(base.get('saldo_disponivel_liquido') or base.get('saldo_disponivel_bruto') or 0.0), 2)
-            saldo_antes = max(round(saldo_liq_base - consumo_saldo, 2), 0.0)
+            saldo_base = round(float(base.get('saldo_disponivel_bruto') or base.get('saldo_disponivel_liquido') or 0.0), 2)
+            saldo_antes = max(round(saldo_base - consumo_saldo, 2), 0.0)
             bruto = min(valor, saldo_antes)
             imposto = 0.0
             liquido = bruto
@@ -471,25 +508,26 @@ def _ranking_destino_para_lote(contexto_baseline, lote):
     destinos = ranking.quadro_destinos_switch.copy()
     if len(destinos) == 0:
         return None
-    valor_liquido = round(float(lote.valor_liquido_hoje(contexto_baseline.execucao.data_referencia, tabela_iof=contexto_baseline.tabela_iof, faixas_ir=contexto_baseline.faixas_ir) or 0.0), 2)
     origem_key = str(getattr(lote, 'produto_key', '') or '').strip()
-    dest_f = destinos.copy()
-    if 'produto_key' in dest_f.columns:
-        dest_f = dest_f[dest_f['produto_key'].fillna('').astype(str).str.strip() != origem_key]
-    if 'aplicacao_minima' in dest_f.columns:
-        dest_f = dest_f[(dest_f['aplicacao_minima'].fillna(0.0).astype(float) <= valor_liquido + 1e-9)]
-    if 'aplicacao_maxima' in dest_f.columns:
-        dest_f = dest_f[(dest_f['aplicacao_maxima'].fillna(0.0).astype(float).eq(0.0)) | (dest_f['aplicacao_maxima'].fillna(0.0).astype(float) >= valor_liquido - 1e-9)]
-    status_col = 'Status_Confirmação' if 'Status_Confirmação' in dest_f.columns else ('status_confirmacao' if 'status_confirmacao' in dest_f.columns else None)
+    if 'produto_key' in destinos.columns:
+        destinos = destinos[destinos['produto_key'].fillna('').astype(str).str.strip() != origem_key]
+    status_col = 'Status_Confirmação' if 'Status_Confirmação' in destinos.columns else ('status_confirmacao' if 'status_confirmacao' in destinos.columns else None)
     if status_col is not None:
-        dest_f = dest_f[dest_f[status_col].fillna('').astype(str).isin(['', 'Confirmado', 'confirmado'])]
-    if len(dest_f) == 0:
+        destinos = destinos[destinos[status_col].fillna('').astype(str).isin(['', 'Confirmado', 'confirmado', 'Fortemente sustentado'])]
+    if 'elegivel_switch_in' in destinos.columns:
+        destinos = destinos[destinos['elegivel_switch_in'].fillna(False).astype(bool)]
+    valor_liquido = round(float(lote.valor_liquido_hoje(contexto_baseline.execucao.data_referencia, tabela_iof=contexto_baseline.tabela_iof, faixas_ir=contexto_baseline.faixas_ir) or 0.0), 2)
+    if 'aplicacao_minima' in destinos.columns:
+        elegiveis = destinos[destinos['aplicacao_minima'].fillna(0.0).astype(float) <= valor_liquido + 1e-9]
+        if len(elegiveis):
+            destinos = elegiveis
+    if len(destinos) == 0:
         return None
-    if 'rank_destino' in dest_f.columns:
-        dest_f = dest_f.sort_values(['rank_destino', 'score_final', 'nome'], ascending=[True, False, True], kind='stable')
+    if 'rank_destino' in destinos.columns:
+        destinos = destinos.sort_values(['rank_destino', 'score_final', 'nome'], ascending=[True, False, True], kind='stable')
     else:
-        dest_f = dest_f.sort_values(['score_final', 'nome'], ascending=[False, True], kind='stable')
-    return dest_f.iloc[0].to_dict()
+        destinos = destinos.sort_values(['score_final', 'nome'], ascending=[False, True], kind='stable')
+    return destinos.iloc[0].to_dict()
 
 
 def _data_sugerida_switching_lote(contexto_baseline, lote):
@@ -517,18 +555,33 @@ def _montar_switchings_oficiais(contexto_baseline, limite=10):
         if 'recomendado_shadow' in plano_f.columns:
             plano_f = plano_f[plano_f['recomendado_shadow'].fillna(False)]
         plano_f = plano_f.sort_values(['ganho_liquido_estimado','score_switch_shadow','lote_id'], ascending=[False,False,True], kind='stable')
-        for _, row in plano_f.head(limite).iterrows():
+        usados = set()
+        for _, row in plano_f.iterrows():
             lote_id = str(row.get('lote_id') or '')
+            if not lote_id or lote_id in usados:
+                continue
             lote = lotes_by_id.get(lote_id)
+            if lote is None:
+                continue
+            destino_rank = _ranking_destino_para_lote(contexto_baseline, lote) or {}
             data_sug = _data_sugerida_switching_lote(contexto_baseline, lote) if lote is not None else contexto_baseline.execucao.data_referencia
+            destino_nome = destino_rank.get('nome') or ''
+            ganho = row.get('ganho_liquido_estimado')
+            try:
+                ganho = round(float(ganho), 2)
+            except Exception:
+                ganho = round(float(destino_rank.get('proxy_terminal_destino') or 0.0), 2)
             linhas.append({
                 'Data': data_sug.isoformat() if hasattr(data_sug, 'isoformat') else data_sug,
                 'Lote origem': lote_id,
-                'Produto origem': row.get('produto_origem_nome') or (getattr(lote, 'investimento', '') if lote is not None else ''),
-                'Destino': row.get('produto_destino_nome') or '',
-                'Ganho estimado': round(float(row.get('ganho_liquido_estimado') or 0.0), 2),
-                'Status': 'recomendado shadow' if bool(row.get('recomendado_shadow')) else 'classificado shadow',
+                'Produto origem': getattr(lote, 'investimento', '') if lote is not None else row.get('produto_origem_nome') or '',
+                'Destino': destino_nome,
+                'Ganho estimado': ganho,
+                'Status': 'destino ranqueado elegível',
             })
+            usados.add(lote_id)
+            if len(linhas) >= limite:
+                break
     return linhas
 
 
@@ -587,7 +640,7 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, de
                 'Bruto': round(float(row.get('Bruto') or 0.0), 2),
                 'Imposto': round(float(row.get('Imposto') or 0.0), 2),
                 'Líquido': round(float(row.get('Liquido') or 0.0), 2),
-                'Saldo Remanescente': round(float(row.get('Saldo Remanescente') or 0.0), 2) if row.get('Saldo Remanescente') is not None else None,
+                'Saldo Remanescente': (0.0 if round(float(row.get('Saldo Remanescente') or 0.0), 2) <= obter_limiar_residuo_resolvido(contexto_baseline.pacote_config.conteudo) else round(float(row.get('Saldo Remanescente') or 0.0), 2)) if row.get('Saldo Remanescente') is not None else None,
             })
 
     quadro_futuro = None

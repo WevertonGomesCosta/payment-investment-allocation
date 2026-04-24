@@ -121,7 +121,6 @@ def _adicionar_abas_ranking(wb, contexto):
     if ranking is None:
         return
 
-    # Carteira operacional resumida
     _drop_sheet_if_exists(wb, 'Carteira')
     ws_carteira = wb.create_sheet('Carteira')
     quadro_carteira = ranking.quadro_destinos_switch.copy()
@@ -139,24 +138,14 @@ def _adicionar_abas_ranking(wb, contexto):
     ][:len(cols_carteira)]
     _apply_table_style(ws_carteira, headers_carteira, _dataframe_to_rows(quadro_carteira), freeze=True)
 
-    # Abas do ranking estabilizado
-    _drop_sheet_if_exists(wb, 'Ranking_Completo')
-    ws_rank = wb.create_sheet('Ranking_Completo')
-    quadro_rank = ranking.quadro_ranking.copy()
-    _apply_table_style(ws_rank, list(quadro_rank.columns), _dataframe_to_rows(quadro_rank), freeze=True)
-
     _drop_sheet_if_exists(wb, 'Top30')
     ws_top30 = wb.create_sheet('Top30')
     top30 = ranking.top30.copy()
     _apply_table_style(ws_top30, list(top30.columns), _dataframe_to_rows(top30), freeze=True)
 
-    _drop_sheet_if_exists(wb, 'Destinos_Switch')
-    ws_dest = wb.create_sheet('Destinos_Switch')
-    destinos = ranking.quadro_destinos_switch.copy()
-    _apply_table_style(ws_dest, list(destinos.columns), _dataframe_to_rows(destinos), freeze=True)
-
+    _drop_sheet_if_exists(wb, 'Resumo Switching')
     _drop_sheet_if_exists(wb, 'Resumo')
-    ws_resumo = wb.create_sheet('Resumo')
+    ws_resumo = wb.create_sheet('Resumo Switching')
     resumo_rows = [
         ['produtos_total', ranking.resumo.get('produtos_total')],
         ['produtos_ativos_ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')],
@@ -177,7 +166,7 @@ def _adicionar_abas_ranking(wb, contexto):
 def _limpar_abas_legadas(wb):
     legadas = [
         'Auditoria temporal', 'Reescolha dinâmica', 'Heurística conjunta', 'Planejamento conjunto',
-        'Microplanejamento v2', 'Recomp. central v1', 'Melhores produtos'
+        'Microplanejamento v2', 'Recomp. central v1', 'Melhores produtos', 'Ranking_Completo', 'Destinos_Switch', 'Resumo'
     ]
     for title in legadas:
         _drop_sheet_if_exists(wb, title)
@@ -259,12 +248,17 @@ def _avancar_lote_para_data_contexto(lote, data_origem, data_alvo, contexto):
     if data_alvo is None or data_origem is None or data_alvo <= data_origem:
         return
     fator_dia, _ = _ultimo_fator_cache_contexto(contexto)
-    dias = contar_dias_rendimento(data_origem, data_alvo, contexto.calendario_financeiro, serie_cdi=None)
-    if dias <= 0:
-        return
-    mult = float(fator_dia) ** int(dias)
-    lote.saldo_bruto = round(float(lote.saldo_bruto) * mult, 10)
-    lote.fator_acumulado = float(lote.fator_acumulado) * mult
+    taxa_diaria = max(float(fator_dia) - 1.0, 0.0)
+    data_cursor = data_origem
+    while data_cursor < data_alvo:
+        data_cursor = data_cursor + timedelta(days=1)
+        lote.atualizar_juros(
+            data_cursor,
+            taxa_diaria,
+            contexto.calendario_financeiro,
+            serie_cdi=None,
+            data_fechamento_referencia=data_cursor,
+        )
 
 
 def _mapa_resumos_futuros_contexto(contexto, quadro_futuro: pd.DataFrame) -> dict[str, dict[str, object]]:
@@ -290,16 +284,19 @@ def _mapa_resumos_futuros_contexto(contexto, quadro_futuro: pd.DataFrame) -> dic
             lote = lotes_estado[lote_sug]
             _avancar_lote_para_data_contexto(lote, lotes_data.get(lote_sug, contexto.execucao.data_referencia), data_pag, contexto)
             lotes_data[lote_sug] = data_pag
-            saldo_antes = round(float(lote.valor_liquido_hoje(data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+            saldo_antes = round(float(getattr(lote, 'saldo_bruto', 0.0) or 0.0), 2)
             mov = executar_saque_lote(lote, valor, data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
             if mov is not None:
+                saldo_rem = round(float(mov.get('saldo_remanescente') or 0.0), 2)
+                if saldo_rem <= obter_limiar_residuo_resolvido(contexto.pacote_config.conteudo):
+                    saldo_rem = 0.0
                 resumo = {
                     'Lote sugerido': lote_sug,
-                    'Saldo Antes': saldo_antes,
+                    'Saldo Antes': round(float(mov.get('saldo_antes') or saldo_antes), 2),
                     'Bruto': round(float(mov.get('bruto') or 0.0), 2),
                     'Imposto': round(float(mov.get('imposto') or 0.0), 2),
                     'Líquido': round(float(mov.get('liquido') or 0.0), 2),
-                    'Saldo Remanescente': round(float(mov.get('saldo_remanescente') or 0.0), 2),
+                    'Saldo Remanescente': saldo_rem,
                 }
         elif lote_sug == 'saldo_disponivel_geral':
             base = saldo_map.get(pagamento_id, {})
@@ -366,17 +363,19 @@ def _destino_ranking_planilha(contexto, lote):
     destinos = ranking.quadro_destinos_switch.copy()
     if len(destinos) == 0:
         return None
-    valor_liq = round(float(lote.valor_liquido_hoje(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir) or 0.0), 2)
     origem_key = str(getattr(lote, 'produto_key', '') or '').strip()
     if 'produto_key' in destinos.columns:
         destinos = destinos[destinos['produto_key'].fillna('').astype(str).str.strip() != origem_key]
-    destinos = destinos[destinos['aplicacao_minima'].fillna(0.0).astype(float) <= valor_liq + 1e-9] if 'aplicacao_minima' in destinos.columns else destinos
-    if 'aplicacao_maxima' in destinos.columns:
-        maxs = destinos['aplicacao_maxima'].fillna(0.0).astype(float)
-        destinos = destinos[(maxs.eq(0.0)) | (maxs >= valor_liq - 1e-9)]
     status_col = 'Status_Confirmação' if 'Status_Confirmação' in destinos.columns else ('status_confirmacao' if 'status_confirmacao' in destinos.columns else None)
     if status_col is not None:
-        destinos = destinos[destinos[status_col].fillna('').astype(str).isin(['', 'Confirmado', 'confirmado'])]
+        destinos = destinos[destinos[status_col].fillna('').astype(str).isin(['', 'Confirmado', 'confirmado', 'Fortemente sustentado'])]
+    if 'elegivel_switch_in' in destinos.columns:
+        destinos = destinos[destinos['elegivel_switch_in'].fillna(False).astype(bool)]
+    valor_liq = round(float(lote.valor_liquido_hoje(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir) or 0.0), 2)
+    if 'aplicacao_minima' in destinos.columns:
+        elegiveis = destinos[destinos['aplicacao_minima'].fillna(0.0).astype(float) <= valor_liq + 1e-9]
+        if len(elegiveis):
+            destinos = elegiveis
     if len(destinos) == 0:
         return None
     destinos = destinos.sort_values(['rank_destino', 'score_final', 'nome'], ascending=[True, False, True], kind='stable') if 'rank_destino' in destinos.columns else destinos.sort_values(['score_final', 'nome'], ascending=[False, True], kind='stable')
@@ -393,17 +392,27 @@ def _switchings_oficiais_para_saida(contexto, limite=30):
         if 'recomendado_shadow' in plano_f.columns:
             plano_f = plano_f[plano_f['recomendado_shadow'].fillna(False)]
         plano_f = plano_f.sort_values(['ganho_liquido_estimado','score_switch_shadow','lote_id'], ascending=[False,False,True], kind='stable')
-        for _, row in plano_f.head(limite).iterrows():
+        usados = set()
+        for _, row in plano_f.iterrows():
             lote_id = str(row.get('lote_id') or '')
+            if not lote_id or lote_id in usados:
+                continue
             lote = lotes_by_id.get(lote_id)
+            if lote is None:
+                continue
+            destino = _destino_ranking_planilha(contexto, lote) or {}
             data_sug = _data_sugerida_switching_planilha(contexto, lote) if lote is not None else contexto.execucao.data_referencia
             rows.append([
                 data_sug, '', '', '', '', '', 'switching_shadow',
                 lote_id, '', '',
-                data_sug, lote_id, row.get('produto_destino_nome') or '',
-                round(float(row.get('ganho_liquido_estimado') or 0.0), 2), round(float(getattr(lote, 'valor_liquido_hoje', lambda *_args, **_kwargs: 0.0)(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir) if lote is not None else 0.0), 2),
-                'sim', '', '', '', 'recomendado shadow',
+                data_sug, lote_id, destino.get('nome') or '',
+                round(float(row.get('ganho_liquido_estimado') or destino.get('proxy_terminal_destino') or 0.0), 2),
+                round(float(getattr(lote, 'valor_liquido_hoje', lambda *_args, **_kwargs: 0.0)(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir) if lote is not None else 0.0), 2),
+                'sim', '', '', '', 'destino ranqueado elegível',
             ])
+            usados.add(lote_id)
+            if len(rows) >= limite:
+                break
     return rows[:limite]
 
 
@@ -516,7 +525,12 @@ def main() -> None:
         ('Dias Corridos', 'Dias Corridos'), ('Dias Úteis', 'Dias Úteis'), ('Saldo Remanescente', 'Saldo Remanescente'),
         ('Fase Operacional Lote', 'Fase')
     ]
-    rows_passado = list(_as_rows(log.to_dict('records'), cols_passado))
+    rows_passado = []
+    for row in log.to_dict('records'):
+        rem = round(float(row.get('Saldo Remanescente') or 0.0), 2)
+        if rem <= limiar:
+            row['Saldo Remanescente'] = 0.0
+        rows_passado.append([row.get(src) for src, _ in cols_passado])
     _apply_table_style(ws_passado, [dst for _, dst in cols_passado], rows_passado, freeze=True)
 
     ws_futuro = wb.create_sheet('Extrato Futuro')
@@ -579,122 +593,15 @@ def main() -> None:
         rows_futuro.append([
             data_evt,
             item.get('descricao'),
-            item.get('despesa_id'),
             item.get('valor'),
-            item.get('pago'),
             resumo_financeiro.get('Lote sugerido', ''),
             resumo_financeiro.get('Saldo Antes', ''),
             resumo_financeiro.get('Bruto', ''),
             resumo_financeiro.get('Imposto', ''),
             resumo_financeiro.get('Líquido', ''),
             resumo_financeiro.get('Saldo Remanescente', ''),
-            round(float(decisao.get('custo_economico_proxy') or 0.0), 4) if decisao else '',
-            'integral na decisão local' if bool(decisao.get('pagamento_totalmente_coberto')) else ('parcial/ausente na decisão local' if decisao else ''),
-            temporal.get('status_temporal', ''),
-            temporal.get('sequencia_na_fonte', ''),
-            round(float(temporal.get('saldo_antes_temporal') or 0.0), 2) if temporal else '',
-            round(float(temporal.get('bruto_temporal') or 0.0), 2) if temporal else '',
-            round(float(temporal.get('imposto_temporal') or 0.0), 2) if temporal else '',
-            round(float(temporal.get('liquido_temporal') or 0.0), 2) if temporal else '',
-            round(float(temporal.get('saldo_remanescente_temporal') or 0.0), 2) if temporal else '',
-            'sim' if bool(temporal.get('primeira_quebra_na_fonte')) else '',
-            'sim' if bool(temporal.get('requer_reescolha_dinamica')) else '',
-            dinamico.get('lote_final_dinamico', ''),
-            'sim' if bool(dinamico.get('reescolha_acionada')) else '',
-            dinamico.get('status_pos_reescolha', ''),
-            round(float(dinamico.get('score_proxy_final') or 0.0), 4) if dinamico and dinamico.get('score_proxy_final') is not None else '',
-            round(float(dinamico.get('saldo_antes_dinamico') or 0.0), 2) if dinamico else '',
-            round(float(dinamico.get('bruto_dinamico') or 0.0), 2) if dinamico else '',
-            round(float(dinamico.get('imposto_dinamico') or 0.0), 2) if dinamico else '',
-            round(float(dinamico.get('liquido_dinamico') or 0.0), 2) if dinamico else '',
-            round(float(dinamico.get('saldo_remanescente_dinamico') or 0.0), 2) if dinamico else '',
-            'sim' if bool(dinamico.get('pagamento_totalmente_coberto_dinamico')) else '',
-            heuristica.get('lote_final_heuristica', ''),
-            'sim' if bool(heuristica.get('esta_no_bloco_critico')) else '',
-            'sim' if bool(heuristica.get('mudou_fonte_heuristica')) else '',
-            'sim' if bool(heuristica.get('troca_preventiva_heuristica')) else '',
-            'sim' if bool(heuristica.get('troca_por_inviabilidade_heuristica')) else '',
-            heuristica.get('criterio_heuristica', ''),
-            round(float(heuristica.get('score_proxy_ajustado_heuristica') or 0.0), 4) if heuristica and heuristica.get('score_proxy_ajustado_heuristica') is not None else '',
-            round(float(heuristica.get('penalidade_preservacao_estrategica') or 0.0), 4) if heuristica and heuristica.get('penalidade_preservacao_estrategica') is not None else '',
-            round(float(heuristica.get('reserva_planejada_fonte') or 0.0), 2) if heuristica and heuristica.get('reserva_planejada_fonte') is not None else '',
-            heuristica.get('status_heuristica', ''),
-            round(float(heuristica.get('saldo_antes_heuristica') or 0.0), 2) if heuristica else '',
-            round(float(heuristica.get('bruto_heuristica') or 0.0), 2) if heuristica else '',
-            round(float(heuristica.get('imposto_heuristica') or 0.0), 2) if heuristica else '',
-            round(float(heuristica.get('liquido_heuristica') or 0.0), 2) if heuristica else '',
-            round(float(heuristica.get('saldo_remanescente_heuristica') or 0.0), 2) if heuristica else '',
-            'sim' if bool(heuristica.get('pagamento_totalmente_coberto_heuristica')) else '',
-            planejamento.get('politica_id', ''),
-            planejamento.get('politica_descricao', ''),
-            'sim' if bool(planejamento.get('evento_ancora')) else '',
-            planejamento.get('lote_final_planejamento', ''),
-            'sim' if bool(planejamento.get('mudou_vs_v103')) else '',
-            planejamento.get('status_planejamento', ''),
-            round(float(planejamento.get('score_planejamento') or 0.0), 4) if planejamento and planejamento.get('score_planejamento') is not None else '',
-            round(float(planejamento.get('saldo_antes_planejamento') or 0.0), 2) if planejamento else '',
-            round(float(planejamento.get('bruto_planejamento') or 0.0), 2) if planejamento else '',
-            round(float(planejamento.get('imposto_planejamento') or 0.0), 2) if planejamento else '',
-            round(float(planejamento.get('liquido_planejamento') or 0.0), 2) if planejamento else '',
-            round(float(planejamento.get('saldo_remanescente_planejamento') or 0.0), 2) if planejamento else '',
-            'sim' if bool(planejamento.get('pagamento_totalmente_coberto_planejamento')) else '',
-            microplanejamento.get('politica_id', ''),
-            microplanejamento.get('politica_descricao', ''),
-            microplanejamento.get('lote_final_microplanejamento', ''),
-            microplanejamento.get('fontes_usadas_microplanejamento', ''),
-            'sim' if bool(microplanejamento.get('multifonte_microplanejamento')) else '',
-            microplanejamento.get('status_microplanejamento', ''),
-            microplanejamento.get('criterio_microplanejamento', ''),
-            microplanejamento.get('reserva_explicita_microplanejamento', ''),
-            round(float(microplanejamento.get('score_microplanejamento') or 0.0), 4) if microplanejamento and microplanejamento.get('score_microplanejamento') is not None else '',
-            round(float(microplanejamento.get('saldo_antes_microplanejamento') or 0.0), 2) if microplanejamento else '',
-            round(float(microplanejamento.get('bruto_microplanejamento') or 0.0), 2) if microplanejamento else '',
-            round(float(microplanejamento.get('imposto_microplanejamento') or 0.0), 2) if microplanejamento else '',
-            round(float(microplanejamento.get('liquido_microplanejamento') or 0.0), 2) if microplanejamento else '',
-            round(float(microplanejamento.get('saldo_remanescente_microplanejamento') or 0.0), 2) if microplanejamento else '',
-            'sim' if bool(microplanejamento.get('pagamento_totalmente_coberto_microplanejamento')) else '',
-            central.get('classe_pagamento_operacional', ''),
-            central.get('subclasse_pagamento_operacional', ''),
-            central.get('prioridade_intraclasse_operacional', ''),
-            central.get('lote_final_central', ''),
-            central.get('tipo_fonte_final', ''),
-            'sim' if bool(central.get('mudou_vs_decisao_local')) else '',
-            central.get('status_central', ''),
-            round(float(central.get('score_proxy_central') or 0.0), 4) if central and central.get('score_proxy_central') is not None else '',
-            round(float(central.get('violacao_protegida') or 0.0), 2) if central and central.get('violacao_protegida') is not None else '',
-            round(float(central.get('severidade_protegida') or 0.0), 2) if central and central.get('severidade_protegida') is not None else '',
-            round(float(central.get('deficit_liquido_total') or 0.0), 2) if central and central.get('deficit_liquido_total') is not None else '',
-            round(float(central.get('patrimonio_terminal_proxy') or 0.0), 2) if central and central.get('patrimonio_terminal_proxy') is not None else '',
-            round(float(central.get('penalidade_estrategica_central') or 0.0), 4) if central and central.get('penalidade_estrategica_central') is not None else '',
-            round(float(central.get('penalidade_fragmentacao_central') or 0.0), 4) if central and central.get('penalidade_fragmentacao_central') is not None else '',
-            round(float(central.get('penalidade_escassez_protegida_futura') or 0.0), 4) if central and central.get('penalidade_escassez_protegida_futura') is not None else '',
-            round(float(central.get('demanda_protegida_futura_ponderada') or 0.0), 2) if central and central.get('demanda_protegida_futura_ponderada') is not None else '',
-            round(float(central.get('demanda_protegida_futura_7d') or 0.0), 2) if central and central.get('demanda_protegida_futura_7d') is not None else '',
-            round(float(central.get('demanda_protegida_futura_14d') or 0.0), 2) if central and central.get('demanda_protegida_futura_14d') is not None else '',
-            round(float(central.get('demanda_protegida_futura_21d') or 0.0), 2) if central and central.get('demanda_protegida_futura_21d') is not None else '',
-            'sim' if bool(central.get('fonte_critica_para_protegida_futura')) else '',
-            'sim' if bool(central.get('fallback_sem_fonte_viavel')) else '',
-            round(float(central.get('saldo_antes_central') or 0.0), 2) if central else '',
-            round(float(central.get('bruto_central') or 0.0), 2) if central else '',
-            round(float(central.get('imposto_central') or 0.0), 2) if central else '',
-            round(float(central.get('liquido_central') or 0.0), 2) if central else '',
-            round(float(central.get('saldo_remanescente_central') or 0.0), 2) if central else '',
-            'sim' if bool(central.get('pagamento_totalmente_coberto_central')) else '',
-            recomendacao.get('estrategia_recomendada', ''),
-            recomendacao.get('lote_recomendado', ''),
-            recomendacao.get('lote_reserva', ''),
-            'sim' if bool(recomendacao.get('necessidade_switching')) else '',
-            recomendacao.get('data_sugerida_switching', ''),
-            recomendacao.get('lote_origem_switching', ''),
-            recomendacao.get('produto_destino_switching', ''),
-            round(float(recomendacao.get('ganho_liquido_estimado_switching') or 0.0), 2) if recomendacao else '',
-            round(float(recomendacao.get('cobertura_esperada') or 0.0), 2) if recomendacao else '',
-            'sim' if bool(recomendacao.get('cobertura_integral_recomendada')) else '',
-            recomendacao.get('motivo_recomendacao', ''),
-            dias_ate,
-            'futuro/pendente',
         ])
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Pago', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Score proxy', 'Status local', 'Status temporal', 'Seq. fonte', 'Saldo Antes temporal', 'Bruto temporal', 'Imposto temporal', 'Líquido temporal', 'Saldo Remanescente temporal', 'Primeira quebra da fonte', 'Requer reescolha dinâmica', 'Lote final dinâmico', 'Reescolha acionada', 'Status pós-reescolha', 'Score final dinâmico', 'Saldo Antes dinâmico', 'Bruto dinâmico', 'Imposto dinâmico', 'Líquido dinâmico', 'Saldo Remanescente dinâmico', 'Cobertura dinâmica integral', 'Lote final heurístico', 'Bloco crítico', 'Mudou fonte heurística', 'Troca preventiva heurística', 'Troca por inviabilidade heurística', 'Critério heurística', 'Score ajustado heurística', 'Penalidade preservação estratégica', 'Reserva planejada fonte', 'Status heurística', 'Saldo Antes heurística', 'Bruto heurística', 'Imposto heurística', 'Líquido heurística', 'Saldo Remanescente heurística', 'Cobertura heurística integral', 'Política bloco crítico', 'Descrição política bloco crítico', 'Evento-âncora', 'Lote final planejamento local', 'Mudou vs V103', 'Status planejamento local', 'Score planejamento local', 'Saldo Antes planejamento local', 'Bruto planejamento local', 'Imposto planejamento local', 'Líquido planejamento local', 'Saldo Remanescente planejamento local', 'Cobertura planejamento local integral', 'Política microplanejamento v2', 'Descrição política microplanejamento v2', 'Lote final microplanejamento v2', 'Fontes usadas microplanejamento v2', 'Multifonte microplanejamento v2', 'Status microplanejamento v2', 'Critério microplanejamento v2', 'Reserva explícita microplanejamento v2', 'Score microplanejamento v2', 'Saldo Antes microplanejamento v2', 'Bruto microplanejamento v2', 'Imposto microplanejamento v2', 'Líquido microplanejamento v2', 'Saldo Remanescente microplanejamento v2', 'Cobertura microplanejamento v2 integral', 'Classe central', 'Subclasse central', 'Prioridade intraclasse central', 'Lote final central', 'Tipo fonte central', 'Mudou vs decisão local', 'Status central', 'Score proxy central', 'Violação protegida', 'Severidade protegida', 'Déficit líquido total central', 'Patrimônio terminal proxy', 'Penalidade estratégica central', 'Penalidade fragmentação central', 'Penalidade escassez protegida futura', 'Demanda protegida futura ponderada', 'Demanda protegida 7d', 'Demanda protegida 14d', 'Demanda protegida 21d', 'Fonte crítica para protegida futura', 'Fallback sem fonte viável', 'Saldo Antes central', 'Bruto central', 'Imposto central', 'Líquido central', 'Saldo Remanescente central', 'Cobertura central integral', 'Estratégia recomendada', 'Lote recomendado', 'Lote reserva', 'Necessita switching', 'Data sugerida switching', 'Lote origem switching', 'Produto destino switching', 'Ganho líquido estimado switching', 'Cobertura esperada recomendação', 'Cobertura integral recomendação', 'Motivo recomendação', 'Dias até evento', 'Status']
+    headers_futuro = ['Data', 'Conta', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']
     _apply_table_style(ws_futuro, headers_futuro, rows_futuro, freeze=True)
 
     ws_temporal = wb.create_sheet('Auditoria temporal')
@@ -918,24 +825,19 @@ def main() -> None:
     _apply_table_style(ws_central, headers_central, rows_central, freeze=True)
 
 
-    ws_recomendacao = wb.create_sheet('Rec. pgto+switch')
+    ws_recomendacao = wb.create_sheet('Switching')
     rows_recomendacao = []
-    rows_recomendacao.extend(_switchings_oficiais_para_saida(contexto, limite=30))
-    if quadro_recomendacao is not None and len(quadro_recomendacao):
-        quadro_switch_pagto = quadro_recomendacao[quadro_recomendacao['estrategia_recomendada'].astype(str) != 'sem_switching'].copy()
-        if len(quadro_switch_pagto):
-            quadro_switch_pagto = quadro_switch_pagto.sort_values(by=['data_pagamento', 'ganho_liquido_estimado_switching'], ascending=[True, False], kind='stable')
-            for _, row_r in quadro_switch_pagto.head(20).iterrows():
-                rows_recomendacao.append([
-                    row_r.get('data_pagamento'), row_r.get('descricao_pagamento'), row_r.get('pagamento_id'), row_r.get('valor_pagamento'),
-                    row_r.get('classe_pagamento_operacional'), row_r.get('subclasse_pagamento_operacional'), row_r.get('estrategia_recomendada'),
-                    row_r.get('lote_recomendado'), row_r.get('lote_reserva'), 'sim' if bool(row_r.get('necessidade_switching')) else '',
-                    row_r.get('data_sugerida_switching'), row_r.get('lote_origem_switching'), row_r.get('produto_destino_switching'),
-                    row_r.get('ganho_liquido_estimado_switching'), row_r.get('cobertura_esperada'),
-                    'sim' if bool(row_r.get('cobertura_integral_recomendada')) else '', row_r.get('lote_central_referencia'), row_r.get('lote_reserva_referencia'),
-                    row_r.get('materialidade_minima_switching'), 'recomendação vinculada a pagamento',
-                ])
-    _apply_table_style(ws_recomendacao, ['Data', 'Conta', 'Despesa ID', 'Valor', 'Classe', 'Subclasse', 'Estratégia recomendada', 'Lote recomendado', 'Lote reserva', 'Necessita switching', 'Data sugerida switching', 'Lote origem switching', 'Produto destino switching', 'Ganho líquido estimado switching', 'Cobertura esperada', 'Cobertura integral recomendada', 'Lote central referência', 'Lote reserva referência', 'Materialidade mínima switching', 'Motivo recomendação'], rows_recomendacao, freeze=True)
+    for row_sw in _switchings_oficiais_para_saida(contexto, limite=30):
+        rows_recomendacao.append([
+            row_sw[10],
+            row_sw[7],
+            next((str(l.investimento or '') for l in rep.lotes_apos_replay if str(l.id) == str(row_sw[7])), ''),
+            row_sw[12],
+            row_sw[13],
+            row_sw[14],
+            row_sw[19],
+        ])
+    _apply_table_style(ws_recomendacao, ['Data sugerida', 'Lote origem', 'Produto origem', 'Produto destino switching', 'Ganho estimado', 'Valor líquido origem', 'Status'], rows_recomendacao, freeze=True)
 
     ws_atual = wb.create_sheet('Situação Atual')
     resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
@@ -969,7 +871,6 @@ def main() -> None:
     ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_exauridos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes exauridos')
     ultima_linha = _apply_table_style(ws_atual, headers_ativos_ident, rows_ativos_ident, start_row=ultima_linha + 3, title='Identificação e tempo dos lotes ativos')
     ultima_linha = _apply_table_style(ws_atual, headers_atual_valores, rows_ativos_valores, start_row=ultima_linha + 3, title='Valores atuais dos lotes ativos')
-    ultima_linha = _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_recebidos_resumo, start_row=ultima_linha + 3, title='Resumo dos recebidos auditáveis (inclui exauridos)')
     _apply_table_style(ws_atual, ['Métrica', 'Valor'], rows_fechamento_atual, start_row=ultima_linha + 3, title='Fechamento econômico da situação atual')
 
     _limpar_abas_legadas(wb)

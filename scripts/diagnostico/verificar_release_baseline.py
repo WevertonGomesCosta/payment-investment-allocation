@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VERSAO_VIGENTE = "V195"
+VERSAO_VIGENTE = "V198"
 VERSAO_ANTERIOR = "V184"
 
 
