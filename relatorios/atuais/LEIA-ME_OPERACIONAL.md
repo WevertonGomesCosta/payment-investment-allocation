@@ -1,7 +1,7 @@
-# LEIA-ME operacional — V188
+# LEIA-ME operacional — V189
 
 ## Baseline vigente da camada documental e de navegação
-- Pacote operacional atual: **V188**
+- Pacote operacional atual: **V189**
 - Contrato mestre vigente: **CONTRATO_OPERACIONAL_PROJETO.md**
 - Modelo oficial vigente: **MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md**
 - Baseline contratual/metodológica preservada: **V183/V182**
@@ -12,13 +12,15 @@
 - `CONTRATO_OPERACIONAL_PROJETO.md`
 - `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
 - `BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
+- `ESPECIFICACAO_SAIDA_OFICIAL.md`
 
 ### Regra de leitura desta etapa
 1. Interpretar o projeto pela V183 como contrato mestre vigente e pela V182 como modelo oficial vigente.
-2. Tratar a V188 como fechamento residual da árvore documental e operacional, sem reabrir contrato, modelo ou núcleo econômico.
+2. Tratar a V189 como baseline de saída oficial observável, sem reabrir contrato, modelo ou núcleo econômico.
 3. Não usar documentos históricos como base normativa principal para novas implementações.
 4. Exigir auditabilidade por lote, fonte, conta, pacote e destino nas saídas oficiais.
 5. Tratar `saidas/oficial/` como caminho canônico de artefatos oficiais ativos.
+6. Tratar `ESPECIFICACAO_SAIDA_OFICIAL.md` como referência operacional da camada observável antes da derivação de `resolver_dia(t, E_t)`.
 
 ## Onde encontrar o histórico rebaixado
 - `relatorios/historico/contratos_intermediarios/`

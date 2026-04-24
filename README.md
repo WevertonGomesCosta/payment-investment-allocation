@@ -1,10 +1,10 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V188  
+**Pacote operacional atual:** V189  
 **Baseline contratual vigente:** V183  
 **Modelo metodológico vinculante vigente:** V182
 
-A V188 fecha a limpeza residual da árvore do repositório. Ela **não altera** o núcleo econômico, o contrato mestre, o modelo oficial nem a estrutura diária por pacotes já congelados.
+A V189 consolida a especificação oficial da camada observável do projeto. Ela **não altera** o núcleo econômico, o contrato mestre, o modelo oficial nem a estrutura diária por pacotes já congelados.
 
 ## Objetivo final do projeto
 Construir um motor conjunto, auditável e economicamente coerente para:
@@ -15,13 +15,12 @@ Construir um motor conjunto, auditável e economicamente coerente para:
 
 A decisão final deve maximizar o **patrimônio líquido terminal**, respeitando cobertura, liquidez, carência, tributação, precedência intradiária parametrizada e auditabilidade por lote/fonte.
 
-## O que a V188 consolida
-- fecha a limpeza residual dos artefatos soltos da raiz do repositório;
-- remove auditorias antigas da raiz de `relatorios/`, rebaixando-as para histórico;
-- preserva `relatorios/atuais/` apenas com documentos canônicos ativos;
-- mantém `scripts/diagnostico/` como caminho canônico do tooling e deixa a raiz de `scripts/` apenas com compatibilidade intencional;
-- preserva histórico e rastreabilidade sem competir com os caminhos ativos;
-- remove resíduos efêmeros (`__pycache__`, `.pyc`) do pacote final.
+## O que a V189 consolida
+- mantém a árvore documental limpa da V188;
+- adiciona `relatorios/atuais/ESPECIFICACAO_SAIDA_OFICIAL.md` como referência canônica da camada observável;
+- fecha o contrato de saída para console, markdown, json e `.xlsx`;
+- fixa a presença do ranking relevante da carteira e dos switchings candidatos/classificados na saída oficial;
+- prepara a baseline para derivar `resolver_dia(t, E_t)` sem retrabalho de interface.
 
 ## Documentos operacionais prioritários
 Consulte primeiro:
@@ -29,6 +28,7 @@ Consulte primeiro:
 - `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
 - `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
+- `relatorios/atuais/ESPECIFICACAO_SAIDA_OFICIAL.md`
 
-## Próxima frente após a V188
-Abrir a especificação operacional de `resolver_dia(t, E_t)` sobre uma árvore já limpa e sem ruído residual de navegação.
+## Próxima frente após a V189
+Derivar a especificação operacional de `resolver_dia(t, E_t)` sobre uma baseline já limpa e com a camada observável oficialmente fechada.
