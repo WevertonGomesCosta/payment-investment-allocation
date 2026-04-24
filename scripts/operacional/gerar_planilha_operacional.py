@@ -107,7 +107,9 @@ def _dataframe_to_rows(df):
     if df is None or len(df) == 0:
         return []
     rows = []
-    for row in df.fillna('').to_dict('records'):
+    safe = df.copy().infer_objects(copy=False)
+    safe = safe.astype(object).where(pd.notna(safe), '')
+    for row in safe.to_dict('records'):
         rows.append(list(row.values()))
     return rows
 
@@ -715,13 +717,20 @@ def main() -> None:
 
     ws_recomendacao = wb.create_sheet('Rec. pgto+switch')
     rows_recomendacao = []
-    ranking = getattr(contexto, 'ranking_carteira', None)
-    destinos_switch = ranking.quadro_destinos_switch.copy() if ranking is not None else None
-    if destinos_switch is not None and len(destinos_switch):
-        destinos_switch = destinos_switch.sort_values(by=['rank_destino'], kind='stable')
-        for _, row_dest in destinos_switch.head(30).iterrows():
+    shadow = getattr(contexto, 'switching_economico_shadow', None)
+    plano_shadow = shadow.plano_shadow.copy() if shadow is not None and isinstance(getattr(shadow, 'plano_shadow', None), pd.DataFrame) else pd.DataFrame()
+    melhores_shadow = shadow.quadro_melhores_oportunidades.copy() if shadow is not None and isinstance(getattr(shadow, 'quadro_melhores_oportunidades', None), pd.DataFrame) else pd.DataFrame()
+    base_switch = plano_shadow if len(plano_shadow) else melhores_shadow
+    if len(base_switch):
+        base_switch = base_switch.sort_values(['recomendado_shadow', 'ganho_liquido_estimado', 'score_switch_shadow', 'lote_id'], ascending=[False, False, False, True], kind='stable')
+        for _, row_s in base_switch.head(30).iterrows():
             rows_recomendacao.append([
-                'janela_livre', '', '', '', '', '', 'destino_priorizado', '', '', '', '', '', row_dest.get('nome'), row_dest.get('proxy_terminal_destino'), '', '', '', '', row_dest.get('aplicacao_minima'), 'priorizado pelo ranking vigente',
+                row_s.get('data_referencia'), '', '', '', '', '', 'switching_shadow',
+                row_s.get('lote_id'), '', '',
+                row_s.get('data_referencia'), row_s.get('lote_id'), row_s.get('produto_destino_nome'),
+                row_s.get('ganho_liquido_estimado'), row_s.get('valor_liquido_resgatavel'),
+                'sim' if bool(row_s.get('recomendado_shadow')) else '', '', '',
+                '', 'recomendação independente de pagamentos',
             ])
     if quadro_recomendacao is not None and len(quadro_recomendacao):
         quadro_switch_pagto = quadro_recomendacao[quadro_recomendacao['estrategia_recomendada'].astype(str) != 'sem_switching'].copy()
@@ -778,11 +787,9 @@ def main() -> None:
 
     SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
     wb.save(SAIDA_INTERNA)
-    print(SAIDA_INTERNA)
     try:
         if SAIDA_EXTERNA.parent.exists():
             wb.save(SAIDA_EXTERNA)
-            print(SAIDA_EXTERNA)
     except Exception as exc:
         print(f"[AVISO] cópia externa não gerada: {type(exc).__name__}:{exc}")
     return SAIDA_INTERNA

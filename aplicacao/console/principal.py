@@ -383,34 +383,32 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, de
         for _, row in quadro_futuro.head(limite).iterrows():
             data = row.get('data_pagamento')
             valor = round(float(row.get('valor_pagamento') or 0.0), 2)
-            saldo_antes = row.get('valor_residual_temporal_lote')
-            if saldo_antes is None:
-                saldo_antes = row.get('valor_disponivel_escolhido')
-            saldo_antes = round(float(saldo_antes or 0.0), 2) if saldo_antes is not None else None
-            liquido = row.get('cobertura_esperada')
-            if liquido is None:
-                liquido = valor
-            liquido = round(float(liquido or 0.0), 2)
-            saldo_rem = row.get('saldo_residual_temporal_pos_recomendacao')
-            if saldo_rem is None and saldo_antes is not None:
-                saldo_rem = round(max(float(saldo_antes) - valor, 0.0), 2)
             lote = row.get('lote_recomendado') or row.get('lote_id_escolhido') or row.get('fonte_base_escolhida') or row.get('tipo_fonte_escolhida') or ''
-            status = row.get('motivo_recomendacao') or row.get('observacao_auditavel') or row.get('estrategia_recomendada') or row.get('criterio_decisao') or ''
-            score = row.get('score_central_referencia')
-            if score is None:
-                score = row.get('custo_economico_proxy')
+            saldo_antes = row.get('saldo_antes_central')
+            bruto = row.get('bruto_central')
+            imposto = row.get('imposto_central')
+            liquido = row.get('liquido_central')
+            saldo_rem = row.get('saldo_remanescente_central')
+
+            def _fmt_maybe(v):
+                if v is None:
+                    return None
+                try:
+                    fv = round(float(v), 2)
+                except Exception:
+                    return None
+                return '' if abs(fv) <= 0.0 else fv
+
             pagamentos_proximos.append({
                 'Data': data.isoformat() if hasattr(data, 'isoformat') else data,
                 'Descrição': row.get('descricao_pagamento') or '',
                 'Valor': valor,
                 'Lote sugerido': lote,
-                'Saldo Antes': saldo_antes,
-                'Bruto': valor,
-                'Imposto': 0.0,
-                'Líquido': liquido,
-                'Saldo Remanescente': round(float(saldo_rem or 0.0), 2) if saldo_rem is not None else None,
-                'Score proxy': round(float(score), 2) if score is not None else None,
-                'Status local': status,
+                'Saldo Antes': _fmt_maybe(saldo_antes),
+                'Bruto': _fmt_maybe(bruto),
+                'Imposto': _fmt_maybe(imposto),
+                'Líquido': _fmt_maybe(liquido),
+                'Saldo Remanescente': _fmt_maybe(saldo_rem),
             })
 
     return pagamentos_realizados, pagamentos_proximos
@@ -447,37 +445,54 @@ def _render_secao_ranking_oficial(contexto_baseline):
 
 def _render_secao_switchings_oficiais(contexto_baseline):
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
+    shadow = getattr(contexto_baseline, 'switching_economico_shadow', None)
     motor = getattr(contexto_baseline, 'motor_recomendacao_pagamentos_switching_v1', None)
     _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
 
-    auditoria = (motor.auditoria or {}) if motor is not None else {}
-    resumo = auditoria.get('resumo', {}) if isinstance(auditoria, dict) else {}
-    destinos = ranking.quadro_destinos_switch.copy() if ranking is not None else pd.DataFrame()
-    top_destinos = destinos.head(10).copy() if len(destinos) else destinos
+    auditoria_shadow = (shadow.auditoria or {}) if shadow is not None else {}
+    resumo_shadow = auditoria_shadow.get('resumo', {}) if isinstance(auditoria_shadow, dict) else {}
+    plano = getattr(shadow, 'plano_shadow', None)
+    melhores = getattr(shadow, 'quadro_melhores_oportunidades', None)
+    quadro = None
+    if isinstance(plano, pd.DataFrame) and len(plano):
+        quadro = plano.copy()
+    elif isinstance(melhores, pd.DataFrame) and len(melhores):
+        quadro = melhores.copy()
+    else:
+        quadro = pd.DataFrame()
+
+    destino_top1 = None
+    if ranking is not None:
+        destino_top1 = ranking.auditoria.get('destino_top1')
 
     _imprimir_pares([
-        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0) if resumo else 0),
-        ('switchings promovidos/executados', resumo.get('switching_acionado', 0) if resumo else 0),
-        ('leitura operacional', 'destinos abaixo refletem a priorização oficial do ranking vigente e independem de datas de pagamento'),
-        ('destino top 1 do ranking', ranking.auditoria.get('destino_top1') if ranking is not None else None),
+        ('lotes avaliados para switching', resumo_shadow.get('qtd_lotes_ativos_avaliados', 0) if resumo_shadow else 0),
+        ('candidatos de destino avaliados', resumo_shadow.get('qtd_candidatos_switch', 0) if resumo_shadow else 0),
+        ('switchings promovidos/executados', resumo_shadow.get('qtd_recomendacoes_shadow', 0) if resumo_shadow else 0),
+        ('data da decisão de switching', resumo_shadow.get('data_referencia') if resumo_shadow else None),
+        ('data horizonte da análise', resumo_shadow.get('data_horizonte') if resumo_shadow else None),
+        ('primeira despesa futura observada', resumo_shadow.get('primeira_despesa_futura') if resumo_shadow else None),
+        ('destino top 1 do ranking', destino_top1),
     ])
 
     linhas = []
-    for _, row in top_destinos.iterrows():
-        linhas.append({
-            'Data': 'janela livre',
-            'Conta': '',
-            'Estratégia': 'destino_priorizado',
-            'Origem': '',
-            'Destino': row.get('nome'),
-            'Ganho estimado': row.get('proxy_terminal_destino'),
-            'Status': 'priorizado pelo ranking',
-        })
+    if isinstance(quadro, pd.DataFrame) and len(quadro):
+        quadro = quadro.sort_values(['recomendado_shadow', 'ganho_liquido_estimado', 'score_switch_shadow', 'lote_id'], ascending=[False, False, False, True], kind='stable')
+        for _, row in quadro.head(10).iterrows():
+            linhas.append({
+                'Data': row.get('data_referencia'),
+                'Lote origem': row.get('lote_id'),
+                'Produto origem': row.get('produto_origem_nome'),
+                'Destino': row.get('produto_destino_nome'),
+                'Ganho estimado': row.get('ganho_liquido_estimado'),
+                'Status': 'recomendado shadow' if bool(row.get('recomendado_shadow')) else 'classificado shadow',
+            })
 
-    print('- amostra de destinos priorizados para switching (independente de pagamentos):')
-    _imprimir_tabela(['Data','Conta','Estratégia','Origem','Destino','Ganho estimado','Status'], linhas, limite=10)
+    print('- amostra de switchings reais da janela (independente de pagamentos):')
+    _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino', 'Ganho estimado', 'Status'], linhas, limite=10)
 
 def main() -> None:
+
     contexto_baseline = carregar_contexto_baseline(raiz_repositorio=RAIZ_REPOSITORIO, instalar_automaticamente=False)
     pacote_config = contexto_baseline.pacote_config
     contexto = contexto_baseline.execucao
