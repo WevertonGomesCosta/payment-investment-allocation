@@ -1,10 +1,10 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V186  
+**Pacote operacional atual:** V188  
 **Baseline contratual vigente:** V183  
 **Modelo metodológico vinculante vigente:** V182
 
-A V186 é uma normalização final dos caminhos ativos de saída e do tooling diagnóstico/release. Ela **não altera** o núcleo econômico, o contrato mestre, o modelo oficial nem a estrutura diária por pacotes já congelados.
+A V188 fecha a limpeza residual da árvore do repositório. Ela **não altera** o núcleo econômico, o contrato mestre, o modelo oficial nem a estrutura diária por pacotes já congelados.
 
 ## Objetivo final do projeto
 Construir um motor conjunto, auditável e economicamente coerente para:
@@ -15,13 +15,13 @@ Construir um motor conjunto, auditável e economicamente coerente para:
 
 A decisão final deve maximizar o **patrimônio líquido terminal**, respeitando cobertura, liquidez, carência, tributação, precedência intradiária parametrizada e auditabilidade por lote/fonte.
 
-## O que a V186 consolida
-- normaliza `saidas/oficial/` como caminho canônico de artefatos oficiais ativos;
-- rebaixa artefatos residuais de `saidas/operacional/` e da raiz de `saidas/` para histórico;
-- reforça `saidas/diagnostico/` como caminho ativo de apoio, sem competir com `saidas/oficial/`;
-- canoniza `scripts/diagnostico/` como caminho principal do tooling de release e inspeção;
-- rebaixa scripts antigos da raiz para `scripts/historico_raiz/`;
-- remove resíduos efêmeros (`__pycache__`, `.pyc`) do pacote.
+## O que a V188 consolida
+- fecha a limpeza residual dos artefatos soltos da raiz do repositório;
+- remove auditorias antigas da raiz de `relatorios/`, rebaixando-as para histórico;
+- preserva `relatorios/atuais/` apenas com documentos canônicos ativos;
+- mantém `scripts/diagnostico/` como caminho canônico do tooling e deixa a raiz de `scripts/` apenas com compatibilidade intencional;
+- preserva histórico e rastreabilidade sem competir com os caminhos ativos;
+- remove resíduos efêmeros (`__pycache__`, `.pyc`) do pacote final.
 
 ## Documentos operacionais prioritários
 Consulte primeiro:
@@ -30,5 +30,5 @@ Consulte primeiro:
 - `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
 
-## Próxima frente após a V186
-Abrir a limpeza residual final do legado histórico ainda presente em `saidas/diagnostico/` e trilhas auxiliares antigas, sem reabrir contrato, modelo ou núcleo econômico.
+## Próxima frente após a V188
+Abrir a especificação operacional de `resolver_dia(t, E_t)` sobre uma árvore já limpa e sem ruído residual de navegação.

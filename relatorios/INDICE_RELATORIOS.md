@@ -9,13 +9,14 @@
 
 ## Histórico documental
 
-### Histórico rebaixado a partir das limpezas V184–V186
+### Histórico rebaixado a partir das limpezas V184–V188
 - `relatorios/historico/documentacao_baseline/`
 - `relatorios/historico/validacoes_diarias/`
 - `relatorios/historico/reorganizacao_local_switching/`
 - `relatorios/historico/objetivo_final/`
 - `relatorios/historico/contratos_intermediarios/`
 - `relatorios/historico/artefatos_soltos/`
+- `relatorios/historico/limpeza_repositorio/`
 
 ### Histórico preservado já existente
 - `relatorios/historico/baselines/`
