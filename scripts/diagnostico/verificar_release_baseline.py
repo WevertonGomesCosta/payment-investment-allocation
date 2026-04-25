@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VERSAO_VIGENTE = "V201"
-VERSAO_ANTERIOR = "V200"
+VERSAO_VIGENTE = "V202"
+VERSAO_ANTERIOR = "V201"
 
 
 def repo_root() -> Path:
@@ -81,6 +81,7 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'saidas/historico/README.md',
         'saidas/operacional/README.md',
         'scripts/operacional/gerar_planilha_operacional.py',
+        'nucleo/saida_canonica.py',
         'scripts/auditoria/gerar_auditoria_diaria_lote.py',
         'scripts/diagnostico/inspecionar_base.py',
     ]

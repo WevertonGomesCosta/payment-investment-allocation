@@ -1,7 +1,7 @@
-# LEIA-ME operacional — V201
+# LEIA-ME operacional — V202
 
 ## Baseline vigente da camada documental e de navegação
-- Pacote operacional atual: **V201**
+- Pacote operacional atual: **V202**
 - Base funcional fixa de origem: **V200**
 - Contrato mestre vigente: **CONTRATO_OPERACIONAL_PROJETO.md**
 - Modelo oficial vigente: **MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md**
@@ -15,14 +15,14 @@
 - `BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
 - `ESPECIFICACAO_SAIDA_OFICIAL.md`
 
-### Documentos operacionais da V201
-- `AUDITORIA_LIMPEZA_RESIDUAL_V201.md`
-- `MAPA_SCRIPTS_V201.md`
+### Documentos operacionais da V202
+- `AUDITORIA_LIMPEZA_RESIDUAL_V202.md`
+- `MAPA_SCRIPTS_V202.md`
 - `CORRECAO_CIRURGICA_V200.md`
 
 ## Regra de leitura desta etapa
 1. Interpretar o projeto pela V183 como contrato mestre vigente e pela V182 como modelo oficial vigente.
-2. Tratar a V201 como baseline de limpeza residual segura, derivada da V200.
+2. Tratar a V202 como baseline de limpeza residual segura, derivada da V200.
 3. Tratar a V200 como base funcional fixa imediatamente anterior.
 4. Não usar documentos históricos como base normativa principal para novas implementações.
 5. Tratar `saidas/oficial/` como caminho canônico de artefatos oficiais ativos.
@@ -56,3 +56,10 @@
 
 ## Próxima frente
 Criar uma camada única de saída canônica para impedir divergência entre console, `.xlsx`, JSON/CSV e markdown. A frente de aportes/recebidos futuros em carteira deve ficar para depois dessa unificação.
+
+
+## Camada única de saída — V202
+
+A saída observável oficial passa a ser materializada por `nucleo/saida_canonica.py`.
+
+Console e planilha operacional devem consumir `construir_saida_canonica(...)`, evitando recálculo paralelo de saldo, líquido, imposto, residual, switching e amostras financeiras.

@@ -26,6 +26,7 @@ from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabel
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
 from nucleo.caixa_recebidos_auditaveis import auditar_comparativo_proxy_v2_v3
 from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
+from nucleo.saida_canonica import construir_saida_canonica
 
 
 
@@ -709,7 +710,7 @@ def _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, de
     return pagamentos_realizados, pagamentos_proximos
 
 
-def _render_secao_ranking_oficial(contexto_baseline):
+def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None):
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     if ranking is None:
         return
@@ -720,34 +721,24 @@ def _render_secao_ranking_oficial(contexto_baseline):
         ('destinos elegíveis de switching', ranking.auditoria.get('qtd_destinos_switch')),
         ('destino top 1', ranking.auditoria.get('destino_top1')),
         ('método', ranking.auditoria.get('metodo')),
+        ('origem da amostra', 'saida_canonica_v202'),
     ])
-    destinos = ranking.quadro_destinos_switch.copy()
-    linhas = []
-    for _, row in destinos.head(10).iterrows():
-        linhas.append({
-            'Rank': row.get('rank_destino'),
-            'Produto': row.get('nome'),
-            'Score': row.get('score_final'),
-            'Proxy terminal': row.get('proxy_terminal_destino'),
-            'Liquidez': row.get('liquidez_dias'),
-            'Carência': row.get('carencia_dias'),
-            'Ticket mín.': row.get('aplicacao_minima'),
-            'Status': 'elegível' if str(row.get('Status_Confirmação') or '').strip() in {'', 'Confirmado', 'confirmado'} else str(row.get('Status_Confirmação') or ''),
-        })
+    linhas = list(getattr(saida_canonica, 'ranking_amostra', []) or [])
     print('- amostra do ranking relevante do dia:')
     _imprimir_tabela(['Rank', 'Produto', 'Score', 'Proxy terminal', 'Liquidez', 'Carência', 'Ticket mín.', 'Status'], linhas, limite=10)
 
 
-def _render_secao_switchings_oficiais(contexto_baseline):
+def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None):
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
-    linhas = _montar_switchings_oficiais(contexto_baseline, limite=10)
+    linhas = list(getattr(saida_canonica, 'switchings', []) or [])[:10]
     _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
     _imprimir_pares([
         ('lotes avaliados para switching', len(linhas)),
         ('destinos elegíveis de switching', len(ranking.quadro_destinos_switch) if ranking is not None and isinstance(getattr(ranking, 'quadro_destinos_switch', None), pd.DataFrame) else 0),
         ('switchings promovidos/executados', len(linhas)),
         ('destino top 1 do ranking', destino_top1),
+        ('origem da amostra', 'saida_canonica_v202'),
     ])
     print('- amostra de switchings reais da janela (independente de pagamentos):')
     _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino', 'Ganho estimado', 'Status'], linhas, limite=10)
@@ -756,7 +747,14 @@ def _render_secao_switchings_oficiais(contexto_baseline):
 def main() -> None:
 
 
-    contexto_baseline = carregar_contexto_baseline(raiz_repositorio=RAIZ_REPOSITORIO, instalar_automaticamente=False)
+    contexto_baseline = carregar_contexto_baseline(
+        raiz_repositorio=RAIZ_REPOSITORIO,
+        instalar_automaticamente=False,
+        incluir_resolver_hibrido_5p_shadow=False,
+        incluir_benchmark_agrupado_individual_shadow=False,
+        incluir_benchmark_runner_futuro_shadow=False,
+        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
+    )
     pacote_config = contexto_baseline.pacote_config
     contexto = contexto_baseline.execucao
     calendario_financeiro = contexto_baseline.calendario_financeiro
@@ -768,6 +766,7 @@ def main() -> None:
     triagem_motor = contexto_baseline.triagem_motor
     nucleo_financeiro = contexto_baseline.nucleo_financeiro
     replay_passado = contexto_baseline.replay_passado
+    saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
 
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
     resumo_por_aba = {item['nome_aba']: item for item in resumo_planilha}
@@ -840,27 +839,27 @@ def main() -> None:
         abas_auxiliares=abas_auxiliares,
     )
 
-    pagamentos_realizados_console, pagamentos_proximos_console = _preparar_amostras_pagamentos_console(dados_operacionais, replay_passado, contexto_baseline.decisao_local_v1, contexto_baseline, limite=5)
     render_secao_amostras_pagamentos(
-        pagamentos_realizados=pagamentos_realizados_console,
-        pagamentos_proximos=pagamentos_proximos_console,
+        pagamentos_realizados=saida_canonica.pagamentos_realizados_console(limite=5),
+        pagamentos_proximos=saida_canonica.pagamentos_proximos_console(limite=5),
     )
-    _render_secao_ranking_oficial(contexto_baseline)
-    _render_secao_switchings_oficiais(contexto_baseline)
+    _render_secao_ranking_oficial(contexto_baseline, saida_canonica)
+    _render_secao_switchings_oficiais(contexto_baseline, saida_canonica)
 
-    lotes_ativos, lotes_exauridos = _preparar_tabela_lotes_situacao_atual(replay_passado, calendario_financeiro, pacote_config.conteudo, contexto.data_referencia, serie_cdi=cache_cdi.serie_cdi)
-    recebidos_situacao_atual = _preparar_tabela_recebidos_situacao_atual(contexto_baseline.recebidos_auditaveis)
-    resumo_fechamento_situacao_atual = resumir_fechamento_situacao_atual(
-        data_referencia=contexto.data_referencia,
-        calendario_financeiro=calendario_financeiro,
-        serie_cdi=cache_cdi.serie_cdi,
-    )
+    resumo_fechamento_situacao_atual = {
+        item.get('Métrica'): item.get('Valor')
+        for item in saida_canonica.fechamento_atual
+    }
+    resumo_recebidos_saida = {
+        item.get('Métrica'): item.get('Valor')
+        for item in saida_canonica.resumo_recebidos
+    }
     render_secao_situacao_atual(
-        lotes_ativos=lotes_ativos,
-        lotes_exauridos=lotes_exauridos,
-        recebidos_atuais=recebidos_situacao_atual,
+        lotes_ativos=saida_canonica.lotes_ativos,
+        lotes_exauridos=saida_canonica.lotes_exauridos,
+        recebidos_atuais=saida_canonica.recebidos_atuais,
         resumo_fechamento=resumo_fechamento_situacao_atual,
-        resumo_recebidos=contexto_baseline.recebidos_auditaveis.auditoria.get('resumo', {}),
+        resumo_recebidos=resumo_recebidos_saida,
     )
 
 
