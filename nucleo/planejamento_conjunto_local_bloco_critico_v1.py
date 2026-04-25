@@ -16,6 +16,7 @@ from nucleo.caixa_recebidos_auditaveis import (
 )
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
 from nucleo.reescolha_dinamica_pos_quebra import _ajustar_candidatos_dinamicos
+from nucleo.utilitarios_neutros import _safe_float
 
 
 @dataclass(slots=True)
@@ -38,13 +39,6 @@ def _rotulo_fonte(candidato: dict[str, Any]) -> str:
 
 def _fonte_id(candidato: dict[str, Any]) -> str:
     return str(candidato.get('fonte_base_escolhida') or candidato.get('fonte_escolhida_id') or '').strip()
-
-
-def _safe_float(valor: Any) -> float:
-    try:
-        return float(valor or 0.0)
-    except Exception:
-        return 0.0
 
 
 def _safe_round(valor: Any, ndigits: int = 2) -> float:

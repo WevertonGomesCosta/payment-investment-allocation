@@ -42,3 +42,17 @@ Console e planilha operacional devem consumir `construir_saida_canonica(...)`, e
 
 ## Próxima frente preservada
 Corrigir a modelagem dos recebidos/aportes futuros ainda não aportados em carteira. Essa frente não foi alterada pela V203.
+
+
+## Governança V204
+
+A V204 aplica limpeza final de governança sem alteração econômica: código morto do console foi removido,
+scripts históricos `.py` foram bloqueados, auditorias auxiliares foram separadas de saídas oficiais e
+helpers utilitários de baixo risco foram centralizados em `nucleo/utilitarios_neutros.py`.
+
+A camada oficial de saída permanece `nucleo.saida_canonica`.
+
+
+## V205 — hotfix de console
+
+Correção restrita de importação em `aplicacao/console/principal.py`, restaurando dependências necessárias à auditoria detalhada de resíduos. Sem alteração econômica.

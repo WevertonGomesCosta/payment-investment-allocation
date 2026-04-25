@@ -1,13 +1,6 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-RAIZ_REPOSITORIO = Path(__file__).resolve().parents[1]
-if str(RAIZ_REPOSITORIO) not in sys.path:
-    sys.path.insert(0, str(RAIZ_REPOSITORIO))
-
-from scripts.diagnostico.inspecionar_benchmark_runner_futuro_shadow import main
-
-if __name__ == '__main__':
-    raise SystemExit(main())
+raise SystemExit(
+    "BLOQUEADO_POR_GOVERNANCA_V204: script historico sem autoridade operacional. "
+    "Arquivo: scripts/historico_raiz/inspecionar_benchmark_runner_futuro_shadow.py. Use scripts operacionais/diagnosticos vigentes e nucleo.saida_canonica."
+)

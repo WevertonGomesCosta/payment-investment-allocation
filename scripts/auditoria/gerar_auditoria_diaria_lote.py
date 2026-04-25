@@ -14,7 +14,7 @@ if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
 from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
-from nucleo.identidade_baseline import caminho_saida_operacional, nome_auditoria_diaria_lote
+from nucleo.identidade_baseline import caminho_saida_diagnostico, nome_auditoria_diaria_lote
 from nucleo.calendario_financeiro import obter_taxa_dia_rendimento_lote
 from nucleo.nucleo_financeiro_minimo import criar_lote_de_aporte, Lote
 from nucleo.utilitarios_neutros import arredondar_monetario
@@ -249,8 +249,8 @@ def main() -> None:
     args = parser.parse_args()
 
     df = gerar_auditoria_diaria_lote(args.lote)
-    xlsx = Path(args.xlsx) if args.xlsx else caminho_saida_operacional(RAIZ, nome_auditoria_diaria_lote(args.lote, 'xlsx'))
-    csv = Path(args.csv) if args.csv else caminho_saida_operacional(RAIZ, nome_auditoria_diaria_lote(args.lote, 'csv'))
+    xlsx = Path(args.xlsx) if args.xlsx else caminho_saida_diagnostico(RAIZ, nome_auditoria_diaria_lote(args.lote, 'xlsx'))
+    csv = Path(args.csv) if args.csv else caminho_saida_diagnostico(RAIZ, nome_auditoria_diaria_lote(args.lote, 'csv'))
     xlsx.parent.mkdir(parents=True, exist_ok=True)
     csv.parent.mkdir(parents=True, exist_ok=True)
     df.to_excel(xlsx, index=False)

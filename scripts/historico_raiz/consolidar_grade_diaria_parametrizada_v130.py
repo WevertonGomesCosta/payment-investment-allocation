@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from scripts._compat import run_module_entrypoint
-
-
-if __name__ == "__main__":
-    run_module_entrypoint("scripts.diagnostico.consolidar_grade_diaria_parametrizada_v130")
+raise SystemExit(
+    "BLOQUEADO_POR_GOVERNANCA_V204: script historico sem autoridade operacional. "
+    "Arquivo: scripts/historico_raiz/consolidar_grade_diaria_parametrizada_v130.py. Use scripts operacionais/diagnosticos vigentes e nucleo.saida_canonica."
+)

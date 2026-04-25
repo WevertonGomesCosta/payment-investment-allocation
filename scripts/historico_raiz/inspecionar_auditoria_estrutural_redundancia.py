@@ -1,14 +1,6 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-RAIZ = Path(__file__).resolve().parents[1]
-if str(RAIZ) not in sys.path:
-    sys.path.insert(0, str(RAIZ))
-
-from scripts.diagnostico.inspecionar_auditoria_estrutural_redundancia import main
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())
+raise SystemExit(
+    "BLOQUEADO_POR_GOVERNANCA_V204: script historico sem autoridade operacional. "
+    "Arquivo: scripts/historico_raiz/inspecionar_auditoria_estrutural_redundancia.py. Use scripts operacionais/diagnosticos vigentes e nucleo.saida_canonica."
+)

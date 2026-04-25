@@ -1,6 +1,6 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V203  
+**Pacote operacional atual:** V205  
 **Base funcional fixa de origem:** V200  
 **Baseline contratual vigente:** V183  
 **Modelo metodológico vinculante vigente:** V182
@@ -50,3 +50,17 @@ python scripts/diagnostico/verificar_release_baseline.py
 
 ## Frente metodológica ainda preservada
 Os aportes/recebidos futuros ainda não aportados em carteira permanecem como problema metodológico futuro. Essa frente deve ser aberta depois da estabilização da governança de scripts.
+
+
+## Governança V204
+
+A V204 aplica limpeza final de governança sem alteração econômica: código morto do console foi removido,
+scripts históricos `.py` foram bloqueados, auditorias auxiliares foram separadas de saídas oficiais e
+helpers utilitários de baixo risco foram centralizados em `nucleo/utilitarios_neutros.py`.
+
+A camada oficial de saída permanece `nucleo.saida_canonica`.
+
+
+## Hotfix V205
+
+A V205 corrige regressão de importação no console introduzida na limpeza V204. A função de auditoria detalhada de resíduos voltou a importar explicitamente `construir_tabela_iof` e `construir_faixas_ir` de `nucleo.nucleo_financeiro_minimo`. Não há alteração no motor, contrato, modelo matemático-estatístico-financeiro nem na regra de recebidos/aportes futuros.

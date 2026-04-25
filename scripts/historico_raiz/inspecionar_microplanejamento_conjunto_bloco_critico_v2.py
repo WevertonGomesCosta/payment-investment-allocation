@@ -1,4 +1,6 @@
-from scripts.diagnostico.inspecionar_microplanejamento_conjunto_bloco_critico_v2 import main
+from __future__ import annotations
 
-if __name__ == '__main__':
-    raise SystemExit(main())
+raise SystemExit(
+    "BLOQUEADO_POR_GOVERNANCA_V204: script historico sem autoridade operacional. "
+    "Arquivo: scripts/historico_raiz/inspecionar_microplanejamento_conjunto_bloco_critico_v2.py. Use scripts operacionais/diagnosticos vigentes e nucleo.saida_canonica."
+)

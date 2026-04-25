@@ -1,15 +1,6 @@
-
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parents[1]
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
-
-from scripts.diagnostico.inspecionar_benchmark_agrupado_individual_shadow import main
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())
+raise SystemExit(
+    "BLOQUEADO_POR_GOVERNANCA_V204: script historico sem autoridade operacional. "
+    "Arquivo: scripts/historico_raiz/inspecionar_benchmark_agrupado_individual_shadow.py. Use scripts operacionais/diagnosticos vigentes e nucleo.saida_canonica."
+)

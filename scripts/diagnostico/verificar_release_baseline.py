@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VERSAO_VIGENTE = "V203"
-VERSAO_ANTERIOR = "V202"
+VERSAO_VIGENTE = "V205"
+VERSAO_ANTERIOR = "V204"
 
 
 def repo_root() -> Path:
@@ -88,6 +88,9 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'scripts/historico_saida_propria_v203/README.md',
         'relatorios/atuais/GOVERNANCA_SCRIPTS_V203.md',
         'relatorios/atuais/MAPA_GOVERNANCA_SCRIPTS_V203.csv',
+        'relatorios/atuais/GOVERNANCA_FINAL_SCRIPTS_V204.md',
+        'relatorios/atuais/MAPA_GOVERNANCA_FINAL_SCRIPTS_V204.csv',
+        'relatorios/atuais/HOTFIX_CONSOLE_IMPORTS_V205.md',
     ]
     erros: list[str] = []
     for caminho in esperados:
@@ -122,6 +125,72 @@ def validar_governanca_scripts_v203(base: Path) -> list[str]:
             erros.append(f'diagnostico_util_nao_canonico: {rel_path}')
     return erros
 
+
+def validar_governanca_scripts_v204(base: Path) -> list[str]:
+    erros: list[str] = []
+    mapa = base / 'relatorios' / 'atuais' / 'MAPA_GOVERNANCA_FINAL_SCRIPTS_V204.csv'
+    if not mapa.exists():
+        return ['mapa_governanca_scripts_v204_ausente']
+
+    console = base / 'aplicacao' / 'console' / 'principal.py'
+    texto_console = console.read_text(encoding='utf-8') if console.exists() else ''
+    funcoes_mortas = [
+        '_mapa_pagamentos_central',
+        '_mapa_saldo_disponivel',
+        '_mapa_saldos_correntes_lotes',
+        '_mapa_resumos_futuros_operacionais',
+        '_resumo_financeiro_futuro_console',
+        '_montar_switchings_oficiais',
+        '_preparar_amostras_pagamentos_console',
+    ]
+    for nome in funcoes_mortas:
+        if f'def {nome}' in texto_console:
+            erros.append(f'codigo_morto_console_presente: {nome}')
+
+    ranking = base / 'scripts' / 'diagnostico' / 'inspecionar_ranking_carteira_estabilizado_v123.py'
+    texto_ranking = ranking.read_text(encoding='utf-8') if ranking.exists() else ''
+    if 'to_excel(' in texto_ranking or 'to_csv(' in texto_ranking or 'write_text(' in texto_ranking:
+        erros.append('diagnostico_ranking_ainda_escreve_saida_propria')
+    if 'construir_saida_canonica' not in texto_ranking:
+        erros.append('diagnostico_ranking_nao_canonico')
+
+    auditoria_lote = base / 'scripts' / 'auditoria' / 'gerar_auditoria_diaria_lote.py'
+    texto_auditoria = auditoria_lote.read_text(encoding='utf-8') if auditoria_lote.exists() else ''
+    if 'caminho_saida_operacional' in texto_auditoria:
+        erros.append('auditoria_diaria_lote_ainda_usa_saida_operacional')
+    if 'caminho_saida_diagnostico' not in texto_auditoria:
+        erros.append('auditoria_diaria_lote_sem_saida_diagnostica')
+
+    for raiz_hist in [
+        base / 'scripts' / 'historico_raiz',
+        base / 'scripts' / 'historico_saida_propria_v203',
+    ]:
+        if not raiz_hist.exists():
+            continue
+        for script in raiz_hist.rglob('*.py'):
+            conteudo = script.read_text(encoding='utf-8')
+            if 'BLOQUEADO_POR_GOVERNANCA_V204' not in conteudo:
+                erros.append(f'historico_py_nao_bloqueado_v204: {rel(script, base)}')
+
+    util = base / 'nucleo' / 'utilitarios_neutros.py'
+    texto_util = util.read_text(encoding='utf-8') if util.exists() else ''
+    for nome in ['_safe_float', '_coerce_date', '_split_fontes_compostas']:
+        if f'def {nome}' not in texto_util:
+            erros.append(f'helper_utilitario_nao_centralizado: {nome}')
+
+    for modulo in [
+        base / 'nucleo' / 'motor_recomendacao_pagamentos_switching_v1.py',
+        base / 'nucleo' / 'recomputacao_sequencial_central_v1.py',
+    ]:
+        conteudo = modulo.read_text(encoding='utf-8') if modulo.exists() else ''
+        if 'def _split_fontes_compostas' in conteudo:
+            erros.append(f'split_fontes_compostas_duplicado: {rel(modulo, base)}')
+        if 'from nucleo.utilitarios_neutros import' not in conteudo:
+            erros.append(f'modulo_sem_utilitarios_centralizados: {rel(modulo, base)}')
+
+    return erros
+
+
 def main() -> int:
     base = repo_root()
     erros = []
@@ -129,6 +198,7 @@ def main() -> int:
     erros.extend(validar_referencias_ativas(base))
     erros.extend(validar_caminhos_canonicos(base))
     erros.extend(validar_governanca_scripts_v203(base))
+    erros.extend(validar_governanca_scripts_v204(base))
     artefatos = coletar_artefatos_efemeros(base)
     if artefatos:
         erros.extend(f'artefato_efemero_presente: {item}' for item in artefatos)

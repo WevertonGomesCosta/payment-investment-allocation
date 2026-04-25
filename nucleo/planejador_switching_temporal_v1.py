@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
+from nucleo.utilitarios_neutros import _coerce_date
 
 
 @dataclass(slots=True)
@@ -47,21 +48,6 @@ class AcaoSwitchingTemporalCandidata:
 
     def para_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-def _coerce_date(valor: Any) -> date | None:
-    if valor is None:
-        return None
-    if isinstance(valor, date):
-        return valor
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, str):
-        try:
-            return datetime.fromisoformat(valor).date()
-        except Exception:
-            return None
-    return None
 
 
 def _normalizar_lote(item: Any) -> dict[str, Any]:

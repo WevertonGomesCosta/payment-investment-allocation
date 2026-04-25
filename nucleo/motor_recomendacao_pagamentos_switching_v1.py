@@ -5,16 +5,7 @@ from datetime import date
 from typing import Any
 
 import pandas as pd
-
-
-def _coerce_date(valor: Any) -> date | None:
-    if valor is None:
-        return None
-    if isinstance(valor, pd.Timestamp):
-        return valor.date()
-    if isinstance(valor, date):
-        return valor
-    return None
+from nucleo.utilitarios_neutros import _coerce_date, _split_fontes_compostas
 
 
 def _fonte_operacionalmente_disponivel_na_data_referencia(row: pd.Series | dict[str, Any], data_referencia: date) -> bool:
@@ -65,11 +56,6 @@ def _selecionar_backup(candidatos_eligiveis: pd.DataFrame, lote_principal: str, 
             continue
         return lote or str(row.get('produto_nome_canonico') or ''), fonte
     return '', ''
-
-
-def _split_fontes_compostas(valor: Any) -> list[str]:
-    partes = [parte.strip() for parte in str(valor or '').split('+')]
-    return [parte for parte in partes if parte]
 
 
 def _rotulo_candidato(row: pd.Series | dict[str, Any]) -> str:

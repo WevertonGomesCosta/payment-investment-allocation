@@ -34,6 +34,7 @@ TIPOS_PRIORITARIOS = (
 )
 
 
+from nucleo.utilitarios_neutros import _safe_float
 @dataclass(slots=True)
 class ResultadoPagamentoFluxoV142:
     data_pagamento: str
@@ -87,16 +88,6 @@ class ResumoFluxoV142:
 
     def para_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-
-def _safe_float(valor: Any) -> float:
-    try:
-        if valor in (None, ''):
-            return 0.0
-        return float(valor)
-    except Exception:
-        return 0.0
 
 
 

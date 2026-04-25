@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Mapping
 import json
+from nucleo.utilitarios_neutros import _safe_float
 
 
 CONFIG_FASE1 = Path(__file__).resolve().parents[3] / 'config' / 'modelos_script1_pagamentos_v140.json'
@@ -22,15 +23,6 @@ class ResultadoHeuristicasFase1:
 
     def para_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-def _safe_float(valor: Any, default: float = 0.0) -> float:
-    try:
-        if valor in (None, ''):
-            return float(default)
-        return float(valor)
-    except Exception:
-        return float(default)
 
 
 _DEFAULTS = {

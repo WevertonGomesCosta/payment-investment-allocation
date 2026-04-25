@@ -24,6 +24,7 @@ from nucleo.simulador_central_eventos_v1 import (
 )
 
 
+from nucleo.utilitarios_neutros import _safe_float
 @dataclass(slots=True)
 class ResultadoPagamentoRecorteV138:
     data_pagamento: str
@@ -67,15 +68,6 @@ class ResumoFluxoPagamentosRecorteV138:
 
 
 MAX_FONTES_POR_DESTINO = 3
-
-
-def _safe_float(valor: Any) -> float:
-    try:
-        if valor in (None, ''):
-            return 0.0
-        return float(valor)
-    except Exception:
-        return 0.0
 
 
 def _carregar_estado_recorte(contexto: Any, *, data_inicio: date | None = None, data_fim: date | None = None, limite_pagamentos: int = 15) -> tuple[dict[str, Any], date, int]:

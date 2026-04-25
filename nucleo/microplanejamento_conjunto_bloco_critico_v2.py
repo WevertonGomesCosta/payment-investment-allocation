@@ -17,6 +17,7 @@ from nucleo.caixa_recebidos_auditaveis import (
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
 from nucleo.planejamento_conjunto_local_bloco_critico_v1 import _evento_ancora, _normalizar_quadro_referencia
 from nucleo.reescolha_dinamica_pos_quebra import _ajustar_candidatos_dinamicos
+from nucleo.utilitarios_neutros import _safe_float
 
 
 @dataclass(slots=True)
@@ -38,13 +39,6 @@ COLUNAS_QUADRO = [
     'liquido_microplanejamento', 'saldo_remanescente_microplanejamento', 'pagamento_totalmente_coberto_microplanejamento',
     'mudou_vs_v104', 'observacao_microplanejamento',
 ]
-
-
-def _safe_float(valor: Any) -> float:
-    try:
-        return float(valor or 0.0)
-    except Exception:
-        return 0.0
 
 
 def _safe_round(valor: Any, ndigits: int = 2) -> float:

@@ -153,6 +153,44 @@ def para_float_monetario(valor: Any, default: float = 0.0) -> float:
         return default
 
 
+# Helpers canônicos de baixo risco centralizados na V204.
+# Mantêm semântica utilitária simples e não implementam regra econômica.
+def _safe_float(valor: Any, default: float = 0.0) -> float:
+    try:
+        if valor in (None, ''):
+            return float(default)
+        return float(valor)
+    except Exception:
+        return float(default)
+
+
+def _coerce_date(valor: Any) -> date | None:
+    if valor is None:
+        return None
+    try:
+        if pd.isna(valor):
+            return None
+    except Exception:
+        pass
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    try:
+        ts = pd.to_datetime(valor, errors='coerce')
+        if pd.isna(ts):
+            return None
+        return ts.date()
+    except Exception:
+        return None
+
+
+def _split_fontes_compostas(valor: Any) -> list[str]:
+    partes = [parte.strip() for parte in str(valor or '').split('+')]
+    return [parte for parte in partes if parte]
+
+
+
 def arredondar_monetario(valor: Any, casas: int = 2) -> float:
     quant = '1.' + ('0' * casas)
     return float(Decimal(str(valor)).quantize(Decimal(quant), rounding=ROUND_HALF_UP))

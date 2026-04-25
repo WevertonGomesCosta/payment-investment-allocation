@@ -33,3 +33,12 @@ python scripts/diagnostico/inspecionar_recomputacao_sequencial_central_v1.py
 ```
 
 Esses diagnósticos leem `PacoteSaidaCanonica` e não têm autoridade para recalcular saída operacional paralela.
+
+
+## Governança V204
+
+A V204 aplica limpeza final de governança sem alteração econômica: código morto do console foi removido,
+scripts históricos `.py` foram bloqueados, auditorias auxiliares foram separadas de saídas oficiais e
+helpers utilitários de baixo risco foram centralizados em `nucleo/utilitarios_neutros.py`.
+
+A camada oficial de saída permanece `nucleo.saida_canonica`.

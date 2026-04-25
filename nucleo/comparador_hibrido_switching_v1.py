@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Iterable
+from nucleo.utilitarios_neutros import _safe_float
 
 
 @dataclass(frozen=True)
@@ -18,15 +19,6 @@ PRIORIDADE_CLASSE = {
     'vencedor_operacional': 2,
     'dominado_pelo_baseline': 9,
 }
-
-
-def _safe_float(value: Any) -> float:
-    try:
-        if value in (None, ''):
-            return 0.0
-        return float(value)
-    except Exception:
-        return 0.0
 
 
 def classificar_cenario_diario(

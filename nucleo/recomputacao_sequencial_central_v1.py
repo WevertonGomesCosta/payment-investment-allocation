@@ -16,25 +16,13 @@ from nucleo.caixa_recebidos_auditaveis import (
 )
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
 from nucleo.reescolha_dinamica_pos_quebra import _ajustar_candidatos_dinamicos
-from nucleo.utilitarios_neutros import limpar_texto
+from nucleo.utilitarios_neutros import _coerce_date, limpar_texto
 
 
 @dataclass(slots=True)
 class PacoteRecomputacaoSequencialCentralV1:
     quadro_recomputacao_sequencial_central: pd.DataFrame
     auditoria: dict[str, Any]
-
-
-def _coerce_date(valor: Any) -> date | None:
-    if valor is None:
-        return None
-    if isinstance(valor, pd.Timestamp):
-        return valor.date()
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, date):
-        return valor
-    return None
 
 
 def _rotulo_fonte(candidato: dict[str, Any]) -> str:
@@ -241,11 +229,6 @@ def _simular_movimento_candidato(
         'consumo_generico_pos': {fonte_id: round(float(consumo_generico.get(fonte_id, 0.0) or 0.0) + liquido, 2)},
         'patrimonio_delta': patrimonio_delta,
     }
-
-
-def _split_fontes_compostas(valor: Any) -> list[str]:
-    partes = [parte.strip() for parte in str(valor or '').split('+')]
-    return [parte for parte in partes if parte]
 
 
 def _simular_plano_multifonte(

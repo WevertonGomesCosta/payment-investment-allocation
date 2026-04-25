@@ -12,21 +12,7 @@ from nucleo.avaliador_cenarios_conjuntos_v1 import avaliar_cenarios_conjuntos_v1
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.planejador_switching_temporal_v1 import planejar_switching_temporal_v1
 from nucleo.recomputacao_sequencial_central_v1 import _perfil_pagamento_operacional
-
-
-def _coerce_date(valor: Any) -> date | None:
-    if valor is None:
-        return None
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, date):
-        return valor
-    if isinstance(valor, str):
-        try:
-            return datetime.fromisoformat(valor).date()
-        except Exception:
-            return None
-    return None
+from nucleo.utilitarios_neutros import _coerce_date
 
 
 def _normalizar_proxy_terminal(valor: Any) -> float:

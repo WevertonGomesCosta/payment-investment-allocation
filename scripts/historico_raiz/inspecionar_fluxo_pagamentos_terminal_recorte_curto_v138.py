@@ -1,4 +1,6 @@
-from scripts.diagnostico.inspecionar_fluxo_pagamentos_terminal_recorte_curto_v138 import main
+from __future__ import annotations
 
-if __name__ == '__main__':
-    raise SystemExit(main())
+raise SystemExit(
+    "BLOQUEADO_POR_GOVERNANCA_V204: script historico sem autoridade operacional. "
+    "Arquivo: scripts/historico_raiz/inspecionar_fluxo_pagamentos_terminal_recorte_curto_v138.py. Use scripts operacionais/diagnosticos vigentes e nucleo.saida_canonica."
+)

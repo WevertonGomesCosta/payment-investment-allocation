@@ -24,15 +24,7 @@ from nucleo.simulador_central_eventos_v1 import (
 )
 
 
-def _safe_float(valor: Any) -> float:
-    try:
-        if valor in (None, ''):
-            return 0.0
-        return float(valor)
-    except Exception:
-        return 0.0
-
-
+from nucleo.utilitarios_neutros import _safe_float
 def _safe_str(valor: Any) -> str:
     if valor in (None, ''):
         return ''

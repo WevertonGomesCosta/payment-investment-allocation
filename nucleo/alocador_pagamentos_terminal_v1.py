@@ -20,6 +20,7 @@ TIPOS_FONTE_SUPORTADOS = (
     'sem_fonte_viavel',
 )
 
+from nucleo.utilitarios_neutros import _coerce_date, _safe_float
 CLASSES_SWITCHING_PROMOVIVEIS = {'vencedor_terminal', 'vencedor_hibrido_aceitavel'}
 
 
@@ -44,30 +45,6 @@ class FontePagamentoCandidata:
 
     def para_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-def _coerce_date(valor: Any) -> date | None:
-    if valor is None:
-        return None
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, date):
-        return valor
-    if isinstance(valor, str):
-        try:
-            return datetime.fromisoformat(valor).date()
-        except Exception:
-            return None
-    return None
-
-
-def _safe_float(valor: Any, default: float = 0.0) -> float:
-    try:
-        if valor in (None, ''):
-            return float(default)
-        return float(valor)
-    except Exception:
-        return float(default)
 
 
 def _safe_str(valor: Any) -> str:
