@@ -7,7 +7,7 @@ from typing import Any
 import pandas as pd
 
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
-from nucleo.utilitarios_neutros import limpar_texto, normalizar_identificador, normalizar_texto
+from nucleo.utilitarios_neutros import _fonte_id, limpar_texto, normalizar_identificador, normalizar_texto
 
 STATUS_USO_PRE_APLICACAO_COM_APORTE_POSTERIOR = 'uso_pre_aplicacao_com_aporte_posterior'
 DESTINO_PAGAMENTO_E_APLICACAO = 'pagamento_e_aplicacao'
@@ -224,9 +224,6 @@ def _slug_fonte(chave: str) -> str:
     return texto or 'fonte'
 
 
-def _fonte_id(tipo_fonte: str, *, lote_id: str | None = None, recebido_id: str | None = None) -> str:
-    base = lote_id or recebido_id or tipo_fonte
-    return f"fonte::{_slug_fonte(tipo_fonte)}::{_slug_fonte(base)}"
 
 def _fonte_pagamento_id(fonte_id: str, pagamento_id: str) -> str:
     return f"{fonte_id}::pagamento::{_slug_fonte(pagamento_id)}"
@@ -660,6 +657,8 @@ def _materializar_fontes_de_replay_por_pagamento(
     tabela_iof: list[float] | None,
     faixas_ir: list[dict[str, Any]] | None,
     limiar_valor: float,
+    calendario_financeiro: Any | None = None,
+    serie_cdi: Any | None = None,
 ) -> list[dict[str, Any]]:
     registros: list[dict[str, Any]] = []
     if len(pagamentos_alvo) == 0:
@@ -682,11 +681,6 @@ def _materializar_fontes_de_replay_por_pagamento(
         produto_nome = limpar_texto(getattr(lote, 'investimento', None)) or linha_inventario.get('produto_nome_canonico')
         recebido_id = _recebido_id(lote_id)
 
-        try:
-            valor_liquido_referencia = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir)), 2)
-        except Exception:
-            valor_liquido_referencia = saldo_bruto
-
         fonte_id = _fonte_id('lote_resgatavel', lote_id=lote_id)
         for pagamento in pagamentos:
             data_pagamento = pagamento.get('data')
@@ -694,6 +688,35 @@ def _materializar_fontes_de_replay_por_pagamento(
                 continue
             if data_aplicacao is not None and data_pagamento < data_aplicacao:
                 continue
+
+            try:
+                if calendario_financeiro is not None:
+                    valor_bruto_pagamento = round(float(lote.valor_bruto_em_data(
+                        data_pagamento,
+                        calendario_financeiro,
+                        serie_cdi=serie_cdi,
+                        data_base_referencia=data_referencia,
+                    ) or 0.0), 2)
+                    valor_liquido_pagamento = round(float(lote.valor_liquido_em_data(
+                        data_pagamento,
+                        calendario_financeiro,
+                        tabela_iof=tabela_iof,
+                        faixas_ir=faixas_ir,
+                        serie_cdi=serie_cdi,
+                        data_base_referencia=data_referencia,
+                    ) or 0.0), 2)
+                    metodo_valor = 'projecao_data_pagamento' if data_pagamento > data_referencia else 'valor_data_referencia'
+                    data_base_valor = data_pagamento
+                else:
+                    valor_bruto_pagamento = saldo_bruto
+                    valor_liquido_pagamento = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir)), 2)
+                    metodo_valor = 'fotografia_data_referencia'
+                    data_base_valor = data_referencia
+            except Exception:
+                valor_bruto_pagamento = saldo_bruto
+                valor_liquido_pagamento = saldo_bruto
+                metodo_valor = 'fallback_fotografia_data_referencia'
+                data_base_valor = data_referencia
 
             mesmo_dia_aplicacao = data_aplicacao is not None and data_pagamento == data_aplicacao
             if carencia_ate is not None and data_pagamento < carencia_ate:
@@ -712,7 +735,7 @@ def _materializar_fontes_de_replay_por_pagamento(
                 motivo = None
                 observacao = 'lote com saldo remanescente após o replay e elegível para resgate na data do pagamento.'
                 if data_pagamento > data_referencia:
-                    observacao += ' Valor mantido como fotografia da data de referência; a projeção futura da fonte ainda não foi aberta nesta etapa.'
+                    observacao += ' Valor projetado até a data do pagamento para evitar uso da fotografia do saldo atual.'
 
             registros.append(_linha_base_fonte_pagamento(
                 pagamento=pagamento,
@@ -723,14 +746,14 @@ def _materializar_fontes_de_replay_por_pagamento(
                 recebido_id=recebido_id,
                 produto_key=produto_key,
                 produto_nome=produto_nome,
-                valor_bruto_disponivel=saldo_bruto,
-                valor_liquido_disponivel=valor_liquido_referencia,
+                valor_bruto_disponivel=valor_bruto_pagamento,
+                valor_liquido_disponivel=valor_liquido_pagamento,
                 elegivel_na_data_pagamento=elegivel,
                 origem_status=origem_status,
                 motivo_bloqueio_temporal=motivo,
                 observacao_auditavel=observacao,
-                data_base_valor=data_referencia,
-                metodo_valor_disponivel='fotografia_data_referencia',
+                data_base_valor=data_base_valor,
+                metodo_valor_disponivel=metodo_valor,
                 data_recebimento_origem=data_recebimento,
                 data_aplicacao_origem=data_aplicacao,
                 carencia_ate_origem=carencia_ate,
@@ -1622,6 +1645,8 @@ def materializar_fontes_elegiveis_pagamento(
     tabela_iof: list[float] | None = None,
     faixas_ir: list[dict[str, Any]] | None = None,
     limiar_valor: float = 0.01,
+    calendario_financeiro: Any | None = None,
+    serie_cdi: Any | None = None,
 ) -> PacoteFontesElegiveisPagamento:
     inventario = dados_operacionais.inventario_canonico.copy()
     inventario_por_lote = _indexar_inventario_por_lote(inventario)
@@ -1646,6 +1671,8 @@ def materializar_fontes_elegiveis_pagamento(
             tabela_iof=tabela_iof,
             faixas_ir=faixas_ir,
             limiar_valor=limiar_valor,
+            calendario_financeiro=calendario_financeiro,
+            serie_cdi=serie_cdi,
         )
     )
 
@@ -1686,7 +1713,9 @@ def materializar_fontes_elegiveis_pagamento(
     if (quadro['origem_status'] == 'estimado').any():
         avisos.append('existem_fontes_dependentes_de_precedencia_intradiaria_nao_materializada')
     if (quadro['metodo_valor_disponivel'] == 'fotografia_data_referencia').any():
-        avisos.append('valores_de_lotes_futuros_ainda_em_fotografia_da_data_de_referencia')
+        avisos.append('existem_valores_de_lotes_em_fotografia_da_data_de_referencia')
+    if (quadro['metodo_valor_disponivel'] == 'projecao_data_pagamento').any():
+        avisos.append('valores_de_lotes_futuros_projetados_ate_data_pagamento')
 
     resumo_tipos = {str(k): int(v) for k, v in quadro['tipo_fonte'].value_counts(dropna=False).to_dict().items()}
     resumo_status = {str(k): int(v) for k, v in quadro['origem_status'].value_counts(dropna=False).to_dict().items()}

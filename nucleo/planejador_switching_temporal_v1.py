@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
-from nucleo.utilitarios_neutros import _coerce_date
+from nucleo.utilitarios_neutros import _aliquota_ir_estimada, _coerce_date, _normalizar_proxy_terminal
 
 
 @dataclass(slots=True)
@@ -75,18 +75,6 @@ def _normalizar_lote(item: Any) -> dict[str, Any]:
     return dados
 
 
-def _aliquota_ir_estimada(data_aplicacao: date | None, data_acao: date | None) -> float:
-    if data_aplicacao is None or data_acao is None:
-        return 0.15
-    dias = max((data_acao - data_aplicacao).days, 0)
-    if dias <= 180:
-        return 0.225
-    if dias <= 360:
-        return 0.20
-    if dias <= 720:
-        return 0.175
-    return 0.15
-
 
 def _estimar_custo_fiscal(valor_liquido: float, principal: float, aliquota_ir: float) -> float:
     ganho_liquido = max(float(valor_liquido or 0.0) - float(principal or 0.0), 0.0)
@@ -96,15 +84,6 @@ def _estimar_custo_fiscal(valor_liquido: float, principal: float, aliquota_ir: f
     imposto = ganho_bruto * aliquota_ir
     return round(max(imposto, 0.0), 2)
 
-
-def _normalizar_proxy_terminal(valor: Any) -> float:
-    try:
-        numero = float(valor or 0.0)
-    except Exception:
-        return 0.0
-    if numero > 1.0:
-        numero = numero / 100.0
-    return max(numero, 0.0)
 
 
 def _normalizar_retorno_anual(valor: Any, taxa_base_cdi: Any, taxa_bonus_cdi: Any, cdi_anual_modelo: Any) -> float:

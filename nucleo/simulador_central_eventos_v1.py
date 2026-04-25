@@ -12,17 +12,8 @@ from nucleo.avaliador_cenarios_conjuntos_v1 import avaliar_cenarios_conjuntos_v1
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.planejador_switching_temporal_v1 import planejar_switching_temporal_v1
 from nucleo.recomputacao_sequencial_central_v1 import _perfil_pagamento_operacional
-from nucleo.utilitarios_neutros import _coerce_date
+from nucleo.utilitarios_neutros import _aliquota_ir_estimada, _coerce_date, _normalizar_proxy_terminal
 
-
-def _normalizar_proxy_terminal(valor: Any) -> float:
-    try:
-        numero = float(valor or 0.0)
-    except Exception:
-        return 0.0
-    if numero > 1.0:
-        numero = numero / 100.0
-    return max(numero, 0.0)
 
 
 def _destinos_switch_elegiveis(contexto: Any, limite: int = 12) -> list[dict[str, Any]]:
@@ -142,18 +133,6 @@ def _proxy_fallback_lote(lote: Any, contexto: Any) -> float:
     cdi = float(getattr(contexto.calendario_financeiro, 'cdi_anual_modelo', 0.0) or 0.0)
     return max(min(taxa_ref * cdi, 0.95), 0.05)
 
-
-def _aliquota_ir_estimada(data_aplicacao: date | None, data_acao: date | None) -> float:
-    if data_aplicacao is None or data_acao is None:
-        return 0.15
-    dias = max((data_acao - data_aplicacao).days, 0)
-    if dias <= 180:
-        return 0.225
-    if dias <= 360:
-        return 0.20
-    if dias <= 720:
-        return 0.175
-    return 0.15
 
 
 def _estimar_imposto_resgate(valor_liquido: float, principal: float, aliquota_ir: float) -> float:

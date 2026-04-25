@@ -170,6 +170,8 @@ def carregar_contexto_baseline(
         data_referencia=contexto_execucao.data_referencia,
         tabela_iof=construir_tabela_iof(pacote_config.conteudo),
         faixas_ir=construir_faixas_ir(pacote_config.conteudo),
+        calendario_financeiro=calendario_financeiro,
+        serie_cdi=cache_cdi.serie_cdi,
     )
     saldo_disponivel_geral = materializar_saldo_disponivel_geral(
         dados_operacionais,
@@ -203,6 +205,8 @@ def carregar_contexto_baseline(
         faixas_ir=construir_faixas_ir(pacote_config.conteudo),
         carteira_canonica=carteira_canonica,
         proxy_version='v3',
+        calendario_financeiro=calendario_financeiro,
+        serie_cdi=cache_cdi.serie_cdi,
     ) if decisao_local_v1 is not None and replay_passado is not None else None
     heuristica_conjunta_parcial_bloco_critico = carregar_heuristica_conjunta_parcial_bloco_critico(
         dados_operacionais,
@@ -241,6 +245,8 @@ def carregar_contexto_baseline(
         faixas_ir=construir_faixas_ir(pacote_config.conteudo),
         carteira_canonica=carteira_canonica,
         proxy_version='v3',
+        calendario_financeiro=calendario_financeiro,
+        serie_cdi=cache_cdi.serie_cdi,
     ) if decisao_local_v1 is not None and replay_passado is not None else None
     motor_recomendacao_pagamentos_switching_v1 = carregar_motor_recomendacao_pagamentos_switching_v1(
         dados_operacionais,

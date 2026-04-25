@@ -1,11 +1,12 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V205  
+**Pacote operacional atual:** V208  
 **Base funcional fixa de origem:** V200  
+**Baseline estrutural imediatamente anterior:** V206  
 **Baseline contratual vigente:** V183  
 **Modelo metodológico vinculante vigente:** V182
 
-A V203 deriva da V202 e aplica apenas governança de scripts legados. Ela bloqueia/rebaixa scripts diagnósticos com saída própria, preserva seus originais em histórico e converte os diagnósticos ainda úteis para leitura de `nucleo.saida_canonica`.
+A V208 deriva da V206 e aplica apenas um hotfix estrutural em `nucleo/utilitarios_neutros.py`: os helpers semânticos centralizados passam a aceitar tanto `dict` quanto `pandas.Series`, preservando a execução do console e sem alterar regras econômicas.
 
 ## Objetivo final do projeto
 Construir um motor conjunto, auditável e economicamente coerente para:
@@ -16,12 +17,12 @@ Construir um motor conjunto, auditável e economicamente coerente para:
 
 A decisão final deve maximizar o **patrimônio líquido terminal**, respeitando cobertura, liquidez, carência, tributação, precedência intradiária parametrizada e auditabilidade por lote/fonte.
 
-## O que a V203 consolida
+## O que a V208 consolida
 - mantém `nucleo/saida_canonica.py` como camada única de saída observável;
-- bloqueia 49 scripts legados com saída própria;
-- preserva os originais bloqueados em `scripts/historico_saida_propria_v203/`;
-- converte 2 diagnósticos úteis para wrappers canônicos;
-- documenta a autoridade operacional dos scripts em `relatorios/atuais/MAPA_GOVERNANCA_SCRIPTS_V203.csv`;
+- preserva a V205 como baseline pós-hotfix de console;
+- mantém a governança de scripts V203/V204;
+- move `saidas/oficial/relatorio_operacional_v202.xlsx` para `saidas/historico/relatorios_operacionais/`;
+- centraliza `_rotulo_fonte`, `_fonte_id`, `_normalizar_proxy_terminal` e `_aliquota_ir_estimada`;
 - não altera motor, contrato, modelo matemático-estatístico-financeiro nem recebidos/aportes futuros.
 
 ## Documentos operacionais prioritários
@@ -33,7 +34,9 @@ Consulte primeiro:
 - `relatorios/atuais/ESPECIFICACAO_SAIDA_OFICIAL.md`
 - `relatorios/atuais/AUDITORIA_CAMADA_SAIDA_CANONICA_V202.md`
 - `relatorios/atuais/GOVERNANCA_SCRIPTS_V203.md`
-- `relatorios/atuais/MAPA_GOVERNANCA_SCRIPTS_V203.csv`
+- `relatorios/atuais/GOVERNANCA_FINAL_SCRIPTS_V204.md`
+- `relatorios/atuais/HOTFIX_CONSOLE_IMPORTS_V205.md`
+- `relatorios/atuais/GOVERNANCA_ESTRUTURAL_V206.md`
 
 ## Caminho operacional vigente
 Para gerar a saída operacional:
@@ -49,18 +52,4 @@ python scripts/diagnostico/verificar_release_baseline.py
 ```
 
 ## Frente metodológica ainda preservada
-Os aportes/recebidos futuros ainda não aportados em carteira permanecem como problema metodológico futuro. Essa frente deve ser aberta depois da estabilização da governança de scripts.
-
-
-## Governança V204
-
-A V204 aplica limpeza final de governança sem alteração econômica: código morto do console foi removido,
-scripts históricos `.py` foram bloqueados, auditorias auxiliares foram separadas de saídas oficiais e
-helpers utilitários de baixo risco foram centralizados em `nucleo/utilitarios_neutros.py`.
-
-A camada oficial de saída permanece `nucleo.saida_canonica`.
-
-
-## Hotfix V205
-
-A V205 corrige regressão de importação no console introduzida na limpeza V204. A função de auditoria detalhada de resíduos voltou a importar explicitamente `construir_tabela_iof` e `construir_faixas_ir` de `nucleo.nucleo_financeiro_minimo`. Não há alteração no motor, contrato, modelo matemático-estatístico-financeiro nem na regra de recebidos/aportes futuros.
+Os aportes/recebidos futuros ainda não aportados em carteira permanecem como problema metodológico futuro. Essa frente deve ser aberta depois da estabilização documental/estrutural da V208.

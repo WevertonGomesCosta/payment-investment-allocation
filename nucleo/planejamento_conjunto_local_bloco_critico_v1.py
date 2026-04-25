@@ -16,7 +16,7 @@ from nucleo.caixa_recebidos_auditaveis import (
 )
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
 from nucleo.reescolha_dinamica_pos_quebra import _ajustar_candidatos_dinamicos
-from nucleo.utilitarios_neutros import _safe_float
+from nucleo.utilitarios_neutros import _fonte_id, _rotulo_fonte, _safe_float
 
 
 @dataclass(slots=True)
@@ -30,15 +30,6 @@ DEFAULT_BLOCO_CRITICO_INICIO = date(2026, 4, 20)
 DEFAULT_BLOCO_CRITICO_FIM = date(2026, 5, 20)
 
 
-def _rotulo_fonte(candidato: dict[str, Any]) -> str:
-    lote_id = str(candidato.get('lote_id') or candidato.get('lote_id_escolhido') or '').strip()
-    if lote_id:
-        return lote_id
-    return str(candidato.get('fonte_base_escolhida') or candidato.get('fonte_escolhida_id') or '').strip()
-
-
-def _fonte_id(candidato: dict[str, Any]) -> str:
-    return str(candidato.get('fonte_base_escolhida') or candidato.get('fonte_escolhida_id') or '').strip()
 
 
 def _safe_round(valor: Any, ndigits: int = 2) -> float:

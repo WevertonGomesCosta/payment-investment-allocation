@@ -16,7 +16,7 @@ from nucleo.caixa_recebidos_auditaveis import (
 )
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
 from nucleo.reescolha_dinamica_pos_quebra import _ajustar_candidatos_dinamicos
-from nucleo.utilitarios_neutros import _coerce_date, limpar_texto
+from nucleo.utilitarios_neutros import _coerce_date, _rotulo_fonte, limpar_texto
 
 
 @dataclass(slots=True)
@@ -24,12 +24,6 @@ class PacoteRecomputacaoSequencialCentralV1:
     quadro_recomputacao_sequencial_central: pd.DataFrame
     auditoria: dict[str, Any]
 
-
-def _rotulo_fonte(candidato: dict[str, Any]) -> str:
-    lote_id = str(candidato.get('lote_id') or candidato.get('lote_id_escolhido') or '').strip()
-    if lote_id:
-        return lote_id
-    return str(candidato.get('fonte_base_escolhida') or candidato.get('fonte_escolhida_id') or '').strip()
 
 
 def _perfil_pagamento_operacional(descricao: str) -> dict[str, Any]:
@@ -490,6 +484,8 @@ def carregar_recomputacao_sequencial_central_v1(
     carteira_canonica: Any | None = None,
     proxy_version: str = 'v3',
     tolerancia_monetaria: float = 0.01,
+    calendario_financeiro: Any | None = None,
+    serie_cdi: Any | None = None,
 ) -> PacoteRecomputacaoSequencialCentralV1:
     pagamentos_alvo = _pagamentos_alvo_f1_4(dados_operacionais.gastos_canonicos.copy(), data_referencia=data_referencia)
     colunas = [
@@ -519,6 +515,7 @@ def carregar_recomputacao_sequencial_central_v1(
     quadro_saldo = saldo_disponivel_geral.quadro_saldo_disponivel.copy()
     mapa_produtos_proxy = _construir_mapa_produtos_proxy(carteira_canonica)
     mapa_lotes = {str(l.id): deepcopy(l) for l in getattr(replay_passado, 'lotes_apos_replay', [])}
+    datas_lotes = {str(l.id): data_referencia for l in getattr(replay_passado, 'lotes_apos_replay', [])}
     consumo_generico: dict[str, float] = {}
     mapa_decisao = {
         str(row.get('pagamento_id') or '').strip(): row
@@ -552,16 +549,19 @@ def carregar_recomputacao_sequencial_central_v1(
         pagamentos_futuros = pagamentos_ordenados[indice + 1:]
         demanda_futura = _demanda_protegida_futura_ponderada(pagamentos_futuros, data_pagamento)
         candidatos_base = _construir_candidatos_decisao_local_v1(pagamento, quadro_saldo, quadro_fontes, mapa_produtos_proxy)
-        candidatos_base = _aplicar_elegibilidade_operacional_candidatos(candidatos_base, data_referencia)
+        candidatos_base = _aplicar_elegibilidade_operacional_candidatos(candidatos_base, data_pagamento)
         candidatos = _ajustar_candidatos_dinamicos(
             candidatos_base,
             valor_pagamento=valor_pagamento,
             mapa_lotes=mapa_lotes,
             consumo_generico=consumo_generico,
-            data_referencia=data_referencia,
+            data_referencia=data_pagamento,
             tabela_iof=tabela_iof,
             faixas_ir=faixas_ir,
             tolerancia_monetaria=tolerancia_monetaria,
+            calendario_financeiro=calendario_financeiro,
+            serie_cdi=serie_cdi,
+            datas_lotes=datas_lotes,
         )
         candidatos = [cand for cand in candidatos if bool(cand.get('elegivel'))]
         if not candidatos:
@@ -585,7 +585,7 @@ def carregar_recomputacao_sequencial_central_v1(
                 valor_pagamento=valor_pagamento,
                 mapa_lotes=mapa_lotes,
                 consumo_generico=consumo_generico,
-                data_referencia=data_referencia,
+                data_referencia=data_pagamento,
                 tabela_iof=tabela_iof,
                 faixas_ir=faixas_ir,
                 tolerancia_monetaria=tolerancia_monetaria,
@@ -597,7 +597,7 @@ def carregar_recomputacao_sequencial_central_v1(
                 candidato=candidato,
                 candidatos_ajustados=candidatos,
                 movimento_simulado=movimento,
-                data_referencia=data_referencia,
+                data_referencia=data_pagamento,
                 mapa_lotes=mapa_lotes,
                 tabela_iof=tabela_iof,
                 faixas_ir=faixas_ir,
@@ -620,7 +620,7 @@ def carregar_recomputacao_sequencial_central_v1(
                 valor_pagamento=valor_pagamento,
                 mapa_lotes=mapa_lotes,
                 consumo_generico=consumo_generico,
-                data_referencia=data_referencia,
+                data_referencia=data_pagamento,
                 tabela_iof=tabela_iof,
                 faixas_ir=faixas_ir,
                 tolerancia_monetaria=tolerancia_monetaria,

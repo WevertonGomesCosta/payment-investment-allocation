@@ -164,7 +164,27 @@ class Lote:
         saldo = float(self.saldo_bruto)
         fator = float(self.fator_acumulado)
         base = data_base_referencia or data_alvo
-        if data_alvo >= base:
+        if data_alvo == base:
+            return saldo, fator
+        if data_alvo > base:
+            data_cursor = base
+            while data_cursor < data_alvo:
+                data_cursor += timedelta(days=1)
+                aplicar, taxa_dia, _ = obter_taxa_dia_rendimento_lote(
+                    data_cursor,
+                    self.data_aplicacao,
+                    pacote_calendario,
+                    data_recebimento=self.data_recebimento,
+                    serie_cdi=serie_cdi,
+                    taxa_proj=float(pacote_calendario.taxa_dia_base),
+                    data_fechamento_referencia=data_alvo,
+                )
+                if aplicar and taxa_dia is not None:
+                    mult = self.get_taxa_dia(data_cursor, pacote_calendario)
+                    if mult > 0.0:
+                        fator_dia = (1.0 + float(taxa_dia)) ** mult
+                        saldo *= fator_dia
+                        fator *= fator_dia
             return saldo, fator
         data_cursor = base
         while data_cursor > data_alvo:

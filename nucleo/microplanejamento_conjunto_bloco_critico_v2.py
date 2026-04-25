@@ -17,7 +17,7 @@ from nucleo.caixa_recebidos_auditaveis import (
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
 from nucleo.planejamento_conjunto_local_bloco_critico_v1 import _evento_ancora, _normalizar_quadro_referencia
 from nucleo.reescolha_dinamica_pos_quebra import _ajustar_candidatos_dinamicos
-from nucleo.utilitarios_neutros import _safe_float
+from nucleo.utilitarios_neutros import _fonte_id, _rotulo_fonte, _safe_float
 
 
 @dataclass(slots=True)
@@ -45,15 +45,6 @@ def _safe_round(valor: Any, ndigits: int = 2) -> float:
     return round(_safe_float(valor), ndigits)
 
 
-def _rotulo_fonte(candidato: dict[str, Any]) -> str:
-    lote_id = str(candidato.get('lote_id') or candidato.get('lote_id_escolhido') or '').strip()
-    if lote_id:
-        return lote_id
-    return str(candidato.get('fonte_base_escolhida') or candidato.get('fonte_escolhida_id') or '').strip()
-
-
-def _fonte_id(candidato: dict[str, Any]) -> str:
-    return str(candidato.get('fonte_base_escolhida') or candidato.get('fonte_escolhida_id') or '').strip()
 
 
 def _criterio_desempate(candidato: dict[str, Any], valor_pagamento: float) -> tuple[Any, ...]:

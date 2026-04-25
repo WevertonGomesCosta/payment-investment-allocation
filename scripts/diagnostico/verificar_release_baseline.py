@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VERSAO_VIGENTE = "V205"
-VERSAO_ANTERIOR = "V204"
+VERSAO_VIGENTE = "V208"
+VERSAO_ANTERIOR = "V207"
 
 
 def repo_root() -> Path:
@@ -91,6 +91,10 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'relatorios/atuais/GOVERNANCA_FINAL_SCRIPTS_V204.md',
         'relatorios/atuais/MAPA_GOVERNANCA_FINAL_SCRIPTS_V204.csv',
         'relatorios/atuais/HOTFIX_CONSOLE_IMPORTS_V205.md',
+        'relatorios/atuais/GOVERNANCA_ESTRUTURAL_V206.md',
+        'relatorios/atuais/MAPA_CENTRALIZACAO_HELPERS_V206.csv',
+        'relatorios/atuais/HOTFIX_UTILITARIOS_SERIES_V207.md',
+        'relatorios/atuais/CORRECAO_SALDOS_FUTUROS_LOTES_V208.md',
     ]
     erros: list[str] = []
     for caminho in esperados:
@@ -191,6 +195,40 @@ def validar_governanca_scripts_v204(base: Path) -> list[str]:
     return erros
 
 
+
+def validar_governanca_estrutural_v206(base: Path) -> list[str]:
+    erros: list[str] = []
+    util = base / 'nucleo' / 'utilitarios_neutros.py'
+    texto_util = util.read_text(encoding='utf-8') if util.exists() else ''
+    for nome in ['_rotulo_fonte', '_fonte_id', '_normalizar_proxy_terminal', '_aliquota_ir_estimada']:
+        if f'def {nome}' not in texto_util:
+            erros.append(f'helper_semantico_nao_centralizado_v206: {nome}')
+
+    modulos = [
+        base / 'nucleo' / 'alocador_pagamentos_terminal_v1.py',
+        base / 'nucleo' / 'auditoria_temporal_decisao_local.py',
+        base / 'nucleo' / 'caixa_recebidos_auditaveis.py',
+        base / 'nucleo' / 'heuristica_conjunta_parcial_bloco_critico.py',
+        base / 'nucleo' / 'microplanejamento_conjunto_bloco_critico_v2.py',
+        base / 'nucleo' / 'planejador_switching_temporal_v1.py',
+        base / 'nucleo' / 'planejamento_conjunto_local_bloco_critico_v1.py',
+        base / 'nucleo' / 'recomputacao_sequencial_central_v1.py',
+        base / 'nucleo' / 'reescolha_dinamica_pos_quebra.py',
+        base / 'nucleo' / 'simulador_central_eventos_v1.py',
+    ]
+    duplicados = ['_rotulo_fonte', '_fonte_id', '_normalizar_proxy_terminal', '_aliquota_ir_estimada']
+    for modulo in modulos:
+        conteudo = modulo.read_text(encoding='utf-8') if modulo.exists() else ''
+        for nome in duplicados:
+            if f'def {nome}' in conteudo:
+                erros.append(f'helper_semantico_duplicado_v206: {rel(modulo, base)}::{nome}')
+
+    if (base / 'saidas' / 'oficial' / 'relatorio_operacional_v202.xlsx').exists():
+        erros.append('relatorio_v202_ainda_em_saida_oficial')
+    if not (base / 'saidas' / 'historico' / 'relatorios_operacionais' / 'relatorio_operacional_v202.xlsx').exists():
+        erros.append('relatorio_v202_nao_movido_para_historico')
+    return erros
+
 def main() -> int:
     base = repo_root()
     erros = []
@@ -199,6 +237,7 @@ def main() -> int:
     erros.extend(validar_caminhos_canonicos(base))
     erros.extend(validar_governanca_scripts_v203(base))
     erros.extend(validar_governanca_scripts_v204(base))
+    erros.extend(validar_governanca_estrutural_v206(base))
     artefatos = coletar_artefatos_efemeros(base)
     if artefatos:
         erros.extend(f'artefato_efemero_presente: {item}' for item in artefatos)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 import pandas as pd
@@ -14,6 +14,7 @@ from nucleo.caixa_recebidos_auditaveis import (
     _selecionar_candidato_decisao_local_v1,
 )
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
+from nucleo.utilitarios_neutros import _rotulo_fonte
 
 
 @dataclass(slots=True)
@@ -22,11 +23,31 @@ class PacoteReescolhaDinamicaPosQuebra:
     auditoria: dict[str, Any]
 
 
-def _rotulo_fonte(candidato: dict[str, Any]) -> str:
-    lote_id = str(candidato.get('lote_id') or candidato.get('lote_id_escolhido') or '').strip()
-    if lote_id:
-        return lote_id
-    return str(candidato.get('fonte_base_escolhida') or candidato.get('fonte_escolhida_id') or '').strip()
+
+def _avancar_lote_para_data_operacional(
+    lote: Any,
+    *,
+    data_origem: date | None,
+    data_alvo: date | None,
+    calendario_financeiro: Any | None,
+    serie_cdi: Any | None,
+) -> None:
+    if lote is None or data_alvo is None or calendario_financeiro is None:
+        return
+    origem = data_origem or getattr(calendario_financeiro, 'data_referencia', None) or getattr(lote, 'data_aplicacao', None)
+    if origem is None or data_alvo <= origem:
+        return
+    taxa_proj = float(getattr(calendario_financeiro, 'taxa_dia_base', 0.0) or 0.0)
+    data_cursor = origem
+    while data_cursor < data_alvo:
+        data_cursor = data_cursor + timedelta(days=1)
+        lote.atualizar_juros(
+            data_cursor,
+            taxa_proj,
+            calendario_financeiro,
+            serie_cdi=serie_cdi,
+            data_fechamento_referencia=data_alvo,
+        )
 
 
 def _ajustar_candidatos_dinamicos(
@@ -39,6 +60,9 @@ def _ajustar_candidatos_dinamicos(
     tabela_iof: list[float],
     faixas_ir: list[dict[str, Any]],
     tolerancia_monetaria: float,
+    calendario_financeiro: Any | None = None,
+    serie_cdi: Any | None = None,
+    datas_lotes: dict[str, date] | None = None,
 ) -> list[dict[str, Any]]:
     ajustados: list[dict[str, Any]] = []
     for candidato in candidatos:
@@ -47,6 +71,17 @@ def _ajustar_candidatos_dinamicos(
         lote_id = str(cand.get('lote_id') or '').strip()
         if tipo == 'lote_resgatavel' and lote_id:
             lote = mapa_lotes.get(lote_id)
+            if lote is not None and calendario_financeiro is not None:
+                origem_lote = datas_lotes.get(lote_id) if datas_lotes is not None else getattr(calendario_financeiro, 'data_referencia', None)
+                _avancar_lote_para_data_operacional(
+                    lote,
+                    data_origem=origem_lote,
+                    data_alvo=data_referencia,
+                    calendario_financeiro=calendario_financeiro,
+                    serie_cdi=serie_cdi,
+                )
+                if datas_lotes is not None:
+                    datas_lotes[lote_id] = data_referencia
             saldo_bruto_antes = round(float(getattr(lote, 'saldo_bruto', 0.0) or 0.0), 2) if lote is not None else 0.0
             liquido_disponivel = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2) if lote is not None else 0.0
             cand['saldo_antes_dinamico'] = saldo_bruto_antes
@@ -84,6 +119,8 @@ def carregar_reescolha_dinamica_pos_quebra(
     carteira_canonica: Any | None = None,
     proxy_version: str = 'v3',
     tolerancia_monetaria: float = 0.01,
+    calendario_financeiro: Any | None = None,
+    serie_cdi: Any | None = None,
 ) -> PacoteReescolhaDinamicaPosQuebra:
     pagamentos_alvo = _pagamentos_alvo_f1_4(dados_operacionais.gastos_canonicos.copy(), data_referencia=data_referencia)
     colunas = [
@@ -116,6 +153,7 @@ def carregar_reescolha_dinamica_pos_quebra(
     } if auditoria_temporal_decisao_local is not None else {}
 
     mapa_lotes = {str(l.id): deepcopy(l) for l in getattr(replay_passado, 'lotes_apos_replay', [])}
+    datas_lotes = {str(l.id): data_referencia for l in getattr(replay_passado, 'lotes_apos_replay', [])}
     consumo_generico: dict[str, float] = {}
     registros: list[dict[str, Any]] = []
     primeira_reescolha = None
@@ -125,6 +163,7 @@ def carregar_reescolha_dinamica_pos_quebra(
     for pagamento in pagamentos_alvo.to_dict(orient='records'):
         pagamento_id = str(pagamento.get('despesa_id') or '').strip()
         valor_pagamento = round(float(pagamento.get('valor') or 0.0), 2)
+        data_pagamento = pagamento.get('data') if pagamento.get('data') is not None else data_referencia
         decisao_original = mapa_decisao.get(pagamento_id, {})
         temporal_original = mapa_temporal.get(pagamento_id, {})
         candidatos_base = _construir_candidatos_decisao_local_v1(pagamento, quadro_saldo, quadro_fontes, mapa_produtos_proxy)
@@ -133,10 +172,13 @@ def carregar_reescolha_dinamica_pos_quebra(
             valor_pagamento=valor_pagamento,
             mapa_lotes=mapa_lotes,
             consumo_generico=consumo_generico,
-            data_referencia=data_referencia,
+            data_referencia=data_pagamento,
             tabela_iof=tabela_iof,
             faixas_ir=faixas_ir,
             tolerancia_monetaria=tolerancia_monetaria,
+            calendario_financeiro=calendario_financeiro,
+            serie_cdi=serie_cdi,
+            datas_lotes=datas_lotes,
         )
 
         fonte_original_id = str(decisao_original.get('fonte_escolhida_id') or '').strip()
@@ -185,7 +227,7 @@ def carregar_reescolha_dinamica_pos_quebra(
                 movimento = executar_saque_lote(
                     lote,
                     liquido_alvo,
-                    data_referencia,
+                    data_pagamento,
                     tabela_iof=tabela_iof,
                     faixas_ir=faixas_ir,
                     tolerancia_monetaria=tolerancia_monetaria,

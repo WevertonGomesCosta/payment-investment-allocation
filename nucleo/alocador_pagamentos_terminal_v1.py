@@ -20,7 +20,7 @@ TIPOS_FONTE_SUPORTADOS = (
     'sem_fonte_viavel',
 )
 
-from nucleo.utilitarios_neutros import _coerce_date, _safe_float
+from nucleo.utilitarios_neutros import _coerce_date, _normalizar_proxy_terminal, _safe_float
 CLASSES_SWITCHING_PROMOVIVEIS = {'vencedor_terminal', 'vencedor_hibrido_aceitavel'}
 
 
@@ -126,12 +126,6 @@ def _valor_pagamento(pagamento: dict[str, Any] | None) -> float:
             return round(_safe_float(pagamento[chave]), 2)
     return 0.0
 
-
-def _normalizar_proxy_terminal(valor: Any) -> float:
-    numero = _safe_float(valor)
-    if numero > 1.0:
-        numero = numero / 100.0
-    return max(numero, 0.0)
 
 
 def _score_placeholder(

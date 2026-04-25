@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
+from nucleo.utilitarios_neutros import _rotulo_fonte
 
 
 @dataclass(slots=True)
@@ -19,12 +20,6 @@ class PacoteAuditoriaTemporalDecisaoLocal:
 def _fonte_temporal_id(linha: dict[str, Any]) -> str:
     return str(linha.get('fonte_base_escolhida') or linha.get('fonte_escolhida_id') or 'sem_fonte').strip()
 
-
-def _rotulo_fonte(linha: dict[str, Any]) -> str:
-    lote_id = str(linha.get('lote_id_escolhido') or '').strip()
-    if lote_id:
-        return lote_id
-    return str(linha.get('fonte_base_escolhida') or linha.get('fonte_escolhida_id') or '').strip()
 
 
 def carregar_auditoria_temporal_decisao_local(

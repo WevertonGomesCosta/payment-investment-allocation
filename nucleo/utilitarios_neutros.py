@@ -7,6 +7,7 @@ regras de negócio, replay, switching, fiscalidade ou motor financeiro.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Iterable, Optional
@@ -185,10 +186,102 @@ def _coerce_date(valor: Any) -> date | None:
         return None
 
 
+def _valor_ausente(valor: Any) -> bool:
+    if valor is None:
+        return True
+    if isinstance(valor, str):
+        return valor.strip() == ''
+    if isinstance(valor, (pd.Series, pd.DataFrame)):
+        return bool(valor.empty)
+    try:
+        nulo = pd.isna(valor)
+        if isinstance(nulo, (bool, int, float)):
+            return bool(nulo)
+    except Exception:
+        pass
+    return False
+
+
+def _valor_campo(objeto: Any, chave: str, default: Any = None) -> Any:
+    if objeto is None:
+        return default
+    if isinstance(objeto, Mapping):
+        return objeto.get(chave, default)
+    if isinstance(objeto, pd.Series):
+        return objeto.get(chave, default)
+    metodo_get = getattr(objeto, 'get', None)
+    if callable(metodo_get):
+        try:
+            return metodo_get(chave, default)
+        except TypeError:
+            try:
+                return metodo_get(chave)
+            except Exception:
+                return default
+        except Exception:
+            return default
+    return getattr(objeto, chave, default)
+
+
+def _primeiro_campo_texto(objeto: Any, chaves: Iterable[str]) -> str:
+    for chave in chaves:
+        valor = _valor_campo(objeto, chave)
+        if not _valor_ausente(valor):
+            texto = str(valor).strip()
+            if texto:
+                return texto
+    return ''
+
+
 def _split_fontes_compostas(valor: Any) -> list[str]:
-    partes = [parte.strip() for parte in str(valor or '').split('+')]
+    if _valor_ausente(valor):
+        return []
+    partes = [parte.strip() for parte in str(valor).split('+')]
     return [parte for parte in partes if parte]
 
+
+
+# Helpers semânticos centralizados na V206.
+# Mantêm a semântica pré-existente de rótulo de fonte, identificação de fonte,
+# proxy terminal e alíquota estimada, sem introduzir nova regra econômica.
+def _slug_fonte(chave: Any) -> str:
+    texto = normalizar_texto(chave).replace(' ', '_')
+    return texto or 'fonte'
+
+
+def _rotulo_fonte(candidato: Any) -> str:
+    lote_id = _primeiro_campo_texto(candidato, ('lote_id', 'lote_id_escolhido'))
+    if lote_id:
+        return lote_id
+    return _primeiro_campo_texto(candidato, ('fonte_base_escolhida', 'fonte_escolhida_id'))
+
+
+def _fonte_id(candidato_ou_tipo: Any, *, lote_id: str | None = None, recebido_id: str | None = None) -> str:
+    if isinstance(candidato_ou_tipo, (Mapping, pd.Series)) or callable(getattr(candidato_ou_tipo, 'get', None)):
+        return _primeiro_campo_texto(candidato_ou_tipo, ('fonte_base_escolhida', 'fonte_escolhida_id'))
+    tipo_fonte = '' if _valor_ausente(candidato_ou_tipo) else str(candidato_ou_tipo).strip()
+    base = lote_id or recebido_id or tipo_fonte
+    return f"fonte::{_slug_fonte(tipo_fonte)}::{_slug_fonte(base)}"
+
+
+def _normalizar_proxy_terminal(valor: Any) -> float:
+    numero = _safe_float(valor)
+    if numero > 1.0:
+        numero = numero / 100.0
+    return max(numero, 0.0)
+
+
+def _aliquota_ir_estimada(data_aplicacao: date | None, data_acao: date | None) -> float:
+    if data_aplicacao is None or data_acao is None:
+        return 0.15
+    dias = max((data_acao - data_aplicacao).days, 0)
+    if dias <= 180:
+        return 0.225
+    if dias <= 360:
+        return 0.20
+    if dias <= 720:
+        return 0.175
+    return 0.15
 
 
 def arredondar_monetario(valor: Any, casas: int = 2) -> float:
