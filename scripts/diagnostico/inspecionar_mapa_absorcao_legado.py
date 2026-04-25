@@ -1,37 +1,40 @@
+"""Script legado bloqueado pela governança de saídas V203.
+
+O conteúdo original foi preservado em:
+    scripts/historico_saida_propria_v203/diagnostico_original/inspecionar_mapa_absorcao_legado.py
+
+Este arquivo permanece no caminho antigo apenas para impedir que rotinas
+legadas com saída própria sejam executadas como se fossem oficiais.
+"""
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+_THIS = Path(__file__).resolve()
+for _parent in _THIS.parents:
+    if (_parent / "nucleo").exists():
+        if str(_parent) not in sys.path:
+            sys.path.insert(0, str(_parent))
+        break
 
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+from scripts.diagnostico._governanca_saida import bloquear_script_legado
+
+
+MOTIVO = (
+    "Script diagnóstico legado com geração própria de console/arquivo, "
+    "sem autoridade operacional após a criação da camada única "
+    "nucleo.saida_canonica na V202."
+)
+ALTERNATIVA = (
+    "Use scripts/operacional/gerar_planilha_operacional.py ou "
+    "nucleo.saida_canonica.construir_saida_canonica(...)."
+)
 
 
 def main() -> int:
-    base = repo_root()
-    path = base / 'relatorios' / 'atuais' / 'MAPA_ABSORCAO_LEGADO_SCRIPTS_1_2.md'
-    print('=== MAPA DE ABSORÇÃO LEGADO ===')
-    print(f'arquivo: {path}')
-    if not path.exists():
-        print('status: AUSENTE')
-        return 1
-    texto = path.read_text(encoding='utf-8')
-    for marcador in [
-        '## Script 1 — otimização e validação',
-        '### Migrar já',
-        '## Script 2 — switching e diagnósticos',
-        '## Prioridade imediata pós-V75',
-    ]:
-        if marcador not in texto:
-            print(f'status: FALHA -> marcador ausente: {marcador}')
-            return 1
-    print('status: OK')
-    print('- mapa vigente encontrado')
-    print('- Script 1 classificado')
-    print('- Script 2 classificado')
-    print('- prioridades imediatas registradas')
-    return 0
+    return bloquear_script_legado(__file__, motivo=MOTIVO, alternativa=ALTERNATIVA)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main())

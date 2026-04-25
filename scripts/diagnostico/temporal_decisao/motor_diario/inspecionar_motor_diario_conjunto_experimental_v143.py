@@ -1,26 +1,40 @@
+"""Script legado bloqueado pela governança de saídas V203.
+
+O conteúdo original foi preservado em:
+    scripts/historico_saida_propria_v203/diagnostico_original/temporal_decisao/motor_diario/inspecionar_motor_diario_conjunto_experimental_v143.py
+
+Este arquivo permanece no caminho antigo apenas para impedir que rotinas
+legadas com saída própria sejam executadas como se fossem oficiais.
+"""
 from __future__ import annotations
 
-import json
-from datetime import date
+import sys
 from pathlib import Path
 
-from nucleo.motor_diario_conjunto_experimental_v143 import rodar_motor_diario_conjunto_experimental_v143
+_THIS = Path(__file__).resolve()
+for _parent in _THIS.parents:
+    if (_parent / "nucleo").exists():
+        if str(_parent) not in sys.path:
+            sys.path.insert(0, str(_parent))
+        break
+
+from scripts.diagnostico._governanca_saida import bloquear_script_legado
 
 
-def main() -> None:
-    raiz = Path(__file__).resolve().parents[1]
-    saida = rodar_motor_diario_conjunto_experimental_v143(
-        raiz_repositorio=raiz,
-        data_inicio=date(2026, 4, 21),
-        data_fim=date(2026, 5, 6),
-        limite_candidatos_por_data=24,
-        cap_fontes_destino=5,
-    )
-    destino = raiz / 'saidas' / 'diagnostico' / 'motor_diario_conjunto_experimental_v143_2026-04-21_2026-05-06.json'
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    destino.write_text(json.dumps(saida, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
-    print(destino)
+MOTIVO = (
+    "Script diagnóstico legado com geração própria de console/arquivo, "
+    "sem autoridade operacional após a criação da camada única "
+    "nucleo.saida_canonica na V202."
+)
+ALTERNATIVA = (
+    "Use scripts/operacional/gerar_planilha_operacional.py ou "
+    "nucleo.saida_canonica.construir_saida_canonica(...)."
+)
 
 
-if __name__ == '__main__':
-    main()
+def main() -> int:
+    return bloquear_script_legado(__file__, motivo=MOTIVO, alternativa=ALTERNATIVA)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

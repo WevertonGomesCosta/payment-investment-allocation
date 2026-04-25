@@ -1,3 +1,9 @@
+"""Inspeção canônica do motor de recomendações de pagamentos + switching.
+
+V203: este diagnóstico não lê mais diretamente o dataframe interno do motor.
+Ele materializa `nucleo.saida_canonica.PacoteSaidaCanonica` e imprime a visão
+observável oficial usada por console e planilha.
+"""
 from __future__ import annotations
 
 try:
@@ -5,23 +11,43 @@ try:
 except ModuleNotFoundError:  # execução direta
     from _bootstrap import RAIZ
 
-
 from nucleo.contexto_baseline import carregar_contexto_baseline
+from nucleo.identidade_baseline import VERSAO_BASELINE
+from nucleo.saida_canonica import construir_saida_canonica
+from scripts.diagnostico._governanca_saida import imprimir_tabela_dicts
 
 
-def main() -> None:
+def main() -> int:
     contexto = carregar_contexto_baseline(raiz_repositorio=RAIZ, instalar_automaticamente=False)
-    pacote = contexto.motor_recomendacao_pagamentos_switching_v1
-    df = pacote.quadro_recomendacoes.copy()
-    resumo = pacote.auditoria.get('resumo', {})
-    print('=== MOTOR RECOMENDACAO PAGAMENTOS + SWITCHING V1 ===')
-    for chave, valor in resumo.items():
-        print(f'- {chave}: {valor}')
-    if len(df):
-        print('\nAmostra de recomendações:')
-        cols = ['data_pagamento', 'descricao_pagamento', 'valor_pagamento', 'estrategia_recomendada', 'lote_recomendado', 'lote_reserva', 'necessidade_switching', 'produto_destino_switching', 'ganho_liquido_estimado_switching', 'cobertura_esperada']
-        print(df[cols].head(15).to_string(index=False))
+    saida = construir_saida_canonica(contexto, versao=VERSAO_BASELINE)
+
+    print("=== DIAGNOSTICO CANONICO: RECOMENDACOES FUTURAS + SWITCHING ===")
+    print(f"versao_saida: {saida.versao}")
+    print(f"origem: {saida.auditoria.get('origem')}")
+    print(f"qtd_extrato_futuro: {saida.auditoria.get('qtd_extrato_futuro')}")
+    print(f"qtd_futuro_sem_cobertura_integral: {saida.auditoria.get('qtd_futuro_sem_cobertura_integral')}")
+    print(f"qtd_futuro_multifonte: {saida.auditoria.get('qtd_futuro_multifonte')}")
+    print(f"qtd_switchings: {saida.auditoria.get('qtd_switchings')}")
+
+    linhas_switching = [
+        item for item in saida.extrato_futuro
+        if str(item.get("Necessita switching") or "").strip().lower() == "sim"
+    ]
+    imprimir_tabela_dicts(
+        "Amostra canônica de contas futuras com switching",
+        linhas_switching,
+        ["Data", "Conta", "Valor", "Lote sugerido", "Líquido", "Cobertura integral", "Estratégia"],
+        limite=15,
+    )
+
+    imprimir_tabela_dicts(
+        "Amostra canônica geral do extrato futuro",
+        saida.extrato_futuro,
+        ["Data", "Conta", "Valor", "Lote sugerido", "Líquido", "Cobertura integral", "Necessita switching"],
+        limite=15,
+    )
+    return 0
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    raise SystemExit(main())

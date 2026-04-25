@@ -9,6 +9,9 @@
 - `relatorios/atuais/ESPECIFICACAO_SAIDA_OFICIAL.md` — especificação operacional da camada observável oficial
 - `relatorios/atuais/AUDITORIA_LIMPEZA_RESIDUAL_V201.md` — registro da limpeza segura aplicada sobre a V200
 - `relatorios/atuais/MAPA_SCRIPTS_V201.md` — manifesto de classificação e autoridade dos scripts
+- `relatorios/atuais/AUDITORIA_CAMADA_SAIDA_CANONICA_V202.md` — auditoria da camada única de saída canônica
+- `relatorios/atuais/GOVERNANCA_SCRIPTS_V203.md` — governança de scripts legados e autoridade operacional
+- `relatorios/atuais/MAPA_GOVERNANCA_SCRIPTS_V203.csv` — mapa operacional de classificação dos scripts na V203
 
 ## Histórico documental
 

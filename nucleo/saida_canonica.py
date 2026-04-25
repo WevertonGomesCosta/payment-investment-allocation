@@ -1,4 +1,4 @@
-"""Camada única de saída canônica da baseline V202.
+"""Camada única de saída canônica da baseline V203.
 
 Este módulo materializa a camada observável oficial do projeto. Console,
 planilha e futuras saídas JSON/CSV/Markdown devem consumir este pacote em vez
@@ -606,7 +606,7 @@ def _linhas_resumo_recebidos(contexto: Any) -> list[dict[str, Any]]:
     ]
 
 
-def construir_saida_canonica(contexto: Any, *, versao: str = 'V202') -> PacoteSaidaCanonica:
+def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSaidaCanonica:
     extrato_passado = _construir_extrato_passado(contexto)
     extrato_futuro = _construir_extrato_futuro(contexto)
     switchings = _construir_switchings(contexto)

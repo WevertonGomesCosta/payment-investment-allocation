@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VERSAO_VIGENTE = "V202"
-VERSAO_ANTERIOR = "V201"
+VERSAO_VIGENTE = "V203"
+VERSAO_ANTERIOR = "V202"
 
 
 def repo_root() -> Path:
@@ -84,6 +84,10 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'nucleo/saida_canonica.py',
         'scripts/auditoria/gerar_auditoria_diaria_lote.py',
         'scripts/diagnostico/inspecionar_base.py',
+        'scripts/diagnostico/_governanca_saida.py',
+        'scripts/historico_saida_propria_v203/README.md',
+        'relatorios/atuais/GOVERNANCA_SCRIPTS_V203.md',
+        'relatorios/atuais/MAPA_GOVERNANCA_SCRIPTS_V203.csv',
     ]
     erros: list[str] = []
     for caminho in esperados:
@@ -92,12 +96,39 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
     return erros
 
 
+
+def validar_governanca_scripts_v203(base: Path) -> list[str]:
+    erros: list[str] = []
+    mapa = base / 'relatorios' / 'atuais' / 'MAPA_GOVERNANCA_SCRIPTS_V203.csv'
+    if not mapa.exists():
+        return ['mapa_governanca_scripts_v203_ausente']
+    linhas = mapa.read_text(encoding='utf-8').splitlines()
+    bloqueados = [linha.split(',', 1)[0] for linha in linhas[1:] if ',BLOQUEADO_COM_STUB,' in linha]
+    for rel_path in bloqueados:
+        caminho = base / rel_path
+        if not caminho.exists():
+            erros.append(f'script_bloqueado_ausente: {rel_path}')
+            continue
+        conteudo = caminho.read_text(encoding='utf-8')
+        if 'BLOQUEADO_POR_GOVERNANCA_V203' not in conteudo and 'bloquear_script_legado' not in conteudo:
+            erros.append(f'script_sem_bloqueio_v203: {rel_path}')
+    for rel_path in [
+        'scripts/diagnostico/inspecionar_motor_recomendacao_pagamentos_switching_v1.py',
+        'scripts/diagnostico/inspecionar_recomputacao_sequencial_central_v1.py',
+    ]:
+        caminho = base / rel_path
+        conteudo = caminho.read_text(encoding='utf-8') if caminho.exists() else ''
+        if 'construir_saida_canonica' not in conteudo:
+            erros.append(f'diagnostico_util_nao_canonico: {rel_path}')
+    return erros
+
 def main() -> int:
     base = repo_root()
     erros = []
     erros.extend(validar_indice_documental(base))
     erros.extend(validar_referencias_ativas(base))
     erros.extend(validar_caminhos_canonicos(base))
+    erros.extend(validar_governanca_scripts_v203(base))
     artefatos = coletar_artefatos_efemeros(base)
     if artefatos:
         erros.extend(f'artefato_efemero_presente: {item}' for item in artefatos)

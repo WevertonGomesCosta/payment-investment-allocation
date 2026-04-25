@@ -1,11 +1,11 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V202  
+**Pacote operacional atual:** V203  
 **Base funcional fixa de origem:** V200  
 **Baseline contratual vigente:** V183  
 **Modelo metodológico vinculante vigente:** V182
 
-A V202 deriva da V201 e cria a camada única de saída canônica para console e planilha operacional. Ela **não altera** o motor principal, o contrato mestre, o modelo matemático-estatístico-financeiro nem a lógica econômica validada.
+A V203 deriva da V202 e aplica apenas governança de scripts legados. Ela bloqueia/rebaixa scripts diagnósticos com saída própria, preserva seus originais em histórico e converte os diagnósticos ainda úteis para leitura de `nucleo.saida_canonica`.
 
 ## Objetivo final do projeto
 Construir um motor conjunto, auditável e economicamente coerente para:
@@ -16,12 +16,13 @@ Construir um motor conjunto, auditável e economicamente coerente para:
 
 A decisão final deve maximizar o **patrimônio líquido terminal**, respeitando cobertura, liquidez, carência, tributação, precedência intradiária parametrizada e auditabilidade por lote/fonte.
 
-## O que a V202 consolida
-- cria `nucleo/saida_canonica.py`;
-- faz console e planilha operacional consumirem a mesma estrutura materializada;
-- gera `relatorio_operacional_v202.xlsx`;
-- cria a aba `Saida Canonica` com auditoria mínima da camada observável;
-- mantém aportes/recebidos futuros como frente metodológica posterior.
+## O que a V203 consolida
+- mantém `nucleo/saida_canonica.py` como camada única de saída observável;
+- bloqueia 49 scripts legados com saída própria;
+- preserva os originais bloqueados em `scripts/historico_saida_propria_v203/`;
+- converte 2 diagnósticos úteis para wrappers canônicos;
+- documenta a autoridade operacional dos scripts em `relatorios/atuais/MAPA_GOVERNANCA_SCRIPTS_V203.csv`;
+- não altera motor, contrato, modelo matemático-estatístico-financeiro nem recebidos/aportes futuros.
 
 ## Documentos operacionais prioritários
 Consulte primeiro:
@@ -30,12 +31,22 @@ Consulte primeiro:
 - `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
 - `relatorios/atuais/ESPECIFICACAO_SAIDA_OFICIAL.md`
-- `relatorios/atuais/AUDITORIA_LIMPEZA_RESIDUAL_V201.md`
-- `relatorios/atuais/MAPA_SCRIPTS_V201.md`
 - `relatorios/atuais/AUDITORIA_CAMADA_SAIDA_CANONICA_V202.md`
+- `relatorios/atuais/GOVERNANCA_SCRIPTS_V203.md`
+- `relatorios/atuais/MAPA_GOVERNANCA_SCRIPTS_V203.csv`
 
-## Próxima frente após a V202
-Auditar scripts legados que ainda produzem console/arquivos próprios e classificá-los como wrappers, diagnósticos históricos ou candidatos a migração para `nucleo.saida_canonica`.
+## Caminho operacional vigente
+Para gerar a saída operacional:
+
+```bash
+python scripts/operacional/gerar_planilha_operacional.py
+```
+
+Para auditar a release:
+
+```bash
+python scripts/diagnostico/verificar_release_baseline.py
+```
 
 ## Frente metodológica ainda preservada
-Os aportes/recebidos futuros ainda não aportados em carteira permanecem como problema metodológico futuro. Essa frente deve ser aberta depois da unificação da camada de saídas.
+Os aportes/recebidos futuros ainda não aportados em carteira permanecem como problema metodológico futuro. Essa frente deve ser aberta depois da estabilização da governança de scripts.

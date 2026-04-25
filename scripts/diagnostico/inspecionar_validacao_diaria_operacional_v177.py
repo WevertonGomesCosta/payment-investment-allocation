@@ -1,27 +1,40 @@
+"""Script legado bloqueado pela governança de saídas V203.
+
+O conteúdo original foi preservado em:
+    scripts/historico_saida_propria_v203/diagnostico_original/inspecionar_validacao_diaria_operacional_v177.py
+
+Este arquivo permanece no caminho antigo apenas para impedir que rotinas
+legadas com saída própria sejam executadas como se fossem oficiais.
+"""
 from __future__ import annotations
 
-import json
-from datetime import date
+import sys
 from pathlib import Path
 
-from nucleo.runner_validacao_diaria_operacional_v177 import rodar_validacao_diaria_operacional_v177
+_THIS = Path(__file__).resolve()
+for _parent in _THIS.parents:
+    if (_parent / "nucleo").exists():
+        if str(_parent) not in sys.path:
+            sys.path.insert(0, str(_parent))
+        break
+
+from scripts.diagnostico._governanca_saida import bloquear_script_legado
 
 
-RAIZ = Path(__file__).resolve().parents[2]
+MOTIVO = (
+    "Script diagnóstico legado com geração própria de console/arquivo, "
+    "sem autoridade operacional após a criação da camada única "
+    "nucleo.saida_canonica na V202."
+)
+ALTERNATIVA = (
+    "Use scripts/operacional/gerar_planilha_operacional.py ou "
+    "nucleo.saida_canonica.construir_saida_canonica(...)."
+)
 
 
-def main() -> None:
-    resultado = rodar_validacao_diaria_operacional_v177(
-        raiz_repositorio=RAIZ,
-        data_inicio=date(2026, 4, 23),
-        data_fim=date(2026, 5, 23),
-        limite_candidatos_por_data=8,
-        cap_fontes_destino=3,
-    )
-    saida = RAIZ / 'saidas' / 'validacao_diaria_operacional_v177_2026-04-23_2026-05-23.json'
-    saida.write_text(json.dumps(resultado, ensure_ascii=False, indent=2), encoding='utf-8')
-    print(saida)
+def main() -> int:
+    return bloquear_script_legado(__file__, motivo=MOTIVO, alternativa=ALTERNATIVA)
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    raise SystemExit(main())
