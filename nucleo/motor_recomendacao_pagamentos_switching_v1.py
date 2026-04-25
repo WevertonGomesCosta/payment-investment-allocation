@@ -67,6 +67,65 @@ def _selecionar_backup(candidatos_eligiveis: pd.DataFrame, lote_principal: str, 
     return '', ''
 
 
+def _split_fontes_compostas(valor: Any) -> list[str]:
+    partes = [parte.strip() for parte in str(valor or '').split('+')]
+    return [parte for parte in partes if parte]
+
+
+def _rotulo_candidato(row: pd.Series | dict[str, Any]) -> str:
+    lote = str(row.get('lote_id') or '').strip()
+    if lote:
+        return lote
+    return str(row.get('produto_nome_canonico') or row.get('fonte_id') or '').strip()
+
+
+def _aplicar_saldo_temporal_candidatos(
+    candidatos: pd.DataFrame,
+    saldo_residual_temporal_por_lote: dict[str, float],
+) -> pd.DataFrame:
+    if candidatos is None or candidatos.empty:
+        return candidatos
+    ajustado = candidatos.copy()
+    valores = []
+    elegiveis = []
+    for _, row in ajustado.iterrows():
+        lote = str(row.get('lote_id') or '').strip()
+        valor = round(float(row.get('valor_liquido_disponivel') or 0.0), 2)
+        if lote:
+            valor = round(min(valor, float(saldo_residual_temporal_por_lote.get(lote, valor) or 0.0)), 2)
+        valores.append(valor)
+        elegiveis.append(valor > 0.01)
+    ajustado['valor_liquido_disponivel'] = valores
+    return ajustado[elegiveis].copy()
+
+
+def _consumir_saldo_temporal(
+    saldo_residual_temporal_por_lote: dict[str, float],
+    fontes: list[str],
+    valor_pagamento: float,
+) -> tuple[float, float]:
+    restante = round(float(valor_pagamento or 0.0), 2)
+    consumido_total = 0.0
+    saldo_pos_ultimo = 0.0
+    for fonte in fontes:
+        if restante <= 0.01:
+            break
+        lote = str(fonte or '').strip()
+        if not lote or lote not in saldo_residual_temporal_por_lote:
+            continue
+        saldo_atual = round(float(saldo_residual_temporal_por_lote.get(lote, 0.0) or 0.0), 2)
+        if saldo_atual <= 0.01:
+            saldo_residual_temporal_por_lote[lote] = 0.0
+            continue
+        consumo = round(min(restante, saldo_atual), 2)
+        saldo_novo = round(max(saldo_atual - consumo, 0.0), 2)
+        saldo_residual_temporal_por_lote[lote] = saldo_novo
+        consumido_total = round(consumido_total + consumo, 2)
+        saldo_pos_ultimo = saldo_novo
+        restante = round(max(restante - consumo, 0.0), 2)
+    return consumido_total, saldo_pos_ultimo
+
+
 def _melhor_switching_para_pagamento(
     candidatos_eligiveis: pd.DataFrame,
     quadro_switching: pd.DataFrame,
@@ -177,6 +236,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         subclasse = str(row_central.get('subclasse_pagamento_operacional') or '')
 
         candidatos = quadro_fontes[quadro_fontes['pagamento_id'] == pagamento_id].copy()
+        candidatos = _aplicar_saldo_temporal_candidatos(candidatos, saldo_residual_temporal_por_lote)
         candidatos = candidatos.sort_values(by=['valor_liquido_disponivel', 'lote_id'], ascending=[False, True], kind='stable')
 
         lote_no_switch = str(row_central.get('lote_final_central') or row_local.get('lote_id_escolhido') or '')
@@ -229,16 +289,27 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             })
 
         estrategia_combo: dict[str, Any] = {}
-        top = candidatos.head(2).to_dict('records')
+        top = []
+        cobertura_acumulada = 0.0
+        for cand_combo in candidatos.to_dict('records'):
+            valor_cand_combo = round(float(cand_combo.get('valor_liquido_disponivel') or 0.0), 2)
+            if valor_cand_combo <= 0.01:
+                continue
+            top.append(cand_combo)
+            cobertura_acumulada = round(cobertura_acumulada + valor_cand_combo, 2)
+            if cobertura_acumulada + 0.009 >= valor_pagamento:
+                break
         if len(top) >= 2:
             principal = top[0]
-            reserva = top[1]
-            cobertura_combo = round(min(valor_pagamento, float(principal.get('valor_liquido_disponivel') or 0.0) + float(reserva.get('valor_liquido_disponivel') or 0.0)), 2)
+            reservas = top[1:]
+            cobertura_combo = round(min(valor_pagamento, cobertura_acumulada), 2)
+            rotulos_combo = [_rotulo_candidato(cand) for cand in top]
+            fontes_reserva = [str(cand.get('fonte_id') or '') for cand in reservas]
             estrategia_combo = {
                 'estrategia': 'combinacao_minima',
-                'lote_recomendado': str(principal.get('lote_id') or principal.get('produto_nome_canonico') or ''),
-                'lote_reserva': str(reserva.get('lote_id') or reserva.get('produto_nome_canonico') or ''),
-                'fonte_reserva_id': str(reserva.get('fonte_id') or ''),
+                'lote_recomendado': ' + '.join([rotulo for rotulo in rotulos_combo if rotulo]),
+                'lote_reserva': ' + '.join([rotulo for rotulo in rotulos_combo[1:] if rotulo]),
+                'fonte_reserva_id': ' + '.join([fonte for fonte in fontes_reserva if fonte]),
                 'necessidade_switching': False,
                 'lote_origem_switching': '',
                 'produto_destino_switching': '',
@@ -247,8 +318,8 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
                 'cobertura_esperada': cobertura_combo,
                 'cobertura_integral': bool(cobertura_combo + 0.009 >= valor_pagamento),
                 'score_base': score_no_switch,
-                'tipo_fonte_recomendada': str(principal.get('tipo_fonte') or ''),
-                'motivo_recomendacao': 'combinação mínima entre principal e reserva para aumentar cobertura do pagamento',
+                'tipo_fonte_recomendada': 'combinacao_minima_fontes',
+                'motivo_recomendacao': 'combinação mínima sequencial de fontes para cobrir integralmente o pagamento',
                 'comparador_rank': (
                     0 if cobertura_combo + 0.009 >= valor_pagamento else 1,
                     -cobertura_combo,
@@ -318,18 +389,20 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
                 melhor = estrategia_combo
 
         contagem[melhor['estrategia']] += 1
+        fontes_consumo = _split_fontes_compostas(melhor.get('lote_recomendado') or '')
         if melhor['estrategia'] == 'switching_simples':
             switching_acionado += 1
             ganhos_switch += float(melhor.get('ganho_liquido_estimado_switching') or 0.0)
-            lote_switch = str(melhor.get('lote_recomendado') or '')
-            if lote_switch:
-                saldo_atual = round(float(saldo_residual_temporal_por_lote.get(lote_switch, 0.0) or 0.0), 2)
-                consumo_temporal = round(min(valor_pagamento, saldo_atual), 2)
-                saldo_residual_temporal_por_lote[lote_switch] = round(max(saldo_atual - consumo_temporal, 0.0), 2)
-                melhor['consumo_residual_temporal_estimado'] = consumo_temporal
-                melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_residual_temporal_por_lote[lote_switch]
         if melhor['estrategia'] == 'combinacao_minima':
             combinacao_acionada += 1
+        consumo_temporal, saldo_pos_temporal = _consumir_saldo_temporal(
+            saldo_residual_temporal_por_lote,
+            fontes_consumo,
+            valor_pagamento,
+        )
+        if consumo_temporal > 0.0:
+            melhor['consumo_residual_temporal_estimado'] = consumo_temporal
+            melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_pos_temporal
 
         linhas.append({
             'pagamento_id': pagamento_id,

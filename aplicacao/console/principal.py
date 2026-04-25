@@ -409,6 +409,7 @@ def _avancar_lote_para_data(lote, data_origem, data_alvo, contexto_baseline):
         )
 
 
+
 def _mapa_resumos_futuros_operacionais(contexto_baseline, quadro_futuro):
     if not isinstance(quadro_futuro, pd.DataFrame) or len(quadro_futuro) == 0:
         return {}
@@ -421,66 +422,95 @@ def _mapa_resumos_futuros_operacionais(contexto_baseline, quadro_futuro):
     saldo_map = _mapa_saldo_disponivel(contexto_baseline)
     saldos_correntes = _mapa_saldos_correntes_lotes(contexto_baseline)
     consumo_saldo = 0.0
+    limiar = obter_limiar_residuo_resolvido(contexto_baseline.pacote_config.conteudo)
     resumos = {}
+
+    def _split_fontes(valor):
+        partes = [parte.strip() for parte in str(valor or '').split('+')]
+        return [parte for parte in partes if parte]
+
     quadro = quadro_futuro.copy().sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
     for _, row in quadro.iterrows():
         pagamento_id = str(row.get('pagamento_id') or '').strip()
         data_pag = row.get('data_pagamento')
         valor = round(float(row.get('valor_pagamento') or 0.0), 2)
         lote_sug = str(row.get('lote_recomendado') or row.get('lote_id_escolhido') or row.get('fonte_base_escolhida') or row.get('tipo_fonte_escolhida') or '')
-        resumo = {'Lote sugerido': lote_sug, 'Saldo Antes': '', 'Bruto': '', 'Imposto': '', 'Líquido': '', 'Saldo Remanescente': ''}
-        if lote_sug in lotes_estado and data_pag is not None:
-            lote = lotes_estado[lote_sug]
-            corrente = saldos_correntes.get(lote_sug, {})
-            saldo_corrente_bruto = round(float(corrente.get('bruto') or 0.0), 2)
-            fator_atual = max(float(getattr(lote, 'fator_acumulado', 1.0) or 1.0), 1.0)
-            principal = max(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 0.0)
-            if saldo_corrente_bruto > 0:
-                lote.saldo_bruto = saldo_corrente_bruto
-                if principal > 0:
-                    lote.fator_acumulado = max(saldo_corrente_bruto / principal, fator_atual)
-            _avancar_lote_para_data(lote, lotes_data.get(lote_sug, contexto_baseline.execucao.data_referencia), data_pag, contexto_baseline)
-            lotes_data[lote_sug] = data_pag
-            saldo_antes = round(float(getattr(lote, 'saldo_bruto', 0.0) or 0.0), 2)
-            mov = executar_saque_lote(lote, valor, data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
-            if mov is not None:
+        fontes = _split_fontes(lote_sug)
+        reserva = str(row.get('lote_reserva') or '').strip()
+        if reserva and str(row.get('estrategia_recomendada') or '') == 'combinacao_minima':
+            for fonte_reserva in _split_fontes(reserva):
+                if fonte_reserva not in fontes:
+                    fontes.append(fonte_reserva)
+        resumo = {'Lote sugerido': ' + '.join(fontes) if fontes else lote_sug, 'Saldo Antes': '', 'Bruto': '', 'Imposto': '', 'Líquido': '', 'Saldo Remanescente': ''}
+        restante = valor
+        saldo_antes_total = 0.0
+        bruto_total = 0.0
+        imposto_total = 0.0
+        liquido_total = 0.0
+        saldo_rem_final = ''
+        fontes_usadas = []
+        for fonte in fontes:
+            if restante <= 0.01:
+                break
+            if fonte in lotes_estado and data_pag is not None:
+                lote = lotes_estado[fonte]
+                corrente = saldos_correntes.get(fonte, {})
+                saldo_corrente_bruto = round(float(corrente.get('bruto') or 0.0), 2)
+                fator_atual = max(float(getattr(lote, 'fator_acumulado', 1.0) or 1.0), 1.0)
+                principal = max(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 0.0)
+                if saldo_corrente_bruto > 0:
+                    lote.saldo_bruto = saldo_corrente_bruto
+                    if principal > 0:
+                        lote.fator_acumulado = max(saldo_corrente_bruto / principal, fator_atual)
+                _avancar_lote_para_data(lote, lotes_data.get(fonte, contexto_baseline.execucao.data_referencia), data_pag, contexto_baseline)
+                lotes_data[fonte] = data_pag
+                liquido_disponivel = round(float(lote.valor_liquido_hoje(data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+                if liquido_disponivel <= 0.01:
+                    continue
+                alvo = round(min(restante, liquido_disponivel), 2)
+                mov = executar_saque_lote(lote, alvo, data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
+                if mov is None:
+                    continue
                 saldo_rem = round(float(mov.get('saldo_remanescente') or 0.0), 2)
-                if saldo_rem <= obter_limiar_residuo_resolvido(contexto_baseline.pacote_config.conteudo):
+                if saldo_rem <= limiar:
                     saldo_rem = 0.0
-                resumo = {
-                    'Lote sugerido': lote_sug,
-                    'Saldo Antes': round(float(mov.get('saldo_antes') or saldo_antes), 2),
-                    'Bruto': round(float(mov.get('bruto') or 0.0), 2),
-                    'Imposto': round(float(mov.get('imposto') or 0.0), 2),
-                    'Líquido': round(float(mov.get('liquido') or 0.0), 2),
-                    'Saldo Remanescente': saldo_rem,
-                }
-        elif lote_sug == 'saldo_disponivel_geral':
-            base = saldo_map.get(pagamento_id, {})
-            saldo_base = round(float(base.get('saldo_disponivel_bruto') or base.get('saldo_disponivel_liquido') or 0.0), 2)
-            saldo_antes = max(round(saldo_base - consumo_saldo, 2), 0.0)
-            bruto = min(valor, saldo_antes)
-            imposto = 0.0
-            liquido = bruto
-            saldo_rem = max(round(saldo_antes - liquido, 2), 0.0)
-            consumo_saldo = round(consumo_saldo + liquido, 2)
+                saldo_antes_total = round(saldo_antes_total + float(mov.get('saldo_antes') or 0.0), 2)
+                bruto_total = round(bruto_total + float(mov.get('bruto') or 0.0), 2)
+                imposto_total = round(imposto_total + float(mov.get('imposto') or 0.0), 2)
+                liquido = round(float(mov.get('liquido') or 0.0), 2)
+                liquido_total = round(liquido_total + liquido, 2)
+                restante = round(max(restante - liquido, 0.0), 2)
+                saldo_rem_final = saldo_rem
+                fontes_usadas.append(fonte)
+            elif fonte == 'saldo_disponivel_geral':
+                base = saldo_map.get(pagamento_id, {})
+                saldo_base = round(float(base.get('saldo_disponivel_bruto') or base.get('saldo_disponivel_liquido') or 0.0), 2)
+                saldo_antes = max(round(saldo_base - consumo_saldo, 2), 0.0)
+                if saldo_antes <= 0.01:
+                    continue
+                liquido = round(min(restante, saldo_antes), 2)
+                saldo_rem = max(round(saldo_antes - liquido, 2), 0.0)
+                consumo_saldo = round(consumo_saldo + liquido, 2)
+                saldo_antes_total = round(saldo_antes_total + saldo_antes, 2)
+                bruto_total = round(bruto_total + liquido, 2)
+                liquido_total = round(liquido_total + liquido, 2)
+                restante = round(max(restante - liquido, 0.0), 2)
+                saldo_rem_final = saldo_rem
+                fontes_usadas.append(fonte)
+        if fontes_usadas:
             resumo = {
-                'Lote sugerido': lote_sug,
-                'Saldo Antes': saldo_antes,
-                'Bruto': bruto,
-                'Imposto': imposto,
-                'Líquido': liquido,
-                'Saldo Remanescente': saldo_rem,
+                'Lote sugerido': ' + '.join(fontes_usadas),
+                'Saldo Antes': saldo_antes_total,
+                'Bruto': bruto_total,
+                'Imposto': imposto_total,
+                'Líquido': liquido_total,
+                'Saldo Remanescente': saldo_rem_final,
             }
         resumos[pagamento_id] = resumo
     return resumos
 
-
 def _resumo_financeiro_futuro_console(contexto_baseline, pagamento_id, decisao_row, mapa_resumos=None):
     mapa_resumos = mapa_resumos or {}
-    resumo = mapa_resumos.get(str(pagamento_id or '').strip())
-    if resumo:
-        return resumo
     central = _mapa_pagamentos_central(contexto_baseline).get(str(pagamento_id or '').strip(), {})
     if central:
         return {
@@ -491,6 +521,9 @@ def _resumo_financeiro_futuro_console(contexto_baseline, pagamento_id, decisao_r
             'Saldo Remanescente': _valor_monetario_preferencial(central.get('saldo_remanescente_central')),
             'Lote sugerido': central.get('lote_final_central') or central.get('lote_sugerido_original') or '',
         }
+    resumo = mapa_resumos.get(str(pagamento_id or '').strip())
+    if resumo:
+        return resumo
     return {
         'Saldo Antes': '',
         'Bruto': '',

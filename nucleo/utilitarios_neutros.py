@@ -165,6 +165,27 @@ def normalizar_valores_situacao_atual_exaurida(*, saldo_bruto: float, saldo_liqu
     return 0.0, 0.0, 0.0
 
 
+def normalizar_saldo_remanescente_operacional(
+    valor: Any,
+    *,
+    limiar_residuo_resolvido: float = 0.20,
+    tolerancia_monetaria: float = 0.01,
+    exaurido: bool = False,
+) -> float:
+    saldo = arredondar_monetario(para_float_monetario(valor, 0.0))
+    limiar = arredondar_monetario(max(float(limiar_residuo_resolvido or 0.0), 0.0))
+    tolerancia = arredondar_monetario(max(float(tolerancia_monetaria or 0.0), 0.0))
+    if saldo <= 0.0:
+        return 0.0
+    if saldo <= limiar:
+        return 0.0
+    if saldo <= arredondar_monetario(limiar + tolerancia):
+        return 0.0
+    if exaurido:
+        return 0.0
+    return saldo
+
+
 def tokenizar_texto_normalizado(valor: Any) -> list[str]:
     texto = normalizar_texto(valor)
     return [parte for parte in texto.split() if parte]

@@ -261,6 +261,7 @@ def _avancar_lote_para_data_contexto(lote, data_origem, data_alvo, contexto):
         )
 
 
+
 def _mapa_resumos_futuros_contexto(contexto, quadro_futuro: pd.DataFrame) -> dict[str, dict[str, object]]:
     if not isinstance(quadro_futuro, pd.DataFrame) or len(quadro_futuro) == 0:
         return {}
@@ -272,58 +273,87 @@ def _mapa_resumos_futuros_contexto(contexto, quadro_futuro: pd.DataFrame) -> dic
     lotes_data = {str(l.id): contexto.execucao.data_referencia for l in lotes_orig}
     saldo_map = _mapa_saldo_disponivel_contexto(contexto)
     consumo_saldo = 0.0
+    limiar = obter_limiar_residuo_resolvido(contexto.pacote_config.conteudo)
     resumos = {}
+
+    def _split_fontes(valor):
+        partes = [parte.strip() for parte in str(valor or '').split('+')]
+        return [parte for parte in partes if parte]
+
     quadro = quadro_futuro.copy().sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
     for _, row in quadro.iterrows():
         pagamento_id = str(row.get('pagamento_id') or '').strip()
         data_pag = row.get('data_pagamento')
         valor = round(float(row.get('valor_pagamento') or 0.0), 2)
         lote_sug = str(row.get('lote_recomendado') or row.get('lote_id_escolhido') or row.get('fonte_base_escolhida') or row.get('tipo_fonte_escolhida') or '')
-        resumo = {'Lote sugerido': lote_sug, 'Saldo Antes': '', 'Bruto': '', 'Imposto': '', 'Líquido': '', 'Saldo Remanescente': ''}
-        if lote_sug in lotes_estado and data_pag is not None:
-            lote = lotes_estado[lote_sug]
-            _avancar_lote_para_data_contexto(lote, lotes_data.get(lote_sug, contexto.execucao.data_referencia), data_pag, contexto)
-            lotes_data[lote_sug] = data_pag
-            saldo_antes = round(float(getattr(lote, 'saldo_bruto', 0.0) or 0.0), 2)
-            mov = executar_saque_lote(lote, valor, data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
-            if mov is not None:
+        fontes = _split_fontes(lote_sug)
+        reserva = str(row.get('lote_reserva') or '').strip()
+        if reserva and str(row.get('estrategia_recomendada') or '') == 'combinacao_minima':
+            for fonte_reserva in _split_fontes(reserva):
+                if fonte_reserva not in fontes:
+                    fontes.append(fonte_reserva)
+        resumo = {'Lote sugerido': ' + '.join(fontes) if fontes else lote_sug, 'Saldo Antes': '', 'Bruto': '', 'Imposto': '', 'Líquido': '', 'Saldo Remanescente': ''}
+        restante = valor
+        saldo_antes_total = 0.0
+        bruto_total = 0.0
+        imposto_total = 0.0
+        liquido_total = 0.0
+        saldo_rem_final = ''
+        fontes_usadas: list[str] = []
+        for fonte in fontes:
+            if restante <= 0.01:
+                break
+            if fonte in lotes_estado and data_pag is not None:
+                lote = lotes_estado[fonte]
+                _avancar_lote_para_data_contexto(lote, lotes_data.get(fonte, contexto.execucao.data_referencia), data_pag, contexto)
+                lotes_data[fonte] = data_pag
+                liquido_disponivel = round(float(lote.valor_liquido_hoje(data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
+                if liquido_disponivel <= 0.01:
+                    continue
+                alvo = round(min(restante, liquido_disponivel), 2)
+                mov = executar_saque_lote(lote, alvo, data_pag, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
+                if mov is None:
+                    continue
                 saldo_rem = round(float(mov.get('saldo_remanescente') or 0.0), 2)
-                if saldo_rem <= obter_limiar_residuo_resolvido(contexto.pacote_config.conteudo):
+                if saldo_rem <= limiar:
                     saldo_rem = 0.0
-                resumo = {
-                    'Lote sugerido': lote_sug,
-                    'Saldo Antes': round(float(mov.get('saldo_antes') or saldo_antes), 2),
-                    'Bruto': round(float(mov.get('bruto') or 0.0), 2),
-                    'Imposto': round(float(mov.get('imposto') or 0.0), 2),
-                    'Líquido': round(float(mov.get('liquido') or 0.0), 2),
-                    'Saldo Remanescente': saldo_rem,
-                }
-        elif lote_sug == 'saldo_disponivel_geral':
-            base = saldo_map.get(pagamento_id, {})
-            saldo_liq_base = round(float(base.get('saldo_disponivel_liquido') or base.get('saldo_disponivel_bruto') or 0.0), 2)
-            saldo_antes = max(round(saldo_liq_base - consumo_saldo, 2), 0.0)
-            bruto = min(valor, saldo_antes)
-            imposto = 0.0
-            liquido = bruto
-            saldo_rem = max(round(saldo_antes - liquido, 2), 0.0)
-            consumo_saldo = round(consumo_saldo + liquido, 2)
+                saldo_antes_total = round(saldo_antes_total + float(mov.get('saldo_antes') or 0.0), 2)
+                bruto_total = round(bruto_total + float(mov.get('bruto') or 0.0), 2)
+                imposto_total = round(imposto_total + float(mov.get('imposto') or 0.0), 2)
+                liquido = round(float(mov.get('liquido') or 0.0), 2)
+                liquido_total = round(liquido_total + liquido, 2)
+                restante = round(max(restante - liquido, 0.0), 2)
+                saldo_rem_final = saldo_rem
+                fontes_usadas.append(fonte)
+            elif fonte == 'saldo_disponivel_geral':
+                base = saldo_map.get(pagamento_id, {})
+                saldo_liq_base = round(float(base.get('saldo_disponivel_liquido') or base.get('saldo_disponivel_bruto') or 0.0), 2)
+                saldo_antes = max(round(saldo_liq_base - consumo_saldo, 2), 0.0)
+                if saldo_antes <= 0.01:
+                    continue
+                liquido = round(min(restante, saldo_antes), 2)
+                saldo_rem = max(round(saldo_antes - liquido, 2), 0.0)
+                consumo_saldo = round(consumo_saldo + liquido, 2)
+                saldo_antes_total = round(saldo_antes_total + saldo_antes, 2)
+                bruto_total = round(bruto_total + liquido, 2)
+                liquido_total = round(liquido_total + liquido, 2)
+                restante = round(max(restante - liquido, 0.0), 2)
+                saldo_rem_final = saldo_rem
+                fontes_usadas.append(fonte)
+        if fontes_usadas:
             resumo = {
-                'Lote sugerido': lote_sug,
-                'Saldo Antes': saldo_antes,
-                'Bruto': bruto,
-                'Imposto': imposto,
-                'Líquido': liquido,
-                'Saldo Remanescente': saldo_rem,
+                'Lote sugerido': ' + '.join(fontes_usadas),
+                'Saldo Antes': saldo_antes_total,
+                'Bruto': bruto_total,
+                'Imposto': imposto_total,
+                'Líquido': liquido_total,
+                'Saldo Remanescente': saldo_rem_final,
             }
         resumos[pagamento_id] = resumo
     return resumos
 
-
 def _resumo_financeiro_futuro_preferencial(contexto, pagamento_id: str, decisao: dict, central: dict | None = None, mapa_resumos: dict[str, dict[str, object]] | None = None) -> dict[str, object]:
     mapa_resumos = mapa_resumos or {}
-    resumo_mapa = mapa_resumos.get(str(pagamento_id or '').strip())
-    if resumo_mapa:
-        return resumo_mapa
     central = central or {}
     if central:
         return {
@@ -334,6 +364,9 @@ def _resumo_financeiro_futuro_preferencial(contexto, pagamento_id: str, decisao:
             'Líquido': round(float(central.get('liquido_central') or 0.0), 2) if central.get('liquido_central') not in (None, '') else '',
             'Saldo Remanescente': round(float(central.get('saldo_remanescente_central') or 0.0), 2) if central.get('saldo_remanescente_central') not in (None, '') else '',
         }
+    resumo_mapa = mapa_resumos.get(str(pagamento_id or '').strip())
+    if resumo_mapa:
+        return resumo_mapa
     resumo = _calcular_resumo_financeiro_fonte(contexto, decisao)
     resumo['Lote sugerido'] = str(decisao.get('lote_id_escolhido') or decisao.get('fonte_base_escolhida') or decisao.get('tipo_fonte_escolhida') or '')
     return resumo

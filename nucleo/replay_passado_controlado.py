@@ -37,7 +37,13 @@ from nucleo.nucleo_financeiro_minimo import (
     criar_lote_de_aporte,
     executar_saque_lote,
 )
-from nucleo.utilitarios_neutros import arredondar_monetario, limpar_texto, normalizar_texto, para_float_monetario
+from nucleo.utilitarios_neutros import (
+    arredondar_monetario,
+    limpar_texto,
+    normalizar_saldo_remanescente_operacional,
+    normalizar_texto,
+    para_float_monetario,
+)
 
 
 @dataclass(slots=True)
@@ -289,7 +295,7 @@ def carregar_replay_passado_controlado(
     if len(contas_pagas) == 0:
         lotes_resolvidos_por_limiar = _normalizar_residuos_sub_limiar_pos_replay(
             lotes_base,
-            limiar_residuo_resolvido=valor_min_lote_ativo,
+            limiar_residuo_resolvido=limiar_materialidade,
         )
         estado = pd.DataFrame([_serializar_estado_lote(l) for l in lotes_base])
         auditoria = {
@@ -301,8 +307,8 @@ def carregar_replay_passado_controlado(
             'qtd_contas_nao_cobertas': 0,
             'qtd_lotes_historicos_nao_aportados_materializados': auditoria_hist['qtd_lotes_historicos_nao_aportados_materializados'],
             'qtd_lotes_historicos_alias_resolvidos': 0,
-            'saldo_bruto_total_pos_replay': arredondar_monetario(sum(float(l.saldo_bruto) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)),
-            'saldo_liquido_total_pos_replay': arredondar_monetario(sum(float(l.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir)) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)),
+            'saldo_bruto_total_pos_replay': arredondar_monetario(sum(float(l.saldo_bruto) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > limiar_materialidade)),
+            'saldo_liquido_total_pos_replay': arredondar_monetario(sum(float(l.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir)) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > limiar_materialidade)),
             'qtd_lotes_resolvidos_por_limiar_pos_replay': int(len(lotes_resolvidos_por_limiar)),
             'amostra_lotes_resolvidos_por_limiar_pos_replay': lotes_resolvidos_por_limiar[:10],
         }
@@ -415,6 +421,17 @@ def carregar_replay_passado_controlado(
                 restante = max(restante - liquido, 0.0)
                 total_coberto += liquido
                 consumiu_algo = True
+                situacao_lote_atual = str(getattr(lote, 'situacao_investimento', '') or '')
+                saldo_rem_log = normalizar_saldo_remanescente_operacional(
+                    movimento.get('saldo_remanescente'),
+                    limiar_residuo_resolvido=limiar_materialidade,
+                    tolerancia_monetaria=tolerancia,
+                    exaurido=bool(lote.esgotado or 'exaurido' in situacao_lote_atual),
+                )
+                if saldo_rem_log == 0.0 and (lote.esgotado or 'exaurido' in situacao_lote_atual):
+                    lote.saldo_bruto = 0.0
+                    lote.principal_remanescente = 0.0
+                    lote.esgotado = True
                 log_registros.append({
                     'Data': data_atual,
                     'Despesa ID': conta.get('despesa_id'),
@@ -436,7 +453,7 @@ def carregar_replay_passado_controlado(
                         data_fechamento_referencia=data_atual,
                     ),
                     'Fase Operacional Lote': 'caixa_pre_aplicacao' if lote.data_recebimento <= data_atual <= lote.data_aplicacao else 'aplicado',
-                    'Saldo Remanescente': arredondar_monetario(movimento['saldo_remanescente']),
+                    'Saldo Remanescente': saldo_rem_log,
                     'Sequencia Saque': seq_mov,
                     'Situacao Investimento Lote': str(getattr(lote, 'situacao_investimento', '') or ''),
                 })
@@ -454,13 +471,13 @@ def carregar_replay_passado_controlado(
 
     lotes_resolvidos_por_limiar = _normalizar_residuos_sub_limiar_pos_replay(
         lotes_base,
-        limiar_residuo_resolvido=valor_min_lote_ativo,
+        limiar_residuo_resolvido=limiar_materialidade,
     )
 
     estado = pd.DataFrame([_serializar_estado_lote(l) for l in lotes_base])
     log_df = pd.DataFrame(log_registros)
-    saldo_bruto_pos = sum(float(l.saldo_bruto) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)
-    saldo_liquido_pos = sum(float(l.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir)) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)
+    saldo_bruto_pos = sum(float(l.saldo_bruto) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > limiar_materialidade)
+    saldo_liquido_pos = sum(float(l.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir)) for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > limiar_materialidade)
 
     inconsistencias_materiais = [item for item in inconsistencias if _inconsistencia_e_material(item, limiar_materialidade)]
     qtd_parcial_material = sum(1 for item in inconsistencias_materiais if item.get('motivo') == 'conta_parcialmente_coberta')
@@ -479,7 +496,7 @@ def carregar_replay_passado_controlado(
         'amostra_alias_historicos_resolvidos': auditoria_hist['amostra_alias_historicos_resolvidos'][:5],
         'qtd_lotes_informados_nao_encontrados': int(qtd_nao_encontrado),
         'qtd_movimentos_log': int(len(log_df)),
-        'qtd_lotes_remanescentes_ativos': int(sum(1 for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > valor_min_lote_ativo)),
+        'qtd_lotes_remanescentes_ativos': int(sum(1 for l in lotes_base if not l.esgotado and float(l.saldo_bruto) > limiar_materialidade)),
         'data_final_historico_replay': data_final_historico,
         'data_final_valuation_referencia': data_final,
         'qtd_fechamentos_referencia_com_fallback_cdi': int(qtd_fechamentos_referencia_com_fallback),

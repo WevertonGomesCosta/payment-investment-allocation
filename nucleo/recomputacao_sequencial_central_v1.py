@@ -243,6 +243,96 @@ def _simular_movimento_candidato(
     }
 
 
+def _split_fontes_compostas(valor: Any) -> list[str]:
+    partes = [parte.strip() for parte in str(valor or '').split('+')]
+    return [parte for parte in partes if parte]
+
+
+def _simular_plano_multifonte(
+    avaliacoes: list[dict[str, Any]],
+    *,
+    valor_pagamento: float,
+    mapa_lotes: dict[str, Any],
+    consumo_generico: dict[str, float],
+    data_referencia: date,
+    tabela_iof: list[float],
+    faixas_ir: list[dict[str, Any]],
+    tolerancia_monetaria: float,
+) -> dict[str, Any] | None:
+    mapa_lotes_local = {chave: deepcopy(valor) for chave, valor in mapa_lotes.items()}
+    consumo_generico_local = dict(consumo_generico)
+    restante = round(float(valor_pagamento or 0.0), 2)
+    componentes: list[dict[str, Any]] = []
+    saldo_antes_total = 0.0
+    bruto_total = 0.0
+    imposto_total = 0.0
+    liquido_total = 0.0
+    patrimonio_delta_total = 0.0
+    for item in avaliacoes:
+        if restante <= tolerancia_monetaria:
+            break
+        candidato = dict(item.get('candidato') or {})
+        tipo = str(candidato.get('tipo_fonte_escolhida') or '').strip()
+        fonte_id = str(candidato.get('fonte_escolhida_id') or candidato.get('fonte_base_escolhida') or '').strip()
+        lote_id = str(candidato.get('lote_id') or '').strip()
+        if tipo == 'nenhuma':
+            continue
+        disponibilidade = round(float(candidato.get('saldo_antes_dinamico') or candidato.get('valor_disponivel') or 0.0), 2)
+        if disponibilidade <= tolerancia_monetaria:
+            continue
+        alvo = round(min(restante, disponibilidade), 2)
+        movimento = _simular_movimento_candidato(
+            candidato,
+            valor_pagamento=alvo,
+            mapa_lotes=mapa_lotes_local,
+            consumo_generico=consumo_generico_local,
+            data_referencia=data_referencia,
+            tabela_iof=tabela_iof,
+            faixas_ir=faixas_ir,
+            tolerancia_monetaria=tolerancia_monetaria,
+        )
+        liquido = round(float(movimento.get('liquido_central') or 0.0), 2)
+        if liquido <= tolerancia_monetaria:
+            continue
+        if tipo == 'lote_resgatavel' and lote_id and movimento.get('mapa_lotes_pos') is not None:
+            mapa_lotes_local[lote_id] = movimento['mapa_lotes_pos']
+        elif movimento.get('consumo_generico_pos'):
+            for fonte_id_item, consumido in movimento['consumo_generico_pos'].items():
+                consumo_generico_local[fonte_id_item] = round(float(consumido or 0.0), 2)
+        saldo_antes_total = round(saldo_antes_total + float(movimento.get('saldo_antes_central') or 0.0), 2)
+        bruto_total = round(bruto_total + float(movimento.get('bruto_central') or 0.0), 2)
+        imposto_total = round(imposto_total + float(movimento.get('imposto_central') or 0.0), 2)
+        liquido_total = round(liquido_total + liquido, 2)
+        patrimonio_delta_total = round(patrimonio_delta_total + float(movimento.get('patrimonio_delta') or 0.0), 2)
+        restante = round(max(restante - liquido, 0.0), 2)
+        componentes.append({
+            'tipo': tipo,
+            'lote': movimento.get('lote_final_central') or _rotulo_fonte(candidato),
+            'fonte_id': fonte_id,
+            'liquido': liquido,
+            'saldo_remanescente': round(float(movimento.get('saldo_remanescente_central') or 0.0), 2),
+        })
+    if not componentes:
+        return None
+    fontes_usadas = [str(item.get('lote') or '').strip() for item in componentes if str(item.get('lote') or '').strip()]
+    ids_usados = [str(item.get('fonte_id') or '').strip() for item in componentes if str(item.get('fonte_id') or '').strip()]
+    return {
+        'tipo_fonte_final': 'multifonte',
+        'lote_final_central': ' + '.join(fontes_usadas),
+        'fonte_final_id': ' + '.join(ids_usados),
+        'saldo_antes_central': saldo_antes_total,
+        'bruto_central': bruto_total,
+        'imposto_central': imposto_total,
+        'liquido_central': liquido_total,
+        'saldo_remanescente_central': componentes[-1]['saldo_remanescente'],
+        'pagamento_totalmente_coberto_central': bool(liquido_total + tolerancia_monetaria >= valor_pagamento),
+        'mapa_lotes_pos_multifonte': mapa_lotes_local,
+        'consumo_generico_pos_multifonte': consumo_generico_local,
+        'componentes_multifonte': componentes,
+        'patrimonio_delta': patrimonio_delta_total,
+    }
+
+
 def _patrimonio_terminal_proxy(
     candidatos_ajustados: list[dict[str, Any]],
     *,
@@ -541,11 +631,43 @@ def carregar_recomputacao_sequencial_central_v1(
         max_liquido_potencial = max(round(float(item['movimento'].get('liquido_central') or 0.0), 2) for item in avaliacoes)
         fallback_sem_fonte_viavel = bool(max_liquido_potencial <= tolerancia_monetaria)
 
-        tipo_final = str(escolhido.get('tipo_fonte_escolhida') or '').strip()
-        lote_final = str(escolhido.get('lote_id') or '').strip()
-        fonte_final_id = str(escolhido.get('fonte_escolhida_id') or '')
+        if not bool(melhor_mov.get('pagamento_totalmente_coberto_central')) and not fallback_sem_fonte_viavel:
+            plano_multifonte = _simular_plano_multifonte(
+                avaliacoes,
+                valor_pagamento=valor_pagamento,
+                mapa_lotes=mapa_lotes,
+                consumo_generico=consumo_generico,
+                data_referencia=data_referencia,
+                tabela_iof=tabela_iof,
+                faixas_ir=faixas_ir,
+                tolerancia_monetaria=tolerancia_monetaria,
+            )
+            if plano_multifonte is not None and bool(plano_multifonte.get('pagamento_totalmente_coberto_central')):
+                melhor_mov = plano_multifonte
+                escolhido = {
+                    'tipo_fonte_escolhida': 'multifonte',
+                    'fonte_escolhida_id': plano_multifonte.get('fonte_final_id') or '',
+                    'lote_id': plano_multifonte.get('lote_final_central') or '',
+                    'fonte_base_escolhida': plano_multifonte.get('lote_final_central') or '',
+                }
+                melhor_diag = dict(melhor_diag)
+                melhor_diag['violacao_protegida'] = 0
+                melhor_diag['severidade_protegida'] = 0.0
+                melhor_diag['deficit_liquido_total'] = 0.0
+                melhor_diag['pagamento_sem_cobertura_integral'] = 0
+                melhor_diag['patrimonio_terminal_proxy'] = round(float(melhor_diag.get('patrimonio_terminal_proxy') or 0.0), 2)
+
+        tipo_final = str(escolhido.get('tipo_fonte_escolhida') or melhor_mov.get('tipo_fonte_final') or '').strip()
+        lote_final = str(escolhido.get('lote_id') or melhor_mov.get('lote_final_central') or '').strip()
+        fonte_final_id = str(escolhido.get('fonte_escolhida_id') or melhor_mov.get('fonte_final_id') or '')
         if not fallback_sem_fonte_viavel:
-            if tipo_final == 'lote_resgatavel' and lote_final and melhor_mov.get('mapa_lotes_pos') is not None:
+            if melhor_mov.get('mapa_lotes_pos_multifonte') is not None:
+                mapa_lotes = melhor_mov['mapa_lotes_pos_multifonte']
+                consumo_generico = dict(melhor_mov.get('consumo_generico_pos_multifonte') or consumo_generico)
+                tipo_final = 'multifonte'
+                lote_final = str(melhor_mov.get('lote_final_central') or lote_final)
+                fonte_final_id = str(melhor_mov.get('fonte_final_id') or fonte_final_id)
+            elif tipo_final == 'lote_resgatavel' and lote_final and melhor_mov.get('mapa_lotes_pos') is not None:
                 mapa_lotes[lote_final] = melhor_mov['mapa_lotes_pos']
             elif melhor_mov.get('consumo_generico_pos'):
                 for fonte_id_item, consumido in melhor_mov['consumo_generico_pos'].items():
@@ -597,6 +719,8 @@ def carregar_recomputacao_sequencial_central_v1(
             f"demanda7d={melhor_diag.get('demanda_protegida_futura_7d'):.2f}, demanda14d={melhor_diag.get('demanda_protegida_futura_14d'):.2f}, "
             f"pen_estrat={melhor_diag.get('penalidade_estrategica_central'):.4f}, pen_frag={melhor_diag.get('penalidade_fragmentacao_central'):.4f}."
         )
+        if tipo_final == 'multifonte':
+            observacao += ' plano multifonte acionado: pagamento integral composto por fontes sequenciais, evitando recomendação parcial.'
         if fallback_sem_fonte_viavel:
             observacao += ' fallback auditável acionado: sem fonte viável com liquidez positiva no evento.'
 
