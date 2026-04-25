@@ -7,6 +7,8 @@
 - `relatorios/atuais/LEIA-ME_OPERACIONAL.md` — guia de leitura da camada documental vigente
 - `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md` — backlog oficial subordinado ao contrato e ao modelo
 - `relatorios/atuais/ESPECIFICACAO_SAIDA_OFICIAL.md` — especificação operacional da camada observável oficial
+- `relatorios/atuais/AUDITORIA_LIMPEZA_RESIDUAL_V201.md` — registro da limpeza segura aplicada sobre a V200
+- `relatorios/atuais/MAPA_SCRIPTS_V201.md` — manifesto de classificação e autoridade dos scripts
 
 ## Histórico documental
 
