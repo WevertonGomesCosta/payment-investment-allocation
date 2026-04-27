@@ -1,6 +1,14 @@
 versao,metrica,valor,percentual_sobre_total,fonte_de_verdade_operacional,precedencia_entre_camadas
-V241,status_execucao_core,NAO_EXECUTADO_POR_LIMITACAO_DO_CONECTOR_GITHUB,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
-V241,script_diagnostico_criado,SIM,100.0,NAO_CONSOLIDADA,NAO_DEFINIDA
-V241,comando_autorizado,python scripts/diagnostico/auditar_divergencias_motor_central_extrato_v241.py,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
-V241,total_pagamentos_auditados,NAO_APURADO_SEM_EXECUCAO,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
-V241,divergencias_quantificadas,NAO_APURADO_SEM_EXECUCAO,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,total_pagamentos_auditados,149,100.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,linhas_com_origem_mista_detectada,148,99.33,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_lote_motor_central,33,22.15,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_lote_motor_extrato,33,22.15,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_lote_central_extrato,0,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_estrategia_motor_extrato,0,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_cobertura_motor_central,0,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_cobertura_motor_extrato,0,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_cobertura_central_extrato,0,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_saldo_motor_central,148,99.33,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_saldo_motor_extrato,148,99.33,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_saldo_central_extrato,0,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencia_switching_motor_extrato,0,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
