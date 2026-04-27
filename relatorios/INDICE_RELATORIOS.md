@@ -37,3 +37,7 @@
 4. Ler `ESPECIFICACAO_SAIDA_OFICIAL.md` antes de abrir a especificação de `resolver_dia(t, E_t)`.
 5. Consultar o histórico apenas quando houver necessidade de rastreabilidade, regressão ou contexto.
 6. Ler `saidas/oficial/` como caminho canônico de artefatos ativos e `saidas/historico/` como trilha rebaixada.
+
+- `relatorios/atuais/INTEGRACAO_FUNCIONAL_APORTES_FUTUROS_V216.md` — integração funcional V216 de recebidos futuros, reserva, aporte planejado, invariante e consumo no motor.
+- `relatorios/atuais/VALIDACAO_LOCAL_V216.md` — validação local mínima da V216.
+- `relatorios/atuais/MATRIZ_MUDANCAS_V208_V216.csv` — matriz de arquivos adicionados/modificados entre V208 e V216.

@@ -95,9 +95,14 @@ def construir_estado_global_recorte_curto_v117(
     if len(inventario):
         mask = inventario['nao_aportado_disponivel'].fillna(False)
         for _, row in inventario.loc[mask].iterrows():
+            valor_original = round(float(row.get('valor_original') or 0.0), 2)
             recebidos_disponiveis.append({
                 'id': str(row.get('lote_id') or ''),
-                'valor_disponivel': round(float(row.get('valor_original') or 0.0), 2),
+                'valor_disponivel': valor_original,
+                'valor_recebido_original_v216': valor_original,
+                'valor_pago_com_recebido_v216': 0.0,
+                'valor_aportado_planejado_v216': 0.0,
+                'saldo_caixa_remanescente_v216': valor_original,
                 'proxy_terminal_atual': 0.0,
                 'data_recebimento': row.get('data_recebimento'),
             })
@@ -105,9 +110,14 @@ def construir_estado_global_recorte_curto_v117(
         if hasattr(mask_fut, 'fillna'):
             mask_fut = mask_fut.fillna(False)
         for _, row in inventario.loc[mask_fut].iterrows():
+            valor_original = round(float(row.get('valor_original') or 0.0), 2)
             recebidos_futuros.append({
                 'id': str(row.get('lote_id') or ''),
-                'valor_disponivel': round(float(row.get('valor_original') or 0.0), 2),
+                'valor_disponivel': valor_original,
+                'valor_recebido_original_v216': valor_original,
+                'valor_pago_com_recebido_v216': 0.0,
+                'valor_aportado_planejado_v216': 0.0,
+                'saldo_caixa_remanescente_v216': valor_original,
                 'proxy_terminal_atual': 0.0,
                 'data_recebimento': row.get('data_recebimento'),
             })
@@ -145,5 +155,6 @@ def construir_estado_global_recorte_curto_v117(
             'quantidade_lotes': len(lotes),
             'quantidade_recebidos_nao_aportados': len(recebidos_disponiveis),
             'quantidade_recebidos_nao_aportados_futuros': len(recebidos_futuros),
+            'aportes_planejados_v216_integracao': 'estado_inicial_preparado_com_campos_de_invariante',
         },
     }

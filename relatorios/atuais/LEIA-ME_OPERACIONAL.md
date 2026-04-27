@@ -60,3 +60,7 @@ Essa centralização é estrutural. Ela não altera regra econômica, motor, con
 
 ## Próxima frente preservada
 Corrigir a modelagem dos recebidos/aportes futuros ainda não aportados em carteira. Essa frente não foi alterada pela V208.
+
+## V216 — frente funcional de aportes futuros
+
+Consulte `INTEGRACAO_FUNCIONAL_APORTES_FUTUROS_V216.md` para a implementação funcional da transição `recebido_futuro → caixa/reserva → aporte_planejado` no motor.

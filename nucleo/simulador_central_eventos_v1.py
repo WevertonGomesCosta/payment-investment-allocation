@@ -13,6 +13,7 @@ from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.planejador_switching_temporal_v1 import planejar_switching_temporal_v1
 from nucleo.recomputacao_sequencial_central_v1 import _perfil_pagamento_operacional
 from nucleo.utilitarios_neutros import _aliquota_ir_estimada, _coerce_date, _normalizar_proxy_terminal
+from nucleo.aportes_futuros_planejados import materializar_aportes_planejados_v216
 
 
 
@@ -271,6 +272,11 @@ def _ativar_recebidos_futuros_no_dia(estado: dict[str, Any], data_atual: date, h
             if recebido_id not in ids_disponiveis:
                 novo = deepcopy(recebido)
                 novo['ativado_em'] = data_atual
+                valor_original = round(float(novo.get('valor_recebido_original_v216') or novo.get('valor_original') or novo.get('valor_disponivel') or novo.get('valor') or 0.0), 2)
+                novo['valor_recebido_original_v216'] = valor_original
+                novo.setdefault('valor_pago_com_recebido_v216', 0.0)
+                novo.setdefault('valor_aportado_planejado_v216', 0.0)
+                novo.setdefault('saldo_caixa_remanescente_v216', round(float(novo.get('valor_disponivel') or novo.get('valor') or valor_original or 0.0), 2))
                 disponiveis.append(novo)
                 ids_disponiveis.add(recebido_id)
                 ativados.append(novo)
@@ -410,6 +416,7 @@ def _construir_campos_comuns_destino_evento_switching(
         'retorno_anual_proxy_atual': retorno_destino,
         'liquidez_dias_atual': liquidez_destino,
         'carencia_dias_atual': carencia_destino,
+        'liquidez_ate': data_atual + timedelta(days=liquidez_destino) if liquidez_destino > 0 else None,
         'carencia_ate': data_atual + timedelta(days=carencia_destino) if carencia_destino > 0 else None,
         'data_aplicacao': data_atual,
         'custo_fiscal_acumulado': round(float(lote_base.get('custo_fiscal_acumulado') or 0.0) + custo_fiscal_incremental, 2),
@@ -890,6 +897,8 @@ def _consumir_componentes(estado: dict[str, Any], componentes: list[dict[str, An
                     continue
                 chave = 'valor_disponivel' if 'valor_disponivel' in recebido else 'valor'
                 recebido[chave] = round(max(float(recebido.get(chave) or 0.0) - valor, 0.0), 2)
+                recebido['valor_pago_com_recebido_v216'] = round(float(recebido.get('valor_pago_com_recebido_v216') or 0.0) + valor, 2)
+                recebido['saldo_caixa_remanescente_v216'] = round(float(recebido.get(chave) or 0.0), 2)
                 break
             continue
         if tipo == 'lote_aportado':
@@ -1035,6 +1044,8 @@ def simular_cenario_eventos_v1(
             else:
                 pagamentos_sem_cobertura.append(str(alocacao.get('pagamento_id') or ''))
 
+        materializar_aportes_planejados_v216(estado, data_atual, config, historico)
+
     metrica = _calcular_metrica(
         resultados_pagamento,
         ganho_switching=ganho_switching_total,
@@ -1045,7 +1056,7 @@ def simular_cenario_eventos_v1(
     patrimonio_proxy = _patrimonio_terminal_proxy(estado, metrica, ganho_switching_total)
 
     return {
-        'status': 'integracao_integral_multidestino_v127',
+        'status': 'integracao_integral_multidestino_v216',
         'implementado': True,
         'horizonte': horizonte,
         'estado_inicial_normalizado': deepcopy(dict(estado_inicial or {})),
@@ -1053,6 +1064,7 @@ def simular_cenario_eventos_v1(
         'eventos_recebidos': eventos,
         'eventos_executados': eventos_executados,
         'historico_eventos': historico,
+        'auditoria_aportes_planejados_v216': deepcopy(estado.get('auditoria_aportes_planejados_v216') or []),
         'resultados_pagamento': resultados_pagamento,
         'pagamentos_cobertos': pagamentos_cobertos,
         'pagamentos_sem_cobertura': pagamentos_sem_cobertura,
@@ -1062,7 +1074,7 @@ def simular_cenario_eventos_v1(
         'patrimonio_liquido_terminal_proxy': patrimonio_proxy,
         'metrica_central': metrica,
         'config_resumido': dict(config or {}),
-        'observacao': 'Integração temporal multidestino: planejador ranqueado por ganho terminal econômico mínimo real estimado com múltiplos destinos elegíveis por lote antes do simulador central.',
+        'observacao': 'Integração temporal multidestino V216: recebidos futuros ativados podem virar caixa/reserva/aporte planejado após pagamentos do dia, com invariante, bloqueio de dupla contagem, auditoria de liquidez/carência e comparação com/sem aporte.',
     }
 
 

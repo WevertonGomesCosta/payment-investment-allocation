@@ -38,7 +38,7 @@ class FontePagamentoCandidata:
     score_terminal_comparativo: tuple[float, float, float, float, float, float, float, float]
     justificativa: str
     componentes: list[dict[str, Any]] = field(default_factory=list)
-    status_modelo: str = 'funcional_v141'
+    status_modelo: str = 'funcional_v216'
     score_auxiliar_script1: tuple[float, float, float] = (0.0, 0.0, 0.0)
     chave_decisao_final: tuple[Any, ...] = field(default_factory=tuple)
     metadados_extras: dict[str, Any] = field(default_factory=dict)
@@ -209,6 +209,9 @@ def _fonte_disponivel_na_data(bruto: dict[str, Any], data_pagamento: date | None
     carencia_ate = _coerce_date(bruto.get('carencia_ate'))
     if tipo == 'lote_aportado' and carencia_ate and data_pagamento and carencia_ate > data_pagamento:
         return False, 'carencia_ativa'
+    liquidez_ate = _coerce_date(bruto.get('liquidez_ate'))
+    if tipo == 'lote_aportado' and liquidez_ate and data_pagamento and liquidez_ate > data_pagamento:
+        return False, 'liquidez_ativa'
     return True, ''
 
 
@@ -415,7 +418,14 @@ def alocar_pagamento_terminal_v1(
             ),
             justificativa='Recebido/lote não aportado já disponível na data do pagamento.',
             componentes=[{'tipo_fonte': 'lote_nao_aportado', 'fonte_id': fonte_id, 'valor_utilizado': coberto}],
-            metadados_extras={'motivo_temporal': motivo, 'proxy_terminal_fonte': proxy_terminal, 'dias_idade_fonte': _dias_idade_fonte(data_pagamento, _coerce_date(bruto.get('data_aplicacao') or bruto.get('data_recebimento')))},
+            metadados_extras={
+                'motivo_temporal': motivo,
+                'proxy_terminal_fonte': proxy_terminal,
+                'dias_idade_fonte': _dias_idade_fonte(data_pagamento, _coerce_date(bruto.get('data_aplicacao') or bruto.get('data_recebimento'))),
+                'origem_aporte_planejado_v216': bool(bruto.get('origem_aporte_planejado_v216')),
+                'recebido_id_origem_v216': _safe_str(bruto.get('recebido_id_origem')),
+                'status_integracao_v216': _safe_str(bruto.get('status_integracao_v216')),
+            },
         ))
 
     for indice, item in enumerate(estado.get('lotes_aportados') or [], start=1):
@@ -464,7 +474,14 @@ def alocar_pagamento_terminal_v1(
             ),
             justificativa=justificativa,
             componentes=[{'tipo_fonte': 'lote_aportado', 'fonte_id': fonte_id, 'valor_utilizado': coberto}],
-            metadados_extras={'motivo_temporal': motivo, 'proxy_terminal_fonte': proxy_terminal, 'dias_idade_fonte': _dias_idade_fonte(data_pagamento, _coerce_date(bruto.get('data_aplicacao') or bruto.get('data_recebimento')))},
+            metadados_extras={
+                'motivo_temporal': motivo,
+                'proxy_terminal_fonte': proxy_terminal,
+                'dias_idade_fonte': _dias_idade_fonte(data_pagamento, _coerce_date(bruto.get('data_aplicacao') or bruto.get('data_recebimento'))),
+                'origem_aporte_planejado_v216': bool(bruto.get('origem_aporte_planejado_v216')),
+                'recebido_id_origem_v216': _safe_str(bruto.get('recebido_id_origem')),
+                'status_integracao_v216': _safe_str(bruto.get('status_integracao_v216')),
+            },
         ))
 
     if permitir_combinacao_minima and valor > 0.0 and candidatos_combo:
@@ -631,7 +648,7 @@ def alocar_pagamento_terminal_v1(
         'melhor_envolve_switching': melhor.tipo_fonte == 'cenario_switching_elegivel',
     }
     return {
-        'status': 'funcional_v141',
+        'status': 'funcional_v216',
         'implementado': True,
         'pagamento_id': pagamento.get('id') or pagamento.get('pagamento_id') or pagamento.get('despesa_id') or '',
         'data_pagamento': data_pagamento.isoformat() if data_pagamento else None,
