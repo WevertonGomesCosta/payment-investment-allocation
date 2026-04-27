@@ -30,10 +30,25 @@ from nucleo.identidade_baseline import VERSAO_BASELINE, caminho_saida_diagnostic
 from nucleo.simulador_central_eventos_v1 import simular_cenario_eventos_v1
 
 
-def _salvar_csv(nome: str, linhas: list[dict[str, Any]] | pd.DataFrame) -> None:
+COLUNAS_ALERTAS_IMPACTO = [
+    "tipo_alerta",
+    "classe_alerta",
+    "pagamento_id",
+    "lote_planejado_id",
+    "detalhe",
+    "valor",
+]
+
+
+def _salvar_csv(nome: str, linhas: list[dict[str, Any]] | pd.DataFrame, colunas: list[str] | None = None) -> None:
     destino = caminho_saida_diagnostico(RAIZ, nome)
     destino.parent.mkdir(parents=True, exist_ok=True)
     df = linhas if isinstance(linhas, pd.DataFrame) else pd.DataFrame(linhas)
+    if colunas is not None:
+        for coluna in colunas:
+            if coluna not in df.columns:
+                df[coluna] = ""
+        df = df[colunas]
     df.to_csv(destino, index=False, encoding="utf-8-sig")
     print(f"CSV: {destino.relative_to(RAIZ).as_posix()}")
 
@@ -246,9 +261,9 @@ def main() -> int:
     _salvar_csv(f"impacto_contas_futuras_{VERSAO_BASELINE.lower()}_resumo_real.csv", resumo)
     _salvar_csv(f"impacto_contas_futuras_{VERSAO_BASELINE.lower()}_comparativo_pagamentos_real.csv", comparativo)
     _salvar_csv(f"impacto_contas_futuras_{VERSAO_BASELINE.lower()}_lotes_planejados_real.csv", lotes_planejados)
-    _salvar_csv(f"impacto_contas_futuras_{VERSAO_BASELINE.lower()}_alertas_real.csv", alertas)
+    _salvar_csv(f"impacto_contas_futuras_{VERSAO_BASELINE.lower()}_alertas_real.csv", alertas, COLUNAS_ALERTAS_IMPACTO)
 
-    print("=== AUDITORIA DE IMPACTO SOBRE CONTAS FUTURAS V217 ===")
+    print("=== AUDITORIA DE IMPACTO SOBRE CONTAS FUTURAS V217/V220/V221/V222/V223 ===")
     print(f"versao: {VERSAO_BASELINE}")
     print("modo: real")
     print(f"pagamentos_processados_sem_aporte: {len(pagamentos_sem)}")

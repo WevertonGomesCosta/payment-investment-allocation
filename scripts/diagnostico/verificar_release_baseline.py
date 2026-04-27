@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VERSAO_VIGENTE = "V219"
-VERSAO_ANTERIOR = "V218"
+VERSAO_VIGENTE = "V225"
+VERSAO_ANTERIOR = "V224"
 
 
 def repo_root() -> Path:
@@ -403,6 +403,130 @@ def validar_calculo_dias_e_fiscal_v219(base: Path) -> list[str]:
 
     return erros
 
+
+def validar_resolver_csv_gate_v221(base: Path) -> list[str]:
+    erros: list[str] = []
+    script = base / 'scripts' / 'diagnostico' / 'auditar_gate_economico_aportes_v220.py'
+    texto = script.read_text(encoding='utf-8') if script.exists() else ''
+    for termo in [
+        'def _resolver_csv_impacto',
+        'impacto_contas_futuras_{VERSAO_BASELINE.lower()}',
+        'impacto_contas_futuras_v220',
+        'impacto_contas_futuras_v217',
+    ]:
+        if termo not in texto:
+            erros.append(f'resolver_csv_gate_v221_ausente: {termo}')
+    if 'CSV V217 ausente' in texto:
+        erros.append('mensagem_antiga_csv_v217_ainda_presente')
+    return erros
+
+
+def validar_gate_fluxo_efetivo_v222(base: Path) -> list[str]:
+    erros: list[str] = []
+    script = base / 'scripts' / 'diagnostico' / 'auditar_gate_economico_aportes_v220.py'
+    texto = script.read_text(encoding='utf-8') if script.exists() else ''
+    for termo in [
+        'def _resolver_csv_impacto',
+        'def _carregar_csvs_impacto',
+        'arquivo_resumo_usado',
+        'impacto_contas_futuras_v222',
+        'impacto_contas_futuras_v221',
+        'impacto_contas_futuras_v220',
+        'impacto_contas_futuras_v217',
+    ]:
+        if termo not in texto:
+            erros.append(f'gate_fluxo_efetivo_v222_incompleto: {termo}')
+    if 'impacto_contas_futuras_v217_resumo_real.csv").parent' in texto:
+        erros.append('gate_ainda_usa_caminho_rigido_v217')
+    if 'resumo_path=diag/"impacto_contas_futuras_v217_resumo_real.csv"' in texto:
+        erros.append('gate_ainda_usa_resumo_path_v217_rigido')
+    return erros
+
+
+def validar_consolidacao_nominal_v223(base: Path) -> list[str]:
+    erros: list[str] = []
+    obrigatorios = [
+        'scripts/diagnostico/auditar_impacto_contas_futuras_v223.py',
+        'scripts/diagnostico/auditar_gate_economico_aportes_v223.py',
+        'scripts/diagnostico/auditoria_final_pre_baseline_v223.py',
+        'relatorios/atuais/CONSOLIDACAO_NOMINAL_GATE_IMPACTO_V223.md',
+        'relatorios/atuais/VALIDACAO_LOCAL_V223.md',
+    ]
+    for rel in obrigatorios:
+        if not (base / rel).exists():
+            erros.append(f'arquivo_obrigatorio_v223_ausente: {rel}')
+
+    impacto = base / 'scripts' / 'diagnostico' / 'auditar_impacto_contas_futuras_v217.py'
+    txt_impacto = impacto.read_text(encoding='utf-8') if impacto.exists() else ''
+    if 'COLUNAS_ALERTAS_IMPACTO' not in txt_impacto:
+        erros.append('impacto_sem_colunas_alertas_vazias_v223')
+
+    gate = base / 'scripts' / 'diagnostico' / 'auditar_gate_economico_aportes_v220.py'
+    txt_gate = gate.read_text(encoding='utf-8') if gate.exists() else ''
+    for termo in [
+        'impacto_contas_futuras_v223',
+        'impacto_contas_futuras_v222',
+        'impacto_contas_futuras_v221',
+        'impacto_contas_futuras_v220',
+        'impacto_contas_futuras_v217',
+    ]:
+        if termo not in txt_gate:
+            erros.append(f'gate_sem_fallback_v223: {termo}')
+    return erros
+
+
+def validar_limpeza_pre_release_v224(base: Path) -> list[str]:
+    erros: list[str] = []
+    obrigatorios = [
+        'scripts/diagnostico/limpar_artefatos_efemeros.py',
+        'scripts/diagnostico/verificar_release_limpo.py',
+        'relatorios/atuais/HOTFIX_LIMPEZA_PRE_RELEASE_V224.md',
+        'relatorios/atuais/VALIDACAO_LOCAL_V224.md',
+    ]
+    for rel in obrigatorios:
+        if not (base / rel).exists():
+            erros.append(f'arquivo_obrigatorio_v224_ausente: {rel}')
+
+    limpeza = base / 'scripts' / 'diagnostico' / 'limpar_artefatos_efemeros.py'
+    txt_limpeza = limpeza.read_text(encoding='utf-8') if limpeza.exists() else ''
+    for termo in ['__pycache__', '*.pyc', '*.pyo', 'limpar_artefatos_efemeros']:
+        if termo not in txt_limpeza:
+            erros.append(f'limpeza_pre_release_incompleta_v224: {termo}')
+
+    wrapper = base / 'scripts' / 'diagnostico' / 'verificar_release_limpo.py'
+    txt_wrapper = wrapper.read_text(encoding='utf-8') if wrapper.exists() else ''
+    for termo in ['limpar_artefatos_efemeros', 'release_main']:
+        if termo not in txt_wrapper:
+            erros.append(f'wrapper_release_limpo_incompleto_v224: {termo}')
+    return erros
+
+
+def validar_promocao_baseline_v225(base: Path) -> list[str]:
+    erros: list[str] = []
+    obrigatorios = [
+        'relatorios/atuais/PROMOCAO_CONTROLADA_BASELINE_V225.md',
+        'relatorios/atuais/BASELINE_FUNCIONAL_ESTAVEL_V225.md',
+        'relatorios/atuais/VALIDACAO_LOCAL_V225.md',
+        'relatorios/atuais/MATRIZ_MUDANCAS_V224_V225.csv',
+    ]
+    for rel in obrigatorios:
+        if not (base / rel).exists():
+            erros.append(f'arquivo_obrigatorio_v225_ausente: {rel}')
+
+    promo = base / 'relatorios' / 'atuais' / 'PROMOCAO_CONTROLADA_BASELINE_V225.md'
+    texto = promo.read_text(encoding='utf-8') if promo.exists() else ''
+    for termo in [
+        'BASELINE_FUNCIONAL_ESTAVEL_V225',
+        'gate econômico',
+        'sem_aportes_planejados',
+        'BLOQUEADO_GATE_ECONOMICO_V220',
+        'não altera motor',
+    ]:
+        if termo not in texto:
+            erros.append(f'documentacao_promocao_v225_incompleta: {termo}')
+
+    return erros
+
 def main() -> int:
     base = repo_root()
     erros = []
@@ -418,6 +542,16 @@ def main() -> int:
     artefatos = coletar_artefatos_efemeros(base)
     if artefatos:
         erros.extend(f'artefato_efemero_presente: {item}' for item in artefatos)
+    erros.extend(validar_resolver_csv_gate_v221(base))
+
+    erros.extend(validar_gate_fluxo_efetivo_v222(base))
+
+    erros.extend(validar_consolidacao_nominal_v223(base))
+
+    erros.extend(validar_limpeza_pre_release_v224(base))
+
+    erros.extend(validar_promocao_baseline_v225(base))
+
     if erros:
         print('ERROS DE RELEASE:')
         for erro in erros:

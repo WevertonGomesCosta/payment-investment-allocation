@@ -13,6 +13,8 @@ STATUS_BLOQUEADO_RESERVA_V216 = "BLOQUEADO_RESERVA_CAIXA_V216"
 STATUS_BLOQUEADO_PRODUTO_V216 = "BLOQUEADO_PRODUTO_DESTINO_V216"
 STATUS_BLOQUEADO_INVARIANTE_V216 = "BLOQUEADO_INVARIANTE_V216"
 STATUS_BLOQUEADO_GANHO_V216 = "BLOQUEADO_COMPARACAO_SEM_APORTE_V216"
+STATUS_PROMOVIVEL_ECONOMICO_V220 = "PROMOVIVEL_ECONOMICO_V220"
+STATUS_BLOQUEADO_GATE_ECONOMICO_V220 = "BLOQUEADO_GATE_ECONOMICO_V220"
 
 
 def _safe_float(valor: Any, padrao: float = 0.0) -> float:
@@ -380,3 +382,34 @@ def materializar_aportes_planejados_v216(
         promovidos.append(lote)
 
     return promovidos
+
+
+def avaliar_gate_economico_aportes_planejados_v220(
+    *,
+    delta_patrimonio_terminal_proxy: float,
+    delta_perda_terminal_total: float,
+    delta_penalidade_estrategica_total: float,
+    delta_deficit_total: float,
+    tolerancia: float = 0.01,
+) -> dict[str, Any]:
+    """Gate econômico obrigatório da V220 para aportes planejados."""
+    tol = max(_safe_float(tolerancia, 0.01), 0.0)
+    falhas: list[str] = []
+    if _safe_float(delta_patrimonio_terminal_proxy) < -tol:
+        falhas.append("reduz_patrimonio_terminal_proxy")
+    if _safe_float(delta_perda_terminal_total) > tol:
+        falhas.append("aumenta_perda_terminal_total")
+    if _safe_float(delta_penalidade_estrategica_total) > tol:
+        falhas.append("aumenta_penalidade_estrategica_total")
+    if _safe_float(delta_deficit_total) > tol:
+        falhas.append("aumenta_deficit_total")
+    status = STATUS_PROMOVIVEL_ECONOMICO_V220 if not falhas else STATUS_BLOQUEADO_GATE_ECONOMICO_V220
+    return {
+        "status_gate_economico_v220": status,
+        "gate_economico_aprovado_v220": not falhas,
+        "falhas_gate_economico_v220": " | ".join(falhas),
+        "delta_patrimonio_terminal_proxy": round(_safe_float(delta_patrimonio_terminal_proxy), 2),
+        "delta_perda_terminal_total": round(_safe_float(delta_perda_terminal_total), 2),
+        "delta_penalidade_estrategica_total": round(_safe_float(delta_penalidade_estrategica_total), 2),
+        "delta_deficit_total": round(_safe_float(delta_deficit_total), 2),
+    }

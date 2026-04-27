@@ -1,6 +1,6 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V219  
+**Pacote operacional atual:** V225  
 **Baseline funcional real de origem:** V208  
 **Artefatos V209–V215:** usados apenas como especificação metodológica, não como baseline funcional  
 **Baseline contratual vigente:** V183  
@@ -127,4 +127,52 @@ Comando de release:
 
 ```bash
 python scripts/diagnostico/verificar_release_baseline.py
+```
+
+
+## V220 — gate econômico dos aportes planejados
+
+A V220 bloqueia aportes planejados quando o cenário com aporte reduz patrimônio terminal proxy, aumenta perda terminal total, aumenta penalidade estratégica total ou aumenta déficit total.
+
+
+## V221 — hotfix do resolver de CSVs do gate econômico
+
+Corrige o gate para aceitar CSVs de impacto com prefixo da versão corrente (`v221`/`v220`) e fallback histórico `v217`.
+
+
+## V222 — hotfix do fluxo efetivo do gate econômico
+
+Corrige o gate econômico para usar efetivamente o resolver de CSVs de impacto. Mantém a regra econômica da V220.
+
+
+## V223 — consolidação nominal do impacto e gate econômico
+
+```bash
+python scripts/diagnostico/auditar_impacto_contas_futuras_v223.py --real
+python scripts/diagnostico/auditar_gate_economico_aportes_v223.py --real
+python scripts/diagnostico/auditoria_final_pre_baseline_v223.py
+```
+
+
+## V224 — limpeza pré-release
+
+```bash
+python scripts/diagnostico/verificar_release_limpo.py
+```
+
+Esse comando remove `__pycache__`/`.pyc` e em seguida executa o release checker.
+
+
+## V225 — baseline funcional estável
+
+A V225 formaliza a promoção controlada da V224 para:
+
+```text
+BASELINE_FUNCIONAL_ESTAVEL_V225
+```
+
+Ela não altera motor nem regra econômica. A validação deve ser feita com:
+
+```bash
+python scripts/diagnostico/verificar_release_limpo.py
 ```
