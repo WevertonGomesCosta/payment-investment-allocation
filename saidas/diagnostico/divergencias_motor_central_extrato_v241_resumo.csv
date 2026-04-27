@@ -1,0 +1,6 @@
+versao,metrica,valor,percentual_sobre_total,fonte_de_verdade_operacional,precedencia_entre_camadas
+V241,status_execucao_core,NAO_EXECUTADO_POR_LIMITACAO_DO_CONECTOR_GITHUB,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,script_diagnostico_criado,SIM,100.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,comando_autorizado,python scripts/diagnostico/auditar_divergencias_motor_central_extrato_v241.py,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,total_pagamentos_auditados,NAO_APURADO_SEM_EXECUCAO,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
+V241,divergencias_quantificadas,NAO_APURADO_SEM_EXECUCAO,0.0,NAO_CONSOLIDADA,NAO_DEFINIDA
