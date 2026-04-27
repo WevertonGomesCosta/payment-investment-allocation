@@ -1,6 +1,6 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V217  
+**Pacote operacional atual:** V218  
 **Baseline funcional real de origem:** V208  
 **Artefatos V209–V215:** usados apenas como especificação metodológica, não como baseline funcional  
 **Baseline contratual vigente:** V183  
@@ -94,3 +94,20 @@ Comando principal:
 ```bash
 python scripts/diagnostico/auditar_impacto_contas_futuras_v217.py --real
 ```
+
+
+## V218 — correção canônica do cálculo de dias dos lotes
+
+A V218 usa a V217 como candidata diagnóstica e não promove baseline. A correção centraliza o cálculo de `Dias corridos` e `Dias úteis` dos lotes em `nucleo/calendario_financeiro.py`, usando a data de aplicação como início e a data atual/de referência da execução para lotes ativos.
+
+Comando de auditoria:
+
+```bash
+python scripts/diagnostico/auditar_calculo_dias_lotes_v218.py
+```
+
+Arquivos gerados:
+
+- `saidas/diagnostico/auditoria_calculo_dias_lotes_v218_real.csv`
+- `saidas/diagnostico/auditoria_lote_5680_abr_v218_real.csv`
+- `saidas/diagnostico/auditoria_calculo_dias_duplicacoes_v218.csv`

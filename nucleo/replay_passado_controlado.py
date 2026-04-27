@@ -26,7 +26,7 @@ from typing import Any, Optional
 
 import pandas as pd
 
-from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro, contar_dias_rendimento
+from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro, calcular_dias_lote
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
 from nucleo.nucleo_financeiro_minimo import (
     Lote,
@@ -432,6 +432,13 @@ def carregar_replay_passado_controlado(
                     lote.saldo_bruto = 0.0
                     lote.principal_remanescente = 0.0
                     lote.esgotado = True
+                idade_lote_log_v218 = calcular_dias_lote(
+                    lote.data_aplicacao,
+                    data_atual,
+                    calendario_financeiro,
+                    serie_cdi=serie_cdi,
+                    data_fechamento_referencia=data_atual,
+                )
                 log_registros.append({
                     'Data': data_atual,
                     'Despesa ID': conta.get('despesa_id'),
@@ -444,14 +451,8 @@ def carregar_replay_passado_controlado(
                     'Bruto': arredondar_monetario(movimento['bruto']),
                     'Imposto': arredondar_monetario(movimento['imposto']),
                     'Liquido': arredondar_monetario(liquido),
-                    'Dias Corridos': max((data_atual - lote.data_base_fiscal).days, 0),
-                    'Dias Úteis': 0 if data_atual < lote.data_aplicacao else contar_dias_rendimento(
-                        lote.data_base_fiscal,
-                        data_atual,
-                        calendario_financeiro,
-                        serie_cdi=serie_cdi,
-                        data_fechamento_referencia=data_atual,
-                    ),
+                    'Dias Corridos': idade_lote_log_v218['dias_corridos'],
+                    'Dias Úteis': idade_lote_log_v218['dias_uteis'],
                     'Fase Operacional Lote': 'caixa_pre_aplicacao' if lote.data_recebimento <= data_atual <= lote.data_aplicacao else 'aplicado',
                     'Saldo Remanescente': saldo_rem_log,
                     'Sequencia Saque': seq_mov,

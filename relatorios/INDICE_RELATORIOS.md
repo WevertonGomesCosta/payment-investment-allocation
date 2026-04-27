@@ -46,3 +46,9 @@
 - relatorios/atuais/VALIDACAO_LOCAL_V217.md
 
 - relatorios/atuais/AUDITORIA_CONSOLE_DIAGNOSTICO_V216.md
+
+- relatorios/atuais/CORRECAO_CALCULO_DIAS_LOTES_V218.md
+
+- relatorios/atuais/VALIDACAO_LOCAL_V218.md
+
+- relatorios/atuais/MATRIZ_MUDANCAS_V217_V218.csv

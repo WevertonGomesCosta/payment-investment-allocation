@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VERSAO_VIGENTE = "V217"
-VERSAO_ANTERIOR = "V216"
+VERSAO_VIGENTE = "V218"
+VERSAO_ANTERIOR = "V217"
 
 
 def repo_root() -> Path:
@@ -102,6 +102,9 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'relatorios/atuais/AUDITORIA_IMPACTO_CONTAS_FUTURAS_V217.md',
         'relatorios/atuais/VALIDACAO_LOCAL_V217.md',
         'scripts/diagnostico/auditar_impacto_contas_futuras_v217.py',
+        'relatorios/atuais/CORRECAO_CALCULO_DIAS_LOTES_V218.md',
+        'relatorios/atuais/VALIDACAO_LOCAL_V218.md',
+        'scripts/diagnostico/auditar_calculo_dias_lotes_v218.py',
     ]
     erros: list[str] = []
     for caminho in esperados:
@@ -305,6 +308,56 @@ def validar_integracao_aportes_futuros_v216(base: Path) -> list[str]:
 
     return erros
 
+
+def validar_calculo_dias_lotes_v218(base: Path) -> list[str]:
+    erros: list[str] = []
+
+    calendario = base / 'nucleo' / 'calendario_financeiro.py'
+    texto_cal = calendario.read_text(encoding='utf-8') if calendario.exists() else ''
+    for termo in [
+        'def contar_dias_corridos_lote',
+        'def contar_dias_uteis_lote',
+        'def calcular_dias_lote',
+        'data_aplicacao',
+    ]:
+        if termo not in texto_cal:
+            erros.append(f'calendario_sem_calculo_dias_v218: {termo}')
+
+    saida = base / 'nucleo' / 'saida_canonica.py'
+    texto_saida = saida.read_text(encoding='utf-8') if saida.exists() else ''
+    for termo in [
+        'from nucleo.calendario_financeiro import calcular_dias_lote',
+        'idade_lote_v218 = calcular_dias_lote',
+        'lote.data_aplicacao',
+        'data_base_tempo = data_referencia',
+    ]:
+        if termo not in texto_saida:
+            erros.append(f'saida_canonica_sem_calculo_dias_v218: {termo}')
+    if 'Dias corridos = max((data_base_tempo - lote.data_recebimento).days' in texto_saida:
+        erros.append('saida_canonica_ainda_usa_recebimento_para_dias_corridos')
+
+    replay = base / 'nucleo' / 'replay_passado_controlado.py'
+    texto_replay = replay.read_text(encoding='utf-8') if replay.exists() else ''
+    if 'idade_lote_log_v218 = calcular_dias_lote' not in texto_replay:
+        erros.append('replay_sem_calculo_dias_v218')
+    if "'Dias Corridos': max((data_atual - lote.data_base_fiscal).days" in texto_replay:
+        erros.append('replay_ainda_usa_base_fiscal_para_dias_corridos')
+
+    auditoria = base / 'scripts' / 'auditoria' / 'gerar_auditoria_diaria_lote.py'
+    texto_auditoria = auditoria.read_text(encoding='utf-8') if auditoria.exists() else ''
+    if 'idade_lote_v218 = calcular_dias_lote' not in texto_auditoria:
+        erros.append('auditoria_diaria_lote_sem_calculo_dias_v218')
+    if 'def _contar_dias_uteis_economicos_lote' in texto_auditoria:
+        erros.append('auditoria_diaria_lote_ainda_tem_funcao_local_dias_uteis')
+
+    diag = base / 'scripts' / 'diagnostico' / 'auditar_calculo_dias_lotes_v218.py'
+    texto_diag = diag.read_text(encoding='utf-8') if diag.exists() else ''
+    if 'auditoria_lote_5680_abr_v218_real.csv' not in texto_diag:
+        erros.append('diagnostico_v218_sem_auditoria_lote_5680_abr')
+
+    return erros
+
+
 def main() -> int:
     base = repo_root()
     erros = []
@@ -315,6 +368,7 @@ def main() -> int:
     erros.extend(validar_governanca_scripts_v204(base))
     erros.extend(validar_governanca_estrutural_v206(base))
     erros.extend(validar_integracao_aportes_futuros_v216(base))
+    erros.extend(validar_calculo_dias_lotes_v218(base))
     artefatos = coletar_artefatos_efemeros(base)
     if artefatos:
         erros.extend(f'artefato_efemero_presente: {item}' for item in artefatos)

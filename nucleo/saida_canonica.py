@@ -13,7 +13,7 @@ from typing import Any
 
 import pandas as pd
 
-from nucleo.calendario_financeiro import contar_dias_rendimento, proximo_dia_util_bancario_em_ou_apos
+from nucleo.calendario_financeiro import calcular_dias_lote, proximo_dia_util_bancario_em_ou_apos
 from nucleo.contexto_baseline import obter_limiar_residuo_resolvido
 from nucleo.nucleo_financeiro_minimo import executar_saque_lote
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
@@ -522,15 +522,27 @@ def _construir_lotes_situacao(contexto: Any) -> tuple[list[dict[str, Any]], list
             saldo_liquido = round(float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0), 2)
         saldo_rem = round(float(getattr(lote, 'principal_remanescente', 0.0) or 0.0), 2)
         ultimo_uso_txt = _ultimo_uso_lote(lote.id)
+        exaurido = bool(lote.esgotado or saldo_bruto <= limiar or saldo_liquido <= limiar or saldo_rem <= limiar)
+
+        # V218: para lotes ativos, a idade do investimento deve usar a data
+        # atual/de referência da execução; para lotes exauridos, preserva-se a
+        # data do último uso como referência histórica. Em ambos os casos, a
+        # contagem parte da data de aplicação, nunca da data de recebimento.
         data_base_tempo = data_referencia
-        if ultimo_uso_txt:
+        if exaurido and ultimo_uso_txt:
             try:
                 data_base_tempo = date.fromisoformat(str(ultimo_uso_txt))
             except Exception:
                 data_base_tempo = data_referencia
-        dias_corridos = max((data_base_tempo - lote.data_recebimento).days, 0)
-        dias_uteis = 0 if data_base_tempo < lote.data_aplicacao else contar_dias_rendimento(lote.data_base_fiscal, data_base_tempo, cal, serie_cdi=serie_cdi, data_fechamento_referencia=min(data_referencia, data_base_tempo))
-        exaurido = bool(lote.esgotado or saldo_bruto <= limiar or saldo_liquido <= limiar or saldo_rem <= limiar)
+        idade_lote_v218 = calcular_dias_lote(
+            lote.data_aplicacao,
+            data_base_tempo,
+            cal,
+            serie_cdi=serie_cdi,
+            data_fechamento_referencia=data_base_tempo,
+        )
+        dias_corridos = idade_lote_v218["dias_corridos"]
+        dias_uteis = idade_lote_v218["dias_uteis"]
         saldo_bruto_exib, saldo_liquido_exib, saldo_rem_exib = normalizar_valores_situacao_atual_exaurida(saldo_bruto=saldo_bruto, saldo_liquido=saldo_liquido, saldo_rem=saldo_rem, exaurido=exaurido)
         linha = {
             'Lote': lote.id,

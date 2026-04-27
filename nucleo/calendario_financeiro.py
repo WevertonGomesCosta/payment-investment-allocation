@@ -315,3 +315,82 @@ def contar_dias_rendimento(
             dias += 1
         atual += timedelta(days=1)
     return dias
+
+def _coagir_data_calculo_dias_v218(valor: Any) -> date:
+    """Normaliza datas usadas nos contadores canônicos de idade de lote.
+
+    A V218 centraliza o cálculo de dias corridos e dias úteis para evitar que
+    console, planilha, replay e auditorias usem bases diferentes
+    (recebimento, aplicação, último uso ou data de referência).
+    """
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    try:
+        return datetime.fromisoformat(str(valor)[:10]).date()
+    except Exception as erro:
+        raise ValueError(f"data inválida para cálculo de dias de lote: {valor!r}") from erro
+
+
+def contar_dias_corridos_lote(data_aplicacao: date, data_referencia: date) -> int:
+    """Conta dias corridos de idade do lote sempre a partir da aplicação.
+
+    Regra V218:
+    - lotes ativos: usar a data atual/de referência da execução;
+    - lotes exauridos: o chamador pode usar a data do último uso;
+    - a data de recebimento não deve entrar no cálculo de idade do investimento.
+    """
+    inicio = _coagir_data_calculo_dias_v218(data_aplicacao)
+    fim = _coagir_data_calculo_dias_v218(data_referencia)
+    return max((fim - inicio).days, 0)
+
+
+def contar_dias_uteis_lote(
+    data_aplicacao: date,
+    data_referencia: date,
+    pacote: PacoteCalendarioFinanceiro,
+    serie_cdi: Optional[Mapping[date, Any]] = None,
+    *,
+    data_fechamento_referencia: Optional[date] = None,
+) -> int:
+    """Conta dias úteis/de rendimento do lote a partir da aplicação.
+
+    A aplicação não rende no dia 0. A contagem começa no dia seguinte à
+    aplicação e vai até a data de referência inclusiva, usando a mesma regra de
+    rendimento/CDI da camada financeira central.
+    """
+    inicio = _coagir_data_calculo_dias_v218(data_aplicacao)
+    fim = _coagir_data_calculo_dias_v218(data_referencia)
+    if fim <= inicio:
+        return 0
+    fechamento = _coagir_data_calculo_dias_v218(data_fechamento_referencia) if data_fechamento_referencia is not None else fim
+    return contar_dias_rendimento(
+        inicio,
+        fim,
+        pacote,
+        serie_cdi=serie_cdi,
+        data_fechamento_referencia=fechamento,
+    )
+
+
+def calcular_dias_lote(
+    data_aplicacao: date,
+    data_referencia: date,
+    pacote: PacoteCalendarioFinanceiro,
+    serie_cdi: Optional[Mapping[date, Any]] = None,
+    *,
+    data_fechamento_referencia: Optional[date] = None,
+) -> dict[str, int]:
+    """Retorna os contadores canônicos V218 para identificação temporal de lote."""
+    return {
+        "dias_corridos": contar_dias_corridos_lote(data_aplicacao, data_referencia),
+        "dias_uteis": contar_dias_uteis_lote(
+            data_aplicacao,
+            data_referencia,
+            pacote,
+            serie_cdi=serie_cdi,
+            data_fechamento_referencia=data_fechamento_referencia,
+        ),
+    }
+

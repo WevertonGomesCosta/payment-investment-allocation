@@ -15,7 +15,7 @@ if str(RAIZ) not in sys.path:
 
 from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
 from nucleo.identidade_baseline import caminho_saida_diagnostico, nome_auditoria_diaria_lote
-from nucleo.calendario_financeiro import obter_taxa_dia_rendimento_lote
+from nucleo.calendario_financeiro import calcular_dias_lote, obter_taxa_dia_rendimento_lote
 from nucleo.nucleo_financeiro_minimo import criar_lote_de_aporte, Lote
 from nucleo.utilitarios_neutros import arredondar_monetario
 
@@ -69,26 +69,6 @@ def _carregar_contexto() -> ContextoAuditoria:
     )
 
 
-def _contar_dias_uteis_economicos_lote(lote: Lote, data_fim: date, contexto: ContextoAuditoria) -> int:
-    if data_fim <= lote.data_aplicacao:
-        return 0
-    dias = 0
-    atual = lote.data_aplicacao + timedelta(days=1)
-    while atual <= data_fim:
-        aplica, _, _ = obter_taxa_dia_rendimento_lote(
-            atual,
-            lote.data_aplicacao,
-            contexto.calendario,
-            data_recebimento=lote.data_recebimento,
-            serie_cdi=contexto.serie_cdi,
-            taxa_proj=float(contexto.calendario.taxa_dia_base),
-            data_fechamento_referencia=contexto.data_referencia,
-        )
-        if aplica:
-            dias += 1
-        atual += timedelta(days=1)
-    return dias
-
 
 def _normalizar_str(v: Any) -> str:
     return '' if v is None else str(v)
@@ -133,8 +113,15 @@ def gerar_auditoria_diaria_lote(lote_id: str) -> pd.DataFrame:
         saldo_abertura_liquido = arredondar_monetario(
             float(lote_base.valor_liquido_hoje(atual, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir))
         )
-        dias_corridos = max((atual - lote_base.data_aplicacao).days, 0)
-        dias_uteis = _contar_dias_uteis_economicos_lote(lote_base, atual, contexto)
+        idade_lote_v218 = calcular_dias_lote(
+            lote_base.data_aplicacao,
+            atual,
+            contexto.calendario,
+            serie_cdi=contexto.serie_cdi,
+            data_fechamento_referencia=contexto.data_referencia,
+        )
+        dias_corridos = idade_lote_v218["dias_corridos"]
+        dias_uteis = idade_lote_v218["dias_uteis"]
 
         aplica, taxa_dia, meta = obter_taxa_dia_rendimento_lote(
             atual,
