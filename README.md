@@ -1,6 +1,6 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V218  
+**Pacote operacional atual:** V219  
 **Baseline funcional real de origem:** V208  
 **Artefatos V209–V215:** usados apenas como especificação metodológica, não como baseline funcional  
 **Baseline contratual vigente:** V183  
@@ -111,3 +111,20 @@ Arquivos gerados:
 - `saidas/diagnostico/auditoria_calculo_dias_lotes_v218_real.csv`
 - `saidas/diagnostico/auditoria_lote_5680_abr_v218_real.csv`
 - `saidas/diagnostico/auditoria_calculo_dias_duplicacoes_v218.csv`
+
+
+## V219 — reprodutibilidade dos dias e idade fiscal centralizada
+
+A V219 usa a V218 como candidata diagnóstica e não promove baseline. Ela mantém `calcular_dias_lote(...)` como fonte única dos campos visuais `Dias corridos`/`Dias úteis` e cria `nucleo/fiscal_lotes.py` para centralizar a idade fiscal usada pelo alocador.
+
+Comando de auditoria:
+
+```bash
+python scripts/diagnostico/auditar_calculo_dias_lotes_v219.py
+```
+
+Comando de release:
+
+```bash
+python scripts/diagnostico/verificar_release_baseline.py
+```

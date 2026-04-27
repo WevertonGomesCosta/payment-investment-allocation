@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 from typing import Any, Iterable
 
+from nucleo.fiscal_lotes import aliquota_ir_regressiva_renda_fixa, calcular_idade_fiscal_lote
 from nucleo.pagamentos.modelos_script1.heuristicas_fase1 import (
     avaliar_heuristicas_fase1_por_fonte,
     carregar_parametros_fase1,
@@ -188,15 +189,8 @@ def _estimar_custo_fiscal_lote(bruto: dict[str, Any], valor_utilizado: float, da
     if ganho_total <= 0.0:
         return 0.0
     data_aplicacao = _coerce_date(bruto.get('data_aplicacao') or bruto.get('data_recebimento'))
-    dias = max(((data_pagamento or data_aplicacao or date.today()) - (data_aplicacao or (data_pagamento or date.today()))).days, 0)
-    if dias <= 180:
-        aliquota = 0.225
-    elif dias <= 360:
-        aliquota = 0.20
-    elif dias <= 720:
-        aliquota = 0.175
-    else:
-        aliquota = 0.15
+    dias = calcular_idade_fiscal_lote(data_aplicacao, data_pagamento)
+    aliquota = aliquota_ir_regressiva_renda_fixa(dias)
     ganho_utilizado = ganho_total * _proporcao_utilizada(valor_utilizado, valor_total)
     return round(max(ganho_utilizado * aliquota, 0.0), 2)
 

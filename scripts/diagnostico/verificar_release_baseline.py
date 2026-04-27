@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VERSAO_VIGENTE = "V218"
-VERSAO_ANTERIOR = "V217"
+VERSAO_VIGENTE = "V219"
+VERSAO_ANTERIOR = "V218"
 
 
 def repo_root() -> Path:
@@ -105,6 +105,10 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'relatorios/atuais/CORRECAO_CALCULO_DIAS_LOTES_V218.md',
         'relatorios/atuais/VALIDACAO_LOCAL_V218.md',
         'scripts/diagnostico/auditar_calculo_dias_lotes_v218.py',
+        'scripts/diagnostico/auditar_calculo_dias_lotes_v219.py',
+        'nucleo/fiscal_lotes.py',
+        'relatorios/atuais/CORRECAO_REPRODUTIBILIDADE_DIAS_LOTES_V219.md',
+        'relatorios/atuais/VALIDACAO_LOCAL_V219.md',
     ]
     erros: list[str] = []
     for caminho in esperados:
@@ -358,6 +362,47 @@ def validar_calculo_dias_lotes_v218(base: Path) -> list[str]:
     return erros
 
 
+
+def validar_calculo_dias_e_fiscal_v219(base: Path) -> list[str]:
+    erros: list[str] = []
+
+    fiscal = base / 'nucleo' / 'fiscal_lotes.py'
+    texto_fiscal = fiscal.read_text(encoding='utf-8') if fiscal.exists() else ''
+    for termo in [
+        'def calcular_idade_fiscal_lote',
+        'def aliquota_ir_regressiva_renda_fixa',
+        'def calcular_aliquota_ir_lote',
+    ]:
+        if termo not in texto_fiscal:
+            erros.append(f'fiscal_lotes_sem_funcao_v219: {termo}')
+
+    alocador = base / 'nucleo' / 'alocador_pagamentos_terminal_v1.py'
+    texto_alocador = alocador.read_text(encoding='utf-8') if alocador.exists() else ''
+    for termo in [
+        'from nucleo.fiscal_lotes import aliquota_ir_regressiva_renda_fixa, calcular_idade_fiscal_lote',
+        'dias = calcular_idade_fiscal_lote(data_aplicacao, data_pagamento)',
+        'aliquota = aliquota_ir_regressiva_renda_fixa(dias)',
+    ]:
+        if termo not in texto_alocador:
+            erros.append(f'alocador_sem_idade_fiscal_central_v219: {termo}')
+    if 'date.today()' in texto_alocador:
+        erros.append('alocador_ainda_usa_date_today_para_idade_fiscal')
+    if "if dias <= 180:\n        aliquota = 0.225" in texto_alocador:
+        erros.append('alocador_ainda_tem_faixa_ir_local')
+
+    diag = base / 'scripts' / 'diagnostico' / 'auditar_calculo_dias_lotes_v219.py'
+    texto_diag = diag.read_text(encoding='utf-8') if diag.exists() else ''
+    for termo in [
+        'auditoria_calculo_dias_lotes_v219_real.csv',
+        'auditoria_lote_5680_abr_v219_real.csv',
+        'auditoria_idade_fiscal_lotes_v219_real.csv',
+        'calculo_dias_e_idade_fiscal_canonico_v219_validado',
+    ]:
+        if termo not in texto_diag:
+            erros.append(f'diagnostico_v219_incompleto: {termo}')
+
+    return erros
+
 def main() -> int:
     base = repo_root()
     erros = []
@@ -369,6 +414,7 @@ def main() -> int:
     erros.extend(validar_governanca_estrutural_v206(base))
     erros.extend(validar_integracao_aportes_futuros_v216(base))
     erros.extend(validar_calculo_dias_lotes_v218(base))
+    erros.extend(validar_calculo_dias_e_fiscal_v219(base))
     artefatos = coletar_artefatos_efemeros(base)
     if artefatos:
         erros.extend(f'artefato_efemero_presente: {item}' for item in artefatos)

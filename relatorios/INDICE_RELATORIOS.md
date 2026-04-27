@@ -52,3 +52,7 @@
 - relatorios/atuais/VALIDACAO_LOCAL_V218.md
 
 - relatorios/atuais/MATRIZ_MUDANCAS_V217_V218.csv
+
+- `relatorios/atuais/CORRECAO_REPRODUTIBILIDADE_DIAS_LOTES_V219.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V219.md`
+- `relatorios/atuais/MATRIZ_MUDANCAS_V218_V219.csv`
