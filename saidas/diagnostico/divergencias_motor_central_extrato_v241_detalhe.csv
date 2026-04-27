@@ -1,0 +1,2 @@
+status,erro,traceback,fonte_de_verdade_operacional,precedencia_entre_camadas
+NAO_EXECUTADO_POR_LIMITACAO_DO_CONECTOR_GITHUB,Conector GitHub disponível nesta sessão não executa processos remotos; script criado e comando autorizado registrado; execução deve ocorrer em ambiente local ou CI.,,NAO_CONSOLIDADA,NAO_DEFINIDA
