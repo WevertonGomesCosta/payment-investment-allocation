@@ -1,6 +1,6 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V216  
+**Pacote operacional atual:** V217  
 **Baseline funcional real de origem:** V208  
 **Artefatos V209–V215:** usados apenas como especificação metodológica, não como baseline funcional  
 **Baseline contratual vigente:** V183  
@@ -82,4 +82,15 @@ Para auditar especificamente a V216:
 
 ```bash
 python scripts/diagnostico/inspecionar_aportes_planejados_v216.py
+```
+
+
+## V217 — auditoria de impacto sobre contas futuras reais
+
+A V217 usa a V216 como candidata funcional e abre a etapa de comparação real com/sem aportes planejados antes de qualquer promoção formal de baseline.
+
+Comando principal:
+
+```bash
+python scripts/diagnostico/auditar_impacto_contas_futuras_v217.py --real
 ```

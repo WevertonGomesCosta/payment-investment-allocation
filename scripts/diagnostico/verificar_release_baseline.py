@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VERSAO_VIGENTE = "V208"
-VERSAO_ANTERIOR = "V207"
+VERSAO_VIGENTE = "V217"
+VERSAO_ANTERIOR = "V216"
 
 
 def repo_root() -> Path:
@@ -95,6 +95,13 @@ def validar_caminhos_canonicos(base: Path) -> list[str]:
         'relatorios/atuais/MAPA_CENTRALIZACAO_HELPERS_V206.csv',
         'relatorios/atuais/HOTFIX_UTILITARIOS_SERIES_V207.md',
         'relatorios/atuais/CORRECAO_SALDOS_FUTUROS_LOTES_V208.md',
+        'relatorios/atuais/INTEGRACAO_FUNCIONAL_APORTES_FUTUROS_V216.md',
+        'nucleo/aportes_futuros_planejados.py',
+        'scripts/diagnostico/inspecionar_aportes_planejados_v216.py',
+        'relatorios/atuais/AUDITORIA_CONSOLE_DIAGNOSTICO_V216.md',
+        'relatorios/atuais/AUDITORIA_IMPACTO_CONTAS_FUTURAS_V217.md',
+        'relatorios/atuais/VALIDACAO_LOCAL_V217.md',
+        'scripts/diagnostico/auditar_impacto_contas_futuras_v217.py',
     ]
     erros: list[str] = []
     for caminho in esperados:
@@ -229,6 +236,75 @@ def validar_governanca_estrutural_v206(base: Path) -> list[str]:
         erros.append('relatorio_v202_nao_movido_para_historico')
     return erros
 
+
+def validar_integracao_aportes_futuros_v216(base: Path) -> list[str]:
+    erros: list[str] = []
+
+    modulo = base / 'nucleo' / 'aportes_futuros_planejados.py'
+    texto_modulo = modulo.read_text(encoding='utf-8') if modulo.exists() else ''
+    for termo in [
+        'def materializar_aportes_planejados_v216',
+        'STATUS_PROMOVIVEL_V216',
+        'valor_recebido = valor_pago_com_recebido + valor_aportado + saldo_caixa_remanescente',
+        'recebido_id_origem',
+    ]:
+        if termo not in texto_modulo:
+            erros.append(f'aportes_v216_modulo_sem_termo: {termo}')
+
+    simulador = base / 'nucleo' / 'simulador_central_eventos_v1.py'
+    texto_simulador = simulador.read_text(encoding='utf-8') if simulador.exists() else ''
+    for termo in [
+        'from nucleo.aportes_futuros_planejados import materializar_aportes_planejados_v216',
+        'materializar_aportes_planejados_v216(estado, data_atual, config, historico)',
+        'auditoria_aportes_planejados_v216',
+        'integracao_integral_multidestino_v216',
+    ]:
+        if termo not in texto_simulador:
+            erros.append(f'simulador_sem_integracao_aportes_v216: {termo}')
+
+    alocador = base / 'nucleo' / 'alocador_pagamentos_terminal_v1.py'
+    texto_alocador = alocador.read_text(encoding='utf-8') if alocador.exists() else ''
+    for termo in [
+        "liquidez_ate = _coerce_date",
+        "origem_aporte_planejado_v216",
+        "recebido_id_origem_v216",
+        "'status': 'funcional_v216'",
+    ]:
+        if termo not in texto_alocador:
+            erros.append(f'alocador_sem_consumo_aporte_v216: {termo}')
+
+    builder = base / 'nucleo' / 'builders' / 'simulador_central_estado_v117.py'
+    texto_builder = builder.read_text(encoding='utf-8') if builder.exists() else ''
+    for termo in [
+        'valor_recebido_original_v216',
+        'valor_pago_com_recebido_v216',
+        'saldo_caixa_remanescente_v216',
+    ]:
+        if termo not in texto_builder:
+            erros.append(f'builder_sem_campos_invariante_v216: {termo}')
+
+    diagnostico = base / 'scripts' / 'diagnostico' / 'inspecionar_aportes_planejados_v216.py'
+    texto_diag = diagnostico.read_text(encoding='utf-8') if diagnostico.exists() else ''
+    if 'simular_cenario_eventos_v1' not in texto_diag or 'to_csv' not in texto_diag:
+        erros.append('diagnostico_aportes_v216_nao_executavel_ou_sem_saida_csv')
+
+    for stub in [
+        'scripts/auditoria/gerar_auditoria_recebidos_aportes_futuros.py',
+        'scripts/auditoria/gerar_politica_elegibilidade_aportes_futuros.py',
+        'scripts/auditoria/gerar_transicao_aportes_futuros_planejados.py',
+        'scripts/auditoria/gerar_estado_temporal_aportes_planejados_v212.py',
+        'scripts/auditoria/gerar_simulacao_cenarios_aportes_planejados_v213.py',
+        'scripts/auditoria/gerar_auditoria_liquidez_carencia_aportes_planejados_v214.py',
+        'scripts/auditoria/gerar_integracao_controlada_aportes_planejados_v215.py',
+    ]:
+        caminho = base / stub
+        if caminho.exists():
+            texto_stub = caminho.read_text(encoding='utf-8')
+            if 'Use os CSVs e relatórios já materializados' in texto_stub or 'Script reconstruído' in texto_stub:
+                erros.append(f'stub_reconstruido_v209_v215_presente: {stub}')
+
+    return erros
+
 def main() -> int:
     base = repo_root()
     erros = []
@@ -238,6 +314,7 @@ def main() -> int:
     erros.extend(validar_governanca_scripts_v203(base))
     erros.extend(validar_governanca_scripts_v204(base))
     erros.extend(validar_governanca_estrutural_v206(base))
+    erros.extend(validar_integracao_aportes_futuros_v216(base))
     artefatos = coletar_artefatos_efemeros(base)
     if artefatos:
         erros.extend(f'artefato_efemero_presente: {item}' for item in artefatos)

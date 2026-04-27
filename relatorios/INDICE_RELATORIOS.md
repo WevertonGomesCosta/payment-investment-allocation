@@ -41,3 +41,8 @@
 - `relatorios/atuais/INTEGRACAO_FUNCIONAL_APORTES_FUTUROS_V216.md` — integração funcional V216 de recebidos futuros, reserva, aporte planejado, invariante e consumo no motor.
 - `relatorios/atuais/VALIDACAO_LOCAL_V216.md` — validação local mínima da V216.
 - `relatorios/atuais/MATRIZ_MUDANCAS_V208_V216.csv` — matriz de arquivos adicionados/modificados entre V208 e V216.
+
+- relatorios/atuais/AUDITORIA_IMPACTO_CONTAS_FUTURAS_V217.md
+- relatorios/atuais/VALIDACAO_LOCAL_V217.md
+
+- relatorios/atuais/AUDITORIA_CONSOLE_DIAGNOSTICO_V216.md
