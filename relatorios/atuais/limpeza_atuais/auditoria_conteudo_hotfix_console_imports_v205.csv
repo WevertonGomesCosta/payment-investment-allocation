@@ -1,0 +1,36 @@
+ordem,linha_alvo,prioridade,classe_cobertura,score,risco_remocao,melhor_fonte,melhor_trecho_fonte
+1,# HOTFIX_CONSOLE_IMPORTS_V205,ALTA,COBERTA_EXATA,1.0,RISCO_BAIXO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,# HOTFIX_CONSOLE_IMPORTS_V205
+2,Status: APLICADO,BAIXA,COBERTA_FRACA_PARCIAL,0.667,RISCO_BAIXO_A_MEDIO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,## Escopo aplicado
+3,Base fixa: V204,BAIXA,COBERTA_FRACA_PARCIAL,0.667,RISCO_BAIXO_A_MEDIO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,- Base funcional fixa de origem: **V200**
+4,Nova versão: V205,BAIXA,COBERTA_FRACA_PARCIAL,0.476,RISCO_BAIXO_A_MEDIO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,# Governança estrutural V206
+5,## Motivo,MEDIA,NAO_COBERTA,0.435,RISCO_MEDIO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,- motor econômico;
+6,Ao executar:,BAIXA,COBERTA_FORTE_PARCIAL,1.0,RISCO_BAIXO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,A V206 foi aberta a partir da V205 para executar apenas ajustes documentais e estruturais de baixo risco:
+7,python aplicacao/principal.py,ALTA,COBERTA_FRACA_PARCIAL,0.455,RISCO_ALTO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,## Escopo aplicado
+8,a V204 falhava com:,ALTA,NAO_COBERTA,0.378,RISCO_ALTO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,Não foram alterados:
+9,NameError: name 'construir_tabela_iof' is not defined,ALTA,NAO_COBERTA,0.411,RISCO_ALTO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,- Contrato mestre vigente: **CONTRATO_OPERACIONAL_PROJETO.md**
+10,## Causa,MEDIA,COBERTA_FRACA_PARCIAL,0.545,RISCO_BAIXO_A_MEDIO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,## Status
+11,"Durante a limpeza final de governança da V204, o console teve código morto removido e imports foram reduzidos. Porém, a função ativa:",ALTA,NAO_COBERTA,0.339,RISCO_ALTO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,"Essa centralização é estrutural. Ela não altera regra econômica, motor, contrato, modelo oficial nem recebidos/aportes futuros."
+12,_preparar_auditoria_detalhada_residuos(...),BAIXA,COBERTA_FRACA_PARCIAL,0.513,RISCO_BAIXO_A_MEDIO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,- `AUDITORIA_LIMPEZA_RESIDUAL_V201.md`
+13,continua usando:,BAIXA,NAO_COBERTA,0.438,RISCO_MEDIO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,- contrato mestre;
+14,construir_tabela_iof(...),BAIXA,COBERTA_FRACA_PARCIAL,0.5,RISCO_BAIXO_A_MEDIO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,"Console e planilha operacional devem consumir `construir_saida_canonica(...)`, evitando recálculo paralelo de saldo, líquido, imposto, residual, switching e amostras financeiras."
+15,construir_faixas_ir(...),BAIXA,COBERTA_FRACA_PARCIAL,0.5,RISCO_BAIXO_A_MEDIO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,"Console e planilha operacional devem consumir `construir_saida_canonica(...)`, evitando recálculo paralelo de saldo, líquido, imposto, residual, switching e amostras financeiras."
+16,Essas funções não estavam mais importadas em:,ALTA,NAO_COBERTA,0.429,RISCO_ALTO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,## V216 — frente funcional de aportes futuros
+17,aplicacao/console/principal.py,ALTA,COBERTA_FRACA_PARCIAL,0.491,RISCO_ALTO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,SEM_ALTERACAO_ECONOMICA
+18,## Correção aplicada,MEDIA,COBERTA_FRACA_PARCIAL,0.688,RISCO_BAIXO_A_MEDIO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,## Escopo aplicado
+19,Foi restaurado somente o import explícito:,ALTA,NAO_COBERTA,0.395,RISCO_ALTO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,## V216 — frente funcional de aportes futuros
+20,"from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabela_iof",ALTA,NAO_COBERTA,0.299,RISCO_ALTO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,"Console e planilha operacional devem consumir `construir_saida_canonica(...)`, evitando recálculo paralelo de saldo, líquido, imposto, residual, switching e amostras financeiras."
+21,## Escopo preservado,MEDIA,COBERTA_FRACA_PARCIAL,0.688,RISCO_BAIXO_A_MEDIO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,## Escopo aplicado
+22,Não foi alterado:,BAIXA,COBERTA_FORTE_PARCIAL,0.857,RISCO_BAIXO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,Não foram alterados:
+23,- motor principal;,ALTA,COBERTA_FRACA_PARCIAL,0.588,RISCO_ALTO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,- motor econômico;
+24,- contrato mestre;,BAIXA,COBERTA_EXATA,1.0,RISCO_BAIXO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,- contrato mestre;
+25,- modelo matemático-estatístico-financeiro;,BAIXA,COBERTA_EXATA,1.0,RISCO_BAIXO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,- modelo matemático-estatístico-financeiro;
+26,- regra de pagamentos;,BAIXA,COBERTA_EXATA,1.0,RISCO_BAIXO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,- regra de pagamentos;
+27,- regra de switching;,BAIXA,COBERTA_EXATA,1.0,RISCO_BAIXO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,- regra de switching;
+28,- regra de recebidos/aportes futuros;,BAIXA,COBERTA_EXATA,1.0,RISCO_BAIXO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,- regra de recebidos/aportes futuros;
+29,- camada canônica de saída.,BAIXA,COBERTA_FORTE_PARCIAL,0.833,RISCO_BAIXO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,## Camada única de saída
+30,## Validação,MEDIA,COBERTA_FRACA_PARCIAL,0.5,RISCO_BAIXO_A_MEDIO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,## Escopo aplicado
+31,- análise estática da função: sem nomes globais indefinidos;,BAIXA,NAO_COBERTA,0.4,RISCO_MEDIO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,- `ESPECIFICACAO_SAIDA_OFICIAL.md`
+32,- sintaxe Python dos arquivos `.py`: OK;,BAIXA,NAO_COBERTA,0.376,RISCO_MEDIO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,- Baseline pós-hotfix imediatamente anterior: **V205**
+33,- release checker: OK — V205.,ALTA,COBERTA_FRACA_PARCIAL,0.48,RISCO_ALTO,relatorios\atuais\LEIA-ME_OPERACIONAL.md,# LEIA-ME operacional — V208
+34,## Classificação,MEDIA,NAO_COBERTA,0.429,RISCO_MEDIO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,## Escopo aplicado
+35,HOTFIX_SEM_ALTERACAO_ECONOMICA,ALTA,COBERTA_FORTE_PARCIAL,0.868,RISCO_BAIXO,relatorios\atuais\GOVERNANCA_ESTRUTURAL_V206.md,SEM_ALTERACAO_ECONOMICA
