@@ -545,7 +545,21 @@
     "aba_carteira_final": "Carteira Final",
     "aba_resumo": "Resumo",
     "aba_situacao_atual": "Situacao Atual",
-    "template_arquivo_resultado_estrategia": "resultado_{estrategia}_{modo}.xlsx"
+    "template_arquivo_resultado_estrategia": "resultado_{estrategia}_{modo}.xlsx",
+    "planilha_operacional": {
+      "arquivo": "relatorio_operacional_{versao_slug}.xlsx",
+      "abas": {
+        "extrato_passado": "Extrato Passado",
+        "extrato_futuro": "Extrato Futuro",
+        "switching": "Switching",
+        "carteira": "Carteira",
+        "top30": "Top30",
+        "resumo_switching": "Resumo Switching",
+        "validacao": "Validacao",
+        "situacao_atual": "Situação Atual",
+        "saida_canonica": "Saida Canonica"
+      }
+    }
   },
   "urls": {
     "google_sheets_export_base": "https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx",
