@@ -35,6 +35,41 @@ def _carregar_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def _obter_bloco_ranking_config(config: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    if not isinstance(config, Mapping):
+        return {}
+    bloco = config.get('ranking_carteira')
+    return bloco if isinstance(bloco, Mapping) else {}
+
+
+def _resolver_contrato_e_parametros_ranking(
+    raiz: Path,
+    config: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, str]]:
+    bloco = _obter_bloco_ranking_config(config)
+    contrato_cfg = bloco.get('contract')
+    parametros_cfg = bloco.get('fixed_parameters')
+
+    if isinstance(contrato_cfg, Mapping) and contrato_cfg:
+        contrato = dict(contrato_cfg)
+        origem_contrato = 'dados/config_atualizado.json::ranking_carteira.contract'
+    else:
+        contrato = _carregar_json(raiz / 'config' / 'carteira_contract_v123.json')
+        origem_contrato = 'config/carteira_contract_v123.json'
+
+    if isinstance(parametros_cfg, Mapping) and parametros_cfg:
+        parametros = dict(parametros_cfg)
+        origem_parametros = 'dados/config_atualizado.json::ranking_carteira.fixed_parameters'
+    else:
+        parametros = _carregar_json(raiz / 'config' / 'fixed_parameters_ranking_carteira.json')
+        origem_parametros = 'config/fixed_parameters_ranking_carteira.json'
+
+    return contrato, parametros, {
+        'contract_source': origem_contrato,
+        'fixed_parameters_source': origem_parametros,
+    }
+
+
 def _bool_sim(valor: Any) -> bool:
     texto = str(valor or '').strip().lower()
     return texto in {'sim', 'true', '1', 's'}
@@ -83,10 +118,10 @@ def carregar_ranking_carteira_estabilizado(
     carteira_canonica: PacoteCarteiraCanonica,
     *,
     raiz_repositorio: Path | None = None,
+    config: Mapping[str, Any] | None = None,
 ) -> PacoteRankingCarteiraEstabilizado:
     raiz = _repo_root(raiz_repositorio)
-    contrato = _carregar_json(raiz / 'config' / 'carteira_contract_v123.json')
-    parametros = _carregar_json(raiz / 'config' / 'fixed_parameters_ranking_carteira.json')
+    contrato, parametros, origem_config = _resolver_contrato_e_parametros_ranking(raiz, config)
 
     nome_aba = str(contrato.get('sheet_name') or 'Carteira')
     if nome_aba not in pacote_planilha.quadros_brutos:
@@ -188,8 +223,10 @@ def carregar_ranking_carteira_estabilizado(
         'penalidade_prazo_interna': True,
         'qtd_destinos_switch': int(len(destinos)),
         'destino_top1': None if len(destinos) == 0 else str(destinos.iloc[0]['nome']),
-        'contract_file': 'config/carteira_contract_v123.json',
-        'fixed_parameters_file': 'config/fixed_parameters_ranking_carteira.json',
+        'contract_file': origem_config['contract_source'],
+        'fixed_parameters_file': origem_config['fixed_parameters_source'],
+        'contract_fallback_file': 'config/carteira_contract_v123.json',
+        'fixed_parameters_fallback_file': 'config/fixed_parameters_ranking_carteira.json',
     }
     validacao = {
         'colunas': validacao_colunas,
