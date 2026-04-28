@@ -1,2 +1,5 @@
-C:\Users\Weverton\OneDrive\GitHub\payment-investment-allocation\.venv\Scripts\python.exe
-1.17.1
+[fonte] evidência local/CI informada pelo usuário (Git Bash/Windows com .venv)
+which python => .venv/Scripts/python
+sys.executable => .venv/Scripts/python.exe
+python -m pip install -r requirements.txt => sucesso
+python -c "import scipy; print(scipy.__version__)" => 1.17.1

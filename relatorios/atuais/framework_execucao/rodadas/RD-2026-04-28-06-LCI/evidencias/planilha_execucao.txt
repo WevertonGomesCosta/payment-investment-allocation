@@ -1,1 +1,5 @@
-C:\Users\Weverton\OneDrive\GitHub\payment-investment-allocation\saidas\oficial\relatorio_operacional_v225.xlsx
+[fonte] evidência local/CI informada pelo usuário
+python scripts/operacional/gerar_planilha_operacional.py => executou sem erro fatal
+Planilha gerada em: saidas/oficial/relatorio_operacional_v225.xlsx
+Achado observado:
+- lote "Lote 6630,64 fev." aparece como exaurido com Bruto=0.00, Líquido=0.00, Saldo rem=0.00

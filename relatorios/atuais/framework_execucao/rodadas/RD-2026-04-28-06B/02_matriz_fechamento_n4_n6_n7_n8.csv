@@ -1,0 +1,5 @@
+id,status,escopo_evidencia,resultado_consolidado,observacao
+N4,PASS,"planilha operacional + console (pagamentos/fontes/lotes)","pagamentos com rastreabilidade de lote/fonte e valores","fechamento com base no pacote complementar local"
+N6,PASS_COM_OBSERVACAO,"extrato futuro + console (cobertura)","cobertura integral observada; sem evidência de pagamento parcial indevido","sem decomposição formal completa da combinação mínima em todas as linhas"
+N7,PASS,"planilha + console (recebidos/datas)","uso temporal compatível na janela observada","sem inconsistência temporal observada"
+N8,PASS_AMOSTRAL_COM_OBSERVACAO,"runner_v177 janela 15 dias + planilha/console","ordem intradiária consistente na amostra; inconsistências=0","amostral (2026-04-29 a 2026-05-13) e sem ocorrência de switch_then_pay"
