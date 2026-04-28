@@ -1,0 +1,48 @@
+profundidade,pasta,arquivos_rastreados,py,md,csv,xlsx,json,txt,outros,acao_preliminar,motivo
+3,.,7,0,1,0,0,0,1,5,MANTER,arquivo/pasta estrutural do projeto
+3,aplicacao,2,2,0,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,aplicacao/console,7,7,0,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,config,3,0,0,0,0,3,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,dados,3,0,0,0,1,2,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,dados/bruto,1,0,0,0,0,0,0,1,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,dados/intermediario,1,0,0,0,0,0,0,1,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,dados/processado,1,0,0,0,0,0,0,1,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,docs/governanca,2,0,2,0,0,0,0,0,MANTER_POR_ENQUANTO,documentação de governança; avaliar só depois
+3,logs/iteracoes,16,0,16,0,0,0,0,0,CANDIDATO_CONSOLIDACAO,logs de iteração podem ser consolidados em relatório único
+3,nucleo,47,47,0,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,nucleo/builders,3,2,1,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,nucleo/motor_diario,7,6,1,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,nucleo/pagamentos,1,0,1,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,nucleo/pagamentos/modelos_script1,4,3,1,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,nucleo/runners,3,2,1,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+3,prompts/abertura_chat,1,0,1,0,0,0,0,0,AVALIAR,"prompts podem ser úteis, mas talvez excessivos"
+3,prompts/auditoria,2,0,2,0,0,0,0,0,AVALIAR,"prompts podem ser úteis, mas talvez excessivos"
+3,prompts/claude,1,0,1,0,0,0,0,0,AVALIAR,"prompts podem ser úteis, mas talvez excessivos"
+3,prompts/codex,1,0,1,0,0,0,0,0,AVALIAR,"prompts podem ser úteis, mas talvez excessivos"
+3,prompts/continuidade,1,0,1,0,0,0,0,0,AVALIAR,"prompts podem ser úteis, mas talvez excessivos"
+3,prompts/gemini,1,0,1,0,0,0,0,0,AVALIAR,"prompts podem ser úteis, mas talvez excessivos"
+3,prompts/simulacao,1,0,1,0,0,0,0,0,AVALIAR,"prompts podem ser úteis, mas talvez excessivos"
+3,relatorios,2,0,1,0,0,0,0,1,AVALIAR,não classificado automaticamente
+3,relatorios/atuais,41,0,40,0,0,0,1,0,AVALIAR,manter documentos mestres; remover relatórios redundantes antigos
+3,relatorios/atuais/limpeza_scripts,7,0,2,5,0,0,0,0,AVALIAR,manter documentos mestres; remover relatórios redundantes antigos
+3,relatorios/historico/artefatos_soltos,2,0,0,0,0,1,1,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/auditorias_especificas,48,0,48,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/baselines,114,0,114,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/contratos_intermediarios,21,0,21,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/documentacao_baseline,6,0,6,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/estruturas,76,0,76,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/limpeza_repositorio,6,0,6,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/objetivo_final,4,0,4,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/reorganizacao_local_switching,11,0,11,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/validacoes,116,0,116,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,relatorios/historico/validacoes_diarias,8,0,8,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,saidas,1,0,0,0,0,0,0,1,AVALIAR,"raiz de saídas contém oficial, diagnóstico e histórico"
+3,saidas/diagnostico,2,0,0,2,0,0,0,0,CANDIDATO_REMOCAO_APOS_CONFERENCIA,artefatos diagnósticos antigos; manter só se forem referência oficial
+3,saidas/operacional,1,0,1,0,0,0,0,0,AVALIAR,não classificado automaticamente
+3,scripts,6,5,1,0,0,0,0,0,AVALIAR,raiz de scripts contém subpastas com destinos distintos
+3,scripts/auditoria,3,2,1,0,0,0,0,0,AVALIAR,scripts de auditoria; verificar se ainda são usados
+3,scripts/diagnostico,48,47,1,0,0,0,0,0,AVALIAR,diagnósticos parcialmente limpos; ainda pode haver subpastas históricas
+3,scripts/diagnostico/temporal_decisao,15,14,1,0,0,0,0,0,AVALIAR,diagnósticos parcialmente limpos; ainda pode haver subpastas históricas
+3,scripts/historico_saida_propria_v203,1,0,1,0,0,0,0,0,CANDIDATO_REMOCAO,histórico próprio antigo; provável redundância após consolidação
+3,scripts/historico_saida_propria_v203/diagnostico_original,49,49,0,0,0,0,0,0,CANDIDATO_REMOCAO,histórico próprio antigo; provável redundância após consolidação
+3,scripts/operacional,3,2,1,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"

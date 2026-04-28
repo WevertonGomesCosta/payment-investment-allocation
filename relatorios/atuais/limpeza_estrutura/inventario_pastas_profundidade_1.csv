@@ -1,0 +1,12 @@
+profundidade,pasta,arquivos_rastreados,py,md,csv,xlsx,json,txt,outros,acao_preliminar,motivo
+1,.,7,0,1,0,0,0,1,5,MANTER,arquivo/pasta estrutural do projeto
+1,aplicacao,9,9,0,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+1,config,3,0,0,0,0,3,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+1,dados,6,0,0,0,1,2,0,3,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+1,docs,2,0,2,0,0,0,0,0,MANTER_POR_ENQUANTO,documentação de governança; avaliar só depois
+1,logs,16,0,16,0,0,0,0,0,AVALIAR,não classificado automaticamente
+1,nucleo,65,60,5,0,0,0,0,0,MANTER,"pasta operacional, motor, dados, configuração ou saída oficial"
+1,prompts,8,0,8,0,0,0,0,0,AVALIAR,"prompts podem ser úteis, mas talvez excessivos"
+1,relatorios,462,0,453,5,0,1,2,1,AVALIAR,não classificado automaticamente
+1,saidas,4,0,1,2,0,0,0,1,AVALIAR,"raiz de saídas contém oficial, diagnóstico e histórico"
+1,scripts,125,119,6,0,0,0,0,0,AVALIAR,raiz de scripts contém subpastas com destinos distintos
