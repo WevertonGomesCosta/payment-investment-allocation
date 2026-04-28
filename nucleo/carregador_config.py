@@ -1,8 +1,8 @@
 """Carregamento e resolução do config canônico do projeto.
 
-Este módulo foi reconstruído para ficar mais neutro e mais aderente ao bloco
-já auditado dos scripts-base, sem ainda assumir contratos de domínio mais
-profundos.
+O config operacional de referência é ``dados/config_atualizado.json``.
+Arquivos de contrato dentro de ``config/`` continuam sendo tratados como
+artefatos específicos de módulos, não como substitutos do config global.
 """
 
 from __future__ import annotations
@@ -16,15 +16,20 @@ from typing import Any, Iterable, Optional, Sequence
 from nucleo.ambiente import detectar_raiz_repositorio
 from nucleo.config_utils import obter_config as obter_config_compartilhado
 
+CONFIG_CANONICO_PADRAO = "config_atualizado.json"
+
 ARQUIVOS_CONFIG_PADRAO: tuple[str, ...] = (
+    CONFIG_CANONICO_PADRAO,
+    "config.json",
+)
+
+ARQUIVOS_CONFIG_LEGADOS_NAO_AUTO: tuple[str, ...] = (
     "config_atualizado_revisado_v7_populacao_inicial.json",
     "config_atualizado_revisado_v6_avaliacao.json",
     "config_atualizado_revisado_v5_otimizacao_bounds.json",
     "config_atualizado_revisado_v4_otimizacao.json",
     "config_atualizado_revisado_v3_treinamento.json",
     "config_atualizado_revisado_v2.json",
-    "config_atualizado.json",
-    "config.json",
 )
 
 VARIAVEIS_AMBIENTE_CONFIG: tuple[str, ...] = (
