@@ -1,0 +1,11 @@
+indicador,valor,status,observacao
+total_pagamentos,30,PASS,"recorte da aba Extrato Futuro"
+cobertura_integral,30/30,PASS,"todos os pagamentos com cobertura integral"
+sem_switching_real,17,PASS,"sem_switching excluído de switching real"
+switching_real,13,PASS,"pagamentos com switching_simples"
+alerta_cobertura_parcial,0,PASS,"nenhum alerta"
+alerta_lote_vazio,0,PASS,"nenhum alerta"
+alerta_saldo_negativo,0,PASS,"nenhum alerta"
+alerta_switching_real,13,PASS,"todos os alertas do recorte"
+lote_3600_mai_saldo_minimo,18.05,PASS_COM_OBSERVACAO,"quase exaurido"
+lote_3000_mar_B_saldo_minimo,47.63,PASS_COM_OBSERVACAO,"baixo saldo remanescente"
