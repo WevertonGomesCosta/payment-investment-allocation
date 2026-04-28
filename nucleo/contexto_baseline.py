@@ -135,6 +135,7 @@ def carregar_contexto_baseline(
         pacote_planilha,
         carteira_canonica,
         raiz_repositorio=pacote_config.raiz_repositorio,
+        config=pacote_config.conteudo,
     )
     nucleo_financeiro = carregar_nucleo_financeiro_minimo(
         dados_operacionais,
@@ -285,7 +286,6 @@ def carregar_contexto_baseline(
     benchmark_agrupado_individual_shadow = carregar_benchmark_agrupado_individual_shadow(
         dados_operacionais,
         fontes_elegiveis_pagamento,
-        saldo_disponivel_geral,
         decisao_local_v1,
         pacote_config.conteudo,
         data_referencia=contexto_execucao.data_referencia,
