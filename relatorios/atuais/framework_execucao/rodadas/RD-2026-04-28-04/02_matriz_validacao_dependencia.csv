@@ -1,9 +1,9 @@
 ID,controle,comando,evidencia,status,severidade,observacao
-D1,"scipy é importado pelo projeto","rg -n \"scipy|from scipy|import scipy\" -S","Import em nucleo/resolver_hibrido_5p_shadow.py:27",PASS,alta,"Dependência é realmente requerida pelo caminho atual"
-D2,"scipy estava ausente em requirements.txt antes da microetapa","git show HEAD~1:requirements.txt && nl -ba requirements.txt (antes)","Manifesto anterior sem scipy",PASS,alta,"Achado RD-03 confirmado"
-D3,"scipy foi declarado no manifesto principal","git diff -- requirements.txt","Linha 'scipy' adicionada ao requirements.txt",PASS,critica,"Correção principal da RD-04 concluída"
-D4,"Nenhum arquivo de motor econômico foi alterado","git diff --name-only","Apenas requirements.txt e artefatos RD-04 alterados",PASS,critica,"Sem impacto funcional econômico"
-D5,"Nenhum dado oficial/cache foi alterado","git diff --name-only","Sem alterações em dados/ ou cache_cdi",PASS,critica,"Integridade de dados/cache preservada"
-D6,"Ambiente local instala requirements.txt","python -m pip install -r requirements.txt","Falha ao resolver scipy por proxy 403",FAIL,alta,"Bloqueio de infraestrutura, não de manifesto"
-D7,"python -c import scipy executa","python -c \"import scipy; print(scipy.__version__)\"","ModuleNotFoundError: No module named 'scipy'",FAIL,alta,"Import bloqueado por ausência de pacote no ambiente"
-D8,"Decisão final sobre reexecução N2–N11","registro da decisão RD-04","Decisão formal registrada no arquivo 03",PASS,critica,"Classificação final da continuidade documentada"
+D1,scipy é importado pelo projeto,"rg -n \scipy|from scipy|import scipy\"" -S""",Import em nucleo/resolver_hibrido_5p_shadow.py:27,PASS,alta,Dependência é realmente requerida pelo caminho atual
+D2,scipy estava ausente em requirements.txt antes da microetapa,"bash -lc 'if git show 9610ced:requirements.txt | rg -q ""^scipy($|[<>=])""; then echo ""FAIL: scipy presente antes da RD-04""; exit 1; else echo ""PASS: scipy ausente em requirements.txt no commit 9610ced""; fi'",Manifesto anterior sem scipy,PASS,alta,Comando literal reexecutável; anotação histórica removida do campo de comando
+D3,scipy foi declarado no manifesto principal,git diff -- requirements.txt,Linha 'scipy' adicionada ao requirements.txt,PASS,critica,Correção principal da RD-04 concluída
+D4,Nenhum arquivo de motor econômico foi alterado,git diff --name-only,Apenas requirements.txt e artefatos RD-04 alterados,PASS,critica,Sem impacto funcional econômico
+D5,Nenhum dado oficial/cache foi alterado,git diff --name-only,Sem alterações em dados/ ou cache_cdi,PASS,critica,Integridade de dados/cache preservada
+D6,Ambiente local instala requirements.txt,python -m pip install -r requirements.txt,Falha ao resolver scipy por proxy 403,FAIL,alta,"Bloqueio de infraestrutura, não de manifesto"
+D7,python -c import scipy executa,"python -c \import scipy; print(scipy.__version__)\""""",ModuleNotFoundError: No module named 'scipy',FAIL,alta,Import bloqueado por ausência de pacote no ambiente
+D8,Decisão final sobre reexecução N2–N11,registro da decisão RD-04,Decisão formal registrada no arquivo 03,PASS,critica,Classificação final da continuidade documentada
