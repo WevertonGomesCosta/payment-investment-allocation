@@ -9,7 +9,7 @@ if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
 from aplicacao.console.principal import main as main_console
-from scripts.operacional.gerar_planilha_operacional import main as main_planilha
+from scripts.operacional.gerar_planilha_operacional_configurada import main as main_planilha
 
 
 def main() -> None:
