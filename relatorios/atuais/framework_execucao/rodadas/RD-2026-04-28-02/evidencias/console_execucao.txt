@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/workspace/payment-investment-allocation/aplicacao/principal.py", line 11, in <module>
+    from aplicacao.console.principal import main as main_console
+  File "/workspace/payment-investment-allocation/aplicacao/console/principal.py", line 22, in <module>
+    from nucleo.contexto_baseline import carregar_contexto_baseline, obter_limiar_residuo_resolvido
+  File "/workspace/payment-investment-allocation/nucleo/contexto_baseline.py", line 20, in <module>
+    from nucleo.resolver_hibrido_5p_shadow import carregar_resolver_hibrido_5p_shadow
+  File "/workspace/payment-investment-allocation/nucleo/resolver_hibrido_5p_shadow.py", line 27, in <module>
+    from scipy.optimize import linprog
+ModuleNotFoundError: No module named 'scipy'
