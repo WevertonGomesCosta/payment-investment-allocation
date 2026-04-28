@@ -349,10 +349,27 @@ def main() -> None:
     _render_secao_ranking_oficial(contexto_baseline, saida_canonica)
     _render_secao_switchings_oficiais(contexto_baseline, saida_canonica)
 
-    resumo_fechamento_situacao_atual = {
+    resumo_fechamento_bruto = {
         item.get('Métrica'): item.get('Valor')
         for item in saida_canonica.fechamento_atual
     }
+    mapeamento_fechamento = {
+        'Data de referência': 'data_referencia',
+        'Status do fechamento econômico': 'status_fechamento',
+        'Fonte do fechamento': 'fonte_fechamento',
+        'Fechamentos com fallback CDI': 'qtd_fechamentos_fallback_cdi',
+        'Último fator explícito CDI': 'data_ultimo_fator_explicito_cdi',
+        'Data confirmada da série': 'data_fechamento_confirmado',
+        'Leitura auditável': 'observacao',
+    }
+    resumo_fechamento_situacao_atual = {
+        chave: valor
+        for chave, valor in resumo_fechamento_bruto.items()
+        if chave is not None
+    }
+    for rotulo_humano, chave_tecnica in mapeamento_fechamento.items():
+        if chave_tecnica not in resumo_fechamento_situacao_atual and rotulo_humano in resumo_fechamento_bruto:
+            resumo_fechamento_situacao_atual[chave_tecnica] = resumo_fechamento_bruto.get(rotulo_humano)
     resumo_recebidos_saida = {
         item.get('Métrica'): item.get('Valor')
         for item in saida_canonica.resumo_recebidos
