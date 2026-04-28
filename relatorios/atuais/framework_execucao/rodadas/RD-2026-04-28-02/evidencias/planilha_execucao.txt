@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/workspace/payment-investment-allocation/scripts/operacional/gerar_planilha_operacional.py", line 15, in <module>
-    from nucleo.contexto_baseline import carregar_contexto_baseline
-  File "/workspace/payment-investment-allocation/nucleo/contexto_baseline.py", line 20, in <module>
-    from nucleo.resolver_hibrido_5p_shadow import carregar_resolver_hibrido_5p_shadow
-  File "/workspace/payment-investment-allocation/nucleo/resolver_hibrido_5p_shadow.py", line 27, in <module>
-    from scipy.optimize import linprog
-ModuleNotFoundError: No module named 'scipy'

@@ -1,9 +1,0 @@
-[fonte] evidência local/CI informada pelo usuário
-python aplicacao/principal.py => executou sem erro fatal
-Observação operacional:
-- seção SITUAÇÃO ATUAL apresentou metadados de fechamento como None:
-  data de referência: None
-  status do fechamento econômico: None
-  fonte do fechamento: None
-  último fator explícito CDI: None
-  data confirmada da série: None
