@@ -1,0 +1,182 @@
+
+=== BASELINE ===
+- versão: V225
+- raiz do repositório: C:\Users\Weverton\OneDrive\GitHub\payment-investment-allocation
+- config carregado: C:\Users\Weverton\OneDrive\GitHub\payment-investment-allocation\dados\config_atualizado.json
+- planilha carregada: C:\Users\Weverton\OneDrive\GitHub\payment-investment-allocation\dados\dados_financeiros.xlsx
+
+=== AMBIENTE ===
+- timezone: America/Sao_Paulo
+- data de referência: 2026-04-27
+- colab: não
+- warnings de rede configurados: sim
+
+=== ORIGEM DOS DADOS ===
+- dados financeiros: download
+- status obtenção planilha: ok
+- dados CDI/BCB: bcb_online
+- status obtenção CDI/BCB: ok
+
+=== DEPENDÊNCIAS ===
+[OK] Dependências essenciais da baseline — baseline mínima e auditoria estrutural
+- instaladas: numpy, openpyxl, pandas, pulp, python-dateutil, requests, workalendar
+- ausentes: nenhuma
+
+=== CACHE CDI DIÁRIO (BCB) ===
+[OK] Cache diário de CDI para auditoria e replay — 56 datas
+- data inicial da consulta: 2026-02-01
+- data final da consulta: 2026-04-27
+- última data com fator no cache: 2026-04-24
+- fonte da série: bcb_online
+- status do fetch: ok
+- caminho do cache: C:\Users\Weverton\OneDrive\GitHub\payment-investment-allocation\dados\cache_bcb.json
+- dias de rendimento no mês até a data de referência: 17
+
+=== ABAS ENCONTRADAS ===
+- [1] Todos os Gastos
+- [2] Inventário de Lotes
+- [3] Resumo Mensal
+- [4] Carteira
+
+=== RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS ===
+[OK] Carteira — 83 linhas, 49 colunas
+  colunas (primeiras 8): Nome, Taxa_Base_CDI, Taxa_Bonus_CDI, Dias_Bonus, Prazo_Dias, Carência_Dias, Isento_IR, Aplicação_Mínima
+[OK] Inventário de Lotes — 40 linhas, 5 colunas
+  colunas (primeiras 8): Lote (ID), Data Recebimento, Data Aplicação, Valor Original, Investimento
+[OK] Todos os Gastos — 217 linhas, 5 colunas
+  colunas (primeiras 8): Data, Descrição, Valor, Pago, Lote usado
+
+=== ABAS PRIMÁRIAS DO CONTRATO ===
+[OK] Abas primárias do contrato — 3 blocos esperados
+[OK] Bloco carteira — Carteira
+- presente: sim
+- linhas: 83
+- colunas: 49
+
+[OK] Bloco lotes — Inventário de Lotes
+- presente: sim
+- linhas: 40
+- colunas: 5
+
+[OK] Bloco despesas — Todos os Gastos
+- presente: sim
+- linhas: 217
+- colunas: 5
+
+
+=== ABAS AUXILIARES / NÃO OPERACIONAIS ===
+[OK] Abas auxiliares identificadas — 1 abas fora do contrato operacional
+- Resumo Mensal: 16 linhas, 13 colunas
+
+=== PAGAMENTOS — AMOSTRAS OPERACIONAIS ===
+- últimos 5 pagamentos já realizados:
+Data       | Descrição     | Valor   | Lotes usados      | Saldo Antes | Bruto   | Imposto | Líquido | Saldo Remanescente
+-----------+---------------+---------+-------------------+-------------+---------+---------+---------+-------------------
+2026-04-20 | Cartão Azul   | 670.00  | Lote 670 abr.     | 670.00      | 670.00  | 0.00    | 670.00  | 0.00              
+2026-04-20 | Cartão Azul   | 2837.48 | Lote 6630,64 fev. | 2857.32     | 2857.11 | 19.63   | 2837.48 | 0.00              
+2026-04-20 | Cartão Azul   | 2842.53 | Lote 8500 mar.    | 8735.64     | 2853.45 | 10.92   | 2842.53 | 5882.19           
+2026-04-20 | Cemig         | 98.98   | Lote 8500 mar.    | 5882.19     | 99.36   | 0.38    | 98.98   | 5782.83           
+2026-04-20 | concurso velt | 120.75  | Lote 8500 mar.    | 5782.83     | 121.21  | 0.46    | 120.75  | 5661.62           
+
+- próximos 5 pagamentos:
+Data       | Descrição       | Valor   | Lote sugerido          | Saldo Antes | Bruto   | Imposto | Líquido | Saldo Remanescente
+-----------+-----------------+---------+------------------------+-------------+---------+---------+---------+-------------------
+2026-04-29 | Tratamento Lara | 530.00  | Lote 3000 mar. B       | 3146.42     | 535.61  | 5.61    | 530.00  | 2610.81           
+2026-05-04 | Cartão NU       | 1500.00 | Lote 3000 mar. B       | 2617.44     | 1516.70 | 16.70   | 1500.00 | 1100.74           
+2026-05-06 | Cemig SIM       | 195.00  | Lote 3000 mar. V       | 3166.43     | 197.33  | 2.33    | 195.00  | 2969.10           
+2026-05-06 | Faxina Rosa     | 950.00  | Lote 3600 mai.         | 3600.00     | 950.00  | 0.00    | 950.00  | 2650.00           
+2026-05-08 | Claro           | 120.00  | saldo_disponivel_geral | 16280.00    | 120.00  | 0.00    | 120.00  | 16160.00          
+
+=== RANQUEAMENTO OFICIAL DA CARTEIRA ===
+- produtos totais: 83
+- produtos ativos ranqueados: 77
+- destinos elegíveis de switching: 77
+- destino top 1: Mercado Pago Cofrinho 120% CDI (Meli+)
+- método: carteira_only_estabilizado_v3_3_adaptado
+- origem da amostra: saida_canonica_v202
+- amostra do ranking relevante do dia:
+Rank | Produto                                        | Score | Proxy terminal | Liquidez | Carência | Ticket mín. | Status               
+-----+------------------------------------------------+-------+----------------+----------+----------+-------------+----------------------
+1    | Mercado Pago Cofrinho 120% CDI (Meli+)         | 78.60 | 0.79           | 0        | 0        | 1.00        | elegível             
+2    | CDB BMG Escalonado - até 109% CDI - 5 anos     | 78.00 | 0.78           | 0        | 0        | 50.00       | Fortemente sustentado
+3    | CDB Sofisa 105%                                | 78.00 | 0.78           | 0        | 0        | 1.00        | Fortemente sustentado
+4    | Combo PicPay 100-120 3m                        | 75.70 | 0.76           | 0        | 0        | 300.00      | Fortemente sustentado
+5    | Combo PicPay 100-120 6m                        | 75.70 | 0.76           | 0        | 0        | 300.00      | Fortemente sustentado
+6    | Tesouro Selic 2029                             | 74.30 | 0.74           | 0        | 0        | 30.00       | Fortemente sustentado
+7    | CDB Neon Planejado 150% CDI - 60 dias          | 72.30 | 0.72           | 0        | 60       | 100.00      | elegível             
+8    | CDB XP 150%                                    | 71.80 | 0.72           | 0        | 0        | 10000.00    | elegível             
+9    | Mercado Pago Cofrinho 115% CDI                 | 70.60 | 0.71           | 0        | 0        | 1.00        | elegível             
+10   | CDB Neon Cofrinho Escalonado - 100% a 113% CDI | 63.00 | 0.63           | 0        | 0        | 1.00        | Fortemente sustentado
+
+=== SWITCHINGS CANDIDATOS / CLASSIFICADOS ===
+- lotes avaliados para switching: 4
+- destinos elegíveis de switching: 77
+- switchings promovidos/executados: 4
+- destino top 1 do ranking: Mercado Pago Cofrinho 120% CDI (Meli+)
+- origem da amostra: saida_canonica_v202
+- amostra de switchings reais da janela (independente de pagamentos):
+Data       | Lote origem      | Produto origem                        | Destino                                | Ganho estimado | Status                    
+-----------+------------------+---------------------------------------+----------------------------------------+----------------+---------------------------
+2029-02-26 | Lote 8500 mar.   | CDB Sofisa 105%                       | Mercado Pago Cofrinho 120% CDI (Meli+) | 2678.88        | destino ranqueado elegível
+2026-06-15 | Lote 5680 abr.   | CDB Neon Planejado 150% CDI - 60 dias | Mercado Pago Cofrinho 120% CDI (Meli+) | 2162.52        | destino ranqueado elegível
+2026-05-04 | Lote 3000 mar. V | CDB XP 230%                           | Mercado Pago Cofrinho 120% CDI (Meli+) | 1256.73        | destino ranqueado elegível
+2026-05-04 | Lote 3000 mar. B | CDB XP 230%                           | Mercado Pago Cofrinho 120% CDI (Meli+) | 1255.70        | destino ranqueado elegível
+
+=== SITUAÇÃO ATUAL ===
+- data de referência: None
+- status do fechamento econômico: None
+- fonte do fechamento: None
+- fechamentos com fallback CDI: 0
+- último fator explícito CDI: None
+- data confirmada da série: None
+
+- lotes exauridos:
+  identificação e tempo:
+Lote              | Recebimento | Aplicação  | Último uso | Produto       | Dias corridos | Dias úteis
+------------------+-------------+------------+------------+---------------+---------------+-----------
+Lote 670 abr.     | 2026-04-20  | 2026-04-20 | 2026-04-20 | -             | 0             | 0         
+Lote 6630,64 fev. | 2026-02-04  | 2026-02-04 | 2026-04-20 | CDB Turbinado | 75            | 50        
+Lote 3600 abr.    | 2026-04-06  | 2026-04-06 | 2026-04-10 | -             | 4             | 4         
+Lote 7800 abr.    | 2026-04-02  | 2026-04-02 | 2026-04-02 | -             | 0             | 0         
+Lote 35 abr.      | 2026-04-01  | 2026-04-01 | 2026-04-01 | -             | 0             | 0         
+Lote 5400 fev.    | 2026-02-05  | 2026-02-05 | 2026-03-20 | CDB Turbinado | 43            | 29        
+Lote 4124,75 fev. | 2026-02-05  | 2026-02-05 | 2026-03-13 | CDB Turbinado | 36            | 24        
+Lote 10342 fev.   | 2026-02-05  | 2026-02-05 | 2026-03-13 | CDB Turbinado | 36            | 24        
+Lote 4000 fev.    | 2026-02-04  | 2026-02-04 | 2026-03-13 | CDB Turbinado | 37            | 25        
+Lote 900 mar.     | 2026-03-06  | 2026-03-06 | 2026-03-06 | -             | 0             | 0         
+Lote 1000 mar.    | 2026-03-05  | 2026-03-05 | 2026-03-05 | -             | 0             | 0         
+Lote 2063,11 fev. | 2026-02-06  | 2026-02-06 | 2026-02-09 | CDB Turbinado | 3             | 1         
+
+  valores atuais:
+Lote              | Valor original | Bruto | Líquido | Saldo rem
+------------------+----------------+-------+---------+----------
+Lote 670 abr.     | 670.00         | 0.00  | 0.00    | 0.00     
+Lote 6630,64 fev. | 6630.64        | 0.00  | 0.00    | 0.00     
+Lote 3600 abr.    | 3589.11        | 0.00  | 0.00    | 0.00     
+Lote 7800 abr.    | 7857.25        | 0.00  | 0.00    | 0.00     
+Lote 35 abr.      | 36.02          | 0.00  | 0.00    | 0.00     
+Lote 5400 fev.    | 5400.00        | 0.00  | 0.00    | 0.00     
+Lote 4124,75 fev. | 4124.75        | 0.00  | 0.00    | 0.00     
+Lote 10342 fev.   | 10342.00       | 0.00  | 0.00    | 0.00     
+Lote 4000 fev.    | 4000.00        | 0.00  | 0.00    | 0.00     
+Lote 900 mar.     | 936.15         | 0.00  | 0.00    | 0.00     
+Lote 1000 mar.    | 1003.38        | 0.00  | 0.00    | 0.00     
+Lote 2063,11 fev. | 2063.11        | 0.00  | 0.00    | 0.00     
+
+- lotes ativos:
+  identificação e tempo:
+Lote             | Recebimento | Aplicação  | Produto                               | Dias corridos | Dias úteis
+-----------------+-------------+------------+---------------------------------------+---------------+-----------
+Lote 5680 abr.   | 2026-04-06  | 2026-04-14 | CDB Neon Planejado 150% CDI - 60 dias | 13            | 8         
+Lote 8500 mar.   | 2026-03-06  | 2026-03-06 | CDB Sofisa 105%                       | 52            | 34        
+Lote 3000 mar. B | 2026-03-04  | 2026-03-04 | CDB XP 230%                           | 54            | 36        
+Lote 3000 mar. V | 2026-03-03  | 2026-03-03 | CDB XP 230%                           | 55            | 37        
+
+  valores atuais:
+Lote             | Valor original | Bruto   | Líquido | Saldo rem
+-----------------+----------------+---------+---------+----------
+Lote 5680 abr.   | 5680.00        | 4784.03 | 4763.58 | 4752.99  
+Lote 8500 mar.   | 8587.00        | 5560.03 | 5535.95 | 5452.99  
+Lote 3000 mar. B | 3000.00        | 3138.46 | 3107.30 | 3000.00  
+Lote 3000 mar. V | 3000.00        | 3142.44 | 3110.39 | 3000.00  
+Saída operacional gerada em: C:\Users\Weverton\OneDrive\GitHub\payment-investment-allocation\saidas\oficial\relatorio_operacional_v225.xlsx

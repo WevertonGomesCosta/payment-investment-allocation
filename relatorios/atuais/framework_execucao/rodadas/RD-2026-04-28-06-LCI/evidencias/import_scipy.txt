@@ -1,0 +1,2 @@
+C:\Users\Weverton\OneDrive\GitHub\payment-investment-allocation\.venv\Scripts\python.exe
+1.17.1
