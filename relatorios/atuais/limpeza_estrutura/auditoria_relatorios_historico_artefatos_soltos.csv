@@ -1,3 +1,0 @@
-arquivo,nome,extensao,linhas,tamanho_bytes,primeiras_linhas
-relatorios/historico/artefatos_soltos/extracao_runner_simulador_v157_manifest.json,extracao_runner_simulador_v157_manifest.json,.json,19,615,"{ |   ""baseline_solicitada"": ""V156"", |   ""baseline_codigo_acessivel"": ""V155"", |   ""baseline_saida"": ""V157"", |   ""mudanca"": ""extracao_runner_simulador_central"", |   ""arquivos_novos"": [ |     ""nucleo/runners/__init__.py"", |     ""nucleo/runners/simulador_central_runner_v117.py"","
-relatorios/historico/artefatos_soltos/release_check_v177.txt,release_check_v177.txt,.txt,1,41,OK - release baseline validado para V141
