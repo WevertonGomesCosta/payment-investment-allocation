@@ -1,0 +1,12 @@
+id,criterio,tipo,regra,status,severidade,observacao
+C1,Saldo residual positivo e baixo,elegibilidade,saldo > 0 e saldo <= limiar operacional,APROVADO,alta,limiar deve vir do config ou contrato da rodada
+C2,Fonte efetivamente consumida,elegibilidade,não aceitar lote apenas como reserva,APROVADO,critica,RD-09 mostrou risco de confundir reserva com consumo
+C3,Cobertura integral,gate,pagamento deve ser coberto integralmente,APROVADO,critica,sem cobertura integral o candidato é rejeitado
+C4,Saldo não negativo,gate,nenhum lote pode ficar negativo,APROVADO,critica,saldo residual esperado deve ser zero ou resolvido por limiar
+C5,Liquidez e carência,gate,respeitar disponibilidade do lote na data,APROVADO,critica,não antecipar lote indisponível
+C6,Fiscalidade oficial,gate,usar IR/IOF do motor oficial,APROVADO,alta,não recalcular fora da lógica canônica
+C7,Cronologia de recebidos,gate,recebidos futuros só após disponibilidade,APROVADO,critica,mantém contrato N7
+C8,Patrimônio terminal,objetivo,não piorar materialmente o patrimônio terminal,APROVADO,critica,função objetivo principal preservada
+C9,Fragmentação operacional,criterio_secundario,preferir exaustão residual em empate econômico,APROVADO,media,critério secundário permitido
+C10,Auditabilidade,saida,"registrar residual, complemento, comparação e decisão",APROVADO,alta,obrigatório para promoção futura
+C11,Sem alteração de motor nesta rodada,restricao,RD-09A é documental/metodológica,APROVADO,critica,implementação fica para rodada posterior
