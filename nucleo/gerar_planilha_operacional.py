@@ -30,7 +30,6 @@ DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
     'carteira': 'Carteira',
     'top30': 'Top30',
     'resumo_switching': 'Resumo Switching',
-    'validacao': 'Validacao',
     'situacao_atual': 'Situação Atual',
     'saida_canonica': 'Saida Canonica',
 }
@@ -40,85 +39,6 @@ DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
     'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Lote reserva', 'Necessita switching'],
     'switching': ['Data sugerida', 'Lote origem', 'Produto origem', 'Produto destino switching', 'Ganho estimado', 'Valor líquido origem', 'Status'],
 }
-
-DEFAULT_SECOES_SITUACAO_ATUAL = {
-    'lotes_exauridos': {
-        'titulo': 'Lotes exauridos',
-        'origem': 'lotes_exauridos',
-        'colunas': [
-            {'chave': 'Lote', 'cabecalho': 'Lote'},
-            {'chave': 'Recebimento', 'cabecalho': 'Recebimento'},
-            {'chave': 'Aplicação', 'cabecalho': 'Aplicação'},
-            {'chave': 'Último uso', 'cabecalho': 'Último uso'},
-            {'chave': 'Produto', 'cabecalho': 'Produto'},
-            {'chave': 'Dias corridos', 'cabecalho': 'Dias corridos'},
-            {'chave': 'Dias úteis', 'cabecalho': 'Dias úteis'},
-            {'chave': 'Valor original', 'cabecalho': 'Valor original'},
-            {'chave': 'Bruto', 'cabecalho': 'Bruto'},
-            {'chave': 'Líquido', 'cabecalho': 'Líquido'},
-            {'chave': 'Saldo rem', 'cabecalho': 'Saldo rem'},
-        ],
-    },
-    'lotes_ativos': {
-        'titulo': 'Lotes ativos',
-        'origem': 'lotes_ativos',
-        'colunas': [
-            {'chave': 'Lote', 'cabecalho': 'Lote'},
-            {'chave': 'Recebimento', 'cabecalho': 'Recebimento'},
-            {'chave': 'Aplicação', 'cabecalho': 'Aplicação'},
-            {'chave': 'Produto', 'cabecalho': 'Produto'},
-            {'chave': 'Dias corridos', 'cabecalho': 'Dias corridos'},
-            {'chave': 'Dias úteis', 'cabecalho': 'Dias úteis'},
-            {'chave': 'Valor original', 'cabecalho': 'Valor original'},
-            {'chave': 'Bruto', 'cabecalho': 'Bruto'},
-            {'chave': 'Líquido', 'cabecalho': 'Líquido'},
-            {'chave': 'Saldo rem', 'cabecalho': 'Saldo rem'},
-        ],
-    },
-    'recebidos_atuais': {
-        'titulo': 'Recebidos auditáveis',
-        'origem': 'recebidos_atuais',
-        'colunas': [
-            {'chave': 'Recebido', 'cabecalho': 'Recebido'},
-            {'chave': 'Lote origem', 'cabecalho': 'Lote origem'},
-            {'chave': 'Recebimento', 'cabecalho': 'Recebimento'},
-            {'chave': 'Aplicação', 'cabecalho': 'Aplicação'},
-            {'chave': 'Valor bruto', 'cabecalho': 'Valor bruto'},
-            {'chave': 'Valor líquido', 'cabecalho': 'Valor líquido'},
-            {'chave': 'Status', 'cabecalho': 'Status'},
-            {'chave': 'Destino', 'cabecalho': 'Destino'},
-            {'chave': 'Pagamentos vinculados', 'cabecalho': 'Pagamentos vinculados'},
-            {'chave': 'Valor vinculado', 'cabecalho': 'Valor vinculado'},
-            {'chave': 'Residual aplicação', 'cabecalho': 'Residual aplicação'},
-            {'chave': 'Disponível ref', 'cabecalho': 'Disponível ref'},
-            {'chave': 'Observação', 'cabecalho': 'Observação'},
-        ],
-    },
-    'fechamento_atual': {
-        'titulo': 'Fechamento econômico',
-        'origem': 'fechamento_atual',
-        'colunas': [
-            {'chave': 'Métrica', 'cabecalho': 'Métrica'},
-            {'chave': 'Valor', 'cabecalho': 'Valor'},
-        ],
-    },
-    'resumo_recebidos': {
-        'titulo': 'Resumo de recebidos',
-        'origem': 'resumo_recebidos',
-        'colunas': [
-            {'chave': 'Métrica', 'cabecalho': 'Métrica'},
-            {'chave': 'Valor', 'cabecalho': 'Valor'},
-        ],
-    },
-}
-
-ORDEM_SECOES_SITUACAO_ATUAL = [
-    'lotes_exauridos',
-    'lotes_ativos',
-    'recebidos_atuais',
-    'fechamento_atual',
-    'resumo_recebidos',
-]
 
 
 def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
@@ -179,21 +99,107 @@ def _rows(itens: Iterable[dict[str, Any]], headers: list[str]) -> list[list[Any]
     return [[_valor(item, header) for header in headers] for item in itens]
 
 
-def _headers_mapeados(colunas: list[Mapping[str, str]]) -> list[str]:
-    return [str(coluna['cabecalho']) for coluna in colunas]
+def _para_float(valor: Any) -> float:
+    try:
+        if valor is None or valor == '':
+            return 0.0
+        return float(valor)
+    except Exception:
+        return 0.0
 
 
-def _rows_mapeadas(itens: Iterable[dict[str, Any]], colunas: list[Mapping[str, str]]) -> list[list[Any]]:
-    return [[_valor(item, str(coluna['chave'])) for coluna in colunas] for item in itens]
+def _lote_exaurido_sem_aplicacao(item: dict[str, Any]) -> bool:
+    produto = str(item.get('Produto') or '').strip().lower()
+    return produto in {'-', '', 'sem aplicação', 'sem aplicacao', 'não aplicado', 'nao aplicado'}
 
 
-def _secao_situacao_atual(chave_secao: str) -> dict[str, Any]:
-    secao = DEFAULT_SECOES_SITUACAO_ATUAL[chave_secao]
-    return {
-        'titulo': str(secao['titulo']),
-        'origem': str(secao['origem']),
-        'colunas': [dict(coluna) for coluna in secao['colunas']],
-    }
+def _somas_sacadas_por_lote(contexto) -> dict[str, dict[str, float]]:
+    replay = getattr(contexto, 'replay_passado', None)
+    log = getattr(replay, 'log_passado', None) if replay is not None else None
+    somas: dict[str, dict[str, float]] = {}
+    if log is None or not hasattr(log, 'iterrows') or len(log) == 0 or 'Lote' not in getattr(log, 'columns', []):
+        return somas
+    for _, row in log.iterrows():
+        lote_id = str(row.get('Lote') or '').strip()
+        if not lote_id:
+            continue
+        atual = somas.setdefault(lote_id, {'bruto_sacado': 0.0, 'liquido_sacado': 0.0})
+        atual['bruto_sacado'] = round(atual['bruto_sacado'] + _para_float(row.get('Bruto')), 2)
+        atual['liquido_sacado'] = round(atual['liquido_sacado'] + _para_float(row.get('Liquido') if 'Liquido' in row else row.get('Líquido')), 2)
+    return somas
+
+
+def _lotes_exauridos_valores(contexto, saida) -> list[dict[str, Any]]:
+    somas = _somas_sacadas_por_lote(contexto)
+    linhas: list[dict[str, Any]] = []
+    for item in getattr(saida, 'lotes_exauridos', []) or []:
+        lote_id = str(item.get('Lote') or '').strip()
+        valores = somas.get(lote_id, {})
+        valor_original = _para_float(item.get('Valor original'))
+        liquido_sacado = round(_para_float(valores.get('liquido_sacado')), 2)
+        patrimonio_liquido = round(liquido_sacado, 2)
+        linhas.append({
+            'Lote': item.get('Lote'),
+            'Valor original': valor_original,
+            'Bruto Sacado': round(_para_float(valores.get('bruto_sacado')), 2),
+            'Líquido Sacado': liquido_sacado,
+            'Patrimônio líquido': patrimonio_liquido,
+            'Rendimento líquido': round(patrimonio_liquido - valor_original, 2),
+        })
+    return linhas
+
+
+def _lotes_ativos_valores(contexto, saida) -> list[dict[str, Any]]:
+    somas = _somas_sacadas_por_lote(contexto)
+    linhas: list[dict[str, Any]] = []
+    for item in getattr(saida, 'lotes_ativos', []) or []:
+        lote_id = str(item.get('Lote') or '').strip()
+        valores = somas.get(lote_id, {})
+        valor_original = _para_float(item.get('Valor original'))
+        liquido_sacado = round(_para_float(valores.get('liquido_sacado')), 2)
+        liquido_atual = round(_para_float(item.get('Líquido')), 2)
+        patrimonio_liquido_atual = round(liquido_sacado + liquido_atual, 2)
+        linhas.append({
+            'Lote': item.get('Lote'),
+            'Valor original': valor_original,
+            'Bruto Atual': round(_para_float(item.get('Bruto')), 2),
+            'Líquido Atual': liquido_atual,
+            'Patrimônio líquido atual': patrimonio_liquido_atual,
+            'Rendimento líquido atual': round(patrimonio_liquido_atual - valor_original, 2),
+        })
+    return linhas
+
+
+def _resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, Any]]:
+    lotes_exauridos = list(getattr(saida, 'lotes_exauridos', []) or [])
+    lotes_ativos = list(getattr(saida, 'lotes_ativos', []) or [])
+    lotes_visiveis = lotes_exauridos + lotes_ativos
+    somas = _somas_sacadas_por_lote(contexto)
+
+    valor_original_total = round(sum(_para_float(item.get('Valor original')) for item in lotes_visiveis), 2)
+    valor_original_exaurido_sem_aplicacao = round(
+        sum(_para_float(item.get('Valor original')) for item in lotes_exauridos if _lote_exaurido_sem_aplicacao(item)),
+        2,
+    )
+    valor_original_aplicado_ajustado = round(valor_original_total - valor_original_exaurido_sem_aplicacao, 2)
+    valor_total_bruto_sacado = round(sum(v['bruto_sacado'] for v in somas.values()), 2)
+    valor_total_liquido_sacado = round(sum(v['liquido_sacado'] for v in somas.values()), 2)
+    valor_bruto_atual = round(sum(_para_float(item.get('Bruto')) for item in lotes_ativos), 2)
+    valor_liquido_atual = round(sum(_para_float(item.get('Líquido')) for item in lotes_ativos), 2)
+    patrimonio_liquido_atual = round(valor_total_liquido_sacado + valor_liquido_atual, 2)
+    rendimento_liquido_atual = round(patrimonio_liquido_atual - valor_original_aplicado_ajustado, 2)
+
+    return [
+        {'Métrica': 'Valor original total', 'Valor': valor_original_total},
+        {'Métrica': 'Valor original exaurido sem aplicação', 'Valor': valor_original_exaurido_sem_aplicacao},
+        {'Métrica': 'Valor original aplicado ajustado', 'Valor': valor_original_aplicado_ajustado},
+        {'Métrica': 'Valor total bruto sacado', 'Valor': valor_total_bruto_sacado},
+        {'Métrica': 'Valor total líquido sacado', 'Valor': valor_total_liquido_sacado},
+        {'Métrica': 'Valor bruto atual', 'Valor': valor_bruto_atual},
+        {'Métrica': 'Valor líquido atual', 'Valor': valor_liquido_atual},
+        {'Métrica': 'Patrimônio líquido atual', 'Valor': patrimonio_liquido_atual},
+        {'Métrica': 'Rendimento líquido atual', 'Valor': rendimento_liquido_atual},
+    ]
 
 
 def _apply_table_style(ws, headers: list[str], rows: list[list[Any]], *, start_row: int = 1, title: str | None = None, freeze: bool = False) -> int:
@@ -239,7 +245,9 @@ def _apply_table_style(ws, headers: list[str], rows: list[list[Any]], *, start_r
         'Valor', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente',
         'Ganho estimado', 'Valor líquido origem', 'Score', 'Proxy terminal', 'Ticket mín.',
         'Valor original', 'Saldo rem', 'Valor bruto', 'Valor líquido', 'Valor vinculado',
-        'Residual aplicação'
+        'Residual aplicação', 'Bruto Sacado', 'Líquido Sacado', 'Bruto Atual', 'Líquido Atual',
+        'Patrimônio líquido', 'Rendimento líquido', 'Patrimônio líquido atual',
+        'Rendimento líquido atual'
     }
     int_cols = {'Dias corridos', 'Dias úteis', 'Rank', 'Liquidez', 'Carência', 'Pagamentos vinculados'}
 
@@ -300,28 +308,22 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     ]
     _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows)
 
-    ws_val = wb.create_sheet(_nome_aba_operacional(contexto, 'validacao'))
-    _apply_table_style(
-        ws_val,
-        ['colunas', 'qtd_diffs_materiais_nucleo', 'aceite_nucleo', 'metodo'],
-        [[str(ranking.validacao.get('colunas')), ranking.validacao.get('qtd_diffs_materiais_nucleo'), ranking.validacao.get('aceite_nucleo'), ranking.auditoria.get('metodo')]],
-    )
-
 
 def _adicionar_situacao_atual(wb, contexto, saida) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
     r = 1
-    for idx, chave_secao in enumerate(ORDEM_SECOES_SITUACAO_ATUAL):
-        secao = _secao_situacao_atual(chave_secao)
-        colunas = secao['colunas']
-        itens = getattr(saida, secao['origem'], [])
-        r = _apply_table_style(
-            ws,
-            _headers_mapeados(colunas),
-            _rows_mapeadas(itens, colunas),
-            start_row=r if idx == 0 else r + 3,
-            title=secao['titulo'],
-        )
+    secoes = [
+        ('Lotes exauridos — identificação e tempo', ['Lote', 'Recebimento', 'Aplicação', 'Último uso', 'Produto', 'Dias corridos', 'Dias úteis'], getattr(saida, 'lotes_exauridos', []) or []),
+        ('Lotes exauridos — valores sacados e patrimônio', ['Lote', 'Valor original', 'Bruto Sacado', 'Líquido Sacado', 'Patrimônio líquido', 'Rendimento líquido'], _lotes_exauridos_valores(contexto, saida)),
+        ('Lotes ativos — identificação e tempo', ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], getattr(saida, 'lotes_ativos', []) or []),
+        ('Lotes ativos — valores atuais e patrimônio', ['Lote', 'Valor original', 'Bruto Atual', 'Líquido Atual', 'Patrimônio líquido atual', 'Rendimento líquido atual'], _lotes_ativos_valores(contexto, saida)),
+        ('Patrimônio total dos lotes', ['Métrica', 'Valor'], _resumo_patrimonio_total_lotes(contexto, saida)),
+        ('Recebidos auditáveis', ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação'], getattr(saida, 'recebidos_atuais', []) or []),
+        ('Fechamento econômico', ['Métrica', 'Valor'], getattr(saida, 'fechamento_atual', []) or []),
+        ('Resumo de recebidos', ['Métrica', 'Valor'], getattr(saida, 'resumo_recebidos', []) or []),
+    ]
+    for idx, (titulo, headers, itens) in enumerate(secoes):
+        r = _apply_table_style(ws, headers, _rows(itens, headers), start_row=r if idx == 0 else r + 3, title=titulo)
 
 
 def _adicionar_auditoria_saida_canonica(wb, contexto, saida) -> None:
