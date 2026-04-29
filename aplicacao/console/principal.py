@@ -70,9 +70,23 @@ def _para_float(valor) -> float:
         return 0.0
 
 
+def _lote_exaurido_sem_aplicacao(item: dict) -> bool:
+    produto = str(item.get('Produto') or '').strip().lower()
+    return produto in {'-', '', 'sem aplicação', 'sem aplicacao', 'não aplicado', 'nao aplicado'}
+
+
 def _calcular_rendimento_total_lotes(contexto_baseline, saida_canonica) -> dict[str, float]:
-    lotes_visiveis = list(getattr(saida_canonica, 'lotes_exauridos', []) or []) + list(getattr(saida_canonica, 'lotes_ativos', []) or [])
+    lotes_exauridos = list(getattr(saida_canonica, 'lotes_exauridos', []) or [])
+    lotes_ativos = list(getattr(saida_canonica, 'lotes_ativos', []) or [])
+    lotes_visiveis = lotes_exauridos + lotes_ativos
+
     valor_original_total = round(sum(_para_float(item.get('Valor original')) for item in lotes_visiveis), 2)
+    valor_original_exaurido_sem_aplicacao = round(
+        sum(_para_float(item.get('Valor original')) for item in lotes_exauridos if _lote_exaurido_sem_aplicacao(item)),
+        2,
+    )
+    valor_original_aplicado_ajustado = round(valor_original_total - valor_original_exaurido_sem_aplicacao, 2)
+
     bruto_atual_total = round(sum(_para_float(item.get('Bruto')) for item in lotes_visiveis), 2)
     liquido_atual_total = round(sum(_para_float(item.get('Líquido')) for item in lotes_visiveis), 2)
 
@@ -85,11 +99,13 @@ def _calcular_rendimento_total_lotes(contexto_baseline, saida_canonica) -> dict[
         bruto_resgatado_total = 0.0
         liquido_resgatado_total = 0.0
 
-    rendimento_bruto_total = round(valor_original_total - bruto_resgatado_total + bruto_atual_total, 2)
-    rendimento_liquido_total = round(valor_original_total - liquido_resgatado_total + liquido_atual_total, 2)
+    rendimento_bruto_total = round(valor_original_aplicado_ajustado - bruto_resgatado_total - bruto_atual_total, 2)
+    rendimento_liquido_total = round(valor_original_aplicado_ajustado - liquido_resgatado_total - liquido_atual_total, 2)
 
     return {
         'valor_original_total': valor_original_total,
+        'valor_original_exaurido_sem_aplicacao': valor_original_exaurido_sem_aplicacao,
+        'valor_original_aplicado_ajustado': valor_original_aplicado_ajustado,
         'bruto_resgatado_total': bruto_resgatado_total,
         'liquido_resgatado_total': liquido_resgatado_total,
         'bruto_atual_total': bruto_atual_total,
@@ -97,8 +113,9 @@ def _calcular_rendimento_total_lotes(contexto_baseline, saida_canonica) -> dict[
         'rendimento_bruto_total': rendimento_bruto_total,
         'rendimento_liquido_total': rendimento_liquido_total,
         'qtd_lotes_considerados': len(lotes_visiveis),
-        'qtd_lotes_exauridos': len(getattr(saida_canonica, 'lotes_exauridos', []) or []),
-        'qtd_lotes_ativos': len(getattr(saida_canonica, 'lotes_ativos', []) or []),
+        'qtd_lotes_exauridos': len(lotes_exauridos),
+        'qtd_lotes_ativos': len(lotes_ativos),
+        'qtd_lotes_exauridos_sem_aplicacao': sum(1 for item in lotes_exauridos if _lote_exaurido_sem_aplicacao(item)),
     }
 
 
@@ -109,7 +126,10 @@ def _render_secao_rendimento_total_lotes(contexto_baseline, saida_canonica) -> N
         ('lotes considerados', resumo['qtd_lotes_considerados']),
         ('lotes exauridos incluídos', resumo['qtd_lotes_exauridos']),
         ('lotes ativos incluídos', resumo['qtd_lotes_ativos']),
+        ('lotes exauridos sem aplicação', resumo['qtd_lotes_exauridos_sem_aplicacao']),
         ('valor original total', resumo['valor_original_total']),
+        ('valor original exaurido sem aplicação', resumo['valor_original_exaurido_sem_aplicacao']),
+        ('valor original aplicado ajustado', resumo['valor_original_aplicado_ajustado']),
         ('bruto já resgatado', resumo['bruto_resgatado_total']),
         ('líquido já resgatado', resumo['liquido_resgatado_total']),
         ('bruto atual remanescente', resumo['bruto_atual_total']),
