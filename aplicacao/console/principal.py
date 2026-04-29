@@ -75,6 +75,37 @@ def _lote_exaurido_sem_aplicacao(item: dict) -> bool:
     return produto in {'-', '', 'sem aplicação', 'sem aplicacao', 'não aplicado', 'nao aplicado'}
 
 
+def _lotes_exauridos_com_valores_usados(contexto_baseline, saida_canonica) -> list[dict]:
+    """Retorna linhas de exauridos com Bruto/Líquido efetivamente usados.
+
+    A saída canônica mantém os lotes exauridos com saldo atual zerado.
+    Para a tabela observável do console, contudo, Bruto e Líquido devem
+    representar o total usado/resgatado do lote no replay histórico.
+    """
+    linhas = [dict(item) for item in (getattr(saida_canonica, 'lotes_exauridos', []) or [])]
+    replay = getattr(contexto_baseline, 'replay_passado', None)
+    log = getattr(replay, 'log_passado', None) if replay is not None else None
+    if not isinstance(log, pd.DataFrame) or len(log) == 0 or 'Lote' not in log.columns:
+        return linhas
+
+    bruto_por_lote: dict[str, float] = {}
+    liquido_por_lote: dict[str, float] = {}
+    for _, row in log.iterrows():
+        lote_id = str(row.get('Lote') or '').strip()
+        if not lote_id:
+            continue
+        bruto_por_lote[lote_id] = round(bruto_por_lote.get(lote_id, 0.0) + _para_float(row.get('Bruto')), 2)
+        liquido_por_lote[lote_id] = round(liquido_por_lote.get(lote_id, 0.0) + _para_float(row.get('Liquido')), 2)
+
+    for item in linhas:
+        lote_id = str(item.get('Lote') or '').strip()
+        if lote_id in bruto_por_lote or lote_id in liquido_por_lote:
+            item['Bruto'] = round(bruto_por_lote.get(lote_id, 0.0), 2)
+            item['Líquido'] = round(liquido_por_lote.get(lote_id, 0.0), 2)
+            item['Saldo rem'] = 0.0
+    return linhas
+
+
 def _calcular_rendimento_total_lotes(contexto_baseline, saida_canonica) -> dict[str, float]:
     lotes_exauridos = list(getattr(saida_canonica, 'lotes_exauridos', []) or [])
     lotes_ativos = list(getattr(saida_canonica, 'lotes_ativos', []) or [])
@@ -221,6 +252,7 @@ def main() -> None:
     render_secao_situacao_atual(
         lotes_ativos=saida_canonica.lotes_ativos,
         lotes_exauridos=saida_canonica.lotes_exauridos,
+        lotes_exauridos_valores=_lotes_exauridos_com_valores_usados(contexto_baseline, saida_canonica),
         recebidos_atuais=saida_canonica.recebidos_atuais,
         resumo_fechamento=resumo_fechamento_situacao_atual,
         resumo_recebidos=resumo_recebidos_saida,
