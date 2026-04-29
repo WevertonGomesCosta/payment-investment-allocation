@@ -62,6 +62,8 @@ relatorios/*
 !relatorios/atuais/**
 !relatorios/historico/
 !relatorios/historico/**
+!relatorios/principais/
+!relatorios/principais/**
 # Derivados de dados e caches
 # Manter apenas arquivos canônicos quando rastreados.
 cache/
