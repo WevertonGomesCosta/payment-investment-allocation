@@ -17,10 +17,7 @@ from aplicacao.console.common import (
     severidade as _severidade,
 )
 from aplicacao.console.secoes_execucao import render_secao_execucao
-from aplicacao.console.secoes_financeiras import (
-    render_secao_amostras_pagamentos,
-    render_secao_situacao_atual,
-)
+from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.contexto_baseline import carregar_contexto_baseline
@@ -75,41 +72,68 @@ def _lote_exaurido_sem_aplicacao(item: dict) -> bool:
     return produto in {'-', '', 'sem aplicação', 'sem aplicacao', 'não aplicado', 'nao aplicado'}
 
 
-def _lotes_exauridos_com_valores_usados(contexto_baseline, saida_canonica) -> list[dict]:
-    """Retorna linhas de exauridos com Bruto/Líquido efetivamente usados.
-
-    A saída canônica mantém os lotes exauridos com saldo atual zerado.
-    Para a tabela observável do console, contudo, Bruto e Líquido devem
-    representar o total usado/resgatado do lote no replay histórico.
-    """
-    linhas = [dict(item) for item in (getattr(saida_canonica, 'lotes_exauridos', []) or [])]
+def _somas_sacadas_por_lote(contexto_baseline) -> dict[str, dict[str, float]]:
     replay = getattr(contexto_baseline, 'replay_passado', None)
     log = getattr(replay, 'log_passado', None) if replay is not None else None
+    somas: dict[str, dict[str, float]] = {}
     if not isinstance(log, pd.DataFrame) or len(log) == 0 or 'Lote' not in log.columns:
-        return linhas
-
-    bruto_por_lote: dict[str, float] = {}
-    liquido_por_lote: dict[str, float] = {}
+        return somas
     for _, row in log.iterrows():
         lote_id = str(row.get('Lote') or '').strip()
         if not lote_id:
             continue
-        bruto_por_lote[lote_id] = round(bruto_por_lote.get(lote_id, 0.0) + _para_float(row.get('Bruto')), 2)
-        liquido_por_lote[lote_id] = round(liquido_por_lote.get(lote_id, 0.0) + _para_float(row.get('Liquido')), 2)
+        atual = somas.setdefault(lote_id, {'bruto_sacado': 0.0, 'liquido_sacado': 0.0})
+        atual['bruto_sacado'] = round(atual['bruto_sacado'] + _para_float(row.get('Bruto')), 2)
+        atual['liquido_sacado'] = round(atual['liquido_sacado'] + _para_float(row.get('Liquido') if 'Liquido' in row else row.get('Líquido')), 2)
+    return somas
 
-    for item in linhas:
+
+def _lotes_exauridos_com_valores_usados(contexto_baseline, saida_canonica) -> list[dict]:
+    somas = _somas_sacadas_por_lote(contexto_baseline)
+    linhas = []
+    for item in (getattr(saida_canonica, 'lotes_exauridos', []) or []):
         lote_id = str(item.get('Lote') or '').strip()
-        if lote_id in bruto_por_lote or lote_id in liquido_por_lote:
-            item['Bruto'] = round(bruto_por_lote.get(lote_id, 0.0), 2)
-            item['Líquido'] = round(liquido_por_lote.get(lote_id, 0.0), 2)
-            item['Saldo rem'] = 0.0
+        valores = somas.get(lote_id, {})
+        valor_original = _para_float(item.get('Valor original'))
+        liquido_sacado = round(_para_float(valores.get('liquido_sacado')), 2)
+        patrimonio_liquido = round(liquido_sacado, 2)
+        linhas.append({
+            'Lote': item.get('Lote'),
+            'Valor original': valor_original,
+            'Bruto Sacado': round(_para_float(valores.get('bruto_sacado')), 2),
+            'Líquido Sacado': liquido_sacado,
+            'Patrimônio líquido': patrimonio_liquido,
+            'Rendimento líquido': round(patrimonio_liquido - valor_original, 2),
+        })
     return linhas
 
 
-def _calcular_rendimento_total_lotes(contexto_baseline, saida_canonica) -> dict[str, float]:
+def _lotes_ativos_com_valores_atuais(contexto_baseline, saida_canonica) -> list[dict]:
+    somas = _somas_sacadas_por_lote(contexto_baseline)
+    linhas = []
+    for item in (getattr(saida_canonica, 'lotes_ativos', []) or []):
+        lote_id = str(item.get('Lote') or '').strip()
+        valores = somas.get(lote_id, {})
+        valor_original = _para_float(item.get('Valor original'))
+        liquido_sacado = round(_para_float(valores.get('liquido_sacado')), 2)
+        liquido_atual = round(_para_float(item.get('Líquido')), 2)
+        patrimonio_liquido_atual = round(liquido_sacado + liquido_atual, 2)
+        linhas.append({
+            'Lote': item.get('Lote'),
+            'Valor original': valor_original,
+            'Bruto Atual': round(_para_float(item.get('Bruto')), 2),
+            'Líquido Atual': liquido_atual,
+            'Patrimônio líquido atual': patrimonio_liquido_atual,
+            'Rendimento líquido atual': round(patrimonio_liquido_atual - valor_original, 2),
+        })
+    return linhas
+
+
+def _resumo_patrimonio_total_lotes(contexto_baseline, saida_canonica) -> list[dict[str, object]]:
     lotes_exauridos = list(getattr(saida_canonica, 'lotes_exauridos', []) or [])
     lotes_ativos = list(getattr(saida_canonica, 'lotes_ativos', []) or [])
     lotes_visiveis = lotes_exauridos + lotes_ativos
+    somas = _somas_sacadas_por_lote(contexto_baseline)
 
     valor_original_total = round(sum(_para_float(item.get('Valor original')) for item in lotes_visiveis), 2)
     valor_original_exaurido_sem_aplicacao = round(
@@ -117,57 +141,78 @@ def _calcular_rendimento_total_lotes(contexto_baseline, saida_canonica) -> dict[
         2,
     )
     valor_original_aplicado_ajustado = round(valor_original_total - valor_original_exaurido_sem_aplicacao, 2)
+    valor_total_bruto_sacado = round(sum(v['bruto_sacado'] for v in somas.values()), 2)
+    valor_total_liquido_sacado = round(sum(v['liquido_sacado'] for v in somas.values()), 2)
+    valor_bruto_atual = round(sum(_para_float(item.get('Bruto')) for item in lotes_ativos), 2)
+    valor_liquido_atual = round(sum(_para_float(item.get('Líquido')) for item in lotes_ativos), 2)
+    patrimonio_liquido_atual = round(valor_total_liquido_sacado + valor_liquido_atual, 2)
+    rendimento_liquido_atual = round(patrimonio_liquido_atual - valor_original_aplicado_ajustado, 2)
 
-    bruto_atual_total = round(sum(_para_float(item.get('Bruto')) for item in lotes_visiveis), 2)
-    liquido_atual_total = round(sum(_para_float(item.get('Líquido')) for item in lotes_visiveis), 2)
+    return [
+        {'Métrica': 'Valor original total', 'Valor': valor_original_total},
+        {'Métrica': 'Valor original exaurido sem aplicação', 'Valor': valor_original_exaurido_sem_aplicacao},
+        {'Métrica': 'Valor original aplicado ajustado', 'Valor': valor_original_aplicado_ajustado},
+        {'Métrica': 'Valor total bruto sacado', 'Valor': valor_total_bruto_sacado},
+        {'Métrica': 'Valor total líquido sacado', 'Valor': valor_total_liquido_sacado},
+        {'Métrica': 'Valor bruto atual', 'Valor': valor_bruto_atual},
+        {'Métrica': 'Valor líquido atual', 'Valor': valor_liquido_atual},
+        {'Métrica': 'Patrimônio líquido atual', 'Valor': patrimonio_liquido_atual},
+        {'Métrica': 'Rendimento líquido atual', 'Valor': rendimento_liquido_atual},
+    ]
 
-    replay = getattr(contexto_baseline, 'replay_passado', None)
-    log = getattr(replay, 'log_passado', None) if replay is not None else None
-    if isinstance(log, pd.DataFrame) and len(log):
-        bruto_resgatado_total = round(float(log['Bruto'].fillna(0).sum()) if 'Bruto' in log.columns else 0.0, 2)
-        liquido_resgatado_total = round(float(log['Liquido'].fillna(0).sum()) if 'Liquido' in log.columns else 0.0, 2)
+
+def _render_secao_situacao_atual(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos) -> None:
+    _imprimir_titulo('SITUAÇÃO ATUAL')
+    if resumo_fechamento:
+        _imprimir_pares([
+            ('data de referência', resumo_fechamento.get('data_referencia')),
+            ('status do fechamento econômico', resumo_fechamento.get('status_fechamento')),
+            ('fonte do fechamento', resumo_fechamento.get('fonte_fechamento')),
+            ('fechamentos com fallback CDI', resumo_fechamento.get('qtd_fechamentos_fallback_cdi', 0)),
+            ('último fator explícito CDI', resumo_fechamento.get('data_ultimo_fator_explicito_cdi')),
+            ('data confirmada da série', resumo_fechamento.get('data_fechamento_confirmado')),
+        ])
+        if resumo_fechamento.get('observacao'):
+            print(f"- leitura auditável: {resumo_fechamento.get('observacao')}")
+
+    lotes_exauridos = list(getattr(saida_canonica, 'lotes_exauridos', []) or [])
+    lotes_ativos = list(getattr(saida_canonica, 'lotes_ativos', []) or [])
+
+    print('\n- lotes exauridos:')
+    if lotes_exauridos:
+        print('  identificação e tempo:')
+        _imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Último uso', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_exauridos, limite=None)
+        print('\n  valores sacados e patrimônio:')
+        _imprimir_tabela(['Lote', 'Valor original', 'Bruto Sacado', 'Líquido Sacado', 'Patrimônio líquido', 'Rendimento líquido'], _lotes_exauridos_com_valores_usados(contexto_baseline, saida_canonica), limite=None)
     else:
-        bruto_resgatado_total = 0.0
-        liquido_resgatado_total = 0.0
+        print('  [OK] sem lotes exauridos nesta execução')
 
-    rendimento_bruto_total = round(valor_original_aplicado_ajustado - bruto_resgatado_total - bruto_atual_total, 2)
-    rendimento_liquido_total = round(valor_original_aplicado_ajustado - liquido_resgatado_total - liquido_atual_total, 2)
+    print('\n- lotes ativos:')
+    if lotes_ativos:
+        print('  identificação e tempo:')
+        _imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_ativos, limite=None)
+        print('\n  valores atuais e patrimônio:')
+        _imprimir_tabela(['Lote', 'Valor original', 'Bruto Atual', 'Líquido Atual', 'Patrimônio líquido atual', 'Rendimento líquido atual'], _lotes_ativos_com_valores_atuais(contexto_baseline, saida_canonica), limite=None)
+    else:
+        print('  [OK] sem lotes ativos acima do limiar nesta execução')
 
-    return {
-        'valor_original_total': valor_original_total,
-        'valor_original_exaurido_sem_aplicacao': valor_original_exaurido_sem_aplicacao,
-        'valor_original_aplicado_ajustado': valor_original_aplicado_ajustado,
-        'bruto_resgatado_total': bruto_resgatado_total,
-        'liquido_resgatado_total': liquido_resgatado_total,
-        'bruto_atual_total': bruto_atual_total,
-        'liquido_atual_total': liquido_atual_total,
-        'rendimento_bruto_total': rendimento_bruto_total,
-        'rendimento_liquido_total': rendimento_liquido_total,
-        'qtd_lotes_considerados': len(lotes_visiveis),
-        'qtd_lotes_exauridos': len(lotes_exauridos),
-        'qtd_lotes_ativos': len(lotes_ativos),
-        'qtd_lotes_exauridos_sem_aplicacao': sum(1 for item in lotes_exauridos if _lote_exaurido_sem_aplicacao(item)),
-    }
+    print('\n- patrimônio total dos lotes:')
+    _imprimir_tabela(['Métrica', 'Valor'], _resumo_patrimonio_total_lotes(contexto_baseline, saida_canonica), limite=None)
+
+    recebidos_atuais = list(getattr(saida_canonica, 'recebidos_atuais', []) or [])
+    print('\n- recebidos auditáveis:')
+    if recebidos_atuais:
+        _imprimir_tabela(['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação'], recebidos_atuais, limite=None)
+    else:
+        print('  [OK] sem recebidos auditáveis nesta execução')
+    if resumo_recebidos:
+        print('\n- resumo de recebidos:')
+        _imprimir_pares(list(resumo_recebidos.items()))
 
 
-def _render_secao_rendimento_total_lotes(contexto_baseline, saida_canonica) -> None:
-    resumo = _calcular_rendimento_total_lotes(contexto_baseline, saida_canonica)
-    _imprimir_titulo('RENDIMENTO TOTAL DOS LOTES')
-    _imprimir_pares([
-        ('lotes considerados', resumo['qtd_lotes_considerados']),
-        ('lotes exauridos incluídos', resumo['qtd_lotes_exauridos']),
-        ('lotes ativos incluídos', resumo['qtd_lotes_ativos']),
-        ('lotes exauridos sem aplicação', resumo['qtd_lotes_exauridos_sem_aplicacao']),
-        ('valor original total', resumo['valor_original_total']),
-        ('valor original exaurido sem aplicação', resumo['valor_original_exaurido_sem_aplicacao']),
-        ('valor original aplicado ajustado', resumo['valor_original_aplicado_ajustado']),
-        ('bruto já resgatado', resumo['bruto_resgatado_total']),
-        ('líquido já resgatado', resumo['liquido_resgatado_total']),
-        ('bruto atual remanescente', resumo['bruto_atual_total']),
-        ('líquido atual remanescente', resumo['liquido_atual_total']),
-        ('rendimento bruto total obtido', resumo['rendimento_bruto_total']),
-        ('rendimento líquido total obtido', resumo['rendimento_liquido_total']),
-    ])
+def _render_secao_patrimonio_total_lotes(contexto_baseline, saida_canonica) -> None:
+    _imprimir_titulo('PATRIMÔNIO TOTAL DOS LOTES')
+    _imprimir_pares([(item['Métrica'], item['Valor']) for item in _resumo_patrimonio_total_lotes(contexto_baseline, saida_canonica)])
 
 
 def main() -> None:
@@ -249,15 +294,13 @@ def main() -> None:
         item.get('Métrica'): item.get('Valor')
         for item in saida_canonica.resumo_recebidos
     }
-    render_secao_situacao_atual(
-        lotes_ativos=saida_canonica.lotes_ativos,
-        lotes_exauridos=saida_canonica.lotes_exauridos,
-        lotes_exauridos_valores=_lotes_exauridos_com_valores_usados(contexto_baseline, saida_canonica),
-        recebidos_atuais=saida_canonica.recebidos_atuais,
-        resumo_fechamento=resumo_fechamento_situacao_atual,
-        resumo_recebidos=resumo_recebidos_saida,
+    _render_secao_situacao_atual(
+        contexto_baseline,
+        saida_canonica,
+        resumo_fechamento_situacao_atual,
+        resumo_recebidos_saida,
     )
-    _render_secao_rendimento_total_lotes(contexto_baseline, saida_canonica)
+    _render_secao_patrimonio_total_lotes(contexto_baseline, saida_canonica)
 
 
 if __name__ == '__main__':
