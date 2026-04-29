@@ -3,7 +3,7 @@ from __future__ import annotations
 from aplicacao.console.common import imprimir_itens_severidade, imprimir_linha_status, imprimir_pares, imprimir_titulo
 
 
-def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, severidade_dependencias, auditoria_cache_cdi, data_ultimo_fator_cdi, dias_rendimento_mes, resumo_por_aba, abas_primarias_reais, abas_auxiliares):
+def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, severidade_dependencias, auditoria_cache_cdi, data_ultimo_fator_cdi, resumo_por_aba, abas_primarias_reais, abas_auxiliares):
     imprimir_titulo('BASELINE')
     imprimir_pares([
         ('versão', versao),
@@ -12,11 +12,10 @@ def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, s
         ('planilha carregada', pacote_planilha.caminho),
     ])
 
-    imprimir_titulo('AMBIENTE')
+    imprimir_titulo('EXECUÇÃO')
     imprimir_pares([
         ('timezone', contexto.timezone_nome),
         ('data de referência', contexto.data_referencia.isoformat()),
-        ('colab', 'sim' if contexto.em_colab else 'não'),
         ('warnings de rede configurados', 'sim' if contexto.warnings_configurados else 'não'),
     ])
 
@@ -36,15 +35,16 @@ def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, s
     ])
 
     imprimir_titulo('CACHE CDI DIÁRIO (BCB)')
-    imprimir_linha_status('Cache diário de CDI para auditoria e replay', 'OK' if not auditoria_cache_cdi.get('fetch_status', '').startswith('falha') else 'AVISO', f"{auditoria_cache_cdi.get('qtd_datas_serie_cdi', 0)} datas")
+    imprimir_linha_status('Cache diário de CDI para auditoria e replay', 'OK' if not str(auditoria_cache_cdi.get('fetch_status', '')).startswith('falha') else 'AVISO', f"{auditoria_cache_cdi.get('qtd_datas_serie_cdi', 0)} datas")
     imprimir_pares([
         ('data inicial da consulta', auditoria_cache_cdi.get('data_inicial_consulta')),
         ('data final da consulta', auditoria_cache_cdi.get('data_final_consulta')),
         ('última data com fator no cache', data_ultimo_fator_cdi),
         ('fonte da série', auditoria_cache_cdi.get('fonte_serie_cdi')),
         ('status do fetch', auditoria_cache_cdi.get('fetch_status')),
+        ('cache atualizado para referência', 'sim' if auditoria_cache_cdi.get('cache_atualizado_para_referencia') else 'não'),
+        ('data de atualização do cache', auditoria_cache_cdi.get('data_atualizacao_cache')),
         ('caminho do cache', auditoria_cache_cdi.get('caminho_cache')),
-        ('dias de rendimento no mês até a data de referência', dias_rendimento_mes),
     ])
     imprimir_itens_severidade('avisos do cache CDI', (auditoria_cache_cdi.get('validacao') or {}).get('avisos') if isinstance(auditoria_cache_cdi.get('validacao'), dict) else None, 'AVISO')
 
