@@ -76,23 +76,43 @@ def _converter_taxa_bcb_para_fator(valor: Any, convencao_dias_ano: int) -> Optio
     taxa = float(para_float_monetario(valor, 0.0) or 0.0)
     if taxa <= 0.0:
         return None
-    # O retorno diário do SGS deve ser tratado diretamente como taxa diária em %.
     taxa_decimal = taxa / 100.0
     fator = 1.0 + taxa_decimal
     return float(fator)
 
 
-def _ler_cache(caminho_cache: Path, convencao_dias_ano: int) -> dict[date, float]:
+def _extrair_data_atualizacao_cache(dados: Any) -> Optional[date]:
+    if not isinstance(dados, Mapping):
+        return None
+    meta = dados.get('meta') if isinstance(dados.get('meta'), Mapping) else {}
+    for chave in ('data_atualizacao', 'data_final', 'data_final_consulta'):
+        valor = dados.get(chave) or meta.get(chave)
+        dt = para_data(valor)
+        if dt is not None:
+            return dt
+    return None
+
+
+def _ler_payload_cache(caminho_cache: Path) -> Any:
     if not caminho_cache.exists():
-        return {}
+        return None
     try:
-        dados = json.loads(caminho_cache.read_text(encoding='utf-8'))
+        return json.loads(caminho_cache.read_text(encoding='utf-8'))
     except Exception:
+        return None
+
+
+def _cache_atualizado_para_referencia(payload: Any, data_referencia: date) -> bool:
+    data_atualizacao = _extrair_data_atualizacao_cache(payload)
+    return data_atualizacao is not None and data_atualizacao >= data_referencia
+
+
+def _ler_cache(caminho_cache: Path, convencao_dias_ano: int, payload: Any | None = None) -> dict[date, float]:
+    dados = _ler_payload_cache(caminho_cache) if payload is None else payload
+    if dados is None:
         return {}
     serie: dict[date, float] = {}
 
-    # Formato legado/fornecido pelo usuário:
-    # {"mapa": {"YYYY-MM-DD": 1.0005...}, "taxa_projecao": ..., "data_atualizacao": ...}
     if isinstance(dados, Mapping) and isinstance(dados.get('mapa'), Mapping):
         for chave, valor in dados.get('mapa', {}).items():
             dt = para_data(chave)
@@ -104,7 +124,7 @@ def _ler_cache(caminho_cache: Path, convencao_dias_ano: int) -> dict[date, float
                 serie[dt] = fator
         return dict(sorted(serie.items(), key=lambda kv: kv[0]))
 
-    registros = dados.get('registros', dados if isinstance(dados, list) else [])
+    registros = dados.get('registros', dados if isinstance(dados, list) else []) if isinstance(dados, Mapping) else dados
     if not isinstance(registros, list):
         return {}
     for item in registros:
@@ -188,13 +208,18 @@ def carregar_cache_cdi_diario(
     caminho_cache = raiz_repositorio / str(_cfg_get(config, 'arquivos', 'cache_bcb', padrao='cache_bcb.json'))
     convencao = int(_cfg_get(config, 'execucao', 'convencao_dias_ano', 'cdi', padrao=252) or 252)
 
-    serie = _ler_cache(caminho_cache, convencao)
+    payload_cache = _ler_payload_cache(caminho_cache)
+    cache_atualizado = _cache_atualizado_para_referencia(payload_cache, data_referencia)
+    data_atualizacao_cache = _extrair_data_atualizacao_cache(payload_cache)
+    serie = _ler_cache(caminho_cache, convencao, payload=payload_cache)
     if serie:
         serie = {dt: fator for dt, fator in serie.items() if data_ini <= dt <= data_fim}
         serie = dict(sorted(serie.items(), key=lambda kv: kv[0]))
     fonte = 'cache_local' if serie else 'sem_cache'
-    fetch_status = None
-    if not serie or min(serie.keys(), default=data_ini) > data_ini or max(serie.keys(), default=data_ini) < data_fim:
+    fetch_status = 'cache_atualizado_sem_fetch' if cache_atualizado and serie else None
+
+    precisa_buscar = not (cache_atualizado and serie)
+    if precisa_buscar:
         serie_fetch, erro = _buscar_bcb(config, data_ini, data_fim, convencao)
         if serie_fetch:
             serie = serie_fetch
@@ -206,8 +231,10 @@ def carregar_cache_cdi_diario(
                     'data_inicial': data_ini.isoformat(),
                     'data_final': data_fim.isoformat(),
                     'taxa_projecao': _cfg_get(config, 'premissas_mercado', 'cdi_diario_projecao', padrao=0.0),
-                    'data_atualizacao': datetime.now().date().isoformat(),
+                    'data_atualizacao': data_referencia.isoformat(),
                 })
+                data_atualizacao_cache = data_referencia
+                cache_atualizado = True
             except Exception:
                 pass
         else:
@@ -219,6 +246,8 @@ def carregar_cache_cdi_diario(
         'fetch_status': fetch_status,
         'qtd_datas_serie_cdi': len(serie),
         'ultima_data_serie_cdi': max(serie.keys()).isoformat() if serie else None,
+        'data_atualizacao_cache': data_atualizacao_cache.isoformat() if hasattr(data_atualizacao_cache, 'isoformat') else data_atualizacao_cache,
+        'cache_atualizado_para_referencia': bool(cache_atualizado and serie),
         'caminho_cache': str(caminho_cache),
     }
     avisos = []
