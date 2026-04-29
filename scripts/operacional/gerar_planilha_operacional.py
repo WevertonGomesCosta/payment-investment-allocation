@@ -13,12 +13,27 @@ if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
 from nucleo.contexto_baseline import carregar_contexto_baseline
-from nucleo.identidade_baseline import caminho_artifact, caminho_saida_operacional, nome_relatorio_operacional, VERSAO_BASELINE
+from nucleo.identidade_baseline import (
+    caminho_artifact,
+    caminho_saida_operacional,
+    nome_relatorio_operacional,
+    VERSAO_BASELINE,
+    VERSAO_SLUG,
+)
 from nucleo.saida_canonica import construir_saida_canonica
 
 
-SAIDA_INTERNA = caminho_saida_operacional(RAIZ, nome_relatorio_operacional())
-SAIDA_EXTERNA = caminho_artifact(nome_relatorio_operacional())
+DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
+    'extrato_passado': 'Extrato Passado',
+    'extrato_futuro': 'Extrato Futuro',
+    'switching': 'Switching',
+    'carteira': 'Carteira',
+    'top30': 'Top30',
+    'resumo_switching': 'Resumo Switching',
+    'validacao': 'Validacao',
+    'situacao_atual': 'Situação Atual',
+    'saida_canonica': 'Saida Canonica',
+}
 
 DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
     'extrato_passado': ['Data', 'Conta', 'Despesa ID', 'Lote', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'],
@@ -113,6 +128,39 @@ def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> An
             return padrao
         atual = atual[chave]
     return atual
+
+
+def _config_planilha_operacional(contexto) -> Mapping[str, Any]:
+    config = getattr(getattr(contexto, 'pacote_config', None), 'conteudo', {}) or {}
+    cfg = _cfg_get(config, 'saidas', 'planilha_operacional', padrao={})
+    return cfg if isinstance(cfg, Mapping) else {}
+
+
+def _nome_aba_operacional(contexto, chave: str) -> str:
+    cfg = _config_planilha_operacional(contexto)
+    abas = cfg.get('abas') if isinstance(cfg.get('abas'), Mapping) else {}
+    valor = abas.get(chave) if isinstance(abas, Mapping) else None
+    if valor is None or str(valor).strip() == '':
+        valor = DEFAULT_ABAS_PLANILHA_OPERACIONAL[chave]
+    return str(valor)
+
+
+def _nome_arquivo_operacional(contexto) -> str:
+    cfg = _config_planilha_operacional(contexto)
+    valor = cfg.get('arquivo') or cfg.get('nome_arquivo') or nome_relatorio_operacional()
+    nome = str(valor).strip() or nome_relatorio_operacional()
+    try:
+        nome = nome.format(versao=VERSAO_BASELINE, versao_slug=VERSAO_SLUG)
+    except Exception:
+        pass
+    if not nome.lower().endswith('.xlsx'):
+        nome = f'{nome}.xlsx'
+    return nome
+
+
+def _caminhos_saida_operacional(contexto) -> tuple[Path, Path]:
+    nome_arquivo = _nome_arquivo_operacional(contexto)
+    return caminho_saida_operacional(RAIZ, nome_arquivo), caminho_artifact(nome_arquivo)
 
 
 def _cabecalhos_operacionais(contexto, chave: str) -> list[str]:
@@ -219,7 +267,7 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     if ranking is None:
         return
 
-    ws_carteira = wb.create_sheet('Carteira')
+    ws_carteira = wb.create_sheet(_nome_aba_operacional(contexto, 'carteira'))
     quadro_carteira = ranking.quadro_destinos_switch.copy()
     cols_carteira = [
         'rank_destino', 'nome', 'score_final', 'proxy_terminal_destino', 'retorno_anual_proxy',
@@ -236,12 +284,12 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     rows_carteira = quadro_carteira.astype(object).where(quadro_carteira.notna(), '').values.tolist()
     _apply_table_style(ws_carteira, headers_carteira, rows_carteira, freeze=True)
 
-    ws_top30 = wb.create_sheet('Top30')
+    ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
     top30 = ranking.top30.copy()
     rows_top30 = top30.astype(object).where(top30.notna(), '').values.tolist()
     _apply_table_style(ws_top30, list(top30.columns), rows_top30, freeze=True)
 
-    ws_resumo = wb.create_sheet('Resumo Switching')
+    ws_resumo = wb.create_sheet(_nome_aba_operacional(contexto, 'resumo_switching'))
     resumo_rows = [
         ['produtos_total', ranking.resumo.get('produtos_total')],
         ['produtos_ativos_ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')],
@@ -252,7 +300,7 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     ]
     _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows)
 
-    ws_val = wb.create_sheet('Validacao')
+    ws_val = wb.create_sheet(_nome_aba_operacional(contexto, 'validacao'))
     _apply_table_style(
         ws_val,
         ['colunas', 'qtd_diffs_materiais_nucleo', 'aceite_nucleo', 'metodo'],
@@ -260,8 +308,8 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     )
 
 
-def _adicionar_situacao_atual(wb, saida) -> None:
-    ws = wb.create_sheet('Situação Atual')
+def _adicionar_situacao_atual(wb, contexto, saida) -> None:
+    ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
     r = 1
     for idx, chave_secao in enumerate(ORDEM_SECOES_SITUACAO_ATUAL):
         secao = _secao_situacao_atual(chave_secao)
@@ -276,8 +324,8 @@ def _adicionar_situacao_atual(wb, saida) -> None:
         )
 
 
-def _adicionar_auditoria_saida_canonica(wb, saida) -> None:
-    ws = wb.create_sheet('Saida Canonica')
+def _adicionar_auditoria_saida_canonica(wb, contexto, saida) -> None:
+    ws = wb.create_sheet(_nome_aba_operacional(contexto, 'saida_canonica'))
     linhas = [{'Métrica': k, 'Valor': v} for k, v in saida.auditoria.items()]
     _apply_table_style(ws, ['Métrica', 'Valor'], _rows(linhas, ['Métrica', 'Valor']), freeze=True)
 
@@ -292,33 +340,34 @@ def main() -> Path:
         incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
     )
     saida = construir_saida_canonica(contexto, versao=VERSAO_BASELINE)
+    saida_interna, saida_externa = _caminhos_saida_operacional(contexto)
 
     wb = Workbook()
     ws_passado = wb.active
-    ws_passado.title = 'Extrato Passado'
+    ws_passado.title = _nome_aba_operacional(contexto, 'extrato_passado')
     headers_passado = _cabecalhos_operacionais(contexto, 'extrato_passado')
     _apply_table_style(ws_passado, headers_passado, _rows(saida.extrato_passado, headers_passado), freeze=True)
 
-    ws_futuro = wb.create_sheet('Extrato Futuro')
+    ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, 'extrato_futuro'))
     headers_futuro = _cabecalhos_operacionais(contexto, 'extrato_futuro')
     _apply_table_style(ws_futuro, headers_futuro, _rows(saida.extrato_futuro, headers_futuro), freeze=True)
 
-    ws_switching = wb.create_sheet('Switching')
+    ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, 'switching'))
     headers_switching = _cabecalhos_operacionais(contexto, 'switching')
     _apply_table_style(ws_switching, headers_switching, _rows(saida.switchings, headers_switching), freeze=True)
 
     _adicionar_abas_ranking(wb, contexto)
-    _adicionar_situacao_atual(wb, saida)
-    _adicionar_auditoria_saida_canonica(wb, saida)
+    _adicionar_situacao_atual(wb, contexto, saida)
+    _adicionar_auditoria_saida_canonica(wb, contexto, saida)
 
-    SAIDA_INTERNA.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(SAIDA_INTERNA)
+    saida_interna.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(saida_interna)
     try:
-        if SAIDA_EXTERNA.parent.exists():
-            wb.save(SAIDA_EXTERNA)
+        if saida_externa.parent.exists():
+            wb.save(saida_externa)
     except Exception as exc:
         print(f"[AVISO] cópia externa não gerada: {type(exc).__name__}:{exc}")
-    return SAIDA_INTERNA
+    return saida_interna
 
 
 if __name__ == '__main__':
