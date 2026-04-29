@@ -85,10 +85,8 @@ def _calcular_rendimento_total_lotes(contexto_baseline, saida_canonica) -> dict[
         bruto_resgatado_total = 0.0
         liquido_resgatado_total = 0.0
 
-    bruto_total_obtido = round(bruto_resgatado_total + bruto_atual_total, 2)
-    liquido_total_obtido = round(liquido_resgatado_total + liquido_atual_total, 2)
-    rendimento_bruto_total = round(bruto_total_obtido - valor_original_total, 2)
-    rendimento_liquido_total = round(liquido_total_obtido - valor_original_total, 2)
+    rendimento_bruto_total = round(valor_original_total - bruto_resgatado_total + bruto_atual_total, 2)
+    rendimento_liquido_total = round(valor_original_total - liquido_resgatado_total + liquido_atual_total, 2)
 
     return {
         'valor_original_total': valor_original_total,
@@ -148,7 +146,6 @@ def main() -> None:
     ]
     abas_auxiliares = [nome for nome in pacote_planilha.nomes_abas if nome not in {aba for _, aba in abas_primarias_reais}]
 
-    validacao_cache_cdi = cache_cdi.validacao or {}
     severidade_dependencias = _severidade(
         avisos=contexto.relatorio_dependencias.get('ausentes', []),
         condicao_ok=len(contexto.relatorio_dependencias.get('ausentes', [])) == 0,
