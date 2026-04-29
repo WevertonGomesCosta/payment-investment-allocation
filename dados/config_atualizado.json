@@ -558,6 +558,44 @@
         "validacao": "Validacao",
         "situacao_atual": "Situação Atual",
         "saida_canonica": "Saida Canonica"
+      },
+      "cabecalhos": {
+        "extrato_passado": [
+          "Data",
+          "Conta",
+          "Despesa ID",
+          "Lote",
+          "Saldo Antes",
+          "Bruto",
+          "Imposto",
+          "Líquido",
+          "Saldo Remanescente"
+        ],
+        "extrato_futuro": [
+          "Data",
+          "Conta",
+          "Despesa ID",
+          "Valor",
+          "Lote sugerido",
+          "Saldo Antes",
+          "Bruto",
+          "Imposto",
+          "Líquido",
+          "Saldo Remanescente",
+          "Cobertura integral",
+          "Estratégia",
+          "Lote reserva",
+          "Necessita switching"
+        ],
+        "switching": [
+          "Data sugerida",
+          "Lote origem",
+          "Produto origem",
+          "Produto destino switching",
+          "Ganho estimado",
+          "Valor líquido origem",
+          "Status"
+        ]
       }
     }
   },
