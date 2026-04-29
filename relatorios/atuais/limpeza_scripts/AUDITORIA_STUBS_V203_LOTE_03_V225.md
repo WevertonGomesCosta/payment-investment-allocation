@@ -6,7 +6,7 @@
 - Tipo: limpeza estrutural controlada
 - Escopo: scripts diagnósticos bloqueados por governança V203 em `scripts/diagnostico/temporal_decisao/valoracao_decisao/`
 - Classe: remoção física de stubs sem autoridade operacional
-- Resultado: lote parcial
+- Resultado: lote concluído integralmente
 
 ## Restrições respeitadas
 
@@ -35,7 +35,9 @@ O lote 03 auditou três arquivos em `scripts/diagnostico/temporal_decisao/valora
 5. não havia import operacional ativo nos resultados de busca;
 6. referências remanescentes eram documentais/históricas em README, relatórios ou inventários.
 
-## Arquivos auditados
+## Arquivos auditados e removidos
+
+Foram removidos os três stubs do lote 03:
 
 ```text
 scripts/diagnostico/temporal_decisao/valoracao_decisao/inspecionar_auditoria_3k_mar_pos_pagamento_v147.py
@@ -43,26 +45,12 @@ scripts/diagnostico/temporal_decisao/valoracao_decisao/inspecionar_correcao_flat
 scripts/diagnostico/temporal_decisao/valoracao_decisao/inspecionar_chave_tau_v149.py
 ```
 
-## Arquivo removido nesta microetapa
+## Sequência de remoção
 
-Foi removido com sucesso:
+- `inspecionar_correcao_flattening_v148.py` foi removido via conector durante a microetapa inicial.
+- `inspecionar_auditoria_3k_mar_pos_pagamento_v147.py` e `inspecionar_chave_tau_v149.py` tiveram a exclusão via conector bloqueada inicialmente, mas foram removidos localmente pelo usuário e enviados ao repositório depois da validação.
 
-```text
-scripts/diagnostico/temporal_decisao/valoracao_decisao/inspecionar_correcao_flattening_v148.py
-```
-
-Consulta direta ao caminho no `main` retornou ausência do arquivo (`404`), confirmando a remoção física.
-
-## Arquivos auditados, mas pendentes de remoção
-
-As tentativas de remoção via conector foram bloqueadas para os seguintes arquivos:
-
-```text
-scripts/diagnostico/temporal_decisao/valoracao_decisao/inspecionar_auditoria_3k_mar_pos_pagamento_v147.py
-scripts/diagnostico/temporal_decisao/valoracao_decisao/inspecionar_chave_tau_v149.py
-```
-
-Ambos permanecem classificados como stubs V203 puros e candidatos à remoção futura, mas não foram removidos nesta microetapa.
+Consulta direta aos caminhos no `main` retornou ausência dos arquivos (`404`), confirmando a remoção física completa do lote 03.
 
 ## Evidência de preservação histórica
 
@@ -72,7 +60,7 @@ Os três arquivos auditados declaravam que seu conteúdo original havia sido pre
 scripts/historico_saida_propria_v203/diagnostico_original/temporal_decisao/valoracao_decisao/<nome_do_script>.py
 ```
 
-Portanto, a remoção física de stubs no caminho antigo não elimina a trilha histórica original quando executada.
+Portanto, a remoção física dos stubs no caminho antigo não elimina a trilha histórica original.
 
 ## Evidência de ausência operacional
 
@@ -87,39 +75,45 @@ A busca por referências aos nomes dos três arquivos localizou referências doc
 
 Não foi localizada dependência operacional ativa em `aplicacao/principal.py`, `aplicacao/console/`, `scripts/operacional/` ou `nucleo/contexto_baseline.py`.
 
-## Commits da microetapa
+## Validação local concluída
 
-- `be30f1308ce23ddf5164710866194457b2af1a1f` — removeu `inspecionar_correcao_flattening_v148.py`
-- este relatório — registra a auditoria e o resultado parcial do lote 03
-
-## Validação local necessária
-
-Executar:
+Após a remoção integral do lote 03, o usuário validou localmente:
 
 ```bash
-cd ~/OneDrive/GitHub/payment-investment-allocation
-git pull
 python aplicacao/principal.py
 ```
 
-Critérios esperados:
+Resultado informado:
 
-1. execução sem erro;
-2. saída operacional em `saidas/oficial/relatorio_operacional_v225.xlsx`;
-3. console sem alteração econômica observável;
-4. nenhuma falha por ausência do stub removido.
+- execução sem erro;
+- saída operacional preservada em `saidas/oficial/relatorio_operacional_v225.xlsx`;
+- sem alteração econômica observável.
+
+## Commits da microetapa
+
+- `be30f1308ce23ddf5164710866194457b2af1a1f` — removeu `inspecionar_correcao_flattening_v148.py`
+- commit local do usuário — removeu `inspecionar_auditoria_3k_mar_pos_pagamento_v147.py` e `inspecionar_chave_tau_v149.py`
+- este relatório atualizado — registra a conclusão integral do lote 03
 
 ## Decisão
 
-O lote 03 foi concluído parcialmente. Um stub foi removido com segurança. Dois stubs foram auditados e classificados como removíveis, mas permaneceram no repositório porque a exclusão via conector foi bloqueada.
+O lote 03 está concluído integralmente.
+
+A remoção é considerada segura porque:
+
+1. os três arquivos removidos eram apenas stubs V203;
+2. não havia lógica funcional própria nos caminhos atuais;
+3. o conteúdo original permaneceu preservado no histórico V203;
+4. não havia dependência operacional ativa;
+5. `python aplicacao/principal.py` foi validado após a remoção;
+6. a saída oficial da V225 permaneceu preservada.
 
 ## Próxima microetapa recomendada
 
-Após validação local, remover manualmente/localmente ou reabrir em nova microetapa os dois stubs pendentes:
+A próxima limpeza pode continuar em lote pequeno, priorizando outros stubs V203 ainda existentes em subpastas de `scripts/diagnostico/temporal_decisao/`, sempre repetindo o mesmo protocolo:
 
-```text
-scripts/diagnostico/temporal_decisao/valoracao_decisao/inspecionar_auditoria_3k_mar_pos_pagamento_v147.py
-scripts/diagnostico/temporal_decisao/valoracao_decisao/inspecionar_chave_tau_v149.py
-```
-
-Em seguida, validar novamente `python aplicacao/principal.py`.
+1. confirmar que o arquivo é stub puro;
+2. confirmar preservação histórica em `scripts/historico_saida_propria_v203/`;
+3. buscar referências operacionais;
+4. remover no máximo poucos arquivos por lote;
+5. validar `python aplicacao/principal.py`.
