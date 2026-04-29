@@ -287,5 +287,107 @@ def main() -> None:
     _render_secao_situacao_atual(contexto_baseline, saida_canonica, resumo_fechamento_situacao_atual, resumo_recebidos_saida)
 
 
+# ============================================================
+# OVERRIDE V225 — Situação Atual em tabelas curtas
+# ============================================================
+
+COLS_LOTES_ID_CURTAS = [
+    'Lote',
+    'Carteira',
+    'Aplic.',
+    'Base fiscal',
+    'Dias corr.',
+    'Dias úteis',
+]
+
+COLS_LOTES_VALORES_CURTAS = [
+    'Lote',
+    'Orig.',
+    'Bruto sac.',
+    'Líq. sac.',
+    'Bruto atual',
+    'Líq. atual',
+    'Patr. líq.',
+    'Rend. líq.',
+]
+
+
+def _linhas_lotes_id_curta(contexto_baseline, saida_canonica, *, tipo: str) -> list[dict]:
+    linhas_base = _linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo=tipo)
+    linhas = []
+    for item in linhas_base:
+        linhas.append({
+            'Lote': item.get('Lote ID'),
+            'Carteira': item.get('Carteira'),
+            'Aplic.': item.get('Data Aplicação'),
+            'Base fiscal': item.get('Data Base Fiscal'),
+            'Dias corr.': item.get('Dias Corridos até Hoje'),
+            'Dias úteis': item.get('Dias Úteis até Hoje'),
+        })
+    return linhas
+
+
+def _linhas_lotes_valores_curta(contexto_baseline, saida_canonica, *, tipo: str) -> list[dict]:
+    linhas_base = _linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo=tipo)
+    linhas = []
+    for item in linhas_base:
+        linhas.append({
+            'Lote': item.get('Lote ID'),
+            'Orig.': item.get('Valor Original (R$)'),
+            'Bruto sac.': item.get('Total Bruto Sacado (R$)'),
+            'Líq. sac.': item.get('Total Líquido Sacado (R$)'),
+            'Bruto atual': item.get('Saldo Bruto Atual (R$)'),
+            'Líq. atual': item.get('Saldo Líquido Atual (R$)'),
+            'Patr. líq.': item.get('Patrimônio Líquido até Hoje (R$)'),
+            'Rend. líq.': item.get('Rendimento Líquido Acumulado dos Lotes (R$)'),
+        })
+    return linhas
+
+
+def _render_secao_situacao_atual(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos) -> None:
+    _imprimir_titulo('SITUAÇÃO ATUAL')
+
+    if resumo_fechamento:
+        _imprimir_pares([
+            ('data de referência', resumo_fechamento.get('data_referencia')),
+            ('status do fechamento econômico', resumo_fechamento.get('status_fechamento')),
+            ('fonte do fechamento', resumo_fechamento.get('fonte_fechamento')),
+            ('fechamentos com fallback CDI', resumo_fechamento.get('qtd_fechamentos_fallback_cdi', 0)),
+            ('último fator explícito CDI', resumo_fechamento.get('data_ultimo_fator_explicito_cdi')),
+            ('data confirmada da série', resumo_fechamento.get('data_fechamento_confirmado')),
+        ])
+        if resumo_fechamento.get('observacao'):
+            print(f"- leitura auditável: {resumo_fechamento.get('observacao')}")
+
+    print('\n- lotes exauridos:')
+    linhas_exauridos_id = _linhas_lotes_id_curta(contexto_baseline, saida_canonica, tipo='exauridos')
+    linhas_exauridos_val = _linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='exauridos')
+    if linhas_exauridos_id:
+        print('  identificação:')
+        _imprimir_tabela(COLS_LOTES_ID_CURTAS, linhas_exauridos_id, limite=None)
+        print('\n  valores e patrimônio:')
+        _imprimir_tabela(COLS_LOTES_VALORES_CURTAS, linhas_exauridos_val, limite=None)
+    else:
+        print('  [OK] sem lotes exauridos nesta execução')
+
+    print('\n- lotes ativos:')
+    linhas_ativos_id = _linhas_lotes_id_curta(contexto_baseline, saida_canonica, tipo='ativos')
+    linhas_ativos_val = _linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='ativos')
+    if linhas_ativos_id:
+        print('  identificação:')
+        _imprimir_tabela(COLS_LOTES_ID_CURTAS, linhas_ativos_id, limite=None)
+        print('\n  valores e patrimônio:')
+        _imprimir_tabela(COLS_LOTES_VALORES_CURTAS, linhas_ativos_val, limite=None)
+    else:
+        print('  [OK] sem lotes ativos acima do limiar nesta execução')
+
+    print('\n- patrimônio total dos lotes:')
+    _imprimir_tabela(['Métrica', 'Valor'], _resumo_patrimonio_total_lotes(contexto_baseline, saida_canonica), limite=None)
+
+    if resumo_recebidos:
+        print('\n- resumo de recebidos:')
+        _imprimir_pares(list(resumo_recebidos.items()))
+
+
 if __name__ == '__main__':
     main()

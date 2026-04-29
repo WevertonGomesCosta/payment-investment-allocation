@@ -521,5 +521,119 @@ def main() -> Path:
     return saida_interna
 
 
+# ============================================================
+# OVERRIDE V225 — Situação Atual em tabelas curtas
+# ============================================================
+
+COLS_LOTES_ID_CURTAS = [
+    'Lote',
+    'Carteira',
+    'Aplic.',
+    'Base fiscal',
+    'Dias corr.',
+    'Dias úteis',
+]
+
+COLS_LOTES_VALORES_CURTAS = [
+    'Lote',
+    'Orig.',
+    'Bruto sac.',
+    'Líq. sac.',
+    'Bruto atual',
+    'Líq. atual',
+    'Patr. líq.',
+    'Rend. líq.',
+]
+
+
+def _linhas_lotes_id_curta(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
+    linhas_base = _linhas_lotes_consolidados(contexto, saida, tipo=tipo)
+    linhas = []
+    for item in linhas_base:
+        linhas.append({
+            'Lote': item.get('Lote ID'),
+            'Carteira': item.get('Carteira'),
+            'Aplic.': item.get('Data Aplicação'),
+            'Base fiscal': item.get('Data Base Fiscal'),
+            'Dias corr.': item.get('Dias Corridos até Hoje'),
+            'Dias úteis': item.get('Dias Úteis até Hoje'),
+        })
+    return linhas
+
+
+def _linhas_lotes_valores_curta(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
+    linhas_base = _linhas_lotes_consolidados(contexto, saida, tipo=tipo)
+    linhas = []
+    for item in linhas_base:
+        linhas.append({
+            'Lote': item.get('Lote ID'),
+            'Orig.': item.get('Valor Original (R$)'),
+            'Bruto sac.': item.get('Total Bruto Sacado (R$)'),
+            'Líq. sac.': item.get('Total Líquido Sacado (R$)'),
+            'Bruto atual': item.get('Saldo Bruto Atual (R$)'),
+            'Líq. atual': item.get('Saldo Líquido Atual (R$)'),
+            'Patr. líq.': item.get('Patrimônio Líquido até Hoje (R$)'),
+            'Rend. líq.': item.get('Rendimento Líquido Acumulado dos Lotes (R$)'),
+        })
+    return linhas
+
+
+def _adicionar_situacao_atual(wb, contexto, saida) -> None:
+    ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
+    r = 1
+
+    secoes = [
+        (
+            'Lotes exauridos — identificação',
+            COLS_LOTES_ID_CURTAS,
+            _linhas_lotes_id_curta(contexto, saida, tipo='exauridos'),
+        ),
+        (
+            'Lotes exauridos — valores e patrimônio',
+            COLS_LOTES_VALORES_CURTAS,
+            _linhas_lotes_valores_curta(contexto, saida, tipo='exauridos'),
+        ),
+        (
+            'Lotes ativos — identificação',
+            COLS_LOTES_ID_CURTAS,
+            _linhas_lotes_id_curta(contexto, saida, tipo='ativos'),
+        ),
+        (
+            'Lotes ativos — valores e patrimônio',
+            COLS_LOTES_VALORES_CURTAS,
+            _linhas_lotes_valores_curta(contexto, saida, tipo='ativos'),
+        ),
+        (
+            'Patrimônio total dos lotes',
+            ['Métrica', 'Valor'],
+            _resumo_patrimonio_total_lotes(contexto, saida),
+        ),
+        (
+            'Recebidos auditáveis',
+            ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação'],
+            getattr(saida, 'recebidos_atuais', []) or [],
+        ),
+        (
+            'Fechamento econômico',
+            ['Métrica', 'Valor'],
+            getattr(saida, 'fechamento_atual', []) or [],
+        ),
+        (
+            'Resumo de recebidos',
+            ['Métrica', 'Valor'],
+            getattr(saida, 'resumo_recebidos', []) or [],
+        ),
+    ]
+
+    for idx, (titulo, headers, itens) in enumerate(secoes):
+        r = _apply_table_style(
+            ws,
+            headers,
+            _rows(itens, headers),
+            start_row=r if idx == 0 else r + 3,
+            title=titulo,
+        )
+
+
 if __name__ == '__main__':
     print(main())
