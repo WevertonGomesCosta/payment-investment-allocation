@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Any
+from typing import Iterable, Any, Mapping
 import sys
 
 from openpyxl import Workbook
@@ -19,6 +19,29 @@ from nucleo.saida_canonica import construir_saida_canonica
 
 SAIDA_INTERNA = caminho_saida_operacional(RAIZ, nome_relatorio_operacional())
 SAIDA_EXTERNA = caminho_artifact(nome_relatorio_operacional())
+
+DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
+    'extrato_passado': ['Data', 'Conta', 'Despesa ID', 'Lote', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'],
+    'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Lote reserva', 'Necessita switching'],
+    'switching': ['Data sugerida', 'Lote origem', 'Produto origem', 'Produto destino switching', 'Ganho estimado', 'Valor líquido origem', 'Status'],
+}
+
+
+def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
+    atual: Any = config
+    for chave in caminho:
+        if not isinstance(atual, Mapping) or chave not in atual:
+            return padrao
+        atual = atual[chave]
+    return atual
+
+
+def _cabecalhos_operacionais(contexto, chave: str) -> list[str]:
+    config = getattr(getattr(contexto, 'pacote_config', None), 'conteudo', {}) or {}
+    valor = _cfg_get(config, 'saidas', 'planilha_operacional', 'cabecalhos', chave, padrao=None)
+    if isinstance(valor, list) and all(isinstance(item, str) and item.strip() for item in valor):
+        return list(valor)
+    return list(DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL[chave])
 
 
 def _valor(item: dict[str, Any], chave: str) -> Any:
@@ -201,15 +224,15 @@ def main() -> Path:
     wb = Workbook()
     ws_passado = wb.active
     ws_passado.title = 'Extrato Passado'
-    headers_passado = ['Data', 'Conta', 'Despesa ID', 'Lote', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']
+    headers_passado = _cabecalhos_operacionais(contexto, 'extrato_passado')
     _apply_table_style(ws_passado, headers_passado, _rows(saida.extrato_passado, headers_passado), freeze=True)
 
     ws_futuro = wb.create_sheet('Extrato Futuro')
-    headers_futuro = ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Lote reserva', 'Necessita switching']
+    headers_futuro = _cabecalhos_operacionais(contexto, 'extrato_futuro')
     _apply_table_style(ws_futuro, headers_futuro, _rows(saida.extrato_futuro, headers_futuro), freeze=True)
 
     ws_switching = wb.create_sheet('Switching')
-    headers_switching = ['Data sugerida', 'Lote origem', 'Produto origem', 'Produto destino switching', 'Ganho estimado', 'Valor líquido origem', 'Status']
+    headers_switching = _cabecalhos_operacionais(contexto, 'switching')
     _apply_table_style(ws_switching, headers_switching, _rows(saida.switchings, headers_switching), freeze=True)
 
     _adicionar_abas_ranking(wb, contexto)
