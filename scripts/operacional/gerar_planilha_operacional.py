@@ -26,6 +26,85 @@ DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
     'switching': ['Data sugerida', 'Lote origem', 'Produto origem', 'Produto destino switching', 'Ganho estimado', 'Valor líquido origem', 'Status'],
 }
 
+DEFAULT_SECOES_SITUACAO_ATUAL = {
+    'lotes_exauridos': {
+        'titulo': 'Lotes exauridos',
+        'origem': 'lotes_exauridos',
+        'colunas': [
+            {'chave': 'Lote', 'cabecalho': 'Lote'},
+            {'chave': 'Recebimento', 'cabecalho': 'Recebimento'},
+            {'chave': 'Aplicação', 'cabecalho': 'Aplicação'},
+            {'chave': 'Último uso', 'cabecalho': 'Último uso'},
+            {'chave': 'Produto', 'cabecalho': 'Produto'},
+            {'chave': 'Dias corridos', 'cabecalho': 'Dias corridos'},
+            {'chave': 'Dias úteis', 'cabecalho': 'Dias úteis'},
+            {'chave': 'Valor original', 'cabecalho': 'Valor original'},
+            {'chave': 'Bruto', 'cabecalho': 'Bruto'},
+            {'chave': 'Líquido', 'cabecalho': 'Líquido'},
+            {'chave': 'Saldo rem', 'cabecalho': 'Saldo rem'},
+        ],
+    },
+    'lotes_ativos': {
+        'titulo': 'Lotes ativos',
+        'origem': 'lotes_ativos',
+        'colunas': [
+            {'chave': 'Lote', 'cabecalho': 'Lote'},
+            {'chave': 'Recebimento', 'cabecalho': 'Recebimento'},
+            {'chave': 'Aplicação', 'cabecalho': 'Aplicação'},
+            {'chave': 'Produto', 'cabecalho': 'Produto'},
+            {'chave': 'Dias corridos', 'cabecalho': 'Dias corridos'},
+            {'chave': 'Dias úteis', 'cabecalho': 'Dias úteis'},
+            {'chave': 'Valor original', 'cabecalho': 'Valor original'},
+            {'chave': 'Bruto', 'cabecalho': 'Bruto'},
+            {'chave': 'Líquido', 'cabecalho': 'Líquido'},
+            {'chave': 'Saldo rem', 'cabecalho': 'Saldo rem'},
+        ],
+    },
+    'recebidos_atuais': {
+        'titulo': 'Recebidos auditáveis',
+        'origem': 'recebidos_atuais',
+        'colunas': [
+            {'chave': 'Recebido', 'cabecalho': 'Recebido'},
+            {'chave': 'Lote origem', 'cabecalho': 'Lote origem'},
+            {'chave': 'Recebimento', 'cabecalho': 'Recebimento'},
+            {'chave': 'Aplicação', 'cabecalho': 'Aplicação'},
+            {'chave': 'Valor bruto', 'cabecalho': 'Valor bruto'},
+            {'chave': 'Valor líquido', 'cabecalho': 'Valor líquido'},
+            {'chave': 'Status', 'cabecalho': 'Status'},
+            {'chave': 'Destino', 'cabecalho': 'Destino'},
+            {'chave': 'Pagamentos vinculados', 'cabecalho': 'Pagamentos vinculados'},
+            {'chave': 'Valor vinculado', 'cabecalho': 'Valor vinculado'},
+            {'chave': 'Residual aplicação', 'cabecalho': 'Residual aplicação'},
+            {'chave': 'Disponível ref', 'cabecalho': 'Disponível ref'},
+            {'chave': 'Observação', 'cabecalho': 'Observação'},
+        ],
+    },
+    'fechamento_atual': {
+        'titulo': 'Fechamento econômico',
+        'origem': 'fechamento_atual',
+        'colunas': [
+            {'chave': 'Métrica', 'cabecalho': 'Métrica'},
+            {'chave': 'Valor', 'cabecalho': 'Valor'},
+        ],
+    },
+    'resumo_recebidos': {
+        'titulo': 'Resumo de recebidos',
+        'origem': 'resumo_recebidos',
+        'colunas': [
+            {'chave': 'Métrica', 'cabecalho': 'Métrica'},
+            {'chave': 'Valor', 'cabecalho': 'Valor'},
+        ],
+    },
+}
+
+ORDEM_SECOES_SITUACAO_ATUAL = [
+    'lotes_exauridos',
+    'lotes_ativos',
+    'recebidos_atuais',
+    'fechamento_atual',
+    'resumo_recebidos',
+]
+
 
 def _cfg_get(config: Mapping[str, Any], *caminho: str, padrao: Any = None) -> Any:
     atual: Any = config
@@ -50,6 +129,23 @@ def _valor(item: dict[str, Any], chave: str) -> Any:
 
 def _rows(itens: Iterable[dict[str, Any]], headers: list[str]) -> list[list[Any]]:
     return [[_valor(item, header) for header in headers] for item in itens]
+
+
+def _headers_mapeados(colunas: list[Mapping[str, str]]) -> list[str]:
+    return [str(coluna['cabecalho']) for coluna in colunas]
+
+
+def _rows_mapeadas(itens: Iterable[dict[str, Any]], colunas: list[Mapping[str, str]]) -> list[list[Any]]:
+    return [[_valor(item, str(coluna['chave'])) for coluna in colunas] for item in itens]
+
+
+def _secao_situacao_atual(chave_secao: str) -> dict[str, Any]:
+    secao = DEFAULT_SECOES_SITUACAO_ATUAL[chave_secao]
+    return {
+        'titulo': str(secao['titulo']),
+        'origem': str(secao['origem']),
+        'colunas': [dict(coluna) for coluna in secao['colunas']],
+    }
 
 
 def _apply_table_style(ws, headers: list[str], rows: list[list[Any]], *, start_row: int = 1, title: str | None = None, freeze: bool = False) -> int:
@@ -167,41 +263,17 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
 def _adicionar_situacao_atual(wb, saida) -> None:
     ws = wb.create_sheet('Situação Atual')
     r = 1
-    r = _apply_table_style(
-        ws,
-        ['Lote', 'Recebimento', 'Aplicação', 'Último uso', 'Produto', 'Dias corridos', 'Dias úteis', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'],
-        _rows(saida.lotes_exauridos, ['Lote', 'Recebimento', 'Aplicação', 'Último uso', 'Produto', 'Dias corridos', 'Dias úteis', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem']),
-        start_row=r,
-        title='Lotes exauridos',
-    )
-    r = _apply_table_style(
-        ws,
-        ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'],
-        _rows(saida.lotes_ativos, ['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem']),
-        start_row=r + 3,
-        title='Lotes ativos',
-    )
-    r = _apply_table_style(
-        ws,
-        ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação'],
-        _rows(saida.recebidos_atuais, ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação']),
-        start_row=r + 3,
-        title='Recebidos auditáveis',
-    )
-    r = _apply_table_style(
-        ws,
-        ['Métrica', 'Valor'],
-        _rows(saida.fechamento_atual, ['Métrica', 'Valor']),
-        start_row=r + 3,
-        title='Fechamento econômico',
-    )
-    _apply_table_style(
-        ws,
-        ['Métrica', 'Valor'],
-        _rows(saida.resumo_recebidos, ['Métrica', 'Valor']),
-        start_row=r + 3,
-        title='Resumo de recebidos',
-    )
+    for idx, chave_secao in enumerate(ORDEM_SECOES_SITUACAO_ATUAL):
+        secao = _secao_situacao_atual(chave_secao)
+        colunas = secao['colunas']
+        itens = getattr(saida, secao['origem'], [])
+        r = _apply_table_style(
+            ws,
+            _headers_mapeados(colunas),
+            _rows_mapeadas(itens, colunas),
+            start_row=r if idx == 0 else r + 3,
+            title=secao['titulo'],
+        )
 
 
 def _adicionar_auditoria_saida_canonica(wb, saida) -> None:
