@@ -326,6 +326,155 @@ def _adicionar_situacao_atual(wb, contexto, saida) -> None:
         r = _apply_table_style(ws, headers, _rows(itens, headers), start_row=r if idx == 0 else r + 3, title=titulo)
 
 
+
+COLUNAS_LOTES_CONSOLIDADOS = [
+    'Lote ID',
+    'Carteira',
+    'Data Aplicação',
+    'Data Base Fiscal',
+    'Dias Corridos até Hoje',
+    'Dias Úteis até Hoje',
+    'Valor Original (R$)',
+    'Total Bruto Sacado (R$)',
+    'Total Líquido Sacado (R$)',
+    'Saldo Bruto Atual (R$)',
+    'Saldo Líquido Atual (R$)',
+    'Patrimônio Líquido até Hoje (R$)',
+    'Rendimento Líquido Acumulado dos Lotes (R$)',
+]
+
+
+def _somas_sacadas_por_lote_consolidado(contexto, saida=None):
+    replay = getattr(contexto, 'replay_passado', None)
+    log = getattr(replay, 'log_passado', None) if replay is not None else None
+    somas = {}
+
+    if log is not None and hasattr(log, 'iterrows') and len(log) and 'Lote' in getattr(log, 'columns', []):
+        for _, row in log.iterrows():
+            lote_id = str(row.get('Lote') or '').strip()
+            if not lote_id:
+                continue
+            atual = somas.setdefault(lote_id, {'bruto_sacado': 0.0, 'liquido_sacado': 0.0})
+            atual['bruto_sacado'] = round(atual['bruto_sacado'] + _para_float(row.get('Bruto')), 2)
+            atual['liquido_sacado'] = round(
+                atual['liquido_sacado'] + _para_float(row.get('Liquido') if 'Liquido' in row else row.get('Líquido')),
+                2,
+            )
+
+    if saida is not None:
+        for recebido in (getattr(saida, 'recebidos_atuais', []) or []):
+            lote_id = str(recebido.get('Lote origem') or '').strip()
+            if not lote_id:
+                continue
+
+            status = str(recebido.get('Status') or '').strip().lower()
+            destino = str(recebido.get('Destino') or '').strip().lower()
+            usar_recebido = (
+                status in {'exaurido', 'uso_pre_aplicacao_com_aporte_posterior'}
+                or destino in {'pagamento', 'pagamento_e_aplicacao'}
+            )
+            if not usar_recebido:
+                continue
+
+            valor_vinculado = _para_float(recebido.get('Valor vinculado'))
+            valor_liquido = _para_float(recebido.get('Valor líquido'))
+            valor_bruto = _para_float(recebido.get('Valor bruto'))
+
+            liquido_ref = valor_vinculado if valor_vinculado > 0 else valor_liquido
+            bruto_ref = max(valor_vinculado, valor_bruto if status == 'exaurido' else 0.0, liquido_ref)
+
+            atual = somas.setdefault(lote_id, {'bruto_sacado': 0.0, 'liquido_sacado': 0.0})
+            atual['bruto_sacado'] = round(max(atual['bruto_sacado'], bruto_ref), 2)
+            atual['liquido_sacado'] = round(max(atual['liquido_sacado'], liquido_ref), 2)
+
+    return somas
+
+
+def _linhas_lotes_consolidados(contexto, saida, *, tipo):
+    itens = list(getattr(saida, 'lotes_exauridos' if tipo == 'exauridos' else 'lotes_ativos', []) or [])
+    somas = _somas_sacadas_por_lote_consolidado(contexto, saida)
+    linhas = []
+
+    for item in itens:
+        lote_id = str(item.get('Lote') or '').strip()
+        sacado = somas.get(lote_id, {})
+
+        valor_original = round(_para_float(item.get('Valor original')), 2)
+        total_bruto_sacado = round(_para_float(sacado.get('bruto_sacado')), 2)
+        total_liquido_sacado = round(_para_float(sacado.get('liquido_sacado')), 2)
+
+        saldo_bruto_atual = 0.0 if tipo == 'exauridos' else round(_para_float(item.get('Bruto')), 2)
+        saldo_liquido_atual = 0.0 if tipo == 'exauridos' else round(_para_float(item.get('Líquido')), 2)
+
+        patrimonio_liquido = round(total_liquido_sacado + saldo_liquido_atual, 2)
+        rendimento_liquido = round(patrimonio_liquido - valor_original, 2)
+
+        linhas.append({
+            'Lote ID': item.get('Lote'),
+            'Carteira': item.get('Produto'),
+            'Data Aplicação': item.get('Aplicação'),
+            'Data Base Fiscal': item.get('Aplicação'),
+            'Dias Corridos até Hoje': item.get('Dias corridos'),
+            'Dias Úteis até Hoje': item.get('Dias úteis'),
+            'Valor Original (R$)': valor_original,
+            'Total Bruto Sacado (R$)': total_bruto_sacado,
+            'Total Líquido Sacado (R$)': total_liquido_sacado,
+            'Saldo Bruto Atual (R$)': saldo_bruto_atual,
+            'Saldo Líquido Atual (R$)': saldo_liquido_atual,
+            'Patrimônio Líquido até Hoje (R$)': patrimonio_liquido,
+            'Rendimento Líquido Acumulado dos Lotes (R$)': rendimento_liquido,
+        })
+
+    return linhas
+
+
+def _resumo_patrimonio_total_lotes_consolidado(contexto, saida):
+    linhas = (
+        _linhas_lotes_consolidados(contexto, saida, tipo='exauridos')
+        + _linhas_lotes_consolidados(contexto, saida, tipo='ativos')
+    )
+
+    valor_original_total = round(sum(_para_float(x.get('Valor Original (R$)')) for x in linhas), 2)
+    valor_total_bruto_sacado = round(sum(_para_float(x.get('Total Bruto Sacado (R$)')) for x in linhas), 2)
+    valor_total_liquido_sacado = round(sum(_para_float(x.get('Total Líquido Sacado (R$)')) for x in linhas), 2)
+    valor_bruto_atual = round(sum(_para_float(x.get('Saldo Bruto Atual (R$)')) for x in linhas), 2)
+    valor_liquido_atual = round(sum(_para_float(x.get('Saldo Líquido Atual (R$)')) for x in linhas), 2)
+    patrimonio_liquido_atual = round(sum(_para_float(x.get('Patrimônio Líquido até Hoje (R$)')) for x in linhas), 2)
+    rendimento_liquido_atual = round(patrimonio_liquido_atual - valor_original_total, 2)
+
+    return [
+        {'Métrica': 'Valor original total', 'Valor': valor_original_total},
+        {'Métrica': 'Valor total bruto sacado', 'Valor': valor_total_bruto_sacado},
+        {'Métrica': 'Valor total líquido sacado', 'Valor': valor_total_liquido_sacado},
+        {'Métrica': 'Valor bruto atual', 'Valor': valor_bruto_atual},
+        {'Métrica': 'Valor líquido atual', 'Valor': valor_liquido_atual},
+        {'Métrica': 'Patrimônio líquido atual', 'Valor': patrimonio_liquido_atual},
+        {'Métrica': 'Rendimento líquido atual', 'Valor': rendimento_liquido_atual},
+    ]
+
+
+def _adicionar_situacao_atual(wb, contexto, saida):
+    ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
+    r = 1
+
+    secoes = [
+        ('Lotes exauridos', COLUNAS_LOTES_CONSOLIDADOS, _linhas_lotes_consolidados(contexto, saida, tipo='exauridos')),
+        ('Lotes ativos', COLUNAS_LOTES_CONSOLIDADOS, _linhas_lotes_consolidados(contexto, saida, tipo='ativos')),
+        ('Patrimônio total dos lotes', ['Métrica', 'Valor'], _resumo_patrimonio_total_lotes_consolidado(contexto, saida)),
+        ('Recebidos auditáveis', ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação'], getattr(saida, 'recebidos_atuais', []) or []),
+        ('Fechamento econômico', ['Métrica', 'Valor'], getattr(saida, 'fechamento_atual', []) or []),
+        ('Resumo de recebidos', ['Métrica', 'Valor'], getattr(saida, 'resumo_recebidos', []) or []),
+    ]
+
+    for idx, (titulo, headers, itens) in enumerate(secoes):
+        r = _apply_table_style(
+            ws,
+            headers,
+            _rows(itens, headers),
+            start_row=r if idx == 0 else r + 3,
+            title=titulo,
+        )
+
 def _adicionar_auditoria_saida_canonica(wb, contexto, saida) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'saida_canonica'))
     linhas = [{'Métrica': k, 'Valor': v} for k, v in saida.auditoria.items()]
