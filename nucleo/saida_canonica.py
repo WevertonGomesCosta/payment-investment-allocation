@@ -69,6 +69,36 @@ class PacoteSaidaCanonica:
             for item in self.extrato_futuro[:limite]
         ]
 
+    def recebidos_futuros_console(self, limite: int = 5) -> list[dict[str, Any]]:
+        linhas: list[dict[str, Any]] = []
+        for item in self.recebidos_atuais:
+            data_receb = item.get('Recebimento')
+            data_aplic = item.get('Aplicação')
+            valor = item.get('Valor líquido') if item.get('Valor líquido') not in ('', None) else item.get('Valor bruto')
+            destino = item.get('Destino') or 'não determinado'
+            status = item.get('Status') or 'não determinado'
+            pagamentos_vinc = int(item.get('Pagamentos vinculados') or 0)
+            valor_vinc = _round_monetario(item.get('Valor vinculado'), 0.0)
+            residual = _round_monetario(item.get('Residual aplicação'), 0.0)
+
+            linhas.append({
+                'Data recebimento': data_receb,
+                'Lote/ID': item.get('Lote origem') or item.get('Recebido') or '',
+                'Valor': _round_monetario(valor, 0.0),
+                'Status recebido': status,
+                'Destino potencial': destino,
+                'Produto/carteira destino': data_aplic or 'não determinado',
+                'Disponível para pagamento?': item.get('Disponível ref') or 'não',
+                'Usado em pagamento futuro?': 'sim' if pagamentos_vinc > 0 and valor_vinc > 0 else 'não',
+                'Saldo/valor remanescente': residual,
+            })
+
+        def _chave_ordenacao(linha: dict[str, Any]) -> tuple[str, str]:
+            return str(linha.get('Data recebimento') or ''), str(linha.get('Lote/ID') or '')
+
+        linhas.sort(key=_chave_ordenacao)
+        return linhas[:limite]
+
 
 def _fmt_data(valor: Any) -> Any:
     return valor.isoformat() if hasattr(valor, 'isoformat') else valor

@@ -257,6 +257,18 @@ COLS_PAGAMENTOS_PROXIMOS_CONSOLE = [
     'Saldo Remanescente',
 ]
 
+COLS_RECEBIDOS_FUTUROS_CONSOLE = [
+    'Data recebimento',
+    'Lote/ID',
+    'Valor',
+    'Status recebido',
+    'Destino potencial',
+    'Produto/carteira destino',
+    'Disponível para pagamento?',
+    'Usado em pagamento futuro?',
+    'Saldo/valor remanescente',
+]
+
 
 def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dict[str, object]:
     """Constrói as amostras operacionais de pagamentos para o console.
@@ -274,6 +286,12 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dic
             'rotulo': 'últimos 5 pagamentos já realizados',
             'headers': list(COLS_PAGAMENTOS_REALIZADOS_CONSOLE),
             'linhas': saida.pagamentos_realizados_console(limite=limite),
+            'limite': limite,
+        },
+        'recebidos_futuros': {
+            'rotulo': 'recebidos/aportes futuros (amostra operacional)',
+            'headers': list(COLS_RECEBIDOS_FUTUROS_CONSOLE),
+            'linhas': saida.recebidos_futuros_console(limite=limite),
             'limite': limite,
         },
         'proximos': {
