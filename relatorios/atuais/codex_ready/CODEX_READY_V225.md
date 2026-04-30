@@ -3,9 +3,9 @@
 ## Identificação
 
 - Baseline: V225
-- Data/hora local: 2026-04-30T13:29:29
-- Tipo: fechamento final de inconsistências de legado pré-Codex
-- Escopo: relatório operacional Codex-ready
+- Data/hora local: 2026-04-30T13:43:03
+- Tipo: enxugamento final do repositório pré-Codex
+- Escopo: remoção de stubs legados e arquivos temporários
 - Alteração de motor econômico: não
 - Alteração de replay: não
 - Alteração de pagamentos: não
@@ -23,8 +23,7 @@
 | Console e planilha usam dados observáveis centralizados | SIM |
 | Console sem dependência operacional de `secoes_financeiras.py` | SIM |
 | Console sem dependência operacional de `secoes_canonicas.py` | SIM |
-| `secoes_financeiras.py` neutralizado como legado | SIM |
-| `secoes_canonicas.py` neutralizado como legado | SIM |
+| Arquivos legados de console removidos | SIM |
 | Planilha não cria aba `Validacao` | SIM |
 | Estado mínimo Codex-ready | SIM |
 
@@ -49,7 +48,3 @@ python scripts/validacao/validar_rota_oficial_v225.py
 ```text
 saidas/oficial/relatorio_operacional_v225.xlsx
 ```
-
-## Decisão
-
-O repositório está preparado para uso posterior no Codex se a validação oficial concluir sem erro.

@@ -39,6 +39,7 @@ Estado auditado:
 - saída observável única: SIM
 - console sem dependência operacional de `secoes_financeiras.py`: SIM
 - console sem dependência operacional de `secoes_canonicas.py`: SIM
+- arquivos legados de console removidos: SIM
 
 ## Fontes únicas
 
@@ -74,29 +75,18 @@ A execução deve ler somente:
 
 Qualquer estrutura derivada deve ser criada internamente pelo script.
 
-## Arquivos legados
+## Arquivos legados de console
 
-Não reativar diretamente arquivos ou funções legadas de apresentação.
+Os módulos antigos `aplicacao/console/secoes_financeiras.py` e `aplicacao/console/secoes_canonicas.py` foram removidos do repositório para evitar reuso acidental.
 
-Arquivos preservados como stubs legados:
-
-- `aplicacao/console/secoes_financeiras.py`;
-- `aplicacao/console/secoes_canonicas.py`.
-
-Os conteúdos originais foram preservados em:
-
-```text
-relatorios/atuais/codex_ready/legado_preservado/
-```
-
-Se alguma informação antiga precisar voltar ao console ou à planilha, migrar primeiro o contrato de dados para `nucleo/saida_observavel.py`.
+Não recriar renderizadores paralelos. Se alguma saída antiga precisar voltar ao console ou à planilha, migrar primeiro o contrato de dados para `nucleo/saida_observavel.py`.
 
 ## Proibições operacionais para agentes
 
 - Não criar nova rota principal paralela.
 - Não fazer console e planilha recalcularem os mesmos dados por funções diferentes.
 - Não reabrir validações antigas já encerradas sem evidência concreta.
-- Não remover arquivos legados sem microetapa específica e validação local.
+- Não recriar arquivos legados de apresentação removidos.
 - Não alterar `dados/config_atualizado.json` sem necessidade contratual explícita.
 - Não versionar `__pycache__`, `.pyc`, logs temporários ou artefatos locais não oficiais.
 

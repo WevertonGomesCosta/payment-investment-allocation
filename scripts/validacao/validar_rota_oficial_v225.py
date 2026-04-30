@@ -15,10 +15,13 @@ REPO = Path(__file__).resolve().parents[2]
 ARQUIVOS_PY_COMPILE = [
     "aplicacao/principal.py",
     "aplicacao/console/principal.py",
-    "aplicacao/console/secoes_financeiras.py",
-    "aplicacao/console/secoes_canonicas.py",
     "nucleo/saida_observavel.py",
     "nucleo/gerar_planilha_operacional.py",
+]
+
+ARQUIVOS_REMOVIDOS_ESPERADOS = [
+    "aplicacao/console/secoes_financeiras.py",
+    "aplicacao/console/secoes_canonicas.py",
 ]
 
 ARQ_CONSOLE = REPO / "aplicacao" / "console" / "principal.py"
@@ -44,6 +47,9 @@ def main() -> None:
     for rel in ARQUIVOS_PY_COMPILE:
         check((REPO / rel).exists(), f"Arquivo ausente: {rel}")
 
+    for rel in ARQUIVOS_REMOVIDOS_ESPERADOS:
+        check(not (REPO / rel).exists(), f"Arquivo legado deveria ter sido removido: {rel}")
+
     run([sys.executable, "-m", "py_compile", *ARQUIVOS_PY_COMPILE])
 
     console = ARQ_CONSOLE.read_text(encoding="utf-8")
@@ -52,6 +58,10 @@ def main() -> None:
 
     check("aplicacao.console.secoes_financeiras" not in console, "Console ainda importa secoes_financeiras.")
     check("aplicacao.console.secoes_canonicas" not in console, "Console ainda importa secoes_canonicas.")
+    check("render_secao_situacao_atual" not in console, "Console ainda contém nome legado de Situação Atual.")
+    check("render_secao_amostras_pagamentos" not in console, "Console ainda contém nome legado de amostras.")
+    check("render_secao_canonicas" not in console, "Console ainda contém nome legado de canonicas.")
+
     check("construir_amostras_pagamentos_operacionais" in console, "Console não usa amostras observáveis.")
     check("construir_linhas_lotes_id_curta" in console, "Console não usa Situação Atual observável.")
     check("construir_blocos_situacao_atual" in planilha, "Planilha não usa blocos observáveis da Situação Atual.")

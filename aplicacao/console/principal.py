@@ -99,7 +99,7 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
     _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=10)
 
 
-def _render_secao_situacao_atual(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos) -> None:
+def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos) -> None:
     _imprimir_titulo('SITUAÇÃO ATUAL')
 
     if resumo_fechamento:
@@ -235,7 +235,7 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
         for item in saida_canonica.resumo_recebidos
     }
 
-    _render_secao_situacao_atual(
+    _render_situacao_atual_operacional(
         contexto_baseline,
         saida_canonica,
         resumo_fechamento_situacao_atual,

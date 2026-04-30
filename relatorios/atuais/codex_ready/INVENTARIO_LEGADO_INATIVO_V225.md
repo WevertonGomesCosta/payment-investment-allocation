@@ -3,42 +3,45 @@
 ## Identificação
 
 - Baseline: V225
-- Data/hora local: 2026-04-30T13:29:29
-- Escopo: fechamento final de inconsistências de legado pré-Codex
+- Data/hora local: 2026-04-30T13:43:03
+- Escopo: enxugamento final do repositório pré-Codex
 
-## Legados de console neutralizados
-
-### `aplicacao/console/secoes_financeiras.py`
-
-Status: neutralizado como stub legado
-
-Backup preservado em:
+## Helpers locais renomeados para evitar falso positivo
 
 ```text
-relatorios/atuais/codex_ready/legado_preservado/secoes_financeiras_original_v225.txt
+nenhum helper local precisou ser renomeado
 ```
 
-### `aplicacao/console/secoes_canonicas.py`
-
-Status: neutralizado como stub legado
-
-Backup preservado em:
+## Arquivos legados removidos
 
 ```text
-relatorios/atuais/codex_ready/legado_preservado/secoes_canonicas_original_v225.txt
+nenhum stub encontrado para remoção
 ```
 
-## Scripts temporários removidos da raiz
+## Arquivos/diretórios auxiliares removidos
 
 ```text
-nenhum script temporário encontrado na raiz
+relatorios/atuais/codex_ready/legado_preservado/: removido
+relatorios/atuais/codex_ready/scripts_temporarios_removidos/: removido
+enxugar_repositorio_pre_codex_v225.py
+enxugar_repositorio_pre_codex_v225_v2.py
 ```
 
-Cópias preservadas em:
+## Avisos de remoção
 
 ```text
-relatorios/atuais/codex_ready/scripts_temporarios_removidos/
+aplicacao/console/secoes_financeiras.py: já ausente
+aplicacao/console/secoes_canonicas.py: já ausente
 ```
+
+## Estado atual
+
+- entrada oficial: `aplicacao/principal.py`
+- console oficial: `aplicacao/console/principal.py`
+- planilha oficial: `nucleo/gerar_planilha_operacional.py`
+- saída canônica: `nucleo/saida_canonica.py`
+- saída observável: `nucleo/saida_observavel.py`
+- validação oficial: `scripts/validacao/validar_rota_oficial_v225.py`
 
 ## Regra para Codex
 
