@@ -273,6 +273,13 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
                     score_no_switch,
                 ),
             })
+            data_sw = _coerce_date(estrategia_switch.get('data_sugerida_switching'))
+            if data_sw is not None and data_pagamento is not None and data_sw <= data_pagamento:
+                estrategia_switch['lote_recomendado_rotulo'] = _rotulo_candidato({
+                    'lote_id': '',
+                    'produto_nome_canonico': estrategia_switch.get('produto_destino_switching') or 'não determinado',
+                    'fonte_id': estrategia_switch.get('fonte_origem_id') or '',
+                }) or 'não determinado'
 
         estrategia_combo: dict[str, Any] = {}
         top = []
@@ -399,6 +406,8 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'subclasse_pagamento_operacional': subclasse,
             'estrategia_recomendada': melhor['estrategia'],
             'lote_recomendado': melhor.get('lote_recomendado') or '',
+            'lote_recomendado_consumivel': melhor.get('lote_recomendado') or '',
+            'lote_recomendado_rotulo': melhor.get('lote_recomendado_rotulo') or '',
             'lote_reserva': melhor.get('lote_reserva') or '',
             'necessidade_switching': bool(melhor.get('necessidade_switching')),
             'data_sugerida_switching': melhor.get('data_sugerida_switching'),
@@ -420,6 +429,18 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'fallback_automatico_sem_switching': bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching'),
             'motivo_fallback_automatico': motivo_fallback_automatico if bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching') else '',
             'motivo_recomendacao': melhor.get('motivo_recomendacao') or '',
+            'switching_antes_pagamento': bool(melhor.get('necessidade_switching')) and melhor.get('data_sugerida_switching') is not None and data_pagamento is not None and _coerce_date(melhor.get('data_sugerida_switching')) <= data_pagamento,
+            'switching_depois_pagamento': bool(melhor.get('necessidade_switching')) and melhor.get('data_sugerida_switching') is not None and data_pagamento is not None and _coerce_date(melhor.get('data_sugerida_switching')) > data_pagamento,
+            'motivo_bloqueio_lote': (
+                'saldo insuficiente'
+                if float(melhor.get('valor_residual_temporal_lote') or 0.0) < valor_pagamento and bool(melhor.get('necessidade_switching'))
+                else ''
+            ),
+            'status_recomendacao': (
+                'lote_indisponivel_pos_switching'
+                if bool(melhor.get('necessidade_switching')) and str(melhor.get('lote_recomendado') or '').strip() in {'', 'não determinado'}
+                else 'ok'
+            ),
         })
 
     quadro = pd.DataFrame(linhas)
