@@ -23,6 +23,7 @@ from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurid
 @dataclass(frozen=True)
 class PacoteSaidaCanonica:
     versao: str
+    data_referencia: Any = None
     extrato_passado: list[dict[str, Any]] = field(default_factory=list)
     extrato_futuro: list[dict[str, Any]] = field(default_factory=list)
     switchings: list[dict[str, Any]] = field(default_factory=list)
@@ -54,20 +55,75 @@ class PacoteSaidaCanonica:
         return [
             {
                 'Data': item.get('Data'),
-                'Descrição': item.get('Conta') or '',
+                'Conta': item.get('Conta') or '',
                 'Valor': item.get('Valor'),
-                'Lote sugerido': item.get('Lote sugerido') or '',
-                'Pacote do dia': item.get('Pacote do dia') or item.get('Estratégia') or '',
-                'Necessita switching': item.get('Necessita switching') or '',
-                'Lote reserva': item.get('Lote reserva') or '',
-                'Saldo Antes': item.get('Saldo Antes'),
+                'Lote': item.get('Lote sugerido') or '',
+                'Pacote': item.get('Pacote do dia') or item.get('Estratégia') or '',
+                'Switch?': item.get('Necessita switching') or '',
+                'Reserva': item.get('Lote reserva') or '',
+                'Saldo ant.': item.get('Saldo Antes'),
                 'Bruto': item.get('Bruto'),
-                'Imposto': item.get('Imposto'),
-                'Líquido': item.get('Líquido'),
-                'Saldo Remanescente': item.get('Saldo Remanescente'),
+                'IR': item.get('Imposto'),
+                'Liq.': item.get('Líquido'),
+                'Rem.': item.get('Saldo Remanescente'),
+                'Sw. ant.': item.get('Switching antes do pagamento') if item.get('Switching antes do pagamento') not in (None, '') else 'n/d',
+                'Sw. dep.': item.get('Switching depois do pagamento') if item.get('Switching depois do pagamento') not in (None, '') else 'n/d',
+                'Status': item.get('Status recomendação') if item.get('Status recomendação') not in (None, '') else 'n/d',
+                'Bloq.': item.get('Motivo bloqueio lote') if item.get('Motivo bloqueio lote') not in (None, '') else 'n/d',
             }
             for item in self.extrato_futuro[:limite]
         ]
+
+    def recebidos_futuros_console(self, limite: int = 5) -> list[dict[str, Any]]:
+        lotes_futuros: set[str] = set()
+        for item in self.extrato_futuro:
+            for fonte in _split_fontes(item.get('Lote sugerido')):
+                lotes_futuros.add(fonte)
+
+        top1 = 'não determinado'
+        for row in self.ranking_amostra:
+            produto = row.get('Produto')
+            if produto:
+                top1 = "Top1 [prov.]"
+                break
+
+        def _prioridade(linha: dict[str, Any]) -> tuple[int, str, str]:
+            return (-int(linha.get('_usado_int', 0)), str(linha.get('Data') or ''), str(linha.get('Lote') or ''))
+
+        data_ref = str(self.data_referencia or '')
+        candidatos = []
+        for item in self.recebidos_atuais:
+            data_item = str(item.get('Recebimento') or '')
+            status_item = str(item.get('Status') or '').lower()
+            if data_ref and data_item and data_item < data_ref:
+                continue
+            if status_item in {'exaurido', 'aplicado'}:
+                continue
+            candidatos.append(item)
+
+        linhas: list[dict[str, Any]] = []
+        for item in candidatos:
+            lote = str(item.get('Lote origem') or item.get('Recebido') or '')
+            status = item.get('Status') or 'não determinado'
+            destino = item.get('Destino') or 'não determinado'
+            valor = item.get('Valor líquido') if item.get('Valor líquido') not in ('', None) else item.get('Valor bruto')
+            valor_vinc = _round_monetario(item.get('Valor vinculado'), 0.0)
+            pagamentos_vinc = int(item.get('Pagamentos vinculados') or 0)
+            usado_int = 1 if (lote in lotes_futuros or pagamentos_vinc > 0 or float(valor_vinc or 0.0) > 0.0) else 0
+            usado = 'sim' if usado_int else 'não'
+            linhas.append({
+                'Data': item.get('Recebimento'),
+                'Lote': lote,
+                'Valor': _round_monetario(valor, 0.0),
+                'Status': status,
+                'Destino': destino,
+                'Carteira': item.get('Carteira') or item.get('Produto') or top1,
+                'Usado': usado,
+                'Saldo': _round_monetario(item.get('Residual aplicação'), 'n/d'),
+                '_usado_int': usado_int,
+            })
+        linhas.sort(key=_prioridade)
+        return [{k: v for k, v in linha.items() if not k.startswith('_')} for linha in linhas[:limite]]
 
 
 def _fmt_data(valor: Any) -> Any:
@@ -413,7 +469,16 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         central = mapa_central.get(pagamento_id, {})
         resumo = _resumo_futuro(contexto, pagamento_id, row_dict, mapa_resumos, mapa_central)
         liquido = _round_monetario(resumo.get('Líquido'), '')
-        estrategia_real = _primeiro_texto_preenchido(row_dict.get('estrategia_recomendada'), central.get('estrategia_recomendada'))
+        estrategia_real = _primeiro_texto_preenchido(
+            row_dict.get('estrategia_recomendada'),
+            central.get('estrategia_recomendada'),
+            row_dict.get('tipo_fonte_escolhida'),
+            central.get('tipo_fonte_escolhida'),
+            row_dict.get('tipo_fonte'),
+            central.get('tipo_fonte'),
+            row_dict.get('fonte_escolhida'),
+            central.get('fonte_escolhida'),
+        )
         lote_sugerido_real = _primeiro_texto_preenchido(
             resumo.get('Lote sugerido'),
             row_dict.get('lote_recomendado'),
@@ -450,6 +515,10 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Pacote do dia': _texto_pacote_do_dia({**central, **row_dict}, estrategia),
             'Lote reserva': lote_reserva,
             'Necessita switching': _texto_necessita_switching({**central, **row_dict}, estrategia),
+            'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
+            'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',
+            'Motivo bloqueio lote': _texto_decisao(row_dict.get('motivo_bloqueio_lote')) if str(row_dict.get('motivo_bloqueio_lote') or '').strip() else '',
+            'Status recomendação': _texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado',
         })
     return linhas
 
@@ -486,9 +555,24 @@ def _texto_necessita_switching(row: dict[str, Any], estrategia: str) -> str:
         valor = row.get('necessidade_switching')
     if isinstance(valor, bool):
         return 'sim' if valor else 'não'
+    if hasattr(valor, 'item'):
+        try:
+            convertido = valor.item()
+            if isinstance(convertido, bool):
+                return 'sim' if convertido else 'não'
+            valor = convertido
+        except Exception:
+            pass
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        if valor == 1:
+            return 'sim'
+        if valor == 0:
+            return 'não'
     txt = str(valor or '').strip().lower()
-    if txt in {'sim', 'não', 'nao'}:
-        return 'sim' if txt == 'sim' else 'não'
+    if txt in {'sim', 'true', '1'}:
+        return 'sim'
+    if txt in {'não', 'nao', 'false', '0'}:
+        return 'não'
     if estrategia == 'switching_simples':
         return 'sim'
     return 'não determinado'
@@ -722,6 +806,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     }
     return PacoteSaidaCanonica(
         versao=versao,
+        data_referencia=_fmt_data(contexto.execucao.data_referencia),
         extrato_passado=extrato_passado,
         extrato_futuro=extrato_futuro,
         switchings=switchings,

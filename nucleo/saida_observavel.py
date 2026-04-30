@@ -244,17 +244,58 @@ COLS_PAGAMENTOS_REALIZADOS_CONSOLE = [
 
 COLS_PAGAMENTOS_PROXIMOS_CONSOLE = [
     'Data',
-    'Descrição',
+    'Conta',
     'Valor',
-    'Lote sugerido',
-    'Pacote do dia',
-    'Necessita switching',
-    'Lote reserva',
-    'Saldo Antes',
+    'Lote',
+    'Pacote',
+    'Switch?',
+    'Reserva',
+    'Saldo ant.',
     'Bruto',
-    'Imposto',
-    'Líquido',
-    'Saldo Remanescente',
+    'IR',
+    'Liq.',
+    'Rem.',
+    'Sw. ant.',
+    'Sw. dep.',
+    'Status',
+    'Bloq.',
+]
+
+COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE = [
+    'Data',
+    'Conta',
+    'Valor',
+    'Lote',
+    'Pacote',
+    'Switch?',
+    'Reserva',
+    'Saldo ant.',
+    'Bruto',
+    'IR',
+    'Liq.',
+    'Rem.',
+]
+
+COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS = [
+    'Data',
+    'Conta',
+    'Lote',
+    'Pacote',
+    'Sw. ant.',
+    'Sw. dep.',
+    'Status',
+    'Bloq.',
+]
+
+COLS_RECEBIDOS_FUTUROS_CONSOLE = [
+    'Data',
+    'Lote',
+    'Valor',
+    'Status',
+    'Destino',
+    'Carteira',
+    'Usado',
+    'Saldo',
 ]
 
 
@@ -282,4 +323,25 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dic
             'linhas': saida.pagamentos_proximos_console(limite=limite),
             'limite': limite,
         },
+        'proximos_valores_fonte': {
+            'rotulo': 'próximos 5 pagamentos — valores/fonte',
+            'headers': list(COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE),
+            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'limite': limite,
+        },
+        'proximos_switching_status': {
+            'rotulo': 'próximos 5 pagamentos — switching/status',
+            'headers': list(COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS),
+            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'limite': limite,
+        },
+    }
+
+
+def construir_amostra_alocacao_recebidos_futuros(saida, *, limite: int = 5) -> dict[str, object]:
+    return {
+        'rotulo': 'aportes futuros / alocação',
+        'headers': list(COLS_RECEBIDOS_FUTUROS_CONSOLE),
+        'linhas': saida.recebidos_futuros_console(limite=limite),
+        'limite': limite,
     }
