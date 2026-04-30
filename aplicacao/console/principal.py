@@ -23,6 +23,7 @@ from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_observavel import (
     construir_amostras_pagamentos_operacionais,
+    construir_amostra_alocacao_recebidos_futuros,
     COLS_LOTES_ID_CURTAS,
     COLS_LOTES_VALORES_CURTAS,
     construir_linhas_lotes_id_curta,
@@ -97,6 +98,10 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
 
     print('- amostra de switchings reais da janela (independente de pagamentos):')
     _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=10)
+
+    alocacao = construir_amostra_alocacao_recebidos_futuros(saida_canonica, limite=5)
+    print(f"\n- {alocacao['rotulo']}:")
+    _imprimir_tabela(alocacao['headers'], alocacao['linhas'], limite=alocacao['limite'])
 
 
 def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos) -> None:
