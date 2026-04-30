@@ -65,7 +65,7 @@ class PacoteSaidaCanonica:
                 'Bruto': item.get('Bruto'),
                 'IR': item.get('Imposto'),
                 'Liq.': item.get('Líquido'),
-                'Saldo rem.': item.get('Saldo Remanescente'),
+                'Rem.': item.get('Saldo Remanescente'),
             }
             for item in self.extrato_futuro[:limite]
         ]
@@ -80,7 +80,7 @@ class PacoteSaidaCanonica:
         for row in self.ranking_amostra:
             produto = row.get('Produto')
             if produto:
-                top1 = f"{produto} [prov.]"
+                top1 = "Top1 [prov.]"
                 break
 
         def _prioridade(item: dict[str, Any]) -> tuple[str, int, str]:

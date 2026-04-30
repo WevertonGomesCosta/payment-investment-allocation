@@ -254,7 +254,7 @@ COLS_PAGAMENTOS_PROXIMOS_CONSOLE = [
     'Bruto',
     'IR',
     'Liq.',
-    'Saldo rem.',
+    'Rem.',
 ]
 
 COLS_RECEBIDOS_FUTUROS_CONSOLE = [
