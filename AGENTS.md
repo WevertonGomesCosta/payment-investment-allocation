@@ -37,7 +37,8 @@ Estado auditado:
 
 - contexto único: SIM
 - saída observável única: SIM
-- console sem dependência operacional de `secoes_financeiras.py`: NÃO
+- console sem dependência operacional de `secoes_financeiras.py`: SIM
+- console sem dependência operacional de `secoes_canonicas.py`: SIM
 
 ## Fontes únicas
 
@@ -60,7 +61,8 @@ Não alterar sem solicitação explícita:
 - cache CDI/BCB;
 - identidade da baseline V225;
 - contratos matemáticos/econômicos;
-- estrutura de leitura das abas de entrada.
+- estrutura de leitura das abas de entrada;
+- `dados/config_atualizado.json`.
 
 ## Abas de entrada autorizadas
 
@@ -76,10 +78,16 @@ Qualquer estrutura derivada deve ser criada internamente pelo script.
 
 Não reativar diretamente arquivos ou funções legadas de apresentação.
 
-Arquivos legados preservados como stub ou inventariados:
+Arquivos preservados como stubs legados:
 
 - `aplicacao/console/secoes_financeiras.py`;
 - `aplicacao/console/secoes_canonicas.py`.
+
+Os conteúdos originais foram preservados em:
+
+```text
+relatorios/atuais/codex_ready/legado_preservado/
+```
 
 Se alguma informação antiga precisar voltar ao console ou à planilha, migrar primeiro o contrato de dados para `nucleo/saida_observavel.py`.
 

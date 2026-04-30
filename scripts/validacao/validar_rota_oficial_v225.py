@@ -24,7 +24,7 @@ ARQUIVOS_PY_COMPILE = [
 ARQ_CONSOLE = REPO / "aplicacao" / "console" / "principal.py"
 ARQ_PLANILHA = REPO / "nucleo" / "gerar_planilha_operacional.py"
 ARQ_OBSERVAVEL = REPO / "nucleo" / "saida_observavel.py"
-ARQ_RELATORIO_CODEX = REPO / "relatorios" / "atuais" / "codex_ready" / "CODEX_READY_V225.md"
+ARQ_CODEX = REPO / "relatorios" / "atuais" / "codex_ready" / "CODEX_READY_V225.md"
 ARQ_XLSX = REPO / "saidas" / "oficial" / "relatorio_operacional_v225.xlsx"
 
 
@@ -51,6 +51,7 @@ def main() -> None:
     observavel = ARQ_OBSERVAVEL.read_text(encoding="utf-8")
 
     check("aplicacao.console.secoes_financeiras" not in console, "Console ainda importa secoes_financeiras.")
+    check("aplicacao.console.secoes_canonicas" not in console, "Console ainda importa secoes_canonicas.")
     check("construir_amostras_pagamentos_operacionais" in console, "Console não usa amostras observáveis.")
     check("construir_linhas_lotes_id_curta" in console, "Console não usa Situação Atual observável.")
     check("construir_blocos_situacao_atual" in planilha, "Planilha não usa blocos observáveis da Situação Atual.")
@@ -71,20 +72,14 @@ def main() -> None:
         finally:
             wb.close()
 
-    if ARQ_RELATORIO_CODEX.exists():
-        texto = ARQ_RELATORIO_CODEX.read_text(encoding="utf-8")
-        linhas_estado = [
-            linha.strip()
-            for linha in texto.splitlines()
-            if "Estado mínimo Codex-ready" in linha
-        ]
-
-        if linhas_estado:
-            estado_ok = any("| SIM |" in linha or linha.endswith("| SIM") for linha in linhas_estado)
-            if not estado_ok:
-                print("[AVISO] CODEX_READY_V225.md ainda não confirma Estado mínimo Codex-ready = SIM.")
-                print("[AVISO] Linha encontrada: " + " ; ".join(linhas_estado))
-                print("[AVISO] A rota operacional passou; regenere CODEX_READY_V225.md após esta validação.")
+    if ARQ_CODEX.exists():
+        texto = ARQ_CODEX.read_text(encoding="utf-8")
+        linhas = [linha.strip() for linha in texto.splitlines() if "Estado mínimo Codex-ready" in linha]
+        check(linhas, "CODEX_READY_V225.md não contém Estado mínimo Codex-ready.")
+        check(
+            any("| SIM |" in linha or linha.endswith("| SIM") for linha in linhas),
+            "CODEX_READY_V225.md não confirma Estado mínimo Codex-ready = SIM: " + " ; ".join(linhas),
+        )
 
     print("")
     print("VALIDAÇÃO OFICIAL V225 CONCLUÍDA COM SUCESSO")
