@@ -23,6 +23,7 @@ from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurid
 @dataclass(frozen=True)
 class PacoteSaidaCanonica:
     versao: str
+    data_referencia: Any = None
     extrato_passado: list[dict[str, Any]] = field(default_factory=list)
     extrato_futuro: list[dict[str, Any]] = field(default_factory=list)
     switchings: list[dict[str, Any]] = field(default_factory=list)
@@ -54,17 +55,17 @@ class PacoteSaidaCanonica:
         return [
             {
                 'Data': item.get('Data'),
-                'Descrição': item.get('Conta') or '',
+                'Conta': item.get('Conta') or '',
                 'Valor': item.get('Valor'),
-                'Lote sugerido': item.get('Lote sugerido') or '',
-                'Pacote do dia': item.get('Pacote do dia') or item.get('Estratégia') or '',
-                'Necessita switching': item.get('Necessita switching') or '',
-                'Lote reserva': item.get('Lote reserva') or '',
-                'Saldo Antes': item.get('Saldo Antes'),
+                'Lote': item.get('Lote sugerido') or '',
+                'Pacote': item.get('Pacote do dia') or item.get('Estratégia') or '',
+                'Switch?': item.get('Necessita switching') or '',
+                'Reserva': item.get('Lote reserva') or '',
+                'Saldo ant.': item.get('Saldo Antes'),
                 'Bruto': item.get('Bruto'),
-                'Imposto': item.get('Imposto'),
-                'Líquido': item.get('Líquido'),
-                'Saldo Remanescente': item.get('Saldo Remanescente'),
+                'IR': item.get('Imposto'),
+                'Liq.': item.get('Líquido'),
+                'Saldo rem.': item.get('Saldo Remanescente'),
             }
             for item in self.extrato_futuro[:limite]
         ]
@@ -75,16 +76,31 @@ class PacoteSaidaCanonica:
             for fonte in _split_fontes(item.get('Lote sugerido')):
                 lotes_futuros.add(fonte)
 
-        def _prioridade(item: dict[str, Any]) -> tuple[int, int, str, str]:
+        top1 = 'não determinado'
+        for row in self.ranking_amostra:
+            produto = row.get('Produto')
+            if produto:
+                top1 = f"{produto} [prov.]"
+                break
+
+        def _prioridade(item: dict[str, Any]) -> tuple[int, str, int, str]:
             lote = str(item.get('Lote origem') or item.get('Recebido') or '')
             status = str(item.get('Status') or '').lower()
             recebido_em = str(item.get('Recebimento') or '')
             usado = 1 if lote in lotes_futuros else 0
             futuro = 1 if any(token in status for token in ('futuro', 'pendente', 'planejado')) else 0
-            return (usado, futuro, recebido_em, lote)
+            return (usado, recebido_em, futuro, lote)
+
+        data_ref = str(self.data_referencia or '')
+        candidatos = []
+        for item in self.recebidos_atuais:
+            data_item = str(item.get('Recebimento') or '')
+            if data_ref and data_item and data_item < data_ref:
+                continue
+            candidatos.append(item)
 
         linhas: list[dict[str, Any]] = []
-        for item in sorted(self.recebidos_atuais, key=_prioridade, reverse=True):
+        for item in sorted(candidatos, key=_prioridade):
             lote = str(item.get('Lote origem') or item.get('Recebido') or '')
             status = item.get('Status') or 'não determinado'
             destino = item.get('Destino') or 'não determinado'
@@ -100,8 +116,8 @@ class PacoteSaidaCanonica:
                 'Valor': _round_monetario(valor, 0.0),
                 'Status': status,
                 'Destino': destino,
-                'Carteira': 'não determinado',
-                'Disp. pagto': item.get('Disponível ref') if item.get('Disponível ref') in ('sim', 'não') else 'não determinado',
+                'Carteira': item.get('Carteira') or item.get('Produto') or top1,
+                'Disp.': item.get('Disponível ref') if item.get('Disponível ref') in ('sim', 'não') else 'não determinado',
                 'Usado': usado,
                 'Saldo': _round_monetario(item.get('Residual aplicação'), 0.0),
             })
@@ -762,6 +778,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     }
     return PacoteSaidaCanonica(
         versao=versao,
+        data_referencia=_fmt_data(contexto.execucao.data_referencia),
         extrato_passado=extrato_passado,
         extrato_futuro=extrato_futuro,
         switchings=switchings,

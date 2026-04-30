@@ -244,17 +244,29 @@ COLS_PAGAMENTOS_REALIZADOS_CONSOLE = [
 
 COLS_PAGAMENTOS_PROXIMOS_CONSOLE = [
     'Data',
-    'Descrição',
+    'Conta',
     'Valor',
-    'Lote sugerido',
-    'Pacote do dia',
-    'Necessita switching',
-    'Lote reserva',
-    'Saldo Antes',
+    'Lote',
+    'Pacote',
+    'Switch?',
+    'Reserva',
+    'Saldo ant.',
     'Bruto',
-    'Imposto',
-    'Líquido',
-    'Saldo Remanescente',
+    'IR',
+    'Liq.',
+    'Saldo rem.',
+]
+
+COLS_RECEBIDOS_FUTUROS_CONSOLE = [
+    'Data',
+    'Lote',
+    'Valor',
+    'Status',
+    'Destino',
+    'Carteira',
+    'Disp.',
+    'Usado',
+    'Saldo',
 ]
 
 COLS_RECEBIDOS_FUTUROS_CONSOLE = [
