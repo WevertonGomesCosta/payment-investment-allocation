@@ -511,6 +511,10 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Pacote do dia': _texto_pacote_do_dia({**central, **row_dict}, estrategia),
             'Lote reserva': lote_reserva,
             'Necessita switching': _texto_necessita_switching({**central, **row_dict}, estrategia),
+            'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
+            'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',
+            'Motivo bloqueio lote': _texto_decisao(row_dict.get('motivo_bloqueio_lote')) if str(row_dict.get('motivo_bloqueio_lote') or '').strip() else '',
+            'Status recomendação': _texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado',
         })
     return linhas
 
