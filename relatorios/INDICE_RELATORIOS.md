@@ -1,21 +1,56 @@
 # Índice oficial de relatórios
 
-## Vigentes em `relatorios/atuais`
+## Documentos de entrada vigentes
 
-- `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md` — contrato mestre vigente da baseline V183
-- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` — anexo metodológico vinculante da baseline V183
-- `relatorios/atuais/LEIA-ME_OPERACIONAL.md` — guia de leitura da camada documental vigente
-- `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md` — backlog oficial subordinado ao contrato e ao modelo
-- `relatorios/atuais/ESPECIFICACAO_SAIDA_OFICIAL.md` — especificação operacional da camada observável oficial
-- `relatorios/atuais/AUDITORIA_LIMPEZA_RESIDUAL_V201.md` — registro da limpeza segura aplicada sobre a V200
-- `relatorios/atuais/MAPA_SCRIPTS_V201.md` — manifesto de classificação e autoridade dos scripts
-- `relatorios/atuais/AUDITORIA_CAMADA_SAIDA_CANONICA_V202.md` — auditoria da camada única de saída canônica
-- `relatorios/atuais/GOVERNANCA_SCRIPTS_V203.md` — governança de scripts legados e autoridade operacional
-- `relatorios/atuais/MAPA_GOVERNANCA_SCRIPTS_V203.csv` — mapa operacional de classificação dos scripts na V203
+- `AGENTS.md` — instruções raiz para Codex e agentes de código.
+- `README.md` — visão geral do repositório, estado V225, instalação e execução.
+- `relatorios/atuais/LEIA-ME_OPERACIONAL.md` — guia operacional curto da baseline V225.
+- `relatorios/atuais/BASELINE_FUNCIONAL_ESTAVEL_V225.md` — baseline funcional estável promovida.
+- `relatorios/principais/CONTRATO_OPERACIONAL_PROJETO.md` — contrato mestre vigente da baseline contratual V183.
+- `relatorios/principais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` — anexo metodológico vinculante.
+- `relatorios/atuais/INDICE_DOCUMENTOS_NORMATIVOS_VIGENTES.md` — índice curto de documentos vigentes.
+
+## Relatórios atuais funcionais e de validação V216–V225
+
+- `relatorios/atuais/INTEGRACAO_FUNCIONAL_APORTES_FUTUROS_V216.md` — integração funcional de recebidos futuros, reserva, aporte planejado, invariante e consumo no motor.
+- `relatorios/atuais/VALIDACAO_LOCAL_V216.md`
+- `relatorios/atuais/AUDITORIA_IMPACTO_CONTAS_FUTURAS_V217.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V217.md`
+- `relatorios/atuais/CORRECAO_CALCULO_DIAS_LOTES_V218.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V218.md`
+- `relatorios/atuais/CORRECAO_REPRODUTIBILIDADE_DIAS_LOTES_V219.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V219.md`
+- `relatorios/atuais/GATE_ECONOMICO_APORTES_PLANEJADOS_V220.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V220.md`
+- `relatorios/atuais/HOTFIX_RESOLVER_CSV_GATE_ECONOMICO_V221.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V221.md`
+- `relatorios/atuais/HOTFIX_FLUXO_EFETIVO_GATE_ECONOMICO_V222.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V222.md`
+- `relatorios/atuais/CONSOLIDACAO_NOMINAL_GATE_IMPACTO_V223.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V223.md`
+- `relatorios/atuais/HOTFIX_LIMPEZA_PRE_RELEASE_V224.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V224.md`
+- `relatorios/atuais/PROMOCAO_CONTROLADA_BASELINE_V225.md`
+- `relatorios/atuais/BASELINE_FUNCIONAL_ESTAVEL_V225.md`
+- `relatorios/atuais/VALIDACAO_LOCAL_V225.md`
+
+## Documentos atuais auxiliares
+
+- `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
+- `relatorios/atuais/ESPECIFICACAO_SAIDA_OFICIAL.md`
+- `relatorios/atuais/AUDITORIA_CAMADA_SAIDA_CANONICA_V202.md`
+- `relatorios/atuais/AUDITORIA_LIMPEZA_RESIDUAL_V201.md`
+- `relatorios/atuais/MAPA_SCRIPTS_V201.md`
+- `relatorios/atuais/GOVERNANCA_SCRIPTS_V203.md`
+- `relatorios/atuais/GOVERNANCA_FINAL_SCRIPTS_V204.md`
+- `relatorios/atuais/GOVERNANCA_ESTRUTURAL_V206.md`
 
 ## Histórico documental
 
-### Histórico rebaixado a partir das limpezas V184–V188
+Documentos históricos permanecem preservados para rastreabilidade, auditoria de regressão e compreensão da evolução do projeto, sem força normativa principal.
+
+Diretórios históricos principais:
+
 - `relatorios/historico/documentacao_baseline/`
 - `relatorios/historico/validacoes_diarias/`
 - `relatorios/historico/reorganizacao_local_switching/`
@@ -23,57 +58,20 @@
 - `relatorios/historico/contratos_intermediarios/`
 - `relatorios/historico/artefatos_soltos/`
 - `relatorios/historico/limpeza_repositorio/`
-
-### Histórico preservado já existente
 - `relatorios/historico/baselines/`
 - `relatorios/historico/validacoes/`
 - `relatorios/historico/estruturas/`
 - `relatorios/historico/auditorias_especificas/`
 
 ## Regra de navegação
-1. Começar por `relatorios/atuais/LEIA-ME_OPERACIONAL.md`.
-2. Ler `CONTRATO_OPERACIONAL_PROJETO.md` como norma superior.
-3. Ler `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` como anexo metodológico vinculante.
-4. Ler `ESPECIFICACAO_SAIDA_OFICIAL.md` antes de abrir a especificação de `resolver_dia(t, E_t)`.
-5. Consultar o histórico apenas quando houver necessidade de rastreabilidade, regressão ou contexto.
-6. Ler `saidas/oficial/` como caminho canônico de artefatos ativos e `saidas/historico/` como trilha rebaixada.
 
-- `relatorios/atuais/INTEGRACAO_FUNCIONAL_APORTES_FUTUROS_V216.md` — integração funcional V216 de recebidos futuros, reserva, aporte planejado, invariante e consumo no motor.
-- `relatorios/atuais/VALIDACAO_LOCAL_V216.md` — validação local mínima da V216.
-- `relatorios/atuais/MATRIZ_MUDANCAS_V208_V216.csv` — matriz de arquivos adicionados/modificados entre V208 e V216.
+1. Para Codex/agentes, começar por `AGENTS.md`.
+2. Para leitura humana rápida, começar por `README.md` e `relatorios/atuais/LEIA-ME_OPERACIONAL.md`.
+3. Para estado funcional, consultar `relatorios/atuais/BASELINE_FUNCIONAL_ESTAVEL_V225.md`.
+4. Para regra operacional, consultar `relatorios/principais/CONTRATO_OPERACIONAL_PROJETO.md`.
+5. Para formulação matemática/econômica, consultar `relatorios/principais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`.
+6. Consultar histórico, logs e relatórios de limpeza apenas quando houver necessidade explícita de rastreabilidade.
 
-- relatorios/atuais/AUDITORIA_IMPACTO_CONTAS_FUTURAS_V217.md
-- relatorios/atuais/VALIDACAO_LOCAL_V217.md
+## Observação para eficiência de contexto
 
-- relatorios/atuais/AUDITORIA_CONSOLE_DIAGNOSTICO_V216.md
-
-- relatorios/atuais/CORRECAO_CALCULO_DIAS_LOTES_V218.md
-
-- relatorios/atuais/VALIDACAO_LOCAL_V218.md
-
-- relatorios/atuais/MATRIZ_MUDANCAS_V217_V218.csv
-
-- `relatorios/atuais/CORRECAO_REPRODUTIBILIDADE_DIAS_LOTES_V219.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V219.md`
-- `relatorios/atuais/MATRIZ_MUDANCAS_V218_V219.csv`
-- `relatorios/atuais/GATE_ECONOMICO_APORTES_PLANEJADOS_V220.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V220.md`
-- `relatorios/atuais/MATRIZ_MUDANCAS_V219_V220.csv`
-- `relatorios/atuais/HOTFIX_RESOLVER_CSV_GATE_ECONOMICO_V221.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V221.md`
-- `relatorios/atuais/MATRIZ_MUDANCAS_V220_V221.csv`
-- `relatorios/atuais/HOTFIX_FLUXO_EFETIVO_GATE_ECONOMICO_V222.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V222.md`
-- `relatorios/atuais/MATRIZ_MUDANCAS_V221_V222.csv`
-- `relatorios/atuais/CONSOLIDACAO_NOMINAL_GATE_IMPACTO_V223.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V223.md`
-- `relatorios/atuais/MATRIZ_MUDANCAS_V222_V223.csv`
-- `relatorios/atuais/HOTFIX_LIMPEZA_PRE_RELEASE_V224.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V224.md`
-- `relatorios/atuais/MATRIZ_MUDANCAS_V223_V224.csv`
-- `relatorios/atuais/PROMOCAO_CONTROLADA_BASELINE_V225.md`
-- `relatorios/atuais/BASELINE_FUNCIONAL_ESTAVEL_V225.md`
-- `relatorios/atuais/VALIDACAO_LOCAL_V225.md`
-- `relatorios/atuais/MATRIZ_MUDANCAS_V224_V225.csv`
-- `relatorios/atuais/AUDITORIA_HASH_LOGICA_V224_V225.csv`
-- `relatorios/atuais/AUDITORIA_FORMALIZACAO_V225.csv`
+Não abrir em massa `relatorios/historico/**`, `logs/iteracoes/**`, relatórios de limpeza, CSVs de auditoria ou saídas geradas quando a tarefa puder ser resolvida pelos documentos vigentes acima.
