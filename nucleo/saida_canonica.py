@@ -69,6 +69,46 @@ class PacoteSaidaCanonica:
             for item in self.extrato_futuro[:limite]
         ]
 
+    def recebidos_futuros_console(self, limite: int = 5) -> list[dict[str, Any]]:
+        lotes_futuros: set[str] = set()
+        for item in self.extrato_futuro:
+            for fonte in _split_fontes(item.get('Lote sugerido')):
+                lotes_futuros.add(fonte)
+
+        def _prioridade(item: dict[str, Any]) -> tuple[int, int, str, str]:
+            lote = str(item.get('Lote origem') or item.get('Recebido') or '')
+            status = str(item.get('Status') or '').lower()
+            recebido_em = str(item.get('Recebimento') or '')
+            usado = 1 if lote in lotes_futuros else 0
+            futuro = 1 if any(token in status for token in ('futuro', 'pendente', 'planejado')) else 0
+            return (usado, futuro, recebido_em, lote)
+
+        linhas: list[dict[str, Any]] = []
+        for item in sorted(self.recebidos_atuais, key=_prioridade, reverse=True):
+            lote = str(item.get('Lote origem') or item.get('Recebido') or '')
+            status = item.get('Status') or 'não determinado'
+            destino = item.get('Destino') or 'não determinado'
+            valor = item.get('Valor líquido') if item.get('Valor líquido') not in ('', None) else item.get('Valor bruto')
+            valor_vinc = _round_monetario(item.get('Valor vinculado'), 0.0)
+            pagamentos_vinc = int(item.get('Pagamentos vinculados') or 0)
+            usado = 'sim' if lote in lotes_futuros or (pagamentos_vinc > 0 and valor_vinc > 0) else 'não'
+            if usado != 'sim' and len(linhas) >= limite:
+                continue
+            linhas.append({
+                'Data': item.get('Recebimento'),
+                'Lote': lote,
+                'Valor': _round_monetario(valor, 0.0),
+                'Status': status,
+                'Destino': destino,
+                'Carteira': 'não determinado',
+                'Disp. pagto': item.get('Disponível ref') if item.get('Disponível ref') in ('sim', 'não') else 'não determinado',
+                'Usado': usado,
+                'Saldo': _round_monetario(item.get('Residual aplicação'), 0.0),
+            })
+            if len(linhas) >= limite:
+                break
+        return linhas
+
 
 def _fmt_data(valor: Any) -> Any:
     return valor.isoformat() if hasattr(valor, 'isoformat') else valor
