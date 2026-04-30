@@ -635,5 +635,67 @@ def _adicionar_situacao_atual(wb, contexto, saida) -> None:
         )
 
 
+
+# OVERRIDE V225 — resumo de patrimônio alinhado ao console
+def _resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, Any]]:
+    linhas = (
+        _linhas_lotes_consolidados(contexto, saida, tipo='exauridos')
+        + _linhas_lotes_consolidados(contexto, saida, tipo='ativos')
+    )
+
+    valor_original_total = round(sum(_para_float(item.get('Valor Original (R$)')) for item in linhas), 2)
+    valor_total_bruto_sacado = round(sum(_para_float(item.get('Total Bruto Sacado (R$)')) for item in linhas), 2)
+    valor_total_liquido_sacado = round(sum(_para_float(item.get('Total Líquido Sacado (R$)')) for item in linhas), 2)
+    valor_bruto_atual = round(sum(_para_float(item.get('Saldo Bruto Atual (R$)')) for item in linhas), 2)
+    valor_liquido_atual = round(sum(_para_float(item.get('Saldo Líquido Atual (R$)')) for item in linhas), 2)
+    patrimonio_liquido_atual = round(sum(_para_float(item.get('Patrimônio Líquido até Hoje (R$)')) for item in linhas), 2)
+    rendimento_liquido_atual = round(patrimonio_liquido_atual - valor_original_total, 2)
+
+    return [
+        {'Métrica': 'Valor original total', 'Valor': valor_original_total},
+        {'Métrica': 'Valor total bruto sacado', 'Valor': valor_total_bruto_sacado},
+        {'Métrica': 'Valor total líquido sacado', 'Valor': valor_total_liquido_sacado},
+        {'Métrica': 'Valor bruto atual', 'Valor': valor_bruto_atual},
+        {'Métrica': 'Valor líquido atual', 'Valor': valor_liquido_atual},
+        {'Métrica': 'Patrimônio líquido atual', 'Valor': patrimonio_liquido_atual},
+        {'Métrica': 'Rendimento líquido atual', 'Valor': rendimento_liquido_atual},
+    ]
+
+
+
+from nucleo.saida_observavel import (
+    COLS_LOTES_ID_CURTAS,
+    COLS_LOTES_VALORES_CURTAS,
+    construir_linhas_lotes_id_curta,
+    construir_linhas_lotes_valores_curta,
+    construir_resumo_patrimonio_total_lotes,
+)
+
+
+def _adicionar_situacao_atual(wb, contexto, saida) -> None:
+    ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
+    r = 1
+
+    secoes = [
+        ('Lotes exauridos — identificação', COLS_LOTES_ID_CURTAS, construir_linhas_lotes_id_curta(contexto, saida, tipo='exauridos')),
+        ('Lotes exauridos — valores e patrimônio', COLS_LOTES_VALORES_CURTAS, construir_linhas_lotes_valores_curta(contexto, saida, tipo='exauridos')),
+        ('Lotes ativos — identificação', COLS_LOTES_ID_CURTAS, construir_linhas_lotes_id_curta(contexto, saida, tipo='ativos')),
+        ('Lotes ativos — valores e patrimônio', COLS_LOTES_VALORES_CURTAS, construir_linhas_lotes_valores_curta(contexto, saida, tipo='ativos')),
+        ('Patrimônio total dos lotes', ['Métrica', 'Valor'], construir_resumo_patrimonio_total_lotes(contexto, saida)),
+        ('Recebidos auditáveis', ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação'], getattr(saida, 'recebidos_atuais', []) or []),
+        ('Fechamento econômico', ['Métrica', 'Valor'], getattr(saida, 'fechamento_atual', []) or []),
+        ('Resumo de recebidos', ['Métrica', 'Valor'], getattr(saida, 'resumo_recebidos', []) or []),
+    ]
+
+    for idx, (titulo, headers, itens) in enumerate(secoes):
+        r = _apply_table_style(
+            ws,
+            headers,
+            _rows(itens, headers),
+            start_row=r if idx == 0 else r + 3,
+            title=titulo,
+        )
+
+
 if __name__ == '__main__':
     print(main())
