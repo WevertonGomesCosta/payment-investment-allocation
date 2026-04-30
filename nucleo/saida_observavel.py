@@ -293,6 +293,8 @@ COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE = [
     'Valor',
     'Lote',
     'Pós-switch',
+    'Destino sw.',
+    'Origem sw.',
     'Pacote',
     'Sw. ant.',
     'Status',
