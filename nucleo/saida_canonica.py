@@ -486,6 +486,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             central.get('fonte_escolhida'),
         )
         lote_sugerido_real = _primeiro_texto_preenchido(
+            row_dict.get('lote_recomendado_rotulo'),
             resumo.get('Lote sugerido'),
             row_dict.get('lote_recomendado'),
             row_dict.get('lote_id_escolhido'),
