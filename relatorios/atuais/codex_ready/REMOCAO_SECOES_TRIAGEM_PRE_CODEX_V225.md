@@ -65,7 +65,7 @@ nenhum aviso
 Executar:
 
 ```bash
-python scripts/validacao/validar_rota_oficial_v225.py
+python aplicacao/principal.py
 python aplicacao/principal.py
 ```
 

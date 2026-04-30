@@ -41,7 +41,7 @@ aplicacao/console/secoes_canonicas.py: já ausente
 - planilha oficial: `nucleo/gerar_planilha_operacional.py`
 - saída canônica: `nucleo/saida_canonica.py`
 - saída observável: `nucleo/saida_observavel.py`
-- validação oficial: `scripts/validacao/validar_rota_oficial_v225.py`
+- validação oficial: `aplicacao/principal.py`
 
 ## Regra para Codex
 
@@ -51,5 +51,5 @@ Qualquer alteração que afete dados mostrados simultaneamente no console e na p
 1. alterar ou criar contrato em nucleo/saida_observavel.py
 2. renderizar no console sem recalcular
 3. renderizar na planilha sem recalcular
-4. validar python scripts/validacao/validar_rota_oficial_v225.py
+4. validar python aplicacao/principal.py
 ```

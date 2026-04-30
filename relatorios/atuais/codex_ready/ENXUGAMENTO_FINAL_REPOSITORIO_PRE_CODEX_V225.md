@@ -11,7 +11,7 @@
 2. Arquivos legados reduzidos a stub removidos: 0.
 3. Arquivos/diretórios auxiliares temporários removidos: 4.
 4. `AGENTS.md` atualizado para refletir remoção dos legados.
-5. `scripts/validacao/validar_rota_oficial_v225.py` atualizado para validar ausência dos legados.
+5. `aplicacao/principal.py` atualizado para validar ausência dos legados.
 6. `CODEX_READY_V225.md` e `INVENTARIO_LEGADO_INATIVO_V225.md` regenerados.
 
 ## Avisos
@@ -46,6 +46,6 @@ Não houve alteração em:
 ## Validação necessária
 
 ```bash
-python scripts/validacao/validar_rota_oficial_v225.py
+python aplicacao/principal.py
 python aplicacao/principal.py
 ```

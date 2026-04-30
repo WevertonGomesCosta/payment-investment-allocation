@@ -37,10 +37,10 @@ aplicacao/principal.py
 └── gerar_planilha_operacional(contexto=contexto_baseline, saida=saida_canonica)
 ```
 
-## Comando oficial de validação
+## Comando oficial de validação operacional
 
 ```bash
-python scripts/validacao/validar_rota_oficial_v225.py
+python aplicacao/principal.py
 ```
 
 ## Saída esperada

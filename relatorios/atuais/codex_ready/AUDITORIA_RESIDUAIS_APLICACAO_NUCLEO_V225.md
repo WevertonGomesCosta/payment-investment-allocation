@@ -117,7 +117,7 @@ relatorios/atuais/codex_ready/auditoria_residuais_buscas_v225.csv
 4. Após qualquer remoção, validar:
 
 ```bash
-python scripts/validacao/validar_rota_oficial_v225.py
+python aplicacao/principal.py
 python aplicacao/principal.py
 ```
 
@@ -128,5 +128,5 @@ python aplicacao/principal.py
 - Status: `removido`
 - Relatorio especifico: `relatorios/atuais/codex_ready/REMOCAO_SECOES_TRIAGEM_PRE_CODEX_V225.md`
 - Validacao requerida:
-  - `python scripts/validacao/validar_rota_oficial_v225.py`
+  - `python aplicacao/principal.py`
   - `python aplicacao/principal.py`

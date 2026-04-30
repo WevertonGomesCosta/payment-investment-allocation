@@ -17,11 +17,13 @@ Este repositório está preparado para uso com agentes de código, incluindo Cod
 python aplicacao/principal.py
 ```
 
-## Comando oficial de validação
+## Comando oficial de validação operacional
 
 ```bash
-python scripts/validacao/validar_rota_oficial_v225.py
+python aplicacao/principal.py
 ```
+
+A validação oficial deve ser feita diretamente pela entrada principal. Não recriar pasta `scripts/` nem comandos paralelos de validação.
 
 ## Arquitetura operacional obrigatória
 
@@ -93,6 +95,6 @@ Não recriar renderizadores paralelos. Se alguma saída antiga precisar voltar a
 ## Antes de propor commit
 
 ```bash
-python scripts/validacao/validar_rota_oficial_v225.py
+python aplicacao/principal.py
 git status
 ```
