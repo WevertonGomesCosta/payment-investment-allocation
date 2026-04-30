@@ -424,7 +424,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real)
-        lote_reserva = _texto_decisao(lote_reserva_real)
+        lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
         cobertura_real = row_dict.get('cobertura_integral_recomendada')
         if cobertura_real is None:
             cobertura_real = central.get('pagamento_totalmente_coberto_central')
@@ -465,8 +465,18 @@ def _texto_pacote_do_dia(row: dict[str, Any], estrategia: str) -> str:
     pacote_real = str(row.get('pacote_dia_escolhido') or '').strip()
     if pacote_real:
         return pacote_real
-    if estrategia and estrategia != 'não determinado':
-        return f"fallback informativo: {estrategia}"
+    if estrategia == 'sem_switching' or estrategia == 'combinacao_minima':
+        return 'pay_only'
+    if estrategia == 'switching_simples':
+        data_pag = row.get('data_pagamento')
+        data_sw = row.get('data_sugerida_switching')
+        if data_pag is not None and data_sw is not None:
+            try:
+                data_pag_cmp = data_pag.isoformat() if hasattr(data_pag, 'isoformat') else str(data_pag)
+                data_sw_cmp = data_sw.isoformat() if hasattr(data_sw, 'isoformat') else str(data_sw)
+                return 'switch_then_pay' if data_sw_cmp <= data_pag_cmp else 'pay_then_switch'
+            except Exception:
+                return 'não determinado'
     return 'não determinado'
 
 
@@ -480,7 +490,7 @@ def _texto_necessita_switching(row: dict[str, Any], estrategia: str) -> str:
     if txt in {'sim', 'não', 'nao'}:
         return 'sim' if txt == 'sim' else 'não'
     if estrategia == 'switching_simples':
-        return 'fallback informativo: sim (estratégia)'
+        return 'sim'
     return 'não determinado'
 
 
@@ -490,6 +500,16 @@ def _primeiro_texto_preenchido(*valores: Any) -> str:
         if txt:
             return txt
     return ''
+
+
+def _texto_lote_reserva(lote_reserva: Any, lote_sugerido: Any) -> str:
+    reserva = str(lote_reserva or '').strip()
+    sugerido = str(lote_sugerido or '').strip()
+    if not reserva:
+        return 'não determinado'
+    if sugerido and reserva == sugerido:
+        return 'não determinado'
+    return reserva
 
 def _construir_switchings(contexto: Any, limite: int = 30) -> list[dict[str, Any]]:
     shadow = getattr(contexto, 'switching_economico_shadow', None)
