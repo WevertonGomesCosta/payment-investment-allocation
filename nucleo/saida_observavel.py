@@ -23,6 +23,22 @@ COLS_LOTES_VALORES_CURTAS = [
     'Rend. líq.',
 ]
 
+COLS_RECEBIDOS_AUDITAVEIS = [
+    'Recebido',
+    'Lote origem',
+    'Recebimento',
+    'Aplicação',
+    'Valor bruto',
+    'Valor líquido',
+    'Status',
+    'Destino',
+    'Pagamentos vinculados',
+    'Valor vinculado',
+    'Residual aplicação',
+    'Disponível ref',
+    'Observação',
+]
+
 
 def para_float(valor: Any) -> float:
     try:
@@ -34,6 +50,12 @@ def para_float(valor: Any) -> float:
 
 
 def somar_valores_sacados_por_lote(contexto, saida=None) -> dict[str, dict[str, float]]:
+    """Soma valores sacados por lote usando replay + auditoria de recebidos.
+
+    O replay é a fonte principal. Para lotes não aplicados/exauridos, a
+    auditoria de recebidos complementa a soma, pois alguns desses lotes podem
+    ter sido usados diretamente em pagamento e aparecer subcontados no log.
+    """
     replay = getattr(contexto, 'replay_passado', None)
     log = getattr(replay, 'log_passado', None) if replay is not None else None
     somas: dict[str, dict[str, float]] = {}
@@ -85,8 +107,7 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[d
     campo = 'lotes_exauridos' if tipo == 'exauridos' else 'lotes_ativos'
     itens = list(getattr(saida, campo, []) or [])
     somas = somar_valores_sacados_por_lote(contexto, saida)
-
-    linhas = []
+    linhas: list[dict[str, Any]] = []
 
     for item in itens:
         lote_id = str(item.get('Lote') or '').strip()
@@ -157,4 +178,49 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, A
         {'Métrica': 'Valor líquido atual', 'Valor': valor_liquido_atual},
         {'Métrica': 'Patrimônio líquido atual', 'Valor': patrimonio_liquido_atual},
         {'Métrica': 'Rendimento líquido atual', 'Valor': rendimento_liquido_atual},
+    ]
+
+
+def construir_blocos_situacao_atual(contexto, saida) -> list[dict[str, Any]]:
+    return [
+        {
+            'titulo': 'Lotes exauridos — identificação',
+            'headers': COLS_LOTES_ID_CURTAS,
+            'linhas': construir_linhas_lotes_id_curta(contexto, saida, tipo='exauridos'),
+        },
+        {
+            'titulo': 'Lotes exauridos — valores e patrimônio',
+            'headers': COLS_LOTES_VALORES_CURTAS,
+            'linhas': construir_linhas_lotes_valores_curta(contexto, saida, tipo='exauridos'),
+        },
+        {
+            'titulo': 'Lotes ativos — identificação',
+            'headers': COLS_LOTES_ID_CURTAS,
+            'linhas': construir_linhas_lotes_id_curta(contexto, saida, tipo='ativos'),
+        },
+        {
+            'titulo': 'Lotes ativos — valores e patrimônio',
+            'headers': COLS_LOTES_VALORES_CURTAS,
+            'linhas': construir_linhas_lotes_valores_curta(contexto, saida, tipo='ativos'),
+        },
+        {
+            'titulo': 'Patrimônio total dos lotes',
+            'headers': ['Métrica', 'Valor'],
+            'linhas': construir_resumo_patrimonio_total_lotes(contexto, saida),
+        },
+        {
+            'titulo': 'Recebidos auditáveis',
+            'headers': COLS_RECEBIDOS_AUDITAVEIS,
+            'linhas': list(getattr(saida, 'recebidos_atuais', []) or []),
+        },
+        {
+            'titulo': 'Fechamento econômico',
+            'headers': ['Métrica', 'Valor'],
+            'linhas': list(getattr(saida, 'fechamento_atual', []) or []),
+        },
+        {
+            'titulo': 'Resumo de recebidos',
+            'headers': ['Métrica', 'Valor'],
+            'linhas': list(getattr(saida, 'resumo_recebidos', []) or []),
+        },
     ]
