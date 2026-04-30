@@ -1,178 +1,105 @@
 # payment-investment-allocation
 
-**Pacote operacional atual:** V225  
-**Baseline funcional real de origem:** V208  
-**Artefatos V209–V215:** usados apenas como especificação metodológica, não como baseline funcional  
-**Baseline contratual vigente:** V183  
-**Modelo metodológico vinculante vigente:** V182
+Motor financeiro em Python para alocação auditável de pagamentos, recebidos, lotes de investimento e switching, com foco em patrimônio líquido terminal e rastreabilidade por lote/fonte.
 
-A V216 deriva diretamente da V208 e implementa de forma funcional, no motor temporal, a frente de recebidos/aportes futuros que havia ficado apenas documentada entre V209 e V215.
+## Estado operacional atual
+
+- **Baseline funcional estável:** `BASELINE_FUNCIONAL_ESTAVEL_V225`
+- **Baseline funcional de origem da frente atual:** V208
+- **Contrato mestre vigente:** V183
+- **Modelo metodológico vinculante:** V182
+- **Entrada operacional principal:** `aplicacao/principal.py`
+- **Configuração canônica:** `dados/config_atualizado.json`
+- **Base financeira canônica:** `dados/dados_financeiros.xlsx`
+
+A V225 formaliza a promoção controlada da V224 sem alterar motor nem regra econômica. Ela consolida a frente V216–V224: aportes planejados em modo diagnóstico, gate econômico ativo, cálculo de dias/idade fiscal centralizados, validação de release limpa e cenário final validado como `sem_aportes_planejados`.
 
 ## Objetivo final do projeto
 
-Construir um motor conjunto, auditável e economicamente coerente para:
+Construir um motor conjunto, diário, auditável e economicamente coerente para:
 
 - pagamentos;
 - recebidos;
 - aportes planejados;
-- switching.
+- switching;
+- atualização e valoração de lotes;
+- geração de saídas operacionais legíveis.
 
-A decisão final deve maximizar o **patrimônio líquido terminal**, respeitando cobertura, liquidez, carência, tributação, precedência intradiária parametrizada e auditabilidade por lote/fonte.
+A decisão deve maximizar o **patrimônio líquido terminal líquido**, respeitando pagamento integral no vencimento, disponibilidade temporal, liquidez, carência, tributação, precedência intradiária parametrizada e auditabilidade por lote/fonte.
 
-## O que a V216 implementa
+## Leitura prioritária para Codex e agentes
 
-- cria `nucleo/aportes_futuros_planejados.py` como módulo funcional, não stub;
-- integra a transição `recebido_futuro → caixa/reserva → aporte_planejado` ao simulador central;
-- materializa aportes planejados somente após os pagamentos do próprio dia;
-- valida o invariante:
+Antes de modificar código, consultar nesta ordem:
 
-```text
-valor_recebido = valor_pago_com_recebido + valor_aportado + saldo_caixa_remanescente
-```
+1. `AGENTS.md`
+2. `relatorios/atuais/LEIA-ME_OPERACIONAL.md`
+3. `relatorios/atuais/BASELINE_FUNCIONAL_ESTAVEL_V225.md`
+4. `relatorios/principais/CONTRATO_OPERACIONAL_PROJETO.md`
+5. `relatorios/principais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
+6. `relatorios/INDICE_RELATORIOS.md`
 
-- bloqueia dupla contagem por `recebido_id_origem`;
-- audita liquidez e carência do produto destino;
-- compara o cenário com aporte contra o cenário sem aporte;
-- cria lotes planejados como `lote_aportado` somente quando todos os critérios passam;
-- torna os lotes planejados consumíveis pelos módulos centrais de pagamento;
-- atualiza o release checker para V216 e bloqueia `__pycache__`/`.pyc`.
+Consultar `relatorios/historico/**`, `logs/iteracoes/**`, relatórios de limpeza e auditorias antigas somente quando houver necessidade explícita de rastreabilidade.
 
-## Evidência de integração funcional
-
-Os pontos centrais de consumo são:
-
-- `nucleo/simulador_central_eventos_v1.py`
-  - chama `materializar_aportes_planejados_v216(...)` após os pagamentos do dia;
-  - grava `auditoria_aportes_planejados_v216`;
-  - adiciona lotes planejados em `estado['lotes_aportados']`.
-
-- `nucleo/alocador_pagamentos_terminal_v1.py`
-  - consome lotes planejados como `lote_aportado`;
-  - respeita `carencia_ate` e `liquidez_ate`;
-  - preserva metadados `origem_aporte_planejado_v216` e `recebido_id_origem_v216`.
-
-- `nucleo/builders/simulador_central_estado_v117.py`
-  - inicializa os recebidos com campos de invariante V216.
-
-## Documentos operacionais prioritários
-
-Consulte primeiro:
-
-- `relatorios/atuais/LEIA-ME_OPERACIONAL.md`
-- `relatorios/atuais/INTEGRACAO_FUNCIONAL_APORTES_FUTUROS_V216.md`
-- `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
-- `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
-- `relatorios/atuais/BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-
-## Caminho operacional vigente
-
-Para gerar a saída operacional:
+## Instalação
 
 ```bash
-python scripts/operacional/gerar_planilha_operacional.py
+python -m pip install -r requirements.txt
 ```
 
-Para auditar a release:
+Dependências principais declaradas em `requirements.txt`: `pandas`, `numpy`, `openpyxl`, `python-dateutil`, `requests`, `pulp`, `workalendar` e `scipy`.
+
+## Execução operacional
 
 ```bash
-python scripts/diagnostico/verificar_release_baseline.py
+python aplicacao/principal.py
 ```
 
-Para auditar especificamente a V216:
+Esse é o comando principal para execução e validação mínima padrão.
+
+## Entradas autorizadas
+
+A execução deve ler somente as abas abaixo do arquivo financeiro canônico:
+
+- `Carteira`
+- `Todos os Gastos`
+- `Inventário de Lotes`
+
+Qualquer estrutura derivada deve ser criada internamente pelo código.
+
+## Restrições para novas alterações
+
+Não alterar sem solicitação explícita:
+
+- motor econômico;
+- replay passado;
+- regra de pagamentos;
+- switching;
+- ranking da Carteira;
+- cache CDI/BCB;
+- identidade da baseline V225;
+- contratos matemáticos/econômicos;
+- `dados/config_atualizado.json`;
+- `dados/dados_financeiros.xlsx`.
+
+## Saídas e arquivos gerados
+
+Arquivos gerados localmente devem permanecer fora do versionamento, salvo artefatos documentais explicitamente aprovados. A política principal de exclusão está em `.gitignore`.
+
+Evitar versionar:
+
+- `__pycache__/`;
+- `.pyc`;
+- logs temporários;
+- planilhas geradas fora da base canônica;
+- arquivos compactados;
+- saídas operacionais locais.
+
+## Validação antes de propor mudança
+
+Quando a alteração afetar execução, console, planilha, dados, cache, pagamentos, rendimento, switching ou ranking:
 
 ```bash
-python scripts/diagnostico/inspecionar_aportes_planejados_v216.py
+python aplicacao/principal.py
 ```
 
-
-## V217 — auditoria de impacto sobre contas futuras reais
-
-A V217 usa a V216 como candidata funcional e abre a etapa de comparação real com/sem aportes planejados antes de qualquer promoção formal de baseline.
-
-Comando principal:
-
-```bash
-python scripts/diagnostico/auditar_impacto_contas_futuras_v217.py --real
-```
-
-
-## V218 — correção canônica do cálculo de dias dos lotes
-
-A V218 usa a V217 como candidata diagnóstica e não promove baseline. A correção centraliza o cálculo de `Dias corridos` e `Dias úteis` dos lotes em `nucleo/calendario_financeiro.py`, usando a data de aplicação como início e a data atual/de referência da execução para lotes ativos.
-
-Comando de auditoria:
-
-```bash
-python scripts/diagnostico/auditar_calculo_dias_lotes_v218.py
-```
-
-Arquivos gerados:
-
-- `saidas/diagnostico/auditoria_calculo_dias_lotes_v218_real.csv`
-- `saidas/diagnostico/auditoria_lote_5680_abr_v218_real.csv`
-- `saidas/diagnostico/auditoria_calculo_dias_duplicacoes_v218.csv`
-
-
-## V219 — reprodutibilidade dos dias e idade fiscal centralizada
-
-A V219 usa a V218 como candidata diagnóstica e não promove baseline. Ela mantém `calcular_dias_lote(...)` como fonte única dos campos visuais `Dias corridos`/`Dias úteis` e cria `nucleo/fiscal_lotes.py` para centralizar a idade fiscal usada pelo alocador.
-
-Comando de auditoria:
-
-```bash
-python scripts/diagnostico/auditar_calculo_dias_lotes_v219.py
-```
-
-Comando de release:
-
-```bash
-python scripts/diagnostico/verificar_release_baseline.py
-```
-
-
-## V220 — gate econômico dos aportes planejados
-
-A V220 bloqueia aportes planejados quando o cenário com aporte reduz patrimônio terminal proxy, aumenta perda terminal total, aumenta penalidade estratégica total ou aumenta déficit total.
-
-
-## V221 — hotfix do resolver de CSVs do gate econômico
-
-Corrige o gate para aceitar CSVs de impacto com prefixo da versão corrente (`v221`/`v220`) e fallback histórico `v217`.
-
-
-## V222 — hotfix do fluxo efetivo do gate econômico
-
-Corrige o gate econômico para usar efetivamente o resolver de CSVs de impacto. Mantém a regra econômica da V220.
-
-
-## V223 — consolidação nominal do impacto e gate econômico
-
-```bash
-python scripts/diagnostico/auditar_impacto_contas_futuras_v223.py --real
-python scripts/diagnostico/auditar_gate_economico_aportes_v223.py --real
-python scripts/diagnostico/auditoria_final_pre_baseline_v223.py
-```
-
-
-## V224 — limpeza pré-release
-
-```bash
-python scripts/diagnostico/verificar_release_limpo.py
-```
-
-Esse comando remove `__pycache__`/`.pyc` e em seguida executa o release checker.
-
-
-## V225 — baseline funcional estável
-
-A V225 formaliza a promoção controlada da V224 para:
-
-```text
-BASELINE_FUNCIONAL_ESTAVEL_V225
-```
-
-Ela não altera motor nem regra econômica. A validação deve ser feita com:
-
-```bash
-python scripts/diagnostico/verificar_release_limpo.py
-```
+Quando a alteração for apenas documental, registrar explicitamente que não houve alteração de motor nem regra econômica.
