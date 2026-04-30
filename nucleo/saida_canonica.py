@@ -487,17 +487,20 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             central.get('fonte_escolhida'),
         )
         lote_sugerido_real = _primeiro_texto_preenchido(
-            row_dict.get('lote_recomendado_rotulo'),
-            resumo.get('Lote sugerido'),
+            row_dict.get('lote_recomendado_consumivel'),
             row_dict.get('lote_recomendado'),
             row_dict.get('lote_id_escolhido'),
+            row_dict.get('fonte_origem_id'),
             central.get('lote_final_central'),
             central.get('lote_sugerido_original'),
+            resumo.get('Lote sugerido'),
         )
+        if lote_sugerido_real and lote_pos_switch and str(lote_sugerido_real).strip() == str(lote_pos_switch).strip():
+            lote_sugerido_real = ''
         lote_pos_switch = _primeiro_texto_preenchido(row_dict.get('lote_recomendado_rotulo'), row_dict.get('produto_destino_switching'))
         lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))
         estrategia = _texto_decisao(estrategia_real)
-        lote_sugerido = _texto_decisao(lote_sugerido_real)
+        lote_sugerido = _texto_decisao(lote_sugerido_real) if lote_sugerido_real else 'não determinado'
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
         cobertura_real = row_dict.get('cobertura_integral_recomendada')
         if cobertura_real is None:

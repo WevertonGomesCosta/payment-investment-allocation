@@ -406,6 +406,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'subclasse_pagamento_operacional': subclasse,
             'estrategia_recomendada': melhor['estrategia'],
             'lote_recomendado': melhor.get('lote_recomendado') or '',
+            'lote_recomendado_consumivel': melhor.get('lote_recomendado') or '',
             'lote_recomendado_rotulo': melhor.get('lote_recomendado_rotulo') or '',
             'lote_reserva': melhor.get('lote_reserva') or '',
             'necessidade_switching': bool(melhor.get('necessidade_switching')),
