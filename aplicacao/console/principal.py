@@ -32,7 +32,7 @@ from nucleo.saida_observavel import (
 
 
 
-def _render_secao_amostras_pagamentos(saida_canonica) -> None:
+def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
     amostras = construir_amostras_pagamentos_operacionais(saida_canonica, limite=5)
 
     _imprimir_titulo(amostras['titulo'])
@@ -200,7 +200,7 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
         abas_auxiliares=abas_auxiliares,
     )
 
-    _render_secao_amostras_pagamentos(saida_canonica)
+    _render_amostras_pagamentos_operacionais(saida_canonica)
 
     _render_secao_ranking_oficial(contexto_baseline, saida_canonica)
     _render_secao_switchings_oficiais(contexto_baseline, saida_canonica)
