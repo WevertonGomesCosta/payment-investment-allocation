@@ -487,6 +487,12 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             central.get('fonte_escolhida'),
         )
         lote_pos_switch = _primeiro_texto_preenchido(row_dict.get('lote_recomendado_rotulo'), row_dict.get('produto_destino_switching'))
+        marcador_visual = _primeiro_texto_preenchido(
+            row_dict.get('lote_recomendado_rotulo'),
+            row_dict.get('rotulo_pos_switching'),
+            row_dict.get('produto_destino_switching'),
+            row_dict.get('fonte_pos_switching'),
+        )
         lote_sugerido_real = _primeiro_texto_preenchido(
             row_dict.get('lote_recomendado_consumivel'),
             row_dict.get('lote_recomendado'),
@@ -496,7 +502,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             central.get('lote_sugerido_original'),
             resumo.get('Lote sugerido'),
         )
-        if lote_sugerido_real and lote_pos_switch and str(lote_sugerido_real).strip() == str(lote_pos_switch).strip():
+        if lote_sugerido_real and marcador_visual and str(lote_sugerido_real).strip().lower() == str(marcador_visual).strip().lower():
             lote_sugerido_real = ''
         lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))
         estrategia = _texto_decisao(estrategia_real)
