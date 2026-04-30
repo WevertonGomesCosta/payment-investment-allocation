@@ -83,11 +83,8 @@ class PacoteSaidaCanonica:
                 top1 = "Top1 [prov.]"
                 break
 
-        def _prioridade(item: dict[str, Any]) -> tuple[str, int, str]:
-            lote = str(item.get('Lote origem') or item.get('Recebido') or '')
-            recebido_em = str(item.get('Recebimento') or '')
-            usado = 1 if lote in lotes_futuros else 0
-            return (recebido_em, -usado, lote)
+        def _prioridade(linha: dict[str, Any]) -> tuple[int, str, str]:
+            return (-int(linha.get('_usado_int', 0)), str(linha.get('Data') or ''), str(linha.get('Lote') or ''))
 
         data_ref = str(self.data_referencia or '')
         candidatos = []
@@ -101,16 +98,15 @@ class PacoteSaidaCanonica:
             candidatos.append(item)
 
         linhas: list[dict[str, Any]] = []
-        for item in sorted(candidatos, key=_prioridade):
+        for item in candidatos:
             lote = str(item.get('Lote origem') or item.get('Recebido') or '')
             status = item.get('Status') or 'não determinado'
             destino = item.get('Destino') or 'não determinado'
             valor = item.get('Valor líquido') if item.get('Valor líquido') not in ('', None) else item.get('Valor bruto')
             valor_vinc = _round_monetario(item.get('Valor vinculado'), 0.0)
             pagamentos_vinc = int(item.get('Pagamentos vinculados') or 0)
-            usado = 'sim' if lote in lotes_futuros or (pagamentos_vinc > 0 and valor_vinc > 0) else 'não'
-            if usado != 'sim' and len(linhas) >= limite:
-                continue
+            usado_int = 1 if (lote in lotes_futuros or pagamentos_vinc > 0 or float(valor_vinc or 0.0) > 0.0) else 0
+            usado = 'sim' if usado_int else 'não'
             linhas.append({
                 'Data': item.get('Recebimento'),
                 'Lote': lote,
@@ -120,10 +116,10 @@ class PacoteSaidaCanonica:
                 'Carteira': item.get('Carteira') or item.get('Produto') or top1,
                 'Usado': usado,
                 'Saldo': _round_monetario(item.get('Residual aplicação'), 'n/d'),
+                '_usado_int': usado_int,
             })
-            if len(linhas) >= limite:
-                break
-        return linhas
+        linhas.sort(key=_prioridade)
+        return [{k: v for k, v in linha.items() if not k.startswith('_')} for linha in linhas[:limite]]
 
 
 def _fmt_data(valor: Any) -> Any:
@@ -469,7 +465,16 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         central = mapa_central.get(pagamento_id, {})
         resumo = _resumo_futuro(contexto, pagamento_id, row_dict, mapa_resumos, mapa_central)
         liquido = _round_monetario(resumo.get('Líquido'), '')
-        estrategia_real = _primeiro_texto_preenchido(row_dict.get('estrategia_recomendada'), central.get('estrategia_recomendada'))
+        estrategia_real = _primeiro_texto_preenchido(
+            row_dict.get('estrategia_recomendada'),
+            central.get('estrategia_recomendada'),
+            row_dict.get('tipo_fonte_escolhida'),
+            central.get('tipo_fonte_escolhida'),
+            row_dict.get('tipo_fonte'),
+            central.get('tipo_fonte'),
+            row_dict.get('fonte_escolhida'),
+            central.get('fonte_escolhida'),
+        )
         lote_sugerido_real = _primeiro_texto_preenchido(
             resumo.get('Lote sugerido'),
             row_dict.get('lote_recomendado'),
@@ -542,9 +547,24 @@ def _texto_necessita_switching(row: dict[str, Any], estrategia: str) -> str:
         valor = row.get('necessidade_switching')
     if isinstance(valor, bool):
         return 'sim' if valor else 'não'
+    if hasattr(valor, 'item'):
+        try:
+            convertido = valor.item()
+            if isinstance(convertido, bool):
+                return 'sim' if convertido else 'não'
+            valor = convertido
+        except Exception:
+            pass
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        if valor == 1:
+            return 'sim'
+        if valor == 0:
+            return 'não'
     txt = str(valor or '').strip().lower()
-    if txt in {'sim', 'não', 'nao'}:
-        return 'sim' if txt == 'sim' else 'não'
+    if txt in {'sim', 'true', '1'}:
+        return 'sim'
+    if txt in {'não', 'nao', 'false', '0'}:
+        return 'não'
     if estrategia == 'switching_simples':
         return 'sim'
     return 'não determinado'
