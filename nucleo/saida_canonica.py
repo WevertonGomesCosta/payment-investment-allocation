@@ -52,6 +52,12 @@ class PacoteSaidaCanonica:
         ]
 
     def pagamentos_proximos_console(self, limite: int = 5) -> list[dict[str, Any]]:
+        return self._pagamentos_futuros_console_base()[:limite]
+
+    def pagamentos_futuros_console_completo(self) -> list[dict[str, Any]]:
+        return self._pagamentos_futuros_console_base()
+
+    def _pagamentos_futuros_console_base(self) -> list[dict[str, Any]]:
         return [
             {
                 'Data': item.get('Data'),
@@ -71,7 +77,7 @@ class PacoteSaidaCanonica:
                 'Status': item.get('Status recomendação') if item.get('Status recomendação') not in (None, '') else 'n/d',
                 'Bloq.': item.get('Motivo bloqueio lote') if item.get('Motivo bloqueio lote') not in (None, '') else 'n/d',
             }
-            for item in self.extrato_futuro[:limite]
+            for item in self.extrato_futuro
         ]
 
     def recebidos_futuros_console(self, limite: int = 5) -> list[dict[str, Any]]:

@@ -359,7 +359,10 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dic
 
 
 def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: int = 5) -> dict[str, object]:
-    linhas_base = list(saida.pagamentos_proximos_console(limite=limite) or [])
+    if hasattr(saida, 'pagamentos_futuros_console_completo'):
+        linhas_base = list(saida.pagamentos_futuros_console_completo() or [])
+    else:
+        linhas_base = list(getattr(saida, 'pagamentos_proximos_console', lambda **_: [])(limite=limite) or [])
     relevantes: list[dict[str, object]] = []
     for item in linhas_base:
         sw_ant = str(item.get('Sw. ant.') or '').strip().lower()
