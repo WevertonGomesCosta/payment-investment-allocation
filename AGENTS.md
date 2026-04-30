@@ -47,8 +47,8 @@ aplicacao/principal.py
 Estado auditado nesta preparação:
 
 - contexto único: SIM
-- saída observável única: NÃO
-- console sem dependência operacional de `secoes_financeiras.py`: NÃO
+- saída observável única: SIM
+- console sem dependência operacional de `secoes_financeiras.py`: SIM
 
 ## Fontes únicas
 

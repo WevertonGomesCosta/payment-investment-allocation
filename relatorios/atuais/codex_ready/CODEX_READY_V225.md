@@ -3,7 +3,7 @@
 ## Identificação
 
 - Baseline: V225
-- Data/hora local: 2026-04-30T11:31:19
+- Data/hora local: 2026-04-30T12:44:20
 - Tipo: preparação estrutural para uso posterior no Codex
 - Escopo: documentação operacional, instruções para agente e inventário de legado
 - Alteração de motor econômico: não
@@ -24,13 +24,13 @@
 | Console recebe `contexto_baseline` e `saida_canonica` | SIM |
 | Planilha recebe `contexto_baseline` e `saida_canonica` | SIM |
 | Console usa `nucleo/saida_observavel.py` | SIM |
-| Console usa amostras observáveis centralizadas | NÃO |
+| Console usa amostras observáveis centralizadas | SIM |
 | Console usa Situação Atual centralizada | SIM |
 | Planilha usa blocos da Situação Atual de `saida_observavel` | SIM |
 | Planilha não cria aba `Validacao` | SIM |
-| `secoes_financeiras.py` sem uso operacional na rota oficial | NÃO |
+| `secoes_financeiras.py` sem uso operacional na rota oficial | SIM |
 | `render_secao_situacao_atual` neutralizada | SIM |
-| Estado mínimo Codex-ready | NÃO |
+| Estado mínimo Codex-ready | SIM |
 
 ## Rota oficial
 

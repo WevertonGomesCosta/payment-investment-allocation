@@ -3,7 +3,7 @@
 ## Identificação
 
 - Baseline: V225
-- Data/hora local: 2026-04-30T11:31:19
+- Data/hora local: 2026-04-30T12:44:20
 - Escopo: inventário documental para preparação Codex-ready
 - Remoção de arquivos nesta etapa: nenhuma
 
@@ -16,7 +16,7 @@ Status: preservado.
 Situação atual:
 
 - `render_secao_situacao_atual` está neutralizada: SIM
-- console oficial não importa mais `secoes_financeiras.py`: NÃO
+- console oficial não importa mais `secoes_financeiras.py`: SIM
 
 Decisão:
 
@@ -27,7 +27,8 @@ Decisão:
 Referências operacionais encontradas para `secoes_financeiras` fora de relatórios:
 
 ```text
-aplicacao/console/principal.py:20:from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos
+AGENTS.md:51:- console sem dependÃªncia operacional de `secoes_financeiras.py`: SIM
+AGENTS.md:108:- `aplicacao/console/secoes_financeiras.py`;
 aplicacao/console/secoes_financeiras.py:260:        "render_secao_situacao_atual em aplicacao.console.secoes_financeiras "
 Binary file relatorios/atuais/auditoria_estrutura_repositorio/inventario_estrutura_repositorio_por_arquivo.csv matches
 ```
@@ -45,6 +46,7 @@ Decisão:
 Referências operacionais encontradas para `secoes_canonicas` fora de relatórios:
 
 ```text
+AGENTS.md:109:- `aplicacao/console/secoes_canonicas.py`.
 Binary file relatorios/atuais/auditoria_estrutura_repositorio/inventario_estrutura_repositorio_por_arquivo.csv matches
 ```
 
@@ -61,7 +63,12 @@ aplicacao/console/secoes_canonicas.py:6:def render_secao_canonicas(*, carteira_c
 Referências operacionais encontradas para `saida_observavel` fora de relatórios:
 
 ```text
-aplicacao/console/principal.py:25:from nucleo.saida_observavel import (
+AGENTS.md:23:python -m py_compile aplicacao/principal.py aplicacao/console/principal.py nucleo/saida_observavel.py nucleo/gerar_planilha_operacional.py
+AGENTS.md:61:`nucleo/saida_observavel.py` Ã© a fonte Ãºnica para dados observÃ¡veis compartilhados entre console e planilha.
+AGENTS.md:76:AlteraÃ§Ãµes em dados observÃ¡veis compartilhados devem ser feitas primeiro em `nucleo/saida_observavel.py`.
+AGENTS.md:104:NÃ£o reativar diretamente arquivos ou funÃ§Ãµes legadas de apresentaÃ§Ã£o. Se uma informaÃ§Ã£o antiga precisar voltar ao console ou Ã  planilha, migrar primeiro o contrato de dados para `nucleo/saida_observavel.py`.
+AGENTS.md:140:python -m py_compile aplicacao/principal.py aplicacao/console/principal.py nucleo/saida_observavel.py nucleo/gerar_planilha_operacional.py
+aplicacao/console/principal.py:24:from nucleo.saida_observavel import (
 aplicacao/console/secoes_financeiras.py:249:        nucleo/saida_observavel.py
 aplicacao/console/secoes_financeiras.py:261:        "foi neutralizada. Use nucleo.saida_observavel.py como fonte Ãºnica "
 nucleo/gerar_planilha_operacional.py:24:from nucleo.saida_observavel import construir_blocos_situacao_atual

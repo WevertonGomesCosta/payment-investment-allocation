@@ -224,3 +224,59 @@ def construir_blocos_situacao_atual(contexto, saida) -> list[dict[str, Any]]:
             'linhas': list(getattr(saida, 'resumo_recebidos', []) or []),
         },
     ]
+
+# ============================================================
+# V225 — Amostras operacionais de pagamentos
+# Fonte única para console.
+# ============================================================
+
+COLS_PAGAMENTOS_REALIZADOS_CONSOLE = [
+    'Data',
+    'Descrição',
+    'Valor',
+    'Lotes usados',
+    'Saldo Antes',
+    'Bruto',
+    'Imposto',
+    'Líquido',
+    'Saldo Remanescente',
+]
+
+COLS_PAGAMENTOS_PROXIMOS_CONSOLE = [
+    'Data',
+    'Descrição',
+    'Valor',
+    'Lote sugerido',
+    'Saldo Antes',
+    'Bruto',
+    'Imposto',
+    'Líquido',
+    'Saldo Remanescente',
+]
+
+
+def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dict[str, object]:
+    """Constrói as amostras operacionais de pagamentos para o console.
+
+    Fonte dos dados:
+        saida_canonica.pagamentos_realizados_console(...)
+        saida_canonica.pagamentos_proximos_console(...)
+
+    Esta função centraliza apenas o contrato observável das amostras.
+    Não altera cálculo, replay ou regra de pagamentos.
+    """
+    return {
+        'titulo': 'PAGAMENTOS — AMOSTRAS OPERACIONAIS',
+        'realizados': {
+            'rotulo': 'últimos 5 pagamentos já realizados',
+            'headers': list(COLS_PAGAMENTOS_REALIZADOS_CONSOLE),
+            'linhas': saida.pagamentos_realizados_console(limite=limite),
+            'limite': limite,
+        },
+        'proximos': {
+            'rotulo': 'próximos 5 pagamentos',
+            'headers': list(COLS_PAGAMENTOS_PROXIMOS_CONSOLE),
+            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'limite': limite,
+        },
+    }

@@ -17,12 +17,12 @@ from aplicacao.console.common import (
     severidade as _severidade,
 )
 from aplicacao.console.secoes_execucao import render_secao_execucao
-from aplicacao.console.secoes_financeiras import render_secao_amostras_pagamentos
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_observavel import (
+    construir_amostras_pagamentos_operacionais,
     COLS_LOTES_ID_CURTAS,
     COLS_LOTES_VALORES_CURTAS,
     construir_linhas_lotes_id_curta,
@@ -31,6 +31,27 @@ from nucleo.saida_observavel import (
 )
 
 
+
+def _render_secao_amostras_pagamentos(saida_canonica) -> None:
+    amostras = construir_amostras_pagamentos_operacionais(saida_canonica, limite=5)
+
+    _imprimir_titulo(amostras['titulo'])
+
+    realizados = amostras['realizados']
+    print(f"- {realizados['rotulo']}:")
+    _imprimir_tabela(
+        realizados['headers'],
+        realizados['linhas'],
+        limite=realizados['limite'],
+    )
+
+    proximos = amostras['proximos']
+    print(f"\n- {proximos['rotulo']}:")
+    _imprimir_tabela(
+        proximos['headers'],
+        proximos['linhas'],
+        limite=proximos['limite'],
+    )
 def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> None:
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     if ranking is None:
@@ -179,10 +200,7 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
         abas_auxiliares=abas_auxiliares,
     )
 
-    render_secao_amostras_pagamentos(
-        pagamentos_realizados=saida_canonica.pagamentos_realizados_console(limite=5),
-        pagamentos_proximos=saida_canonica.pagamentos_proximos_console(limite=5),
-    )
+    _render_secao_amostras_pagamentos(saida_canonica)
 
     _render_secao_ranking_oficial(contexto_baseline, saida_canonica)
     _render_secao_switchings_oficiais(contexto_baseline, saida_canonica)
