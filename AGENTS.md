@@ -106,3 +106,38 @@ git status
 ```
 
 Se o comando não puder ser executado por falta de dependência, dado privado, permissão ou ambiente, registrar o impedimento de forma explícita no resumo final.
+
+<!-- CODEX_MODO_ENXUTO_INICIO -->
+## Regra operacional para Codex — modo enxuto
+
+Por padrão, o Codex não deve executar validações locais, testes, scripts diagnósticos ou `python aplicacao/principal.py`.
+
+A validação será feita pelo usuário no ambiente local.
+
+O Codex deve focar em alterações funcionais mínimas e responder apenas com:
+
+- Summary
+- Changed files
+- Testing
+- Risk
+- Next
+
+Na seção Testing, quando não houver pedido explícito para executar comandos, usar:
+
+> Não executado por regra do fluxo; validação local será feita pelo usuário.
+
+Codex não deve criar, alterar ou incluir arquivos em:
+
+- relatorios/
+- scripts/diagnostico/
+- logs/
+- docs/
+- prompts/
+
+Também não deve criar CSV, inventário, relatório, auditoria, validação auxiliar ou nova documentação, salvo pedido explícito do usuário.
+
+Se a tarefa for funcional, alterar apenas os arquivos de código estritamente necessários.
+
+O corpo do PR deve ser escrito do zero com base apenas no diff final. Não mencionar arquivos que não foram alterados no PR atual.
+<!-- CODEX_MODO_ENXUTO_FIM -->
+
