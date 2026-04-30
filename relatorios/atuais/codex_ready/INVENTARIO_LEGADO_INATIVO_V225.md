@@ -3,7 +3,7 @@
 ## Identificação
 
 - Baseline: V225
-- Data/hora local: 2026-04-30T13:12:16
+- Data/hora local: 2026-04-30T13:16:25
 - Escopo: classificação final da rota oficial Codex-ready
 
 ## `aplicacao/console/secoes_financeiras.py`

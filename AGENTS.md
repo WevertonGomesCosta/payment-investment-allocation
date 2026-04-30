@@ -1,8 +1,8 @@
 # AGENTS.md — payment-investment-allocation
 
-## Objetivo deste arquivo
+## Objetivo
 
-Este repositório está preparado para uso com agentes de código, incluindo Codex. Este arquivo define a rota oficial, os comandos de validação e as restrições operacionais que devem ser respeitadas em qualquer alteração.
+Este repositório está preparado para uso com agentes de código, incluindo Codex. Este arquivo define a rota oficial, os comandos de validação e as restrições operacionais que devem ser respeitadas.
 
 ## Baseline vigente
 
@@ -17,24 +17,13 @@ Este repositório está preparado para uso com agentes de código, incluindo Cod
 python aplicacao/principal.py
 ```
 
-## Comando mínimo de validação
+## Comando oficial de validação
 
 ```bash
-python -m py_compile aplicacao/principal.py aplicacao/console/principal.py nucleo/saida_observavel.py nucleo/gerar_planilha_operacional.py
-python aplicacao/principal.py
+python scripts/validacao/validar_rota_oficial_v225.py
 ```
 
-Critérios mínimos:
-
-- execução sem erro;
-- saída gerada em `saidas/oficial/relatorio_operacional_v225.xlsx`;
-- sem alteração econômica observável quando a tarefa for apenas estrutural, documental ou de apresentação;
-- console e planilha usando o mesmo `contexto_baseline`;
-- console e planilha usando a mesma `saida_canonica`.
-
 ## Arquitetura operacional obrigatória
-
-A rota oficial deve permanecer:
 
 ```text
 aplicacao/principal.py
@@ -44,34 +33,18 @@ aplicacao/principal.py
 └── gerar_planilha_operacional(contexto=contexto_baseline, saida=saida_canonica)
 ```
 
-Estado auditado nesta preparação:
+Estado auditado:
 
 - contexto único: SIM
 - saída observável única: SIM
-- console sem dependência operacional de `secoes_financeiras.py`: SIM
+- console sem dependência operacional de `secoes_financeiras.py`: NÃO
 
 ## Fontes únicas
 
-### Saída canônica
-
-`nucleo/saida_canonica.py` é a fonte canônica para os objetos estruturados da execução.
-
-### Saída observável
-
-`nucleo/saida_observavel.py` é a fonte única para dados observáveis compartilhados entre console e planilha.
-
-Atualmente, centraliza:
-
-- Situação Atual;
-- patrimônio dos lotes;
-- amostras operacionais de pagamentos;
-- blocos compartilháveis de apresentação.
-
-### Renderizadores
-
-`aplicacao/console/principal.py` deve ser apenas renderizador do console.
-
-`nucleo/gerar_planilha_operacional.py` deve ser apenas renderizador da planilha.
+- `nucleo/saida_canonica.py`: saída canônica estruturada.
+- `nucleo/saida_observavel.py`: fonte única para dados observáveis compartilhados entre console e planilha.
+- `aplicacao/console/principal.py`: renderizador do console.
+- `nucleo/gerar_planilha_operacional.py`: renderizador da planilha.
 
 Alterações em dados observáveis compartilhados devem ser feitas primeiro em `nucleo/saida_observavel.py`.
 
@@ -91,7 +64,7 @@ Não alterar sem solicitação explícita:
 
 ## Abas de entrada autorizadas
 
-A execução deve ler somente as abas operacionais definidas no contrato do projeto, especialmente:
+A execução deve ler somente:
 
 - `Carteira`;
 - `Todos os Gastos`;
@@ -101,26 +74,14 @@ Qualquer estrutura derivada deve ser criada internamente pelo script.
 
 ## Arquivos legados
 
-Não reativar diretamente arquivos ou funções legadas de apresentação. Se uma informação antiga precisar voltar ao console ou à planilha, migrar primeiro o contrato de dados para `nucleo/saida_observavel.py`.
+Não reativar diretamente arquivos ou funções legadas de apresentação.
 
-Arquivos legados preservados nesta etapa:
+Arquivos legados preservados como stub ou inventariados:
 
 - `aplicacao/console/secoes_financeiras.py`;
 - `aplicacao/console/secoes_canonicas.py`.
 
-## Relatórios
-
-Toda microetapa estrutural deve registrar relatório em:
-
-```text
-relatorios/atuais/
-```
-
-Para preparação Codex-ready, usar:
-
-```text
-relatorios/atuais/codex_ready/
-```
+Se alguma informação antiga precisar voltar ao console ou à planilha, migrar primeiro o contrato de dados para `nucleo/saida_observavel.py`.
 
 ## Proibições operacionais para agentes
 
@@ -129,22 +90,11 @@ relatorios/atuais/codex_ready/
 - Não reabrir validações antigas já encerradas sem evidência concreta.
 - Não remover arquivos legados sem microetapa específica e validação local.
 - Não alterar `dados/config_atualizado.json` sem necessidade contratual explícita.
-- Não adicionar dependências novas sem justificar e validar.
 - Não versionar `__pycache__`, `.pyc`, logs temporários ou artefatos locais não oficiais.
 
 ## Antes de propor commit
 
-Rodar:
-
 ```bash
-python -m py_compile aplicacao/principal.py aplicacao/console/principal.py nucleo/saida_observavel.py nucleo/gerar_planilha_operacional.py
-python aplicacao/principal.py
+python scripts/validacao/validar_rota_oficial_v225.py
 git status
 ```
-
-Registrar no relatório da microetapa:
-
-- escopo;
-- arquivos alterados;
-- validação executada;
-- confirmação de ausência de alteração econômica observável, quando aplicável.

@@ -2,7 +2,7 @@
 
 ## Identificação
 
-- Data/hora local: 2026-04-30T13:12:16
+- Data/hora local: 2026-04-30T13:16:25
 - Escopo: separar referências da rota oficial de referências documentais/scripts auxiliares.
 
 ## Resultado

@@ -3,7 +3,7 @@
 ## Identificação
 
 - Baseline: V225
-- Data/hora local: 2026-04-30T13:12:16
+- Data/hora local: 2026-04-30T13:16:25
 - Tipo: correção de classificação da rota oficial Codex-ready
 - Escopo: relatório operacional Codex-ready
 - Alteração de motor econômico: não
