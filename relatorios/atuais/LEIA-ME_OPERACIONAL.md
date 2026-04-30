@@ -1,66 +1,98 @@
-# LEIA-ME operacional — V208
+# LEIA-ME operacional — V225
 
-## Baseline vigente da camada documental e de navegação
-- Pacote operacional atual: **V208**
-- Baseline pós-hotfix imediatamente anterior: **V205**
-- Base funcional fixa de origem: **V200**
-- Contrato mestre vigente: **CONTRATO_OPERACIONAL_PROJETO.md**
-- Modelo oficial vigente: **MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md**
-- Baseline contratual/metodológica preservada: **V183/V182**
+## Função deste documento
+
+Este é o guia curto de navegação operacional do repositório `payment-investment-allocation`.
+
+Use este arquivo para orientar leitura inicial, execução mínima e continuidade controlada a partir da baseline funcional estável V225.
+
+## Estado vigente
+
+- Pacote operacional atual: **V225**
+- Baseline funcional estável: **BASELINE_FUNCIONAL_ESTAVEL_V225**
+- Baseline contratual vigente: **V183**
+- Modelo metodológico vinculante vigente: **V182**
+- Entrada operacional principal: `aplicacao/principal.py`
+- Configuração canônica: `dados/config_atualizado.json`
+- Base financeira canônica: `dados/dados_financeiros.xlsx`
 
 ## Leitura obrigatória inicial
 
-### Núcleo normativo vigente
-- `CONTRATO_OPERACIONAL_PROJETO.md`
-- `MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
-- `BACKLOG_CONTRATUAL_FASES_FUTURAS.md`
-- `ESPECIFICACAO_SAIDA_OFICIAL.md`
+1. `README.md`
+2. `AGENTS.md`
+3. `relatorios/atuais/BASELINE_FUNCIONAL_ESTAVEL_V225.md`
+4. `relatorios/principais/CONTRATO_OPERACIONAL_PROJETO.md`
+5. `relatorios/principais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
+6. `relatorios/INDICE_RELATORIOS.md`
 
-### Documentos operacionais recentes
-- `AUDITORIA_LIMPEZA_RESIDUAL_V201.md`
-- `AUDITORIA_CAMADA_SAIDA_CANONICA_V202.md`
-- `GOVERNANCA_SCRIPTS_V203.md`
-- `GOVERNANCA_FINAL_SCRIPTS_V204.md`
-- `HOTFIX_CONSOLE_IMPORTS_V205.md`
-- `GOVERNANCA_ESTRUTURAL_V208.md`
-- `MAPA_CENTRALIZACAO_HELPERS_V208.csv`
+## Regra de leitura
 
-## Regra de leitura desta etapa
-1. Interpretar o projeto pela V183 como contrato mestre vigente e pela V182 como modelo oficial vigente.
-2. Tratar a V208 como baseline documental/estrutural derivada da V205.
-3. Tratar a V205 como baseline pós-hotfix de console.
-4. Tratar a V202 como baseline da camada única de saída canônica.
+1. Tratar a V225 como baseline funcional estável atual.
+2. Tratar a V183 como contrato mestre vigente.
+3. Tratar a V182 como modelo metodológico vinculante.
+4. Tratar documentos V216–V224 como trilha de implementação e validação da frente de aportes planejados, gate econômico e release limpo.
 5. Não usar documentos históricos como base normativa principal para novas implementações.
-6. Tratar `saidas/oficial/` como caminho canônico de artefatos oficiais ativos, sem relatórios congelados de versões anteriores.
-7. Tratar `scripts/historico_raiz/` e `scripts/historico_saida_propria_v203/` como acervos históricos sem autoridade operacional.
-8. Exigir que console, `.xlsx`, JSON/CSV e Markdown observáveis dependam de `nucleo.saida_canonica`.
+6. Consultar histórico, logs e relatórios de limpeza somente quando a tarefa exigir rastreabilidade específica.
+
+## Estado funcional consolidado na V225
+
+| Frente | Situação |
+|---|---|
+| Dias corridos/dias úteis dos lotes | centralizados e corrigidos |
+| Idade fiscal | centralizada |
+| Aportes planejados | disponíveis em modo diagnóstico |
+| Gate econômico | ativo |
+| Aportes economicamente inferiores | bloqueados |
+| Cenário final validado | `sem_aportes_planejados` |
+| Release limpo | validado |
+| Baseline funcional | promovida formalmente |
+
+## Execução operacional principal
+
+```bash
+python aplicacao/principal.py
+```
+
+Esse comando é a validação mínima padrão para alterações que possam afetar execução, console, planilha, dados, cache, pagamentos, rendimento, switching ou ranking.
+
+## Abas de entrada autorizadas
+
+A execução deve ler somente:
+
+- `Carteira`;
+- `Todos os Gastos`;
+- `Inventário de Lotes`.
+
+Qualquer estrutura derivada deve ser criada internamente pelo código.
 
 ## Camada única de saída
 
-A saída observável oficial é materializada por:
+A saída observável oficial deve permanecer centralizada e auditável, evitando recálculo paralelo de saldo, líquido, imposto, residual, switching e amostras financeiras.
 
-```text
-nucleo/saida_canonica.py
-```
+Módulos centrais a consultar antes de alterar saídas:
 
-Console e planilha operacional devem consumir `construir_saida_canonica(...)`, evitando recálculo paralelo de saldo, líquido, imposto, residual, switching e amostras financeiras.
+- `nucleo/saida_canonica.py`
+- `aplicacao/console/principal.py`
+- `aplicacao/principal.py`
 
-## Centralização estrutural V208
+## Restrições de continuidade
 
-A V208 centraliza em `nucleo/utilitarios_neutros.py` helpers semânticos que estavam duplicados entre módulos:
+Não reabrir automaticamente:
 
-```text
-_rotulo_fonte
-_fonte_id
-_normalizar_proxy_terminal
-_aliquota_ir_estimada
-```
+- cálculo de dias dos lotes;
+- idade fiscal centralizada;
+- regra do gate econômico;
+- transição diagnóstica dos aportes planejados;
+- scripts canônicos de auditoria;
+- contratos matemáticos/econômicos;
+- leitura das três abas autorizadas.
 
-Essa centralização é estrutural. Ela não altera regra econômica, motor, contrato, modelo oficial nem recebidos/aportes futuros.
+## Para uso com Codex
 
-## Próxima frente preservada
-Corrigir a modelagem dos recebidos/aportes futuros ainda não aportados em carteira. Essa frente não foi alterada pela V208.
+Codex deve priorizar:
 
-## V216 — frente funcional de aportes futuros
-
-Consulte `INTEGRACAO_FUNCIONAL_APORTES_FUTUROS_V216.md` para a implementação funcional da transição `recebido_futuro → caixa/reserva → aporte_planejado` no motor.
+1. leitura de `AGENTS.md`;
+2. mudanças pequenas e localizadas;
+3. validação explícita com `python aplicacao/principal.py`, quando aplicável;
+4. preservação da baseline V225;
+5. não leitura em massa de `relatorios/historico/**`, `logs/iteracoes/**` e relatórios de limpeza sem necessidade explícita.
