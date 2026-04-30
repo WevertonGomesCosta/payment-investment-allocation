@@ -486,6 +486,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             row_dict.get('fonte_escolhida'),
             central.get('fonte_escolhida'),
         )
+        lote_pos_switch = _primeiro_texto_preenchido(row_dict.get('lote_recomendado_rotulo'), row_dict.get('produto_destino_switching'))
         lote_sugerido_real = _primeiro_texto_preenchido(
             row_dict.get('lote_recomendado_consumivel'),
             row_dict.get('lote_recomendado'),
@@ -497,7 +498,6 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         )
         if lote_sugerido_real and lote_pos_switch and str(lote_sugerido_real).strip() == str(lote_pos_switch).strip():
             lote_sugerido_real = ''
-        lote_pos_switch = _primeiro_texto_preenchido(row_dict.get('lote_recomendado_rotulo'), row_dict.get('produto_destino_switching'))
         lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real) if lote_sugerido_real else 'não determinado'
