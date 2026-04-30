@@ -411,25 +411,55 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         valor = round(float(row.get('valor_pagamento') or 0.0), 2)
         resumo = _resumo_futuro(contexto, pagamento_id, row.to_dict(), mapa_resumos, mapa_central)
         liquido = _round_monetario(resumo.get('Líquido'), '')
+        estrategia = _texto_decisao(row.get('estrategia_recomendada'))
+        lote_sugerido = _texto_decisao(resumo.get('Lote sugerido'))
+        lote_reserva = _texto_decisao(row.get('lote_reserva'))
         linhas.append({
             'Data': _fmt_data(row.get('data_pagamento')),
             'Conta': row.get('descricao_pagamento') or '',
             'Despesa ID': pagamento_id,
             'Valor': valor,
-            'Lote sugerido': resumo.get('Lote sugerido') or '',
+            'Lote sugerido': lote_sugerido,
             'Saldo Antes': resumo.get('Saldo Antes', ''),
             'Bruto': resumo.get('Bruto', ''),
             'Imposto': resumo.get('Imposto', ''),
             'Líquido': liquido,
             'Saldo Remanescente': resumo.get('Saldo Remanescente', ''),
-            'Cobertura integral': 'sim' if liquido != '' and float(liquido) + 0.01 >= valor else 'não',
-            'Estratégia': row.get('estrategia_recomendada') or row.get('tipo_fonte_escolhida') or '',
-            'Pacote do dia': row.get('pacote_dia_escolhido') or row.get('estrategia_recomendada') or row.get('tipo_fonte_escolhida') or '',
-            'Lote reserva': row.get('lote_reserva') or '',
-            'Necessita switching': 'sim' if bool(row.get('necessita_switching')) or str(row.get('estrategia_recomendada') or '') == 'switching_simples' else 'não',
+            'Cobertura integral': 'não determinado' if liquido == '' else ('sim' if float(liquido) + 0.01 >= valor else 'não'),
+            'Estratégia': estrategia,
+            'Pacote do dia': _texto_pacote_do_dia(row.to_dict(), estrategia),
+            'Lote reserva': lote_reserva,
+            'Necessita switching': _texto_necessita_switching(row.to_dict(), estrategia),
         })
     return linhas
 
+
+
+
+def _texto_decisao(valor: Any) -> str:
+    txt = str(valor or '').strip()
+    return txt if txt else 'não determinado'
+
+
+def _texto_pacote_do_dia(row: dict[str, Any], estrategia: str) -> str:
+    pacote_real = str(row.get('pacote_dia_escolhido') or '').strip()
+    if pacote_real:
+        return pacote_real
+    if estrategia and estrategia != 'não determinado':
+        return f"fallback informativo: {estrategia}"
+    return 'não determinado'
+
+
+def _texto_necessita_switching(row: dict[str, Any], estrategia: str) -> str:
+    valor = row.get('necessita_switching')
+    if isinstance(valor, bool):
+        return 'sim' if valor else 'não'
+    txt = str(valor or '').strip().lower()
+    if txt in {'sim', 'não', 'nao'}:
+        return 'sim' if txt == 'sim' else 'não'
+    if estrategia == 'switching_simples':
+        return 'fallback informativo: sim (estratégia)'
+    return 'não determinado'
 
 def _construir_switchings(contexto: Any, limite: int = 30) -> list[dict[str, Any]]:
     shadow = getattr(contexto, 'switching_economico_shadow', None)
