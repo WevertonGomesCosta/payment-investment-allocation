@@ -296,6 +296,9 @@ COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE = [
     'Pacote',
     'Sw. ant.',
     'Status',
+    'Saldo temp. ant.',
+    'Consumo temp.',
+    'Saldo temp. dep.',
 ]
 
 COLS_RECEBIDOS_FUTUROS_CONSOLE = [

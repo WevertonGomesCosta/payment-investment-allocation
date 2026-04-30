@@ -388,11 +388,19 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             ganhos_switch += float(melhor.get('ganho_liquido_estimado_switching') or 0.0)
         if melhor['estrategia'] == 'combinacao_minima':
             combinacao_acionada += 1
+        saldo_temporal_antes = 0.0
+        for fonte in fontes_consumo:
+            if str(fonte or '').strip() in saldo_residual_temporal_por_lote:
+                saldo_temporal_antes = round(float(saldo_residual_temporal_por_lote.get(str(fonte).strip(), 0.0) or 0.0), 2)
+                break
         consumo_temporal, saldo_pos_temporal = _consumir_saldo_temporal(
             saldo_residual_temporal_por_lote,
             fontes_consumo,
             valor_pagamento,
         )
+        melhor['saldo_temporal_antes_recomendacao'] = saldo_temporal_antes
+        melhor['consumo_residual_temporal_estimado'] = consumo_temporal
+        melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_pos_temporal
         if consumo_temporal > 0.0:
             melhor['consumo_residual_temporal_estimado'] = consumo_temporal
             melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_pos_temporal
@@ -426,6 +434,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'fracao_residual_temporal_lote': round(float(melhor.get('fracao_residual_temporal_lote') or 0.0), 6),
             'consumo_residual_temporal_estimado': round(float(melhor.get('consumo_residual_temporal_estimado') or 0.0), 2),
             'saldo_residual_temporal_pos_recomendacao': round(float(melhor.get('saldo_residual_temporal_pos_recomendacao') or 0.0), 2),
+            'saldo_temporal_antes_recomendacao': round(float(melhor.get('saldo_temporal_antes_recomendacao') or 0.0), 2),
             'fallback_automatico_sem_switching': bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching'),
             'motivo_fallback_automatico': motivo_fallback_automatico if bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching') else '',
             'motivo_recomendacao': melhor.get('motivo_recomendacao') or '',

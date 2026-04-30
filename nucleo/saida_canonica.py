@@ -77,6 +77,9 @@ class PacoteSaidaCanonica:
                 'Sw. dep.': item.get('Switching depois do pagamento') if item.get('Switching depois do pagamento') not in (None, '') else 'n/d',
                 'Status': item.get('Status recomendação') if item.get('Status recomendação') not in (None, '') else 'n/d',
                 'Bloq.': item.get('Motivo bloqueio lote') if item.get('Motivo bloqueio lote') not in (None, '') else 'n/d',
+                'Saldo temp. ant.': item.get('Saldo temp. ant.') if item.get('Saldo temp. ant.') not in (None, '') else 'n/d',
+                'Consumo temp.': item.get('Consumo temp.') if item.get('Consumo temp.') not in (None, '') else 'n/d',
+                'Saldo temp. dep.': item.get('Saldo temp. dep.') if item.get('Saldo temp. dep.') not in (None, '') else 'n/d',
             }
             for item in self.extrato_futuro
         ]
@@ -538,6 +541,9 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',
             'Motivo bloqueio lote': _texto_decisao(row_dict.get('motivo_bloqueio_lote')) if str(row_dict.get('motivo_bloqueio_lote') or '').strip() else '',
             'Status recomendação': _texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado',
+            'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), 'n/d'),
+            'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), 'n/d'),
+            'Saldo temp. dep.': _round_monetario(row_dict.get('saldo_residual_temporal_pos_recomendacao'), 'n/d'),
         })
     return linhas
 
