@@ -66,6 +66,10 @@ class PacoteSaidaCanonica:
                 'IR': item.get('Imposto'),
                 'Liq.': item.get('Líquido'),
                 'Rem.': item.get('Saldo Remanescente'),
+                'Sw. ant.': item.get('Switching antes do pagamento') if item.get('Switching antes do pagamento') not in (None, '') else 'n/d',
+                'Sw. dep.': item.get('Switching depois do pagamento') if item.get('Switching depois do pagamento') not in (None, '') else 'n/d',
+                'Status': item.get('Status recomendação') if item.get('Status recomendação') not in (None, '') else 'n/d',
+                'Bloq.': item.get('Motivo bloqueio lote') if item.get('Motivo bloqueio lote') not in (None, '') else 'n/d',
             }
             for item in self.extrato_futuro[:limite]
         ]

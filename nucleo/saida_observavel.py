@@ -255,6 +255,10 @@ COLS_PAGAMENTOS_PROXIMOS_CONSOLE = [
     'IR',
     'Liq.',
     'Rem.',
+    'Sw. ant.',
+    'Sw. dep.',
+    'Status',
+    'Bloq.',
 ]
 
 COLS_RECEBIDOS_FUTUROS_CONSOLE = [
