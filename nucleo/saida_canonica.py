@@ -64,6 +64,7 @@ class PacoteSaidaCanonica:
                 'Conta': item.get('Conta') or '',
                 'Valor': item.get('Valor'),
                 'Lote': item.get('Lote sugerido') or '',
+                'Pós-switch': item.get('Lote pós-switching') or 'n/d',
                 'Pacote': item.get('Pacote do dia') or item.get('Estratégia') or '',
                 'Switch?': item.get('Necessita switching') or '',
                 'Reserva': item.get('Lote reserva') or '',
@@ -493,6 +494,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             central.get('lote_final_central'),
             central.get('lote_sugerido_original'),
         )
+        lote_pos_switch = _primeiro_texto_preenchido(row_dict.get('lote_recomendado_rotulo'), row_dict.get('produto_destino_switching'))
         lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real)
@@ -521,6 +523,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Estratégia': estrategia,
             'Pacote do dia': _texto_pacote_do_dia({**central, **row_dict}, estrategia),
             'Lote reserva': lote_reserva,
+            'Lote pós-switching': _texto_decisao(lote_pos_switch) if lote_pos_switch else '',
             'Necessita switching': _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
             'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',

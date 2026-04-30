@@ -292,12 +292,10 @@ COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE = [
     'Conta',
     'Valor',
     'Lote',
+    'Pós-switch',
     'Pacote',
-    'Switch?',
     'Sw. ant.',
-    'Sw. dep.',
     'Status',
-    'Bloq.',
 ]
 
 COLS_RECEBIDOS_FUTUROS_CONSOLE = [
