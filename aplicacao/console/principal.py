@@ -62,6 +62,17 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
         proximos_switching_status['linhas'],
         limite=proximos_switching_status['limite'],
     )
+
+    relevantes = amostras['proximos_relevantes_switching_status']
+    print(f"\n- {relevantes['rotulo']}:")
+    if relevantes['linhas']:
+        _imprimir_tabela(
+            relevantes['headers'],
+            relevantes['linhas'],
+            limite=relevantes['limite'],
+        )
+    else:
+        print("  sem pagamentos futuros com switching/status relevante na amostra atual")
 def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> None:
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     if ranking is None:
