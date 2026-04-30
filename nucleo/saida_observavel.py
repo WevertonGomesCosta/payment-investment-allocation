@@ -244,17 +244,69 @@ COLS_PAGAMENTOS_REALIZADOS_CONSOLE = [
 
 COLS_PAGAMENTOS_PROXIMOS_CONSOLE = [
     'Data',
-    'Descrição',
+    'Conta',
     'Valor',
-    'Lote sugerido',
-    'Pacote do dia',
-    'Necessita switching',
-    'Lote reserva',
-    'Saldo Antes',
+    'Lote',
+    'Pacote',
+    'Switch?',
+    'Reserva',
+    'Saldo ant.',
     'Bruto',
-    'Imposto',
-    'Líquido',
-    'Saldo Remanescente',
+    'IR',
+    'Liq.',
+    'Rem.',
+    'Sw. ant.',
+    'Sw. dep.',
+    'Status',
+    'Bloq.',
+]
+
+COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE = [
+    'Data',
+    'Conta',
+    'Valor',
+    'Lote',
+    'Pacote',
+    'Switch?',
+    'Reserva',
+    'Saldo ant.',
+    'Bruto',
+    'IR',
+    'Liq.',
+    'Rem.',
+]
+
+COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS = [
+    'Data',
+    'Conta',
+    'Lote',
+    'Pacote',
+    'Sw. ant.',
+    'Sw. dep.',
+    'Status',
+    'Bloq.',
+]
+
+COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE = [
+    'Data',
+    'Conta',
+    'Valor',
+    'Lote',
+    'Pós-switch',
+    'Pacote',
+    'Sw. ant.',
+    'Status',
+]
+
+COLS_RECEBIDOS_FUTUROS_CONSOLE = [
+    'Data',
+    'Lote',
+    'Valor',
+    'Status',
+    'Destino',
+    'Carteira',
+    'Usado',
+    'Saldo',
 ]
 
 
@@ -282,4 +334,57 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dic
             'linhas': saida.pagamentos_proximos_console(limite=limite),
             'limite': limite,
         },
+        'proximos_valores_fonte': {
+            'rotulo': 'próximos 5 pagamentos — valores/fonte',
+            'headers': list(COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE),
+            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'limite': limite,
+        },
+        'proximos_switching_status': {
+            'rotulo': 'próximos 5 pagamentos — switching/status',
+            'headers': list(COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS),
+            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'limite': limite,
+        },
+        'proximos_relevantes_switching_status': construir_amostra_pagamentos_futuros_switching_relevante(saida, limite=limite),
+    }
+
+
+def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: int = 5) -> dict[str, object]:
+    if hasattr(saida, 'pagamentos_futuros_console_completo'):
+        linhas_base = list(saida.pagamentos_futuros_console_completo() or [])
+    else:
+        linhas_base = list(getattr(saida, 'pagamentos_proximos_console', lambda **_: [])(limite=limite) or [])
+    relevantes: list[dict[str, object]] = []
+    for item in linhas_base:
+        sw_ant = str(item.get('Sw. ant.') or '').strip().lower()
+        sw_dep = str(item.get('Sw. dep.') or '').strip().lower()
+        status = str(item.get('Status') or '').strip().lower()
+        bloq = str(item.get('Bloq.') or '').strip().lower()
+        pacote = str(item.get('Pacote') or '').strip().lower()
+        switch = str(item.get('Switch?') or '').strip().lower()
+        eh_relevante = (
+            sw_ant == 'sim'
+            or sw_dep == 'sim'
+            or (status not in {'', 'ok', 'n/d'})
+            or (bloq not in {'', 'n/d'})
+            or (pacote not in {'', 'pay_only'})
+            or switch == 'sim'
+        )
+        if eh_relevante:
+            relevantes.append(item)
+    return {
+        'rotulo': 'pagamentos futuros com switching/status relevante',
+        'headers': list(COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE),
+        'linhas': relevantes[:limite],
+        'limite': limite,
+    }
+
+
+def construir_amostra_alocacao_recebidos_futuros(saida, *, limite: int = 5) -> dict[str, object]:
+    return {
+        'rotulo': 'aportes futuros / alocação',
+        'headers': list(COLS_RECEBIDOS_FUTUROS_CONSOLE),
+        'linhas': saida.recebidos_futuros_console(limite=limite),
+        'limite': limite,
     }
