@@ -264,19 +264,6 @@ COLS_RECEBIDOS_FUTUROS_CONSOLE = [
     'Status',
     'Destino',
     'Carteira',
-    'Disp.',
-    'Usado',
-    'Saldo',
-]
-
-COLS_RECEBIDOS_FUTUROS_CONSOLE = [
-    'Data',
-    'Lote',
-    'Valor',
-    'Status',
-    'Destino',
-    'Carteira',
-    'Disp. pagto',
     'Usado',
     'Saldo',
 ]

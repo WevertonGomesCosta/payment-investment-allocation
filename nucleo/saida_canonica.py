@@ -83,19 +83,20 @@ class PacoteSaidaCanonica:
                 top1 = f"{produto} [prov.]"
                 break
 
-        def _prioridade(item: dict[str, Any]) -> tuple[int, str, int, str]:
+        def _prioridade(item: dict[str, Any]) -> tuple[str, int, str]:
             lote = str(item.get('Lote origem') or item.get('Recebido') or '')
-            status = str(item.get('Status') or '').lower()
             recebido_em = str(item.get('Recebimento') or '')
             usado = 1 if lote in lotes_futuros else 0
-            futuro = 1 if any(token in status for token in ('futuro', 'pendente', 'planejado')) else 0
-            return (usado, recebido_em, futuro, lote)
+            return (recebido_em, -usado, lote)
 
         data_ref = str(self.data_referencia or '')
         candidatos = []
         for item in self.recebidos_atuais:
             data_item = str(item.get('Recebimento') or '')
+            status_item = str(item.get('Status') or '').lower()
             if data_ref and data_item and data_item < data_ref:
+                continue
+            if status_item in {'exaurido', 'aplicado'}:
                 continue
             candidatos.append(item)
 
@@ -117,9 +118,8 @@ class PacoteSaidaCanonica:
                 'Status': status,
                 'Destino': destino,
                 'Carteira': item.get('Carteira') or item.get('Produto') or top1,
-                'Disp.': item.get('Disponível ref') if item.get('Disponível ref') in ('sim', 'não') else 'não determinado',
                 'Usado': usado,
-                'Saldo': _round_monetario(item.get('Residual aplicação'), 0.0),
+                'Saldo': _round_monetario(item.get('Residual aplicação'), 'n/d'),
             })
             if len(linhas) >= limite:
                 break
