@@ -23,6 +23,7 @@ from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurid
 @dataclass(frozen=True)
 class PacoteSaidaCanonica:
     versao: str
+    data_referencia: Any = None
     extrato_passado: list[dict[str, Any]] = field(default_factory=list)
     extrato_futuro: list[dict[str, Any]] = field(default_factory=list)
     switchings: list[dict[str, Any]] = field(default_factory=list)
@@ -54,20 +55,75 @@ class PacoteSaidaCanonica:
         return [
             {
                 'Data': item.get('Data'),
-                'Descrição': item.get('Conta') or '',
+                'Conta': item.get('Conta') or '',
                 'Valor': item.get('Valor'),
-                'Lote sugerido': item.get('Lote sugerido') or '',
-                'Pacote do dia': item.get('Pacote do dia') or item.get('Estratégia') or '',
-                'Necessita switching': item.get('Necessita switching') or '',
-                'Lote reserva': item.get('Lote reserva') or '',
-                'Saldo Antes': item.get('Saldo Antes'),
+                'Lote': item.get('Lote sugerido') or '',
+                'Pacote': item.get('Pacote do dia') or item.get('Estratégia') or '',
+                'Switch?': item.get('Necessita switching') or '',
+                'Reserva': item.get('Lote reserva') or '',
+                'Saldo ant.': item.get('Saldo Antes'),
                 'Bruto': item.get('Bruto'),
-                'Imposto': item.get('Imposto'),
-                'Líquido': item.get('Líquido'),
-                'Saldo Remanescente': item.get('Saldo Remanescente'),
+                'IR': item.get('Imposto'),
+                'Liq.': item.get('Líquido'),
+                'Rem.': item.get('Saldo Remanescente'),
             }
             for item in self.extrato_futuro[:limite]
         ]
+
+    def recebidos_futuros_console(self, limite: int = 5) -> list[dict[str, Any]]:
+        lotes_futuros: set[str] = set()
+        for item in self.extrato_futuro:
+            for fonte in _split_fontes(item.get('Lote sugerido')):
+                lotes_futuros.add(fonte)
+
+        top1 = 'não determinado'
+        for row in self.ranking_amostra:
+            produto = row.get('Produto')
+            if produto:
+                top1 = "Top1 [prov.]"
+                break
+
+        def _prioridade(item: dict[str, Any]) -> tuple[str, int, str]:
+            lote = str(item.get('Lote origem') or item.get('Recebido') or '')
+            recebido_em = str(item.get('Recebimento') or '')
+            usado = 1 if lote in lotes_futuros else 0
+            return (recebido_em, -usado, lote)
+
+        data_ref = str(self.data_referencia or '')
+        candidatos = []
+        for item in self.recebidos_atuais:
+            data_item = str(item.get('Recebimento') or '')
+            status_item = str(item.get('Status') or '').lower()
+            if data_ref and data_item and data_item < data_ref:
+                continue
+            if status_item in {'exaurido', 'aplicado'}:
+                continue
+            candidatos.append(item)
+
+        linhas: list[dict[str, Any]] = []
+        for item in sorted(candidatos, key=_prioridade):
+            lote = str(item.get('Lote origem') or item.get('Recebido') or '')
+            status = item.get('Status') or 'não determinado'
+            destino = item.get('Destino') or 'não determinado'
+            valor = item.get('Valor líquido') if item.get('Valor líquido') not in ('', None) else item.get('Valor bruto')
+            valor_vinc = _round_monetario(item.get('Valor vinculado'), 0.0)
+            pagamentos_vinc = int(item.get('Pagamentos vinculados') or 0)
+            usado = 'sim' if lote in lotes_futuros or (pagamentos_vinc > 0 and valor_vinc > 0) else 'não'
+            if usado != 'sim' and len(linhas) >= limite:
+                continue
+            linhas.append({
+                'Data': item.get('Recebimento'),
+                'Lote': lote,
+                'Valor': _round_monetario(valor, 0.0),
+                'Status': status,
+                'Destino': destino,
+                'Carteira': item.get('Carteira') or item.get('Produto') or top1,
+                'Usado': usado,
+                'Saldo': _round_monetario(item.get('Residual aplicação'), 'n/d'),
+            })
+            if len(linhas) >= limite:
+                break
+        return linhas
 
 
 def _fmt_data(valor: Any) -> Any:
@@ -722,6 +778,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     }
     return PacoteSaidaCanonica(
         versao=versao,
+        data_referencia=_fmt_data(contexto.execucao.data_referencia),
         extrato_passado=extrato_passado,
         extrato_futuro=extrato_futuro,
         switchings=switchings,
