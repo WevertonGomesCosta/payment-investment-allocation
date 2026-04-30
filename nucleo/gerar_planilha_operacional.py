@@ -298,33 +298,41 @@ def _adicionar_auditoria_saida_canonica(wb, contexto, saida) -> None:
     linhas = [{'Métrica': k, 'Valor': v} for k, v in saida.auditoria.items()]
     _apply_table_style(ws, ['Métrica', 'Valor'], _rows(linhas, ['Métrica', 'Valor']), freeze=True)
 
+def main(*, contexto=None, saida=None) -> Path:
+    """Gera a planilha operacional.
 
-def main() -> Path:
-    contexto = carregar_contexto_baseline(
-        raiz_repositorio=RAIZ,
-        instalar_automaticamente=False,
-        incluir_resolver_hibrido_5p_shadow=False,
-        incluir_benchmark_agrupado_individual_shadow=False,
-        incluir_benchmark_runner_futuro_shadow=False,
-        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
-    )
+    Quando contexto e saida são informados, esta função não recarrega planilha,
+    não baixa dados e não reconstrói cache. Ela apenas renderiza a planilha a
+    partir dos objetos já construídos pela rota principal.
+    """
+    if contexto is None:
+        contexto = carregar_contexto_baseline(
+            raiz_repositorio=RAIZ,
+            instalar_automaticamente=False,
+            incluir_resolver_hibrido_5p_shadow=False,
+            incluir_benchmark_agrupado_individual_shadow=False,
+            incluir_benchmark_runner_futuro_shadow=False,
+            incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
+        )
 
-    saida = construir_saida_canonica(contexto, versao=VERSAO_BASELINE)
+    if saida is None:
+        saida = construir_saida_canonica(contexto, versao=VERSAO_BASELINE)
+
     saida_interna, saida_externa = _caminhos_saida_operacional(contexto)
 
     wb = Workbook()
 
     ws_passado = wb.active
-    ws_passado.title = _nome_aba_operacional(contexto, 'extrato_passado')
-    headers_passado = _cabecalhos_operacionais(contexto, 'extrato_passado')
+    ws_passado.title = _nome_aba_operacional(contexto, "extrato_passado")
+    headers_passado = _cabecalhos_operacionais(contexto, "extrato_passado")
     _apply_table_style(ws_passado, headers_passado, _rows(saida.extrato_passado, headers_passado), freeze=True)
 
-    ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, 'extrato_futuro'))
-    headers_futuro = _cabecalhos_operacionais(contexto, 'extrato_futuro')
+    ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, "extrato_futuro"))
+    headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
     _apply_table_style(ws_futuro, headers_futuro, _rows(saida.extrato_futuro, headers_futuro), freeze=True)
 
-    ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, 'switching'))
-    headers_switching = _cabecalhos_operacionais(contexto, 'switching')
+    ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, "switching"))
+    headers_switching = _cabecalhos_operacionais(contexto, "switching")
     _apply_table_style(ws_switching, headers_switching, _rows(saida.switchings, headers_switching), freeze=True)
 
     _adicionar_abas_ranking(wb, contexto)
@@ -341,7 +349,6 @@ def main() -> Path:
         print(f"[AVISO] cópia externa não gerada: {type(exc).__name__}:{exc}")
 
     return saida_interna
-
 
 if __name__ == '__main__':
     print(main())

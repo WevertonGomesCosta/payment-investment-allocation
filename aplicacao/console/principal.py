@@ -126,43 +126,41 @@ def _render_secao_situacao_atual(contexto_baseline, saida_canonica, resumo_fecha
         print('\n- resumo de recebidos:')
         _imprimir_pares(list(resumo_recebidos.items()))
 
+def render_console(contexto_baseline, saida_canonica=None) -> None:
+    """Renderiza o console usando contexto e saída canônica já construídos.
 
-def main() -> None:
-    contexto_baseline = carregar_contexto_baseline(
-        raiz_repositorio=RAIZ_REPOSITORIO,
-        instalar_automaticamente=False,
-        incluir_resolver_hibrido_5p_shadow=False,
-        incluir_benchmark_agrupado_individual_shadow=False,
-        incluir_benchmark_runner_futuro_shadow=False,
-        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
-    )
+    Esta função não carrega planilha, não baixa dados e não reconstrói cache.
+    Ela apenas renderiza o estado recebido.
+    """
+    if saida_canonica is None:
+        saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
 
     pacote_config = contexto_baseline.pacote_config
     contexto = contexto_baseline.execucao
     pacote_planilha = contexto_baseline.pacote_planilha
     carteira_canonica = contexto_baseline.carteira_canonica
     cache_cdi = contexto_baseline.cache_cdi
-    saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
 
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
-    resumo_por_aba = {item['nome_aba']: item for item in resumo_planilha}
+    resumo_por_aba = {item["nome_aba"]: item for item in resumo_planilha}
 
-    abas_cfg = pacote_config.conteudo.get('abas', {}) if isinstance(pacote_config.conteudo.get('abas'), dict) else {}
-    nome_aba_carteira_real = getattr(carteira_canonica, 'nome_aba', abas_cfg.get('carteira', 'Carteira'))
+    abas_cfg = pacote_config.conteudo.get("abas", {}) if isinstance(pacote_config.conteudo.get("abas"), dict) else {}
+    nome_aba_carteira_real = getattr(carteira_canonica, "nome_aba", abas_cfg.get("carteira", "Carteira"))
 
     abas_primarias_reais = [
-        ('carteira', nome_aba_carteira_real),
-        ('lotes', abas_cfg.get('lotes', 'Inventário de Lotes')),
-        ('despesas', abas_cfg.get('despesas', 'Todos os Gastos')),
+        ("carteira", nome_aba_carteira_real),
+        ("lotes", abas_cfg.get("lotes", "Inventário de Lotes")),
+        ("despesas", abas_cfg.get("despesas", "Todos os Gastos")),
     ]
+
     abas_auxiliares = [
         nome for nome in pacote_planilha.nomes_abas
         if nome not in {aba for _, aba in abas_primarias_reais}
     ]
 
     severidade_dependencias = _severidade(
-        avisos=contexto.relatorio_dependencias.get('ausentes', []),
-        condicao_ok=len(contexto.relatorio_dependencias.get('ausentes', [])) == 0,
+        avisos=contexto.relatorio_dependencias.get("ausentes", []),
+        condicao_ok=len(contexto.relatorio_dependencias.get("ausentes", [])) == 0,
     )
 
     auditoria_cache_cdi = cache_cdi.auditoria or {}
@@ -190,18 +188,18 @@ def main() -> None:
     _render_secao_switchings_oficiais(contexto_baseline, saida_canonica)
 
     resumo_fechamento_bruto = {
-        item.get('Métrica'): item.get('Valor')
+        item.get("Métrica"): item.get("Valor")
         for item in saida_canonica.fechamento_atual
     }
 
     mapeamento_fechamento = {
-        'Data de referência': 'data_referencia',
-        'Status do fechamento econômico': 'status_fechamento',
-        'Fonte do fechamento': 'fonte_fechamento',
-        'Fechamentos com fallback CDI': 'qtd_fechamentos_fallback_cdi',
-        'Último fator explícito CDI': 'data_ultimo_fator_explicito_cdi',
-        'Data confirmada da série': 'data_fechamento_confirmado',
-        'Leitura auditável': 'observacao',
+        "Data de referência": "data_referencia",
+        "Status do fechamento econômico": "status_fechamento",
+        "Fonte do fechamento": "fonte_fechamento",
+        "Fechamentos com fallback CDI": "qtd_fechamentos_fallback_cdi",
+        "Último fator explícito CDI": "data_ultimo_fator_explicito_cdi",
+        "Data confirmada da série": "data_fechamento_confirmado",
+        "Leitura auditável": "observacao",
     }
 
     resumo_fechamento_situacao_atual = {
@@ -215,7 +213,7 @@ def main() -> None:
             resumo_fechamento_situacao_atual[chave_tecnica] = resumo_fechamento_bruto.get(rotulo_humano)
 
     resumo_recebidos_saida = {
-        item.get('Métrica'): item.get('Valor')
+        item.get("Métrica"): item.get("Valor")
         for item in saida_canonica.resumo_recebidos
     }
 
@@ -226,6 +224,19 @@ def main() -> None:
         resumo_recebidos_saida,
     )
 
+
+def main() -> None:
+    """Execução standalone do console. Para a rota oficial integrada, use aplicacao/principal.py."""
+    contexto_baseline = carregar_contexto_baseline(
+        raiz_repositorio=RAIZ_REPOSITORIO,
+        instalar_automaticamente=False,
+        incluir_resolver_hibrido_5p_shadow=False,
+        incluir_benchmark_agrupado_individual_shadow=False,
+        incluir_benchmark_runner_futuro_shadow=False,
+        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
+    )
+    saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
+    render_console(contexto_baseline, saida_canonica)
 
 if __name__ == '__main__':
     main()
