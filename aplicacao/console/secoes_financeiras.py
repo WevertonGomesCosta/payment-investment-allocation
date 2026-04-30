@@ -3,45 +3,6 @@ from __future__ import annotations
 from aplicacao.console.common import imprimir_itens_severidade, imprimir_linha_status, imprimir_pares, imprimir_tabela, imprimir_titulo
 
 
-def render_secao_nucleo(*, auditoria_nucleo, validacao_nucleo, severidade_nucleo):
-    imprimir_titulo('NÚCLEO FINANCEIRO MÍNIMO')
-    imprimir_linha_status('Primitivas financeiras irreduzíveis do lote', severidade_nucleo, 'sem solver, sem replay, sem switching econômico e sem relatório financeiro atual')
-    imprimir_pares([
-        ('lotes financeiros', auditoria_nucleo.get('qtd_lotes_financeiros', 0)),
-        ('lotes aportados', auditoria_nucleo.get('qtd_lotes_aportados', 0)),
-        ('caixa disponível', auditoria_nucleo.get('qtd_caixa_disponivel', 0)),
-        ('recebidos futuros', auditoria_nucleo.get('qtd_recebidos_futuros', 0)),
-        ('lotes não disponíveis para aporte', auditoria_nucleo.get('qtd_lotes_nao_disponiveis_para_aporte', 0)),
-        ('lotes com produto mapeado', auditoria_nucleo.get('qtd_lotes_produto_mapeado', 0)),
-        ('lotes sem produto', auditoria_nucleo.get('qtd_lotes_sem_produto', 0)),
-        ('lotes com taxa default', auditoria_nucleo.get('qtd_lotes_com_taxa_default', 0)),
-        ('lotes com carência', auditoria_nucleo.get('qtd_lotes_com_carencia', 0)),
-        ('lotes exauridos ignorados', auditoria_nucleo.get('qtd_lotes_ignorados_exauridos', 0)),
-    ])
-    imprimir_itens_severidade('erros de validação', validacao_nucleo.get('erros'), 'ERRO')
-    imprimir_itens_severidade('avisos de validação', validacao_nucleo.get('avisos'), 'AVISO')
-
-    imprimir_titulo('NÚCLEO FINANCEIRO MÍNIMO — VALUATION')
-    imprimir_pares([
-        ('data final valuation ref. completa', auditoria_nucleo.get('data_final_valuation_referencia')),
-        ('fechamentos da referência com fallback CDI', auditoria_nucleo.get('qtd_fechamentos_referencia_com_fallback_cdi', 0)),
-        ('saldo bruto ref. sem replay', auditoria_nucleo.get('saldo_bruto_total_referencia_sem_replay', 0.0)),
-        ('saldo líquido ref. sem replay', auditoria_nucleo.get('saldo_liquido_total_referencia_sem_replay', 0.0)),
-    ])
-
-    imprimir_titulo('NÚCLEO FINANCEIRO MÍNIMO — AMOSTRAS')
-    amostra_saque = auditoria_nucleo.get('amostra_movimento_saque') or {}
-    if amostra_saque:
-        print('- amostra de saque no núcleo mínimo (auditoria técnica):')
-        print(f"  [OK] lote={amostra_saque.get('lote_id')} | bruto={amostra_saque.get('bruto')} | liquido={amostra_saque.get('liquido')} | imposto={amostra_saque.get('imposto')} | saldo_remanescente={amostra_saque.get('saldo_remanescente')}")
-    amostra_fechamento_nucleo = auditoria_nucleo.get('amostra_fechamento_referencia') or {}
-    if amostra_fechamento_nucleo:
-        print('- amostra de fechamento da referência no núcleo mínimo:')
-        print(f"  [OK] data_valuation={amostra_fechamento_nucleo.get('data_valuation')} | data_fator_utilizado={amostra_fechamento_nucleo.get('data_fator_utilizado')} | fonte={amostra_fechamento_nucleo.get('fonte')} | lotes_atualizados={amostra_fechamento_nucleo.get('qtd_lotes_atualizados')}")
-    if not amostra_saque and not amostra_fechamento_nucleo:
-        print('  [OK] nenhuma amostra disponível nesta execução')
-
-
 def render_secao_replay(*, auditoria_replay, validacao_replay, severidade_replay, limiar_residuo_resolvido):
     imprimir_titulo('REPLAY CONTROLADO DO PASSADO')
     imprimir_linha_status('Reconciliacao de pagamentos historicos com lotes informados', severidade_replay, 'consome o nucleo financeiro minimo sem abrir switching economico, score final, solver ou relatorio financeiro atual')
@@ -110,9 +71,6 @@ def render_secao_replay(*, auditoria_replay, validacao_replay, severidade_replay
     imprimir_itens_severidade('avisos de validação', validacao_replay.get('avisos'), 'AVISO')
 
 
-
-
-
 def render_secao_metodo_pagamentos(*, auditoria_metodo=None, amostra_mudancas_metodo=None):
     auditoria_metodo = auditoria_metodo or {}
     amostra_mudancas_metodo = amostra_mudancas_metodo or []
@@ -167,7 +125,6 @@ def render_secao_amostras_pagamentos(*, pagamentos_realizados=None, pagamentos_p
     )
 
 
-
 def render_secao_auditoria_temporal_pagamentos(*, auditoria_temporal=None, amostra_primeiras_quebras=None):
     auditoria_temporal = auditoria_temporal or {}
     amostra_primeiras_quebras = amostra_primeiras_quebras or []
@@ -194,7 +151,6 @@ def render_secao_auditoria_temporal_pagamentos(*, auditoria_temporal=None, amost
             amostra_primeiras_quebras,
             limite=10,
         )
-
 
 
 def render_secao_reescolha_dinamica_pagamentos(*, auditoria_reescolha=None, amostra_reescolhas=None, amostra_sem_cobertura=None):
@@ -233,7 +189,6 @@ def render_secao_reescolha_dinamica_pagamentos(*, auditoria_reescolha=None, amos
             amostra_sem_cobertura,
             limite=10,
         )
-
 
 
 def render_secao_heuristica_conjunta_parcial(*, auditoria_heuristica=None, amostra_trocas_preventivas=None, amostra_planejamento_reservas=None, amostra_sem_cobertura=None):
@@ -393,92 +348,3 @@ def render_secao_microplanejamento_conjunto_v2(*, auditoria_microplanejamento=No
         )
 
 
-def render_secao_recomputacao_sequencial_central_v1(*, auditoria_central=None, amostra_mudancas=None, amostra_sem_cobertura=None):
-    auditoria_central = auditoria_central or {}
-    amostra_mudancas = amostra_mudancas or []
-    amostra_sem_cobertura = amostra_sem_cobertura or []
-    resumo = auditoria_central.get('resumo', {})
-    imprimir_titulo('FRENTE CENTRAL — RECOMPUTAÇÃO SEQUENCIAL CENTRAL V1')
-    imprimir_pares([
-        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
-        ('pagamentos cobertos integralmente', resumo.get('pagamentos_cobertos_integral_central', 0)),
-        ('pagamentos sem cobertura integral', resumo.get('pagamentos_sem_cobertura_integral', 0)),
-        ('violações de pagamentos PROTEGIDA', resumo.get('violacoes_pagamentos_protegida', 0)),
-        ('déficit líquido total central', resumo.get('deficit_liquido_total_central', 0.0)),
-        ('mudanças vs decisão local', resumo.get('mudancas_vs_decisao_local', 0)),
-        ('fallbacks sem fonte viável', resumo.get('fallbacks_sem_fonte_viavel', 0)),
-        ('patrimônio terminal proxy final', resumo.get('patrimonio_terminal_proxy_final', 0.0)),
-        ('primeira sem cobertura', resumo.get('primeira_sem_cobertura_data')),
-        ('pagamento da primeira sem cobertura', resumo.get('primeira_sem_cobertura_pagamento') or ''),
-        ('primeira violação protegida', resumo.get('primeira_violation_protegida_data')),
-        ('pagamento da primeira violação protegida', resumo.get('primeira_violation_protegida_pagamento') or ''),
-        ('primeiro fallback sem fonte viável', resumo.get('primeiro_fallback_sem_fonte_viavel_data')),
-        ('pagamento do primeiro fallback', resumo.get('primeiro_fallback_sem_fonte_viavel_pagamento') or ''),
-    ])
-    if amostra_mudancas:
-        print('\n- amostra das mudanças da recomputação central vs decisão local:')
-        imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Lote local', 'Lote central', 'Classe', 'Subclasse'],
-            amostra_mudancas,
-            limite=10,
-        )
-    if amostra_sem_cobertura:
-        print('\n- amostra dos pagamentos ainda sem cobertura integral na frente central:')
-        imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Classe', 'Lote central', 'Déficit', 'Fallback'],
-            amostra_sem_cobertura,
-            limite=10,
-        )
-
-
-def render_secao_motor_recomendacao_pagamentos_switching_v1(*, auditoria_recomendacao=None, amostra_switching=None, amostra_combinacao=None):
-    auditoria_recomendacao = auditoria_recomendacao or {}
-    amostra_switching = amostra_switching or []
-    amostra_combinacao = amostra_combinacao or []
-    resumo = auditoria_recomendacao.get('resumo', {})
-    imprimir_titulo('MOTOR OPERACIONAL — RECOMENDAÇÃO DE PAGAMENTOS + SWITCHING V1')
-    imprimir_pares([
-        ('pagamentos auditados', resumo.get('total_pagamentos_auditados', 0)),
-        ('estratégia sem switching', resumo.get('estrategia_sem_switching', 0)),
-        ('estratégia switching simples', resumo.get('estrategia_switching_simples', 0)),
-        ('estratégia combinação mínima', resumo.get('estrategia_combinacao_minima', 0)),
-        ('switchings acionados', resumo.get('switching_acionado', 0)),
-        ('combinações acionadas', resumo.get('combinacao_acionada', 0)),
-        ('ganho líquido estimado de switching', resumo.get('ganho_liquido_switching_estimado_total', 0.0)),
-        ('pagamentos com cobertura integral recomendada', resumo.get('pagamentos_com_cobertura_integral_recomendada', 0)),
-    ])
-    if amostra_switching:
-        print('\n- amostra das recomendações com switching simples:')
-        linhas = []
-        for row in amostra_switching:
-            linhas.append({
-                'Data': row.get('data_pagamento'),
-                'Descrição': row.get('descricao_pagamento'),
-                'Valor': row.get('valor_pagamento'),
-                'Lote origem': row.get('lote_origem_switching') or row.get('lote_recomendado'),
-                'Produto destino': row.get('produto_destino_switching'),
-                'Ganho estimado': row.get('ganho_liquido_estimado_switching'),
-                'Cobertura esperada': row.get('cobertura_esperada'),
-            })
-        imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Lote origem', 'Produto destino', 'Ganho estimado', 'Cobertura esperada'],
-            linhas,
-            limite=10,
-        )
-    if amostra_combinacao:
-        print('\n- amostra das recomendações por combinação mínima:')
-        linhas = []
-        for row in amostra_combinacao:
-            linhas.append({
-                'Data': row.get('data_pagamento'),
-                'Descrição': row.get('descricao_pagamento'),
-                'Valor': row.get('valor_pagamento'),
-                'Lote principal': row.get('lote_recomendado'),
-                'Lote reserva': row.get('lote_reserva'),
-                'Cobertura esperada': row.get('cobertura_esperada'),
-            })
-        imprimir_tabela(
-            ['Data', 'Descrição', 'Valor', 'Lote principal', 'Lote reserva', 'Cobertura esperada'],
-            linhas,
-            limite=10,
-        )
