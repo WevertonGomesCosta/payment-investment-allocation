@@ -407,13 +407,33 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
     mapa_central = _mapa_pagamentos_central(contexto)
     linhas: list[dict[str, Any]] = []
     for _, row in quadro.iterrows():
-        pagamento_id = str(row.get('pagamento_id') or '').strip()
+        row_dict = row.to_dict()
+        pagamento_id = str(row_dict.get('pagamento_id') or '').strip()
         valor = round(float(row.get('valor_pagamento') or 0.0), 2)
-        resumo = _resumo_futuro(contexto, pagamento_id, row.to_dict(), mapa_resumos, mapa_central)
+        central = mapa_central.get(pagamento_id, {})
+        resumo = _resumo_futuro(contexto, pagamento_id, row_dict, mapa_resumos, mapa_central)
         liquido = _round_monetario(resumo.get('Líquido'), '')
-        estrategia = _texto_decisao(row.get('estrategia_recomendada'))
-        lote_sugerido = _texto_decisao(resumo.get('Lote sugerido'))
-        lote_reserva = _texto_decisao(row.get('lote_reserva'))
+        estrategia_real = _primeiro_texto_preenchido(row_dict.get('estrategia_recomendada'), central.get('estrategia_recomendada'))
+        lote_sugerido_real = _primeiro_texto_preenchido(
+            resumo.get('Lote sugerido'),
+            row_dict.get('lote_recomendado'),
+            row_dict.get('lote_id_escolhido'),
+            central.get('lote_final_central'),
+            central.get('lote_sugerido_original'),
+        )
+        lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))
+        estrategia = _texto_decisao(estrategia_real)
+        lote_sugerido = _texto_decisao(lote_sugerido_real)
+        lote_reserva = _texto_decisao(lote_reserva_real)
+        cobertura_real = row_dict.get('cobertura_integral_recomendada')
+        if cobertura_real is None:
+            cobertura_real = central.get('pagamento_totalmente_coberto_central')
+        if isinstance(cobertura_real, bool):
+            cobertura_txt = 'sim' if cobertura_real else 'não'
+        elif liquido != '':
+            cobertura_txt = 'sim' if float(liquido) + 0.01 >= valor else 'não'
+        else:
+            cobertura_txt = 'não determinado'
         linhas.append({
             'Data': _fmt_data(row.get('data_pagamento')),
             'Conta': row.get('descricao_pagamento') or '',
@@ -425,11 +445,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Imposto': resumo.get('Imposto', ''),
             'Líquido': liquido,
             'Saldo Remanescente': resumo.get('Saldo Remanescente', ''),
-            'Cobertura integral': 'não determinado' if liquido == '' else ('sim' if float(liquido) + 0.01 >= valor else 'não'),
+            'Cobertura integral': cobertura_txt,
             'Estratégia': estrategia,
-            'Pacote do dia': _texto_pacote_do_dia(row.to_dict(), estrategia),
+            'Pacote do dia': _texto_pacote_do_dia({**central, **row_dict}, estrategia),
             'Lote reserva': lote_reserva,
-            'Necessita switching': _texto_necessita_switching(row.to_dict(), estrategia),
+            'Necessita switching': _texto_necessita_switching({**central, **row_dict}, estrategia),
         })
     return linhas
 
@@ -452,6 +472,8 @@ def _texto_pacote_do_dia(row: dict[str, Any], estrategia: str) -> str:
 
 def _texto_necessita_switching(row: dict[str, Any], estrategia: str) -> str:
     valor = row.get('necessita_switching')
+    if valor is None:
+        valor = row.get('necessidade_switching')
     if isinstance(valor, bool):
         return 'sim' if valor else 'não'
     txt = str(valor or '').strip().lower()
@@ -460,6 +482,14 @@ def _texto_necessita_switching(row: dict[str, Any], estrategia: str) -> str:
     if estrategia == 'switching_simples':
         return 'fallback informativo: sim (estratégia)'
     return 'não determinado'
+
+
+def _primeiro_texto_preenchido(*valores: Any) -> str:
+    for valor in valores:
+        txt = str(valor or '').strip()
+        if txt:
+            return txt
+    return ''
 
 def _construir_switchings(contexto: Any, limite: int = 30) -> list[dict[str, Any]]:
     shadow = getattr(contexto, 'switching_economico_shadow', None)
