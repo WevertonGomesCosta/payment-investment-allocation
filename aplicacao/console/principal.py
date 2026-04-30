@@ -47,12 +47,20 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
         limite=realizados['limite'],
     )
 
-    proximos = amostras['proximos']
-    print(f"\n- {proximos['rotulo']}:")
+    proximos_valores_fonte = amostras['proximos_valores_fonte']
+    print(f"\n- {proximos_valores_fonte['rotulo']}:")
     _imprimir_tabela(
-        proximos['headers'],
-        proximos['linhas'],
-        limite=proximos['limite'],
+        proximos_valores_fonte['headers'],
+        proximos_valores_fonte['linhas'],
+        limite=proximos_valores_fonte['limite'],
+    )
+
+    proximos_switching_status = amostras['proximos_switching_status']
+    print(f"\n- {proximos_switching_status['rotulo']}:")
+    _imprimir_tabela(
+        proximos_switching_status['headers'],
+        proximos_switching_status['linhas'],
+        limite=proximos_switching_status['limite'],
     )
 def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> None:
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
