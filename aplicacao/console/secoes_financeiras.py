@@ -285,40 +285,27 @@ def render_secao_heuristica_conjunta_parcial(*, auditoria_heuristica=None, amost
             limite=10,
         )
 
-def render_secao_situacao_atual(*, lotes_ativos, lotes_exauridos=None, lotes_ativos_valores=None, lotes_exauridos_valores=None, recebidos_atuais=None, resumo_fechamento=None, resumo_recebidos=None):
-    imprimir_titulo('SITUAÇÃO ATUAL')
-    resumo_fechamento = resumo_fechamento or {}
-    lotes_exauridos = lotes_exauridos or []
-    lotes_ativos_valores = lotes_ativos_valores or lotes_ativos
-    lotes_exauridos_valores = lotes_exauridos_valores or lotes_exauridos
-    if resumo_fechamento:
-        imprimir_pares([
-            ('data de referência', resumo_fechamento.get('data_referencia')),
-            ('status do fechamento econômico', resumo_fechamento.get('status_fechamento')),
-            ('fonte do fechamento', resumo_fechamento.get('fonte_fechamento')),
-            ('fechamentos com fallback CDI', resumo_fechamento.get('qtd_fechamentos_fallback_cdi', 0)),
-            ('último fator explícito CDI', resumo_fechamento.get('data_ultimo_fator_explicito_cdi')),
-            ('data confirmada da série', resumo_fechamento.get('data_fechamento_confirmado')),
-        ])
-        observacao = resumo_fechamento.get('observacao')
-        if observacao:
-            print(f'- leitura auditável: {observacao}')
-    print('\n- lotes exauridos:')
-    if lotes_exauridos:
-        print('  identificação e tempo:')
-        imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Último uso', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_exauridos, limite=None)
-        print('\n  valores atuais:')
-        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_exauridos_valores, limite=None)
-    else:
-        print('  [OK] sem lotes exauridos nesta execução')
-    print('\n- lotes ativos:')
-    if lotes_ativos:
-        print('  identificação e tempo:')
-        imprimir_tabela(['Lote', 'Recebimento', 'Aplicação', 'Produto', 'Dias corridos', 'Dias úteis'], lotes_ativos, limite=None)
-        print('\n  valores atuais:')
-        imprimir_tabela(['Lote', 'Valor original', 'Bruto', 'Líquido', 'Saldo rem'], lotes_ativos_valores, limite=None)
-    else:
-        print('  [OK] sem lotes ativos acima do limiar nesta execução')
+def render_secao_situacao_atual(*args, **kwargs):
+    """Função legada neutralizada.
+
+    A seção Situação Atual não deve mais ser montada neste módulo.
+
+    Fonte única operacional:
+        nucleo/saida_observavel.py
+
+    Renderizadores autorizados:
+        aplicacao/console/principal.py
+        nucleo/gerar_planilha_operacional.py
+
+    Motivo:
+        evitar divergência entre console e planilha causada por funções
+        próprias/duplicadas para os mesmos dados observáveis.
+    """
+    raise RuntimeError(
+        "render_secao_situacao_atual em aplicacao.console.secoes_financeiras "
+        "foi neutralizada. Use nucleo.saida_observavel.py como fonte única "
+        "e os renderizadores oficiais de console/planilha."
+    )
 
 def render_secao_planejamento_conjunto_local(*, auditoria_planejamento=None, amostra_comparativo_politicas=None, amostra_mudancas_vs_v103=None):
     auditoria_planejamento = auditoria_planejamento or {}
