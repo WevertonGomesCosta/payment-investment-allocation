@@ -57,6 +57,9 @@ class PacoteSaidaCanonica:
                 'Descrição': item.get('Conta') or '',
                 'Valor': item.get('Valor'),
                 'Lote sugerido': item.get('Lote sugerido') or '',
+                'Pacote do dia': item.get('Pacote do dia') or item.get('Estratégia') or '',
+                'Necessita switching': item.get('Necessita switching') or '',
+                'Lote reserva': item.get('Lote reserva') or '',
                 'Saldo Antes': item.get('Saldo Antes'),
                 'Bruto': item.get('Bruto'),
                 'Imposto': item.get('Imposto'),
@@ -421,6 +424,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Saldo Remanescente': resumo.get('Saldo Remanescente', ''),
             'Cobertura integral': 'sim' if liquido != '' and float(liquido) + 0.01 >= valor else 'não',
             'Estratégia': row.get('estrategia_recomendada') or row.get('tipo_fonte_escolhida') or '',
+            'Pacote do dia': row.get('pacote_dia_escolhido') or row.get('estrategia_recomendada') or row.get('tipo_fonte_escolhida') or '',
             'Lote reserva': row.get('lote_reserva') or '',
             'Necessita switching': 'sim' if bool(row.get('necessita_switching')) or str(row.get('estrategia_recomendada') or '') == 'switching_simples' else 'não',
         })
