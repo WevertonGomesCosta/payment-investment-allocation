@@ -47,6 +47,14 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
         limite=realizados['limite'],
     )
 
+    recebidos_futuros = amostras['recebidos_futuros']
+    print(f"\n- {recebidos_futuros['rotulo']}:")
+    _imprimir_tabela(
+        recebidos_futuros['headers'],
+        recebidos_futuros['linhas'],
+        limite=recebidos_futuros['limite'],
+    )
+
     proximos = amostras['proximos']
     print(f"\n- {proximos['rotulo']}:")
     _imprimir_tabela(
