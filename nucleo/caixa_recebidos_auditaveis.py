@@ -8,6 +8,7 @@ import pandas as pd
 
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
 from nucleo.utilitarios_neutros import _fonte_id, limpar_texto, normalizar_identificador, normalizar_texto
+from nucleo.utilitarios_neutros import _slug_fonte
 
 STATUS_USO_PRE_APLICACAO_COM_APORTE_POSTERIOR = 'uso_pre_aplicacao_com_aporte_posterior'
 DESTINO_PAGAMENTO_E_APLICACAO = 'pagamento_e_aplicacao'
@@ -217,12 +218,6 @@ def _slug_recebido(lote_id: str) -> str:
 
 def _recebido_id(lote_id: str) -> str:
     return f'recebido::{_slug_recebido(lote_id)}'
-
-
-def _slug_fonte(chave: str) -> str:
-    texto = normalizar_texto(chave).replace(' ', '_')
-    return texto or 'fonte'
-
 
 
 def _fonte_pagamento_id(fonte_id: str, pagamento_id: str) -> str:
@@ -899,9 +894,6 @@ def materializar_saldo_disponivel_geral(
     return PacoteSaldoDisponivelGeral(quadro_saldo_disponivel=quadro, auditoria=auditoria)
 
 
-
-
-
 def _construir_mapa_produtos_proxy(carteira_canonica: Any | None) -> dict[str, dict[str, Any]]:
     quadro = getattr(carteira_canonica, 'quadro_canonico', None) if carteira_canonica is not None else None
     if quadro is None or len(quadro) == 0:
@@ -1187,8 +1179,6 @@ def _score_proxy_economico_por_versao(proxy_version: str, candidato: dict[str, A
 def _label_proxy_version(proxy_version: str) -> str:
     versao = limpar_texto(proxy_version).lower()
     return 'v2' if versao == 'v2' else 'v3'
-
-
 
 
 def _coerce_date_operacional(valor: Any) -> date | None:
@@ -1927,7 +1917,6 @@ def auditar_comparativo_proxy_v3_vs_hibrido_shadow(
         'pacote_benchmark_shadow': resolver_hibrido_5p_shadow,
         'auditoria': auditoria,
     }
-
 
 
 def auditar_divergencias_residuais_proxy_v3_vs_hibrido_shadow(
