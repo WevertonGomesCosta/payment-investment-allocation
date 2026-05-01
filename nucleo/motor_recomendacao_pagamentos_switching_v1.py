@@ -167,6 +167,8 @@ def _melhor_switching_para_pagamento(
             'valor_liquido_origem': valor_base,
             'valor_residual_temporal_lote': valor_residual_temporal,
             'fracao_residual_temporal_lote': round(fracao_residual_temporal, 6),
+            'score_switch_shadow': round(float(melhor.get('score_switch_shadow') or 0.0), 4),
+            'ordem_switch_shadow': int(melhor.get('ordem_prioridade') or 0) if str(melhor.get('ordem_prioridade') or '').strip() else 0,
         })
     if not melhores:
         return {}
@@ -273,6 +275,13 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
                     score_no_switch,
                 ),
             })
+            data_sw = _coerce_date(estrategia_switch.get('data_sugerida_switching'))
+            if data_sw is not None and data_pagamento is not None and data_sw <= data_pagamento:
+                estrategia_switch['lote_recomendado_rotulo'] = _rotulo_candidato({
+                    'lote_id': '',
+                    'produto_nome_canonico': estrategia_switch.get('produto_destino_switching') or 'não determinado',
+                    'fonte_id': estrategia_switch.get('fonte_origem_id') or '',
+                }) or 'não determinado'
 
         estrategia_combo: dict[str, Any] = {}
         top = []
@@ -381,11 +390,19 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             ganhos_switch += float(melhor.get('ganho_liquido_estimado_switching') or 0.0)
         if melhor['estrategia'] == 'combinacao_minima':
             combinacao_acionada += 1
+        saldo_temporal_antes = 0.0
+        for fonte in fontes_consumo:
+            if str(fonte or '').strip() in saldo_residual_temporal_por_lote:
+                saldo_temporal_antes = round(float(saldo_residual_temporal_por_lote.get(str(fonte).strip(), 0.0) or 0.0), 2)
+                break
         consumo_temporal, saldo_pos_temporal = _consumir_saldo_temporal(
             saldo_residual_temporal_por_lote,
             fontes_consumo,
             valor_pagamento,
         )
+        melhor['saldo_temporal_antes_recomendacao'] = saldo_temporal_antes
+        melhor['consumo_residual_temporal_estimado'] = consumo_temporal
+        melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_pos_temporal
         if consumo_temporal > 0.0:
             melhor['consumo_residual_temporal_estimado'] = consumo_temporal
             melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_pos_temporal
@@ -399,6 +416,8 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'subclasse_pagamento_operacional': subclasse,
             'estrategia_recomendada': melhor['estrategia'],
             'lote_recomendado': melhor.get('lote_recomendado') or '',
+            'lote_recomendado_consumivel': melhor.get('lote_recomendado') or '',
+            'lote_recomendado_rotulo': melhor.get('lote_recomendado_rotulo') or '',
             'lote_reserva': melhor.get('lote_reserva') or '',
             'necessidade_switching': bool(melhor.get('necessidade_switching')),
             'data_sugerida_switching': melhor.get('data_sugerida_switching'),
@@ -417,9 +436,26 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'fracao_residual_temporal_lote': round(float(melhor.get('fracao_residual_temporal_lote') or 0.0), 6),
             'consumo_residual_temporal_estimado': round(float(melhor.get('consumo_residual_temporal_estimado') or 0.0), 2),
             'saldo_residual_temporal_pos_recomendacao': round(float(melhor.get('saldo_residual_temporal_pos_recomendacao') or 0.0), 2),
+            'saldo_temporal_antes_recomendacao': round(float(melhor.get('saldo_temporal_antes_recomendacao') or 0.0), 2),
             'fallback_automatico_sem_switching': bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching'),
             'motivo_fallback_automatico': motivo_fallback_automatico if bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching') else '',
             'motivo_recomendacao': melhor.get('motivo_recomendacao') or '',
+            'switching_antes_pagamento': bool(melhor.get('necessidade_switching')) and melhor.get('data_sugerida_switching') is not None and data_pagamento is not None and _coerce_date(melhor.get('data_sugerida_switching')) <= data_pagamento,
+            'switching_depois_pagamento': bool(melhor.get('necessidade_switching')) and melhor.get('data_sugerida_switching') is not None and data_pagamento is not None and _coerce_date(melhor.get('data_sugerida_switching')) > data_pagamento,
+            'motivo_bloqueio_lote': (
+                'saldo insuficiente'
+                if float(melhor.get('valor_residual_temporal_lote') or 0.0) < valor_pagamento and bool(melhor.get('necessidade_switching'))
+                else ''
+            ),
+            'status_recomendacao': (
+                'lote_indisponivel_pos_switching'
+                if bool(melhor.get('necessidade_switching')) and str(melhor.get('lote_recomendado') or '').strip() in {'', 'não determinado'}
+                else 'ok'
+            ),
+            'fonte_switching_quadro': 'motor_pagamento',
+            'data_switching_referencia': melhor.get('data_sugerida_switching'),
+            'score_switching_shadow': round(float(melhor.get('score_switch_shadow') or 0.0), 4),
+            'ordem_switching_shadow': int(melhor.get('ordem_switch_shadow') or 0),
         })
 
     quadro = pd.DataFrame(linhas)
