@@ -29,6 +29,7 @@ from nucleo.saida_observavel import (
     construir_linhas_lotes_id_curta,
     construir_linhas_lotes_valores_curta,
     construir_resumo_patrimonio_total_lotes,
+    construir_amostra_lotes_sinteticos_pos_switching,
 )
 
 
@@ -148,6 +149,16 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
 
     print('- amostra de switchings reais da janela (independente de pagamentos):')
     _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=10)
+    sinteticos = construir_amostra_lotes_sinteticos_pos_switching(saida_canonica, limite=10)
+    print(f"\n- {sinteticos['rotulo']}:")
+    if sinteticos['linhas']:
+        _imprimir_tabela(sinteticos['headers'], sinteticos['linhas'], limite=sinteticos['limite'])
+    else:
+        print("  sem lotes sintéticos pós-switching materializáveis na amostra atual")
+
+    alocacao = construir_amostra_alocacao_recebidos_futuros(saida_canonica, limite=5)
+    print(f"\n- {alocacao['rotulo']}:")
+    _imprimir_tabela(alocacao['headers'], alocacao['linhas'], limite=alocacao['limite'])
 
     alocacao = construir_amostra_alocacao_recebidos_futuros(saida_canonica, limite=5)
     print(f"\n- {alocacao['rotulo']}:")

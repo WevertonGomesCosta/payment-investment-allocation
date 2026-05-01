@@ -373,6 +373,15 @@ COLS_RECEBIDOS_FUTUROS_CONSOLE = [
     'Saldo',
 ]
 
+COLS_LOTES_SINTETICOS_POS_SWITCHING = [
+    'Data',
+    'Lotes origem',
+    'Destino',
+    'Novo lote',
+    'Valor líquido total',
+    'Origem valor',
+]
+
 
 def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dict[str, object]:
     """Constrói as amostras operacionais de pagamentos para o console.
@@ -592,5 +601,15 @@ def construir_amostra_alocacao_recebidos_futuros(saida, *, limite: int = 5) -> d
         'rotulo': 'aportes futuros / alocação',
         'headers': list(COLS_RECEBIDOS_FUTUROS_CONSOLE),
         'linhas': saida.recebidos_futuros_console(limite=limite),
+        'limite': limite,
+    }
+
+
+def construir_amostra_lotes_sinteticos_pos_switching(saida, *, limite: int = 10) -> dict[str, object]:
+    linhas = saida.lotes_sinteticos_pos_switching_console(limite=limite) if hasattr(saida, 'lotes_sinteticos_pos_switching_console') else []
+    return {
+        'rotulo': 'lotes sintéticos pós-switching',
+        'headers': list(COLS_LOTES_SINTETICOS_POS_SWITCHING),
+        'linhas': linhas,
         'limite': limite,
     }

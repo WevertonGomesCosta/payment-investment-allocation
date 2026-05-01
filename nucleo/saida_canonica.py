@@ -149,6 +149,58 @@ class PacoteSaidaCanonica:
         linhas.sort(key=_prioridade)
         return [{k: v for k, v in linha.items() if not k.startswith('_')} for linha in linhas[:limite]]
 
+    def lotes_sinteticos_pos_switching_console(self, limite: int = 10) -> list[dict[str, Any]]:
+        mapa_mes = {1: 'jan.', 2: 'fev.', 3: 'mar.', 4: 'abr.', 5: 'mai.', 6: 'jun.', 7: 'jul.', 8: 'ago.', 9: 'set.', 10: 'out.', 11: 'nov.', 12: 'dez.'}
+        grupos: dict[tuple[str, str], dict[str, Any]] = {}
+        for item in self.switchings:
+            data_sw = item.get('Data') or item.get('Data sugerida') or item.get('data_sugerida_switching') or item.get('data_switching_janela')
+            destino = str(
+                item.get('Destino')
+                or item.get('Produto destino switching')
+                or item.get('produto_destino_switching')
+                or item.get('destino_switching_janela')
+                or ''
+            ).strip()
+            lote = str(item.get('Lote origem') or item.get('lote_origem_switching') or item.get('lote_id') or '').strip()
+            if not data_sw or not destino or not lote:
+                continue
+            chave = (str(data_sw), destino)
+            g = grupos.setdefault(chave, {'Data': data_sw, 'Destino': destino, 'Lotes origem': [], 'valor_total': 0.0, 'tem_valor': True, 'origem': 'quadro_switching'})
+            g['Lotes origem'].append(lote)
+            valor_liq = (
+                item.get('Valor líquido origem')
+                if item.get('Valor líquido origem') not in (None, '')
+                else item.get('valor_liquido_origem')
+            )
+            if valor_liq in (None, '', 'n/d'):
+                g['tem_valor'] = False
+                continue
+            try:
+                g['valor_total'] = round(float(g['valor_total']) + float(valor_liq), 2)
+            except Exception:
+                g['tem_valor'] = False
+        linhas: list[dict[str, Any]] = []
+        for (_, _), g in grupos.items():
+            data_sw = g['Data']
+            valor_total = g['valor_total'] if g['tem_valor'] else 'n/d'
+            mes = 'n/d'
+            try:
+                data_txt = str(data_sw)
+                mes_num = int(data_txt[5:7]) if len(data_txt) >= 7 else 0
+                mes = mapa_mes.get(mes_num, 'n/d')
+            except Exception:
+                mes = 'n/d'
+            novo_lote = f"Lote {str(valor_total).replace('.', ',')} {mes}" if valor_total != 'n/d' else 'n/d'
+            linhas.append({
+                'Data': data_sw,
+                'Lotes origem': ' + '.join(g['Lotes origem']),
+                'Destino': g['Destino'],
+                'Novo lote': novo_lote,
+                'Valor líquido total': valor_total,
+                'Origem valor': g['origem'] if g['tem_valor'] else 'valor_liquido_indisponivel',
+            })
+        return linhas[:limite]
+
 
 def _fmt_data(valor: Any) -> Any:
     return valor.isoformat() if hasattr(valor, 'isoformat') else valor
