@@ -525,11 +525,21 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             central.get('lote_sugerido_original'),
             resumo.get('Lote sugerido'),
         )
-        if str(row_dict.get('status_recomendacao') or '').strip() == 'lote_ja_migrado_janela':
+        status_migrado_janela = str(row_dict.get('status_recomendacao') or '').strip() == 'lote_ja_migrado_janela'
+        if status_migrado_janela:
             lote_sugerido_real = ''
         if lote_sugerido_real and marcador_visual and str(lote_sugerido_real).strip().lower() == str(marcador_visual).strip().lower():
             lote_sugerido_real = ''
         lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))
+        if status_migrado_janela:
+            lote_reserva_real = ''
+        lote_origem_migrada = str(row_dict.get('lote_origem_pos_switching') or '').strip()
+        if lote_origem_migrada:
+            origem_tokens = [x.strip() for x in lote_origem_migrada.split('+') if x.strip()]
+            if any(tok and tok in str(lote_sugerido_real or '') for tok in origem_tokens):
+                lote_sugerido_real = ''
+            if any(tok and tok in str(lote_reserva_real or '') for tok in origem_tokens):
+                lote_reserva_real = ''
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real) if lote_sugerido_real else 'não determinado'
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
