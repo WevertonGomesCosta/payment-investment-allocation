@@ -36,6 +36,7 @@ from nucleo.saida_observavel import (
 
 def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
     amostras = construir_amostras_pagamentos_operacionais(saida_canonica, limite=5)
+    amostras.pop('recebidos_futuros', None)
 
     _imprimir_titulo(amostras['titulo'])
 
@@ -151,6 +152,10 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
     sinteticos = construir_amostra_lotes_sinteticos_pos_switching(saida_canonica, limite=10)
     print(f"\n- {sinteticos['rotulo']}:")
     _imprimir_tabela(sinteticos['headers'], sinteticos['linhas'], limite=sinteticos['limite'])
+
+    alocacao = construir_amostra_alocacao_recebidos_futuros(saida_canonica, limite=5)
+    print(f"\n- {alocacao['rotulo']}:")
+    _imprimir_tabela(alocacao['headers'], alocacao['linhas'], limite=alocacao['limite'])
 
     alocacao = construir_amostra_alocacao_recebidos_futuros(saida_canonica, limite=5)
     print(f"\n- {alocacao['rotulo']}:")
