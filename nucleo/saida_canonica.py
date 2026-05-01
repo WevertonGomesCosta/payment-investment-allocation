@@ -67,6 +67,9 @@ class PacoteSaidaCanonica:
                 'Pós-switch': item.get('Lote pós-switching') or 'n/d',
                 'Destino sw.': item.get('Destino switching') or 'n/d',
                 'Origem sw.': item.get('Origem switching') or 'n/d',
+                'Fonte sw.': item.get('Fonte switching') or 'n/d',
+                'Data sw.': item.get('Data switching') or 'n/d',
+                'Score sw.': item.get('Score switching') if item.get('Score switching') not in (None, '') else 'n/d',
                 'Pacote': item.get('Pacote do dia') or item.get('Estratégia') or '',
                 'Switch?': item.get('Necessita switching') or '',
                 'Reserva': item.get('Lote reserva') or '',
@@ -544,6 +547,9 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
                 if str(row_dict.get('produto_destino_switching') or '').strip()
                 else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
             ),
+            'Fonte switching': _texto_decisao(row_dict.get('fonte_switching_quadro')) if str(row_dict.get('fonte_switching_quadro') or '').strip() else '',
+            'Data switching': _fmt_data(row_dict.get('data_switching_referencia')) if row_dict.get('data_switching_referencia') is not None else '',
+            'Score switching': _round_monetario(row_dict.get('score_switching_shadow'), ''),
             'Necessita switching': _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
             'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',

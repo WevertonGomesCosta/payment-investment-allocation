@@ -167,6 +167,8 @@ def _melhor_switching_para_pagamento(
             'valor_liquido_origem': valor_base,
             'valor_residual_temporal_lote': valor_residual_temporal,
             'fracao_residual_temporal_lote': round(fracao_residual_temporal, 6),
+            'score_switch_shadow': round(float(melhor.get('score_switch_shadow') or 0.0), 4),
+            'ordem_switch_shadow': int(melhor.get('ordem_prioridade') or 0) if str(melhor.get('ordem_prioridade') or '').strip() else 0,
         })
     if not melhores:
         return {}
@@ -450,6 +452,10 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
                 if bool(melhor.get('necessidade_switching')) and str(melhor.get('lote_recomendado') or '').strip() in {'', 'não determinado'}
                 else 'ok'
             ),
+            'fonte_switching_quadro': 'motor_pagamento',
+            'data_switching_referencia': melhor.get('data_sugerida_switching'),
+            'score_switching_shadow': round(float(melhor.get('score_switch_shadow') or 0.0), 4),
+            'ordem_switching_shadow': int(melhor.get('ordem_switch_shadow') or 0),
         })
 
     quadro = pd.DataFrame(linhas)
