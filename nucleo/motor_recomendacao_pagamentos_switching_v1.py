@@ -153,6 +153,7 @@ def _materializar_fontes_pos_switching_janela(
             return f"{int(v)}"
         return f"{v:.2f}".replace('.', ',')
 
+    grupos: dict[tuple[str, str], dict[str, Any]] = {}
     for _, row in base.iterrows():
         lote = str(row.get('lote_id') or '').strip()
         if not lote:
@@ -176,7 +177,7 @@ def _materializar_fontes_pos_switching_janela(
                 'motivo_saldo_pos_sw': 'saldo_zero_ou_ausente',
             }
             continue
-        valor = round(float(row.get('valor_liquido_disponivel') or 0.0), 2)
+        valor = round(float(row.get('valor_liquido_disponivel') or row.get('valor_liquido') or 0.0), 2)
         if valor <= 0.01:
             diagnostico[lote] = {
                 'pos_sw_tentativa': True,
@@ -194,25 +195,23 @@ def _materializar_fontes_pos_switching_janela(
             continue
         destino = str(info_janela.get('destino_janela') or '').strip()
         data_sw_txt = data_sw.isoformat() if hasattr(data_sw, 'isoformat') else str(data_sw)
-        fonte_pos_sw = f'pos_switch::{data_sw_txt}::{destino or "destino"}::{lote}'
-        mes_sw = mapa_mes_pt.get(data_sw.month, 'n/d') if hasattr(data_sw, 'month') else 'n/d'
-        lote_nome_operacional = f"Lote {_fmt_valor_lote(valor)} {mes_sw}"
-        linha = row.to_dict()
-        linha['lote_id'] = fonte_pos_sw
-        linha['lote_id_sintetico'] = fonte_pos_sw
-        linha['lote_nome_operacional'] = lote_nome_operacional
-        linha['lote_origem_pos_switching'] = lote
-        linha['fonte_origem_pos_switching'] = 'estado_pos_switching_janela'
-        linha['destino_switching_janela'] = destino
-        linha['data_switching_janela'] = data_sw
-        if destino:
-            linha['produto_nome_canonico'] = destino
-        linhas_pos_switching.append(linha)
+        chave = (data_sw_txt, destino)
+        grupo = grupos.setdefault(chave, {
+            'data_sw': data_sw,
+            'destino': destino,
+            'valor_liquido_total': 0.0,
+            'valor_bruto_total': 0.0,
+            'lotes_origem': [],
+            'base_row': row.to_dict(),
+        })
+        grupo['valor_liquido_total'] = round(float(grupo['valor_liquido_total']) + valor, 2)
+        grupo['valor_bruto_total'] = round(float(grupo['valor_bruto_total']) + float(row.get('valor_bruto_disponivel') or row.get('valor_bruto') or valor), 2)
+        grupo['lotes_origem'].append(lote)
         diagnostico[lote] = {
             'pos_sw_tentativa': True,
             'pos_sw_criada': True,
-            'fonte_pos_sw': fonte_pos_sw,
-            'lote_nome_operacional_pos_sw': lote_nome_operacional,
+            'fonte_pos_sw': '',
+            'lote_nome_operacional_pos_sw': '',
             'saldo_pos_sw': valor,
             'motivo_pos_sw': 'materializada',
             'destino_pos_sw': destino,
@@ -222,6 +221,35 @@ def _materializar_fontes_pos_switching_janela(
             'data_base_saldo_pos_sw': row.get('data_pagamento') or data_pagamento,
             'motivo_saldo_pos_sw': 'saldo_encontrado',
         }
+    for (data_sw_txt, destino), grupo in grupos.items():
+        valor_total = round(float(grupo.get('valor_liquido_total') or 0.0), 2)
+        if valor_total <= 0.01:
+            continue
+        data_sw = grupo.get('data_sw')
+        lotes_origem = [str(x) for x in grupo.get('lotes_origem', []) if str(x).strip()]
+        mes_sw = mapa_mes_pt.get(data_sw.month, 'n/d') if hasattr(data_sw, 'month') else 'n/d'
+        lote_nome_operacional = f"Lote {_fmt_valor_lote(valor_total)} {mes_sw}"
+        fonte_pos_sw = f"pos_switch::{data_sw_txt}::{destino or 'destino'}::{' + '.join(lotes_origem)}"
+        linha = dict(grupo.get('base_row') or {})
+        linha['lote_id'] = fonte_pos_sw
+        linha['lote_id_sintetico'] = fonte_pos_sw
+        linha['lote_nome_operacional'] = lote_nome_operacional
+        linha['lote_origem_pos_switching'] = ' + '.join(lotes_origem)
+        linha['fonte_origem_pos_switching'] = 'estado_pos_switching_janela'
+        linha['destino_switching_janela'] = destino
+        linha['data_switching_janela'] = data_sw
+        linha['valor_liquido_disponivel'] = valor_total
+        linha['valor_bruto_disponivel'] = round(float(grupo.get('valor_bruto_total') or valor_total), 2)
+        if destino:
+            linha['produto_nome_canonico'] = destino
+        linhas_pos_switching.append(linha)
+        for lote in lotes_origem:
+            if lote in diagnostico:
+                diagnostico[lote]['fonte_pos_sw'] = fonte_pos_sw
+                diagnostico[lote]['lote_nome_operacional_pos_sw'] = lote_nome_operacional
+                diagnostico[lote]['saldo_pos_sw'] = valor_total
+                diagnostico[lote]['saldo_pos_sw_liquido_candidato'] = valor_total
+                diagnostico[lote]['saldo_pos_sw_bruto_candidato'] = round(float(grupo.get('valor_bruto_total') or valor_total), 2)
     if not linhas_pos_switching:
         return candidatos, diagnostico
     return pd.concat([base, pd.DataFrame(linhas_pos_switching)], ignore_index=True), diagnostico
