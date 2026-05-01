@@ -112,6 +112,27 @@ def _mapa_switching_janela_por_lote(quadro_switching: pd.DataFrame, switching_ec
     return mapa
 
 
+def _normalizar_chave_lote(valor: Any) -> str:
+    txt = str(valor or '').strip().lower()
+    txt = txt.replace('lote ', '').replace('lote', '').strip()
+    return ''.join(ch for ch in txt if ch.isalnum())
+
+
+def _info_switching_lote(mapa_switching_janela: dict[str, dict[str, Any]], lote_id: Any) -> dict[str, Any]:
+    chave = str(lote_id or '').strip()
+    if not chave:
+        return {}
+    if chave in mapa_switching_janela:
+        return mapa_switching_janela.get(chave, {})
+    norm = _normalizar_chave_lote(chave)
+    if not norm:
+        return {}
+    for k, v in mapa_switching_janela.items():
+        if _normalizar_chave_lote(k) == norm:
+            return v
+    return {}
+
+
 def _aplicar_saldo_temporal_candidatos(
     candidatos: pd.DataFrame,
     saldo_residual_temporal_por_lote: dict[str, float],
@@ -161,7 +182,7 @@ def _materializar_fontes_pos_switching_janela(
         if not lote:
             continue
         lotes_processados.add(lote)
-        info_janela = mapa_switching_janela.get(lote, {})
+        info_janela = _info_switching_lote(mapa_switching_janela, lote)
         data_sw = info_janela.get('data_switching_janela')
         if data_sw is None:
             continue
@@ -445,7 +466,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
                 lote_id = str(r.get('lote_id') or '').strip()
                 if lote_id.startswith('pos_switch::'):
                     return True
-                info = mapa_switching_janela.get(lote_id, {})
+                info = _info_switching_lote(mapa_switching_janela, lote_id)
                 bloqueado = bool(info and info.get('data_switching_janela') is not None and info.get('data_switching_janela') <= data_pagamento)
                 if bloqueado:
                     lotes_descartados_pos_sw.add(lote_id)
@@ -479,7 +500,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'motivo_recomendacao': 'usar a recomendação central atual sem switching',
             'comparador_rank': (0 if integral_no_switch else 1, -cobertura_no_switch, 0.0, score_no_switch),
         }
-        info_janela_lote_base = mapa_switching_janela.get(lote_no_switch, {})
+        info_janela_lote_base = _info_switching_lote(mapa_switching_janela, lote_no_switch)
         if (
             lote_no_switch
             and data_pagamento is not None
@@ -623,7 +644,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
 
         lote_recomendado_candidato = str(melhor.get('lote_recomendado') or '').strip()
         lote_recomendado_origem = lote_recomendado_candidato.replace('pos_switch::', '') if lote_recomendado_candidato.startswith('pos_switch::') else lote_recomendado_candidato
-        info_janela_lote_final = mapa_switching_janela.get(lote_recomendado_candidato, {})
+        info_janela_lote_final = _info_switching_lote(mapa_switching_janela, lote_recomendado_candidato)
         bloqueio_janela = bool(
             lote_recomendado_candidato
             and data_pagamento is not None
@@ -737,8 +758,8 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'data_switching_referencia': melhor.get('data_sugerida_switching'),
             'score_switching_shadow': round(float(melhor.get('score_switch_shadow') or 0.0), 4),
             'ordem_switching_shadow': int(melhor.get('ordem_switch_shadow') or 0),
-            'data_switching_janela': mapa_switching_janela.get(lote_origem_pos_switching if fonte_pos_switching else str(melhor.get('lote_recomendado') or '').strip(), {}).get('data_switching_janela'),
-            'destino_switching_janela': mapa_switching_janela.get(lote_origem_pos_switching if fonte_pos_switching else str(melhor.get('lote_recomendado') or '').strip(), {}).get('destino_janela', ''),
+            'data_switching_janela': _info_switching_lote(mapa_switching_janela, lote_origem_pos_switching if fonte_pos_switching else str(melhor.get('lote_recomendado') or '').strip()).get('data_switching_janela'),
+            'destino_switching_janela': _info_switching_lote(mapa_switching_janela, lote_origem_pos_switching if fonte_pos_switching else str(melhor.get('lote_recomendado') or '').strip()).get('destino_janela', ''),
             'lote_origem_pos_switching': lote_origem_pos_switching,
             'pos_sw_tentativa': pos_sw_tentativa,
             'fonte_pos_sw': lote_nome_operacional_pos_sw or fonte_pos_sw,
