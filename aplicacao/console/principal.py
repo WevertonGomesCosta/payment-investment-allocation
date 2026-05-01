@@ -23,6 +23,7 @@ from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_observavel import (
     construir_amostras_pagamentos_operacionais,
+    construir_amostra_alocacao_recebidos_futuros,
     COLS_LOTES_ID_CURTAS,
     COLS_LOTES_VALORES_CURTAS,
     construir_linhas_lotes_id_curta,
@@ -45,13 +46,48 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
         limite=realizados['limite'],
     )
 
-    proximos = amostras['proximos']
-    print(f"\n- {proximos['rotulo']}:")
+    proximos_valores_fonte = amostras['proximos_valores_fonte']
+    print(f"\n- {proximos_valores_fonte['rotulo']}:")
     _imprimir_tabela(
-        proximos['headers'],
-        proximos['linhas'],
-        limite=proximos['limite'],
+        proximos_valores_fonte['headers'],
+        proximos_valores_fonte['linhas'],
+        limite=proximos_valores_fonte['limite'],
     )
+
+    proximos_switching_status = amostras['proximos_switching_status']
+    print(f"\n- {proximos_switching_status['rotulo']}:")
+    _imprimir_tabela(
+        proximos_switching_status['headers'],
+        proximos_switching_status['linhas'],
+        limite=proximos_switching_status['limite'],
+    )
+
+    relevantes = amostras['proximos_relevantes_switching_status']
+    if relevantes['linhas']:
+        relevantes_decisao = relevantes['decisao']
+        print(f"\n- {relevantes_decisao['rotulo']}:")
+        _imprimir_tabela(
+            relevantes_decisao['headers'],
+            relevantes_decisao['linhas'],
+            limite=relevantes_decisao['limite'],
+        )
+        relevantes_auditoria = relevantes['auditoria_switching']
+        print(f"\n- {relevantes_auditoria['rotulo']}:")
+        _imprimir_tabela(
+            relevantes_auditoria['headers'],
+            relevantes_auditoria['linhas'],
+            limite=relevantes_auditoria['limite'],
+        )
+        relevantes_consumo = relevantes['consumo_temporal']
+        print(f"\n- {relevantes_consumo['rotulo']}:")
+        _imprimir_tabela(
+            relevantes_consumo['headers'],
+            relevantes_consumo['linhas'],
+            limite=relevantes_consumo['limite'],
+        )
+    else:
+        print(f"\n- {relevantes['rotulo']}:")
+        print("  sem pagamentos futuros com switching/status relevante na amostra atual")
 def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> None:
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     if ranking is None:
@@ -97,6 +133,10 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
 
     print('- amostra de switchings reais da janela (independente de pagamentos):')
     _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=10)
+
+    alocacao = construir_amostra_alocacao_recebidos_futuros(saida_canonica, limite=5)
+    print(f"\n- {alocacao['rotulo']}:")
+    _imprimir_tabela(alocacao['headers'], alocacao['linhas'], limite=alocacao['limite'])
 
 
 def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos) -> None:
