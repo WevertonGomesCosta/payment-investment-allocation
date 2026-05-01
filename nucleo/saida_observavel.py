@@ -303,6 +303,28 @@ COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE = [
     'Saldo temp. dep.',
 ]
 
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DECISAO = [
+    'Data',
+    'Conta',
+    'Valor',
+    'Lote',
+    'Pós-switch',
+    'Destino sw.',
+    'Origem sw.',
+    'Pacote',
+    'Sw. ant.',
+    'Status',
+]
+
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONSUMO = [
+    'Data',
+    'Conta',
+    'Lote',
+    'Saldo ant.',
+    'Consumo',
+    'Saldo dep.',
+]
+
 COLS_RECEBIDOS_FUTUROS_CONSOLE = [
     'Data',
     'Lote',
@@ -389,6 +411,28 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
         'headers': list(COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE),
         'linhas': relevantes[:limite],
         'limite': limite,
+        'decisao': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — decisão',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DECISAO),
+            'linhas': relevantes[:limite],
+            'limite': limite,
+        },
+        'consumo_temporal': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — consumo temporal',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONSUMO),
+            'linhas': [
+                {
+                    'Data': row.get('Data'),
+                    'Conta': row.get('Conta'),
+                    'Lote': row.get('Lote'),
+                    'Saldo ant.': row.get('Saldo temp. ant.'),
+                    'Consumo': row.get('Consumo temp.'),
+                    'Saldo dep.': row.get('Saldo temp. dep.'),
+                }
+                for row in relevantes[:limite]
+            ],
+            'limite': limite,
+        },
     }
 
 
