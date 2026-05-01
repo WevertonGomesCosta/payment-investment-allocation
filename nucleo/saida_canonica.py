@@ -236,9 +236,21 @@ class PacoteSaidaCanonica:
                 'Lotes origem': item.get('Lotes origem'),
                 'Status origem': 'migrado_por_switching',
                 'Status novo': 'ativo_pos_switching',
-                'Liquidez': amostra_destino.get('Liquidez') or amostra_destino.get('liquidez') or ranking_destino.get('Liquidez') or 'n/d',
-                'Carência': amostra_destino.get('Carência') or amostra_destino.get('carencia_dias_destino') or ranking_destino.get('Carência') or 'n/d',
-                'Ticket mín.': amostra_destino.get('Ticket mín.') or amostra_destino.get('ticket_minimo_destino') or ranking_destino.get('Ticket mín.') or 'n/d',
+                'Liquidez': _primeiro_valor_preenchido_preserva_zero(
+                    amostra_destino.get('Liquidez'),
+                    amostra_destino.get('liquidez'),
+                    ranking_destino.get('Liquidez'),
+                ),
+                'Carência': _primeiro_valor_preenchido_preserva_zero(
+                    amostra_destino.get('Carência'),
+                    amostra_destino.get('carencia_dias_destino'),
+                    ranking_destino.get('Carência'),
+                ),
+                'Ticket mín.': _primeiro_valor_preenchido_preserva_zero(
+                    amostra_destino.get('Ticket mín.'),
+                    amostra_destino.get('ticket_minimo_destino'),
+                    ranking_destino.get('Ticket mín.'),
+                ),
                 'Origem valor': item.get('Origem valor') or 'n/d',
             })
         return linhas[:limite]
@@ -255,6 +267,16 @@ def _round_monetario(valor: Any, padrao: Any = '') -> Any:
         return round(float(valor), 2)
     except Exception:
         return padrao
+
+
+def _primeiro_valor_preenchido_preserva_zero(*valores: Any, padrao: Any = 'n/d') -> Any:
+    for valor in valores:
+        if valor is None:
+            continue
+        if isinstance(valor, str) and valor.strip() == '':
+            continue
+        return valor
+    return padrao
 
 
 def _split_fontes(valor: Any) -> list[str]:

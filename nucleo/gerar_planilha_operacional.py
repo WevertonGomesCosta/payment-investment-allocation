@@ -337,19 +337,21 @@ def main(*, contexto=None, saida=None) -> Path:
 
     ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
     headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
+    linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
     _apply_table_style(
         ws_switching_sint,
         headers_switching_sint,
-        list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or []),
+        _rows(linhas_switching_sint, headers_switching_sint),
         freeze=True,
     )
 
     ws_estado_pos = wb.create_sheet("Estado Pos-Switching")
     headers_estado_pos = ['Data', 'Novo lote', 'Produto destino', 'Valor inicial', 'Lotes origem', 'Status origem', 'Status novo', 'Liquidez', 'Carência', 'Ticket mín.', 'Origem valor']
+    linhas_estado_pos = list(getattr(saida, 'estado_pos_switching_lotes_console', lambda **_: [])(limite=200) or [])
     _apply_table_style(
         ws_estado_pos,
         headers_estado_pos,
-        list(getattr(saida, 'estado_pos_switching_lotes_console', lambda **_: [])(limite=200) or []),
+        _rows(linhas_estado_pos, headers_estado_pos),
         freeze=True,
     )
 
