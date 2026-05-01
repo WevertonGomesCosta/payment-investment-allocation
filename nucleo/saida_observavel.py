@@ -340,7 +340,7 @@ COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONSUMO = [
 COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONCILIACAO = [
     'Data',
     'Conta',
-    'Lote',
+    'Lote original',
     'Destino sw.',
     'Data janela',
     'Destino janela',
@@ -431,7 +431,7 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
     switchings_janela = list(getattr(saida, 'switchings', []) or [])
 
     def _conciliar(row: dict[str, object]) -> dict[str, object]:
-        lote = str(row.get('Lote') or '').strip()
+        lote = str(row.get('Lote original') or row.get('Lote') or '').strip()
         data_pag = str(row.get('Data') or '').strip()
         destino_sw = str(row.get('Destino sw.') or '').strip()
         candidatos = [
@@ -463,6 +463,7 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
         status_conc = str(conc.get('Conciliação sw.') or '')
         if status_conc in {'lote_ja_migrado', 'lote_ja_migrado_divergente'}:
             linha = dict(row)
+            linha['Lote original'] = row.get('Lote')
             linha['Lote'] = 'não determinado'
             linha['Status'] = 'lote_ja_migrado_janela'
             linha['Bloq.'] = 'lote_ja_migrado_janela'
@@ -471,7 +472,9 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
             linha['Saldo temp. dep.'] = 'n/d'
             linhas_conciliadas.append(linha)
         else:
-            linhas_conciliadas.append(dict(row))
+            linha = dict(row)
+            linha['Lote original'] = row.get('Lote')
+            linhas_conciliadas.append(linha)
 
     return {
         'rotulo': 'pagamentos futuros com switching/status relevante',
@@ -513,7 +516,7 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
                 {
                     'Data': row.get('Data'),
                     'Conta': row.get('Conta'),
-                    'Lote': row.get('Lote'),
+                    'Lote original': row.get('Lote original'),
                     'Destino sw.': row.get('Destino sw.'),
                     **_conciliar(row),
                 }
