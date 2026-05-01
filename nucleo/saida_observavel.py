@@ -355,6 +355,10 @@ COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DIAGNOSTICO_POS_SW = [
     'Fonte pos sw',
     'Saldo pos sw',
     'Motivo pos sw',
+    'Origem saldo pos',
+    'Líq. pos',
+    'Data saldo pos',
+    'Motivo saldo pos',
     'Status',
 ]
 
@@ -570,6 +574,10 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
                     'Fonte pos sw': row.get('Fonte pos sw', 'n/d'),
                     'Saldo pos sw': row.get('Saldo pos sw', 'n/d'),
                     'Motivo pos sw': row.get('Motivo pos sw', 'n/d'),
+                    'Origem saldo pos': row.get('Origem saldo pos', 'n/d'),
+                    'Líq. pos': row.get('Líq. pos', 'n/d'),
+                    'Data saldo pos': row.get('Data saldo pos', 'n/d'),
+                    'Motivo saldo pos': row.get('Motivo saldo pos', 'n/d'),
                     'Status': row.get('Status', 'n/d'),
                 }
                 for row in linhas_conciliadas

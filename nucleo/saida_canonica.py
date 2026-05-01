@@ -89,6 +89,11 @@ class PacoteSaidaCanonica:
                 'Fonte pos sw': item.get('Fonte pos sw') if item.get('Fonte pos sw') not in (None, '') else 'n/d',
                 'Saldo pos sw': item.get('Saldo pos sw') if item.get('Saldo pos sw') not in (None, '') else 'n/d',
                 'Motivo pos sw': item.get('Motivo pos sw') if item.get('Motivo pos sw') not in (None, '') else 'n/d',
+                'Origem saldo pos': item.get('Origem saldo pos') if item.get('Origem saldo pos') not in (None, '') else 'n/d',
+                'Bruto pos': item.get('Bruto pos') if item.get('Bruto pos') not in (None, '') else 'n/d',
+                'Líq. pos': item.get('Líq. pos') if item.get('Líq. pos') not in (None, '') else 'n/d',
+                'Data saldo pos': item.get('Data saldo pos') if item.get('Data saldo pos') not in (None, '') else 'n/d',
+                'Motivo saldo pos': item.get('Motivo saldo pos') if item.get('Motivo saldo pos') not in (None, '') else 'n/d',
             }
             for item in self.extrato_futuro
         ]
@@ -591,6 +596,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Pos sw?': 'sim' if bool(row_dict.get('pos_sw_tentativa')) else 'não',
             'Fonte pos sw': _texto_decisao(row_dict.get('fonte_pos_sw')) if str(row_dict.get('fonte_pos_sw') or '').strip() else 'n/d',
             'Saldo pos sw': _round_monetario(row_dict.get('saldo_pos_sw'), 'n/d'),
+            'Origem saldo pos': _texto_decisao(row_dict.get('origem_saldo_pos_sw')) if str(row_dict.get('origem_saldo_pos_sw') or '').strip() else 'n/d',
+            'Bruto pos': _round_monetario(row_dict.get('saldo_pos_sw_bruto_candidato'), 'n/d'),
+            'Líq. pos': _round_monetario(row_dict.get('saldo_pos_sw_liquido_candidato'), 'n/d'),
+            'Data saldo pos': _fmt_data(row_dict.get('data_base_saldo_pos_sw')) if row_dict.get('data_base_saldo_pos_sw') not in (None, '') else 'n/d',
+            'Motivo saldo pos': _texto_decisao(row_dict.get('motivo_saldo_pos_sw')) if str(row_dict.get('motivo_saldo_pos_sw') or '').strip() else 'n/d',
         })
     return linhas
 

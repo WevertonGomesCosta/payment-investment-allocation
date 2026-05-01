@@ -158,6 +158,11 @@ def _materializar_fontes_pos_switching_janela(
                 'saldo_pos_sw': 0.0,
                 'motivo_pos_sw': 'nao_criada',
                 'destino_pos_sw': str(info_janela.get('destino_janela') or '').strip(),
+                'origem_saldo_pos_sw': 'nao_encontrado',
+                'saldo_pos_sw_bruto_candidato': 0.0,
+                'saldo_pos_sw_liquido_candidato': 0.0,
+                'data_base_saldo_pos_sw': data_pagamento,
+                'motivo_saldo_pos_sw': 'saldo_zero_ou_ausente',
             }
             continue
         valor = round(float(row.get('valor_liquido_disponivel') or 0.0), 2)
@@ -169,6 +174,11 @@ def _materializar_fontes_pos_switching_janela(
                 'saldo_pos_sw': valor,
                 'motivo_pos_sw': 'sem_saldo_confiavel',
                 'destino_pos_sw': str(info_janela.get('destino_janela') or '').strip(),
+                'origem_saldo_pos_sw': 'saldo_temporal_lote',
+                'saldo_pos_sw_bruto_candidato': round(float(row.get('valor_bruto_disponivel') or row.get('valor_bruto') or 0.0), 2),
+                'saldo_pos_sw_liquido_candidato': valor,
+                'data_base_saldo_pos_sw': row.get('data_pagamento') or data_pagamento,
+                'motivo_saldo_pos_sw': 'saldo_zero_ou_ausente',
             }
             continue
         destino = str(info_janela.get('destino_janela') or '').strip()
@@ -189,6 +199,11 @@ def _materializar_fontes_pos_switching_janela(
             'saldo_pos_sw': valor,
             'motivo_pos_sw': 'materializada',
             'destino_pos_sw': destino,
+            'origem_saldo_pos_sw': 'saldo_temporal_lote',
+            'saldo_pos_sw_bruto_candidato': round(float(row.get('valor_bruto_disponivel') or row.get('valor_bruto') or valor), 2),
+            'saldo_pos_sw_liquido_candidato': valor,
+            'data_base_saldo_pos_sw': row.get('data_pagamento') or data_pagamento,
+            'motivo_saldo_pos_sw': 'saldo_encontrado',
         }
     if not linhas_pos_switching:
         return candidatos, diagnostico
@@ -539,12 +554,21 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         fonte_pos_sw = str(diag_pos_sw.get('fonte_pos_sw') or '')
         saldo_pos_sw = round(float(diag_pos_sw.get('saldo_pos_sw') or 0.0), 2)
         motivo_pos_sw = str(diag_pos_sw.get('motivo_pos_sw') or '')
+        origem_saldo_pos_sw = str(diag_pos_sw.get('origem_saldo_pos_sw') or '')
+        saldo_pos_sw_bruto_candidato = round(float(diag_pos_sw.get('saldo_pos_sw_bruto_candidato') or 0.0), 2)
+        saldo_pos_sw_liquido_candidato = round(float(diag_pos_sw.get('saldo_pos_sw_liquido_candidato') or 0.0), 2)
+        data_base_saldo_pos_sw = diag_pos_sw.get('data_base_saldo_pos_sw')
+        motivo_saldo_pos_sw = str(diag_pos_sw.get('motivo_saldo_pos_sw') or '')
         if lote_recomendado_origem in lotes_descartados_pos_sw and motivo_pos_sw in {'', 'nao_criada'}:
             motivo_pos_sw = 'descartada_por_filtro'
         if not pos_sw_tentativa and lote_recomendado_origem in mapa_switching_janela:
             motivo_pos_sw = 'nao_criada'
         if not motivo_pos_sw:
             motivo_pos_sw = 'n/d'
+        if not origem_saldo_pos_sw:
+            origem_saldo_pos_sw = 'nao_encontrado' if lote_recomendado_origem in mapa_switching_janela else 'n/d'
+        if not motivo_saldo_pos_sw:
+            motivo_saldo_pos_sw = 'saldo_zero_ou_ausente' if origem_saldo_pos_sw != 'n/d' and saldo_pos_sw_liquido_candidato <= 0.0 else 'n/d'
 
         contagem[melhor['estrategia']] += 1
         fontes_consumo = _split_fontes_compostas(melhor.get('lote_recomendado') or '')
@@ -631,6 +655,11 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'fonte_pos_sw': fonte_pos_sw,
             'saldo_pos_sw': saldo_pos_sw,
             'motivo_pos_sw': motivo_pos_sw,
+            'origem_saldo_pos_sw': origem_saldo_pos_sw,
+            'saldo_pos_sw_bruto_candidato': saldo_pos_sw_bruto_candidato,
+            'saldo_pos_sw_liquido_candidato': saldo_pos_sw_liquido_candidato,
+            'data_base_saldo_pos_sw': data_base_saldo_pos_sw,
+            'motivo_saldo_pos_sw': motivo_saldo_pos_sw,
             'conciliacao_pos_switching': (
                 'fonte_pos_switching_janela'
                 if fonte_pos_switching
