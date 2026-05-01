@@ -201,6 +201,33 @@ class PacoteSaidaCanonica:
             })
         return linhas[:limite]
 
+    def estado_pos_switching_lotes_console(self, limite: int = 10) -> list[dict[str, Any]]:
+        sint = self.lotes_sinteticos_pos_switching_console(limite=limite)
+        linhas: list[dict[str, Any]] = []
+        for item in sint:
+            destino = str(item.get('Destino') or '').strip()
+            amostra_destino = next(
+                (
+                    sw for sw in self.switchings
+                    if str(sw.get('Destino') or sw.get('Produto destino switching') or '').strip() == destino
+                ),
+                {},
+            )
+            linhas.append({
+                'Data': item.get('Data'),
+                'Novo lote': item.get('Novo lote'),
+                'Produto destino': destino or 'n/d',
+                'Valor inicial': item.get('Valor líquido total'),
+                'Lotes origem': item.get('Lotes origem'),
+                'Status origem': 'migrado_por_switching',
+                'Status novo': 'ativo_pos_switching',
+                'Liquidez': amostra_destino.get('Liquidez') or amostra_destino.get('liquidez') or 'n/d',
+                'Carência': amostra_destino.get('Carência') or amostra_destino.get('carencia_dias_destino') or 'n/d',
+                'Ticket mín.': amostra_destino.get('Ticket mín.') or amostra_destino.get('ticket_minimo_destino') or 'n/d',
+                'Origem valor': item.get('Origem valor') or 'n/d',
+            })
+        return linhas[:limite]
+
 
 def _fmt_data(valor: Any) -> Any:
     return valor.isoformat() if hasattr(valor, 'isoformat') else valor

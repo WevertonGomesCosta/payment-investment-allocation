@@ -382,6 +382,20 @@ COLS_LOTES_SINTETICOS_POS_SWITCHING = [
     'Origem valor',
 ]
 
+COLS_ESTADO_POS_SWITCHING_LOTES = [
+    'Data',
+    'Novo lote',
+    'Produto destino',
+    'Valor inicial',
+    'Lotes origem',
+    'Status origem',
+    'Status novo',
+    'Liquidez',
+    'Carência',
+    'Ticket mín.',
+    'Origem valor',
+]
+
 
 def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dict[str, object]:
     """Constrói as amostras operacionais de pagamentos para o console.
@@ -610,6 +624,16 @@ def construir_amostra_lotes_sinteticos_pos_switching(saida, *, limite: int = 10)
     return {
         'rotulo': 'lotes sintéticos pós-switching',
         'headers': list(COLS_LOTES_SINTETICOS_POS_SWITCHING),
+        'linhas': linhas,
+        'limite': limite,
+    }
+
+
+def construir_amostra_estado_pos_switching_lotes(saida, *, limite: int = 10) -> dict[str, object]:
+    linhas = saida.estado_pos_switching_lotes_console(limite=limite) if hasattr(saida, 'estado_pos_switching_lotes_console') else []
+    return {
+        'rotulo': 'estado pós-switching dos lotes',
+        'headers': list(COLS_ESTADO_POS_SWITCHING_LOTES),
         'linhas': linhas,
         'limite': limite,
     }
