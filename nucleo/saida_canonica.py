@@ -454,6 +454,11 @@ def _construir_extrato_passado(contexto: Any) -> list[dict[str, Any]]:
         rem = _round_monetario(row.get('Saldo Remanescente'), 0.0)
         if rem != '' and rem <= limiar:
             rem = 0.0
+        origem_switching = (
+            'motor_pagamento'
+            if str(row_dict.get('produto_destino_switching') or '').strip()
+            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
+        )
         linhas.append({
             'Data': _fmt_data(row.get('Data')),
             'Conta': row.get('Conta') or '',
@@ -542,22 +547,18 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Lote reserva': lote_reserva,
             'Lote pós-switching': _texto_decisao(lote_pos_switch) if lote_pos_switch else '',
             'Destino switching': _texto_decisao(row_dict.get('produto_destino_switching')) if str(row_dict.get('produto_destino_switching') or '').strip() else '',
-            'Origem switching': (
-                'motor_pagamento'
-                if str(row_dict.get('produto_destino_switching') or '').strip()
-                else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
-            ),
-            'Fonte switching': _texto_decisao(row_dict.get('fonte_switching_quadro')) if str(row_dict.get('fonte_switching_quadro') or '').strip() else '',
-            'Data switching': _fmt_data(row_dict.get('data_switching_referencia')) if row_dict.get('data_switching_referencia') is not None else '',
-            'Score switching': _round_monetario(row_dict.get('score_switching_shadow'), ''),
+            'Origem switching': origem_switching,
+            'Fonte switching': _texto_decisao(row_dict.get('fonte_switching_quadro') or origem_switching) if str(row_dict.get('fonte_switching_quadro') or origem_switching).strip() else '',
+            'Data switching': _fmt_data(row_dict.get('data_switching_referencia') if row_dict.get('data_switching_referencia') is not None else row_dict.get('data_sugerida_switching')),
+            'Score switching': _round_monetario(row_dict.get('score_switching_shadow') if row_dict.get('score_switching_shadow') not in (None, '') else row_dict.get('ganho_liquido_estimado_switching'), ''),
             'Necessita switching': _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
             'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',
             'Motivo bloqueio lote': _texto_decisao(row_dict.get('motivo_bloqueio_lote')) if str(row_dict.get('motivo_bloqueio_lote') or '').strip() else '',
             'Status recomendação': _texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado',
-            'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), 'n/d'),
-            'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), 'n/d'),
-            'Saldo temp. dep.': _round_monetario(row_dict.get('saldo_residual_temporal_pos_recomendacao'), 'n/d'),
+            'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), _round_monetario(resumo.get('Saldo Antes'), 'n/d')),
+            'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), _round_monetario(resumo.get('Líquido'), 'n/d')),
+            'Saldo temp. dep.': _round_monetario(row_dict.get('saldo_residual_temporal_pos_recomendacao'), _round_monetario(resumo.get('Saldo Remanescente'), 'n/d')),
         })
     return linhas
 
