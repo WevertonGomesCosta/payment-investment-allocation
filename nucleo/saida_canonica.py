@@ -69,7 +69,7 @@ class PacoteSaidaCanonica:
                 'Origem sw.': item.get('Origem switching') or 'n/d',
                 'Fonte sw.': item.get('Fonte switching') or 'n/d',
                 'Data sw.': item.get('Data switching') or 'n/d',
-                'Score sw.': item.get('Score switching') if item.get('Score switching') not in (None, '') else 'n/d',
+                'Ganho sw.': item.get('Score switching') if item.get('Score switching') not in (None, '') else 'n/d',
                 'Pacote': item.get('Pacote do dia') or item.get('Estratégia') or '',
                 'Switch?': item.get('Necessita switching') or '',
                 'Reserva': item.get('Lote reserva') or '',
