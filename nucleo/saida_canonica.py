@@ -541,6 +541,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             cobertura_txt = 'sim' if float(liquido) + 0.01 >= valor else 'não'
         else:
             cobertura_txt = 'não determinado'
+        origem_switching = (
+            'motor_pagamento'
+            if str(row_dict.get('produto_destino_switching') or '').strip()
+            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
+        )
         linhas.append({
             **({
                 'Motivo pos sw': (
