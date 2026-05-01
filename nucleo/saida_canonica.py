@@ -204,12 +204,23 @@ class PacoteSaidaCanonica:
     def estado_pos_switching_lotes_console(self, limite: int = 10) -> list[dict[str, Any]]:
         sint = self.lotes_sinteticos_pos_switching_console(limite=limite)
         linhas: list[dict[str, Any]] = []
+        def _norm(txt: Any) -> str:
+            return ' '.join(str(txt or '').strip().lower().split())
+
         for item in sint:
             destino = str(item.get('Destino') or '').strip()
+            destino_norm = _norm(destino)
             amostra_destino = next(
                 (
                     sw for sw in self.switchings
-                    if str(sw.get('Destino') or sw.get('Produto destino switching') or '').strip() == destino
+                    if _norm(sw.get('Destino') or sw.get('Produto destino switching')) == destino_norm
+                ),
+                {},
+            )
+            ranking_destino = next(
+                (
+                    rk for rk in self.ranking_amostra
+                    if _norm(rk.get('Produto') or rk.get('Nome') or rk.get('produto_nome_canonico')) == destino_norm
                 ),
                 {},
             )
@@ -221,9 +232,9 @@ class PacoteSaidaCanonica:
                 'Lotes origem': item.get('Lotes origem'),
                 'Status origem': 'migrado_por_switching',
                 'Status novo': 'ativo_pos_switching',
-                'Liquidez': amostra_destino.get('Liquidez') or amostra_destino.get('liquidez') or 'n/d',
-                'Carência': amostra_destino.get('Carência') or amostra_destino.get('carencia_dias_destino') or 'n/d',
-                'Ticket mín.': amostra_destino.get('Ticket mín.') or amostra_destino.get('ticket_minimo_destino') or 'n/d',
+                'Liquidez': amostra_destino.get('Liquidez') or amostra_destino.get('liquidez') or ranking_destino.get('Liquidez') or 'n/d',
+                'Carência': amostra_destino.get('Carência') or amostra_destino.get('carencia_dias_destino') or ranking_destino.get('Carência') or 'n/d',
+                'Ticket mín.': amostra_destino.get('Ticket mín.') or amostra_destino.get('ticket_minimo_destino') or ranking_destino.get('Ticket mín.') or 'n/d',
                 'Origem valor': item.get('Origem valor') or 'n/d',
             })
         return linhas[:limite]
