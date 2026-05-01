@@ -515,6 +515,8 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             central.get('lote_sugerido_original'),
             resumo.get('Lote sugerido'),
         )
+        if str(row_dict.get('status_recomendacao') or '').strip() == 'lote_ja_migrado_janela':
+            lote_sugerido_real = ''
         if lote_sugerido_real and marcador_visual and str(lote_sugerido_real).strip().lower() == str(marcador_visual).strip().lower():
             lote_sugerido_real = ''
         lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))

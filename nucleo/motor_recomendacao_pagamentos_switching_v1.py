@@ -435,6 +435,20 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             if estrategia_combo and estrategia_combo.get('cobertura_integral') and not bool(getattr(melhor, 'get', lambda *_: False)('cobertura_integral')):
                 melhor = estrategia_combo
 
+        lote_recomendado_candidato = str(melhor.get('lote_recomendado') or '').strip()
+        info_janela_lote_final = mapa_switching_janela.get(lote_recomendado_candidato, {})
+        bloqueio_janela = bool(
+            lote_recomendado_candidato
+            and data_pagamento is not None
+            and info_janela_lote_final
+            and info_janela_lote_final.get('data_switching_janela') is not None
+            and info_janela_lote_final.get('data_switching_janela') <= data_pagamento
+        )
+        if bloqueio_janela:
+            melhor['lote_recomendado'] = 'não determinado'
+            melhor['lote_recomendado_consumivel'] = ''
+            melhor['motivo_recomendacao'] = 'lote original migrado por switching da janela antes do pagamento'
+
         contagem[melhor['estrategia']] += 1
         fontes_consumo = _split_fontes_compostas(melhor.get('lote_recomendado') or '')
         if melhor['estrategia'] == 'switching_simples':
@@ -442,31 +456,24 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             ganhos_switch += float(melhor.get('ganho_liquido_estimado_switching') or 0.0)
         if melhor['estrategia'] == 'combinacao_minima':
             combinacao_acionada += 1
-        saldo_temporal_antes = 0.0
-        for fonte in fontes_consumo:
-            if str(fonte or '').strip() in saldo_residual_temporal_por_lote:
-                saldo_temporal_antes = round(float(saldo_residual_temporal_por_lote.get(str(fonte).strip(), 0.0) or 0.0), 2)
-                break
-        consumo_temporal, saldo_pos_temporal = _consumir_saldo_temporal(
-            saldo_residual_temporal_por_lote,
-            fontes_consumo,
-            valor_pagamento,
-        )
-        melhor['saldo_temporal_antes_recomendacao'] = saldo_temporal_antes
-        melhor['consumo_residual_temporal_estimado'] = consumo_temporal
-        melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_pos_temporal
-        if consumo_temporal > 0.0:
+        if bloqueio_janela:
+            melhor['saldo_temporal_antes_recomendacao'] = ''
+            melhor['consumo_residual_temporal_estimado'] = ''
+            melhor['saldo_residual_temporal_pos_recomendacao'] = ''
+        else:
+            saldo_temporal_antes = 0.0
+            for fonte in fontes_consumo:
+                if str(fonte or '').strip() in saldo_residual_temporal_por_lote:
+                    saldo_temporal_antes = round(float(saldo_residual_temporal_por_lote.get(str(fonte).strip(), 0.0) or 0.0), 2)
+                    break
+            consumo_temporal, saldo_pos_temporal = _consumir_saldo_temporal(
+                saldo_residual_temporal_por_lote,
+                fontes_consumo,
+                valor_pagamento,
+            )
+            melhor['saldo_temporal_antes_recomendacao'] = saldo_temporal_antes
             melhor['consumo_residual_temporal_estimado'] = consumo_temporal
             melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_pos_temporal
-
-        lote_recomendado_final = str(melhor.get('lote_recomendado') or '').strip()
-        info_janela_lote_final = mapa_switching_janela.get(lote_recomendado_final, {})
-        bloqueio_janela = bool(
-            data_pagamento is not None
-            and info_janela_lote_final
-            and info_janela_lote_final.get('data_switching_janela') is not None
-            and info_janela_lote_final.get('data_switching_janela') <= data_pagamento
-        )
         linhas.append({
             'pagamento_id': pagamento_id,
             'data_pagamento': data_pagamento,
@@ -476,7 +483,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'subclasse_pagamento_operacional': subclasse,
             'estrategia_recomendada': melhor['estrategia'],
             'lote_recomendado': 'não determinado' if bloqueio_janela else (melhor.get('lote_recomendado') or ''),
-            'lote_recomendado_consumivel': '' if bloqueio_janela else (melhor.get('lote_recomendado') or ''),
+            'lote_recomendado_consumivel': melhor.get('lote_recomendado_consumivel') if melhor.get('lote_recomendado_consumivel') is not None else ('' if bloqueio_janela else (melhor.get('lote_recomendado') or '')),
             'lote_recomendado_rotulo': melhor.get('lote_recomendado_rotulo') or '',
             'lote_reserva': melhor.get('lote_reserva') or '',
             'necessidade_switching': bool(melhor.get('necessidade_switching')),
