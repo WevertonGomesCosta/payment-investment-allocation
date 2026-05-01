@@ -472,6 +472,23 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
     for row in relevantes[:limite]:
         conc = _conciliar(row)
         status_conc = str(conc.get('Conciliação sw.') or '')
+        motivo_pos_sw_row = str(row.get('Motivo pos sw.') or row.get('Motivo pos sw') or '').strip()
+        saldo_pos_sw_row = row.get('Saldo pos sw')
+        try:
+            saldo_pos_sw_num = float(saldo_pos_sw_row) if saldo_pos_sw_row not in ('', None, 'n/d') else None
+        except Exception:
+            saldo_pos_sw_num = None
+        precisa_fallback_motivo = motivo_pos_sw_row.lower() in {'', 'n/d', 'não determinado'}
+
+        def _motivo_fallback_pos_sw() -> str:
+            if not precisa_fallback_motivo:
+                return motivo_pos_sw_row
+            if status_conc in {'lote_ja_migrado_divergente', 'lote_ja_migrado'}:
+                if saldo_pos_sw_num is not None and saldo_pos_sw_num <= 0.0:
+                    return 'sem_saldo_confiavel'
+                return 'nao_criada'
+            return motivo_pos_sw_row or 'n/d'
+
         if status_conc in {'lote_ja_migrado', 'lote_ja_migrado_divergente'}:
             linha = dict(row)
             linha['Lote original'] = row.get('Lote')
@@ -481,10 +498,16 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
             linha['Saldo temp. ant.'] = 'n/d'
             linha['Consumo temp.'] = 'n/d'
             linha['Saldo temp. dep.'] = 'n/d'
+            if str(linha.get('Pos sw?') or '').strip() in {'', 'n/d'}:
+                linha['Pos sw?'] = 'não'
+            linha['Motivo pos sw'] = _motivo_fallback_pos_sw()
             linhas_conciliadas.append(linha)
         else:
             linha = dict(row)
             linha['Lote original'] = row.get('Lote')
+            if str(linha.get('Pos sw?') or '').strip() in {'', 'n/d'} and status_conc in {'lote_ja_migrado', 'lote_ja_migrado_divergente'}:
+                linha['Pos sw?'] = 'não'
+            linha['Motivo pos sw'] = _motivo_fallback_pos_sw()
             linhas_conciliadas.append(linha)
 
     return {

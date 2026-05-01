@@ -542,6 +542,24 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
         )
         linhas.append({
+            **({
+                'Motivo pos sw': (
+                    'sem_saldo_confiavel'
+                    if (
+                        (str(row_dict.get('motivo_pos_sw') or '').strip() in {'', 'n/d'})
+                        and (str(row_dict.get('status_recomendacao') or '').strip() == 'lote_ja_migrado_janela')
+                        and (_round_monetario(row_dict.get('saldo_pos_sw'), 0.0) == 0.0)
+                    )
+                    else (
+                        'nao_criada'
+                        if (
+                            (str(row_dict.get('motivo_pos_sw') or '').strip() in {'', 'n/d'})
+                            and (str(row_dict.get('status_recomendacao') or '').strip() == 'lote_ja_migrado_janela')
+                        )
+                        else (_texto_decisao(row_dict.get('motivo_pos_sw')) if str(row_dict.get('motivo_pos_sw') or '').strip() else 'n/d')
+                    )
+                )
+            }),
             'Data': _fmt_data(row.get('data_pagamento')),
             'Conta': row.get('descricao_pagamento') or '',
             'Despesa ID': pagamento_id,
@@ -573,7 +591,6 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Pos sw?': 'sim' if bool(row_dict.get('pos_sw_tentativa')) else 'não',
             'Fonte pos sw': _texto_decisao(row_dict.get('fonte_pos_sw')) if str(row_dict.get('fonte_pos_sw') or '').strip() else 'n/d',
             'Saldo pos sw': _round_monetario(row_dict.get('saldo_pos_sw'), 'n/d'),
-            'Motivo pos sw': _texto_decisao(row_dict.get('motivo_pos_sw')) if str(row_dict.get('motivo_pos_sw') or '').strip() else 'n/d',
         })
     return linhas
 
