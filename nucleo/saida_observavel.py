@@ -457,21 +457,37 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
             status = 'alinhado'
         return {'Data janela': data_janela, 'Destino janela': destino_janela, 'Conciliação sw.': status}
 
+    linhas_conciliadas: list[dict[str, object]] = []
+    for row in relevantes[:limite]:
+        conc = _conciliar(row)
+        status_conc = str(conc.get('Conciliação sw.') or '')
+        if status_conc in {'lote_ja_migrado', 'lote_ja_migrado_divergente'}:
+            linha = dict(row)
+            linha['Lote'] = 'não determinado'
+            linha['Status'] = 'lote_ja_migrado_janela'
+            linha['Bloq.'] = 'lote_ja_migrado_janela'
+            linha['Saldo temp. ant.'] = 'n/d'
+            linha['Consumo temp.'] = 'n/d'
+            linha['Saldo temp. dep.'] = 'n/d'
+            linhas_conciliadas.append(linha)
+        else:
+            linhas_conciliadas.append(dict(row))
+
     return {
         'rotulo': 'pagamentos futuros com switching/status relevante',
         'headers': list(COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE),
-        'linhas': relevantes[:limite],
+        'linhas': linhas_conciliadas,
         'limite': limite,
         'decisao': {
             'rotulo': 'pagamentos futuros com switching/status relevante — decisão',
             'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DECISAO),
-            'linhas': relevantes[:limite],
+            'linhas': linhas_conciliadas,
             'limite': limite,
         },
         'auditoria_switching': {
             'rotulo': 'pagamentos futuros com switching/status relevante — auditoria switching',
             'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_AUDITORIA_SW),
-            'linhas': relevantes[:limite],
+            'linhas': linhas_conciliadas,
             'limite': limite,
         },
         'consumo_temporal': {
@@ -486,7 +502,7 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
                     'Consumo': row.get('Consumo temp.'),
                     'Saldo dep.': row.get('Saldo temp. dep.'),
                 }
-                for row in relevantes[:limite]
+                for row in linhas_conciliadas
             ],
             'limite': limite,
         },
@@ -501,7 +517,7 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
                     'Destino sw.': row.get('Destino sw.'),
                     **_conciliar(row),
                 }
-                for row in relevantes[:limite]
+                for row in linhas_conciliadas
             ],
             'limite': limite,
         },
