@@ -142,6 +142,17 @@ def _materializar_fontes_pos_switching_janela(
     base = candidatos.copy()
     linhas_pos_switching: list[dict[str, Any]] = []
     diagnostico: dict[str, dict[str, Any]] = {}
+    mapa_mes_pt = {
+        1: 'jan.', 2: 'fev.', 3: 'mar.', 4: 'abr.', 5: 'mai.', 6: 'jun.',
+        7: 'jul.', 8: 'ago.', 9: 'set.', 10: 'out.', 11: 'nov.', 12: 'dez.',
+    }
+
+    def _fmt_valor_lote(valor: float) -> str:
+        v = round(float(valor or 0.0), 2)
+        if abs(v - int(v)) <= 0.0001:
+            return f"{int(v)}"
+        return f"{v:.2f}".replace('.', ',')
+
     for _, row in base.iterrows():
         lote = str(row.get('lote_id') or '').strip()
         if not lote:
@@ -182,9 +193,14 @@ def _materializar_fontes_pos_switching_janela(
             }
             continue
         destino = str(info_janela.get('destino_janela') or '').strip()
-        fonte_pos_sw = f'pos_switch::{lote}'
+        data_sw_txt = data_sw.isoformat() if hasattr(data_sw, 'isoformat') else str(data_sw)
+        fonte_pos_sw = f'pos_switch::{data_sw_txt}::{destino or "destino"}::{lote}'
+        mes_sw = mapa_mes_pt.get(data_sw.month, 'n/d') if hasattr(data_sw, 'month') else 'n/d'
+        lote_nome_operacional = f"Lote {_fmt_valor_lote(valor)} {mes_sw}"
         linha = row.to_dict()
         linha['lote_id'] = fonte_pos_sw
+        linha['lote_id_sintetico'] = fonte_pos_sw
+        linha['lote_nome_operacional'] = lote_nome_operacional
         linha['lote_origem_pos_switching'] = lote
         linha['fonte_origem_pos_switching'] = 'estado_pos_switching_janela'
         linha['destino_switching_janela'] = destino
@@ -196,6 +212,7 @@ def _materializar_fontes_pos_switching_janela(
             'pos_sw_tentativa': True,
             'pos_sw_criada': True,
             'fonte_pos_sw': fonte_pos_sw,
+            'lote_nome_operacional_pos_sw': lote_nome_operacional,
             'saldo_pos_sw': valor,
             'motivo_pos_sw': 'materializada',
             'destino_pos_sw': destino,
@@ -552,6 +569,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         diag_pos_sw = diagnostico_pos_switch.get(lote_recomendado_origem, {})
         pos_sw_tentativa = bool(diag_pos_sw.get('pos_sw_tentativa'))
         fonte_pos_sw = str(diag_pos_sw.get('fonte_pos_sw') or '')
+        lote_nome_operacional_pos_sw = str(diag_pos_sw.get('lote_nome_operacional_pos_sw') or '')
         saldo_pos_sw = round(float(diag_pos_sw.get('saldo_pos_sw') or 0.0), 2)
         motivo_pos_sw = str(diag_pos_sw.get('motivo_pos_sw') or '')
         origem_saldo_pos_sw = str(diag_pos_sw.get('origem_saldo_pos_sw') or '')
@@ -652,7 +670,9 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'destino_switching_janela': mapa_switching_janela.get(lote_origem_pos_switching if fonte_pos_switching else str(melhor.get('lote_recomendado') or '').strip(), {}).get('destino_janela', ''),
             'lote_origem_pos_switching': lote_origem_pos_switching,
             'pos_sw_tentativa': pos_sw_tentativa,
-            'fonte_pos_sw': fonte_pos_sw,
+            'fonte_pos_sw': lote_nome_operacional_pos_sw or fonte_pos_sw,
+            'lote_id_sintetico': fonte_pos_sw,
+            'lote_nome_operacional': lote_nome_operacional_pos_sw,
             'saldo_pos_sw': saldo_pos_sw,
             'motivo_pos_sw': motivo_pos_sw,
             'origem_saldo_pos_sw': origem_saldo_pos_sw,

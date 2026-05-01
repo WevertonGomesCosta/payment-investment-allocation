@@ -516,6 +516,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             row_dict.get('fonte_pos_switching'),
         )
         lote_sugerido_real = _primeiro_texto_preenchido(
+            row_dict.get('lote_nome_operacional'),
             row_dict.get('lote_recomendado_consumivel'),
             row_dict.get('lote_recomendado'),
             row_dict.get('lote_id_escolhido'),
@@ -594,7 +595,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), _round_monetario(resumo.get('Líquido'), 'n/d')),
             'Saldo temp. dep.': _round_monetario(row_dict.get('saldo_residual_temporal_pos_recomendacao'), _round_monetario(resumo.get('Saldo Remanescente'), 'n/d')),
             'Pos sw?': 'sim' if bool(row_dict.get('pos_sw_tentativa')) else 'não',
-            'Fonte pos sw': _texto_decisao(row_dict.get('fonte_pos_sw')) if str(row_dict.get('fonte_pos_sw') or '').strip() else 'n/d',
+            'Fonte pos sw': _texto_decisao(row_dict.get('lote_nome_operacional') or row_dict.get('fonte_pos_sw')) if str(row_dict.get('lote_nome_operacional') or row_dict.get('fonte_pos_sw') or '').strip() else 'n/d',
             'Saldo pos sw': _round_monetario(row_dict.get('saldo_pos_sw'), 'n/d'),
             'Origem saldo pos': _texto_decisao(row_dict.get('origem_saldo_pos_sw')) if str(row_dict.get('origem_saldo_pos_sw') or '').strip() else 'n/d',
             'Bruto pos': _round_monetario(row_dict.get('saldo_pos_sw_bruto_candidato'), 'n/d'),
