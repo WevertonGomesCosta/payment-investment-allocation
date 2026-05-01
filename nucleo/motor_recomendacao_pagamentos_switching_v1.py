@@ -73,26 +73,42 @@ def _data_switching_janela(row: pd.Series | dict[str, Any]) -> date | None:
     return None
 
 
-def _mapa_switching_janela_por_lote(quadro_switching: pd.DataFrame) -> dict[str, dict[str, Any]]:
-    if quadro_switching is None or quadro_switching.empty:
-        return {}
+def _mapa_switching_janela_por_lote(quadro_switching: pd.DataFrame, switching_economico_shadow: Any) -> dict[str, dict[str, Any]]:
     mapa: dict[str, dict[str, Any]] = {}
-    for _, row in quadro_switching.iterrows():
-        lote = str(row.get('lote_id') or '').strip()
+
+    def _registrar(row: dict[str, Any]) -> None:
+        lote = str(row.get('lote_id') or row.get('Lote origem') or '').strip()
         if not lote:
-            continue
-        recomendado = bool(row.get('recomendado_shadow', row.get('elegivel_shadow', False)))
-        if not recomendado:
-            continue
+            return
         data_sw = _data_switching_janela(row)
         if data_sw is None:
-            continue
+            return
         atual = mapa.get(lote)
         if atual is None or data_sw < atual['data_switching_janela']:
             mapa[lote] = {
                 'data_switching_janela': data_sw,
-                'destino_janela': str(row.get('produto_destino_nome') or row.get('produto_destino_key') or '').strip(),
+                'destino_janela': str(
+                    row.get('produto_destino_nome')
+                    or row.get('produto_destino_key')
+                    or row.get('Destino')
+                    or ''
+                ).strip(),
             }
+
+    if quadro_switching is not None and not quadro_switching.empty:
+        for _, row in quadro_switching.iterrows():
+            recomendado = bool(row.get('recomendado_shadow', row.get('elegivel_shadow', False)))
+            if not recomendado:
+                continue
+            _registrar(row.to_dict() if hasattr(row, 'to_dict') else dict(row))
+
+    plano_shadow = getattr(switching_economico_shadow, 'plano_shadow', None) if switching_economico_shadow is not None else None
+    if isinstance(plano_shadow, pd.DataFrame) and len(plano_shadow):
+        for _, row in plano_shadow.iterrows():
+            recomendado = bool(row.get('recomendado_shadow', True))
+            if not recomendado:
+                continue
+            _registrar(row.to_dict())
     return mapa
 
 
@@ -228,7 +244,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
     quadro_local = decisao_local_v1.quadro_decisao_local_v1.copy() if decisao_local_v1 is not None else pd.DataFrame()
     quadro_central = recomputacao_sequencial_central_v1.quadro_recomputacao_sequencial_central.copy() if recomputacao_sequencial_central_v1 is not None else pd.DataFrame()
     quadro_switching = switching_economico_shadow.quadro_oportunidades.copy() if switching_economico_shadow is not None else pd.DataFrame()
-    mapa_switching_janela = _mapa_switching_janela_por_lote(quadro_switching)
+    mapa_switching_janela = _mapa_switching_janela_por_lote(quadro_switching, switching_economico_shadow)
 
     quadro_fontes_temporais = quadro_fontes[quadro_fontes['lote_id'].fillna('').astype(str).str.strip() != ''].copy()
     saldo_inicial_temporal_por_lote = {
