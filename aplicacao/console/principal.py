@@ -93,6 +93,13 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
             relevantes_conciliacao['linhas'],
             limite=relevantes_conciliacao['limite'],
         )
+        relevantes_diag_pos_sw = relevantes['diagnostico_pos_switch']
+        print(f"\n- {relevantes_diag_pos_sw['rotulo']}:")
+        _imprimir_tabela(
+            relevantes_diag_pos_sw['headers'],
+            relevantes_diag_pos_sw['linhas'],
+            limite=relevantes_diag_pos_sw['limite'],
+        )
     else:
         print(f"\n- {relevantes['rotulo']}:")
         print("  sem pagamentos futuros com switching/status relevante na amostra atual")

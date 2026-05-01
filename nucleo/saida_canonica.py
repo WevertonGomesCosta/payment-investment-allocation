@@ -85,6 +85,10 @@ class PacoteSaidaCanonica:
                 'Saldo temp. ant.': item.get('Saldo temp. ant.') if item.get('Saldo temp. ant.') not in (None, '') else 'n/d',
                 'Consumo temp.': item.get('Consumo temp.') if item.get('Consumo temp.') not in (None, '') else 'n/d',
                 'Saldo temp. dep.': item.get('Saldo temp. dep.') if item.get('Saldo temp. dep.') not in (None, '') else 'n/d',
+                'Pos sw?': item.get('Pos sw?') if item.get('Pos sw?') not in (None, '') else 'n/d',
+                'Fonte pos sw': item.get('Fonte pos sw') if item.get('Fonte pos sw') not in (None, '') else 'n/d',
+                'Saldo pos sw': item.get('Saldo pos sw') if item.get('Saldo pos sw') not in (None, '') else 'n/d',
+                'Motivo pos sw': item.get('Motivo pos sw') if item.get('Motivo pos sw') not in (None, '') else 'n/d',
             }
             for item in self.extrato_futuro
         ]
@@ -566,6 +570,10 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), _round_monetario(resumo.get('Saldo Antes'), 'n/d')),
             'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), _round_monetario(resumo.get('Líquido'), 'n/d')),
             'Saldo temp. dep.': _round_monetario(row_dict.get('saldo_residual_temporal_pos_recomendacao'), _round_monetario(resumo.get('Saldo Remanescente'), 'n/d')),
+            'Pos sw?': 'sim' if bool(row_dict.get('pos_sw_tentativa')) else 'não',
+            'Fonte pos sw': _texto_decisao(row_dict.get('fonte_pos_sw')) if str(row_dict.get('fonte_pos_sw') or '').strip() else 'n/d',
+            'Saldo pos sw': _round_monetario(row_dict.get('saldo_pos_sw'), 'n/d'),
+            'Motivo pos sw': _texto_decisao(row_dict.get('motivo_pos_sw')) if str(row_dict.get('motivo_pos_sw') or '').strip() else 'n/d',
         })
     return linhas
 

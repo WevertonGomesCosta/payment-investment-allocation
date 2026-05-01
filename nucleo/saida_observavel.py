@@ -347,6 +347,17 @@ COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONCILIACAO = [
     'Conciliação sw.',
 ]
 
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DIAGNOSTICO_POS_SW = [
+    'Data',
+    'Conta',
+    'Lote original',
+    'Pos sw?',
+    'Fonte pos sw',
+    'Saldo pos sw',
+    'Motivo pos sw',
+    'Status',
+]
+
 COLS_RECEBIDOS_FUTUROS_CONSOLE = [
     'Data',
     'Lote',
@@ -519,6 +530,24 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
                     'Lote original': row.get('Lote original'),
                     'Destino sw.': row.get('Destino sw.'),
                     **_conciliar(row),
+                }
+                for row in linhas_conciliadas
+            ],
+            'limite': limite,
+        },
+        'diagnostico_pos_switch': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — diagnóstico pos-switch',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DIAGNOSTICO_POS_SW),
+            'linhas': [
+                {
+                    'Data': row.get('Data'),
+                    'Conta': row.get('Conta'),
+                    'Lote original': row.get('Lote original') or row.get('Lote'),
+                    'Pos sw?': row.get('Pos sw?', 'n/d'),
+                    'Fonte pos sw': row.get('Fonte pos sw', 'n/d'),
+                    'Saldo pos sw': row.get('Saldo pos sw', 'n/d'),
+                    'Motivo pos sw': row.get('Motivo pos sw', 'n/d'),
+                    'Status': row.get('Status', 'n/d'),
                 }
                 for row in linhas_conciliadas
             ],
