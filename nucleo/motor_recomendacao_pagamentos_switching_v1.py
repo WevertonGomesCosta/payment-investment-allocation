@@ -136,6 +136,7 @@ def _materializar_fontes_pos_switching_janela(
     candidatos: pd.DataFrame,
     mapa_switching_janela: dict[str, dict[str, Any]],
     data_pagamento: date | None,
+    saldo_referencia_por_lote: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     if candidatos is None or candidatos.empty or data_pagamento is None or not mapa_switching_janela:
         return candidatos, {}
@@ -154,10 +155,12 @@ def _materializar_fontes_pos_switching_janela(
         return f"{v:.2f}".replace('.', ',')
 
     grupos: dict[tuple[str, str], dict[str, Any]] = {}
+    lotes_processados: set[str] = set()
     for _, row in base.iterrows():
         lote = str(row.get('lote_id') or '').strip()
         if not lote:
             continue
+        lotes_processados.add(lote)
         info_janela = mapa_switching_janela.get(lote, {})
         data_sw = info_janela.get('data_switching_janela')
         if data_sw is None:
@@ -250,6 +253,41 @@ def _materializar_fontes_pos_switching_janela(
                 diagnostico[lote]['saldo_pos_sw'] = valor_total
                 diagnostico[lote]['saldo_pos_sw_liquido_candidato'] = valor_total
                 diagnostico[lote]['saldo_pos_sw_bruto_candidato'] = round(float(grupo.get('valor_bruto_total') or valor_total), 2)
+
+    saldo_ref = saldo_referencia_por_lote or {}
+    for lote, info_janela in mapa_switching_janela.items():
+        lote = str(lote or '').strip()
+        if not lote or lote in lotes_processados:
+            continue
+        data_sw = info_janela.get('data_switching_janela')
+        if data_sw is None or data_pagamento is None or data_sw > data_pagamento:
+            continue
+        valor_ref = round(float(saldo_ref.get(lote, 0.0) or 0.0), 2)
+        diagnostico[lote] = {
+            'pos_sw_tentativa': True,
+            'pos_sw_criada': bool(valor_ref > 0.01),
+            'fonte_pos_sw': '',
+            'lote_nome_operacional_pos_sw': '',
+            'saldo_pos_sw': valor_ref,
+            'motivo_pos_sw': 'materializada' if valor_ref > 0.01 else 'sem_saldo_confiavel',
+            'destino_pos_sw': str(info_janela.get('destino_janela') or '').strip(),
+            'origem_saldo_pos_sw': 'saldo_temporal_lote',
+            'saldo_pos_sw_bruto_candidato': valor_ref,
+            'saldo_pos_sw_liquido_candidato': valor_ref,
+            'data_base_saldo_pos_sw': data_sw,
+            'motivo_saldo_pos_sw': 'ok' if valor_ref > 0.01 else 'saldo_zero_ou_ausente',
+        }
+        if valor_ref <= 0.01:
+            continue
+        data_sw_txt = data_sw.isoformat() if hasattr(data_sw, 'isoformat') else str(data_sw)
+        destino = str(info_janela.get('destino_janela') or '').strip()
+        mes_sw = mapa_mes_pt.get(data_sw.month, 'n/d') if hasattr(data_sw, 'month') else 'n/d'
+        lote_nome_operacional = f"Lote {_fmt_valor_lote(valor_ref)} {mes_sw}"
+        fonte_pos_sw = f"pos_switch::{data_sw_txt}::{destino or 'destino'}::{lote}"
+        diagnostico[lote]['fonte_pos_sw'] = fonte_pos_sw
+        diagnostico[lote]['lote_nome_operacional_pos_sw'] = lote_nome_operacional
+        linha = {'lote_id': fonte_pos_sw, 'lote_id_sintetico': fonte_pos_sw, 'lote_nome_operacional': lote_nome_operacional, 'lote_origem_pos_switching': lote, 'fonte_origem_pos_switching': 'estado_pos_switching_janela', 'destino_switching_janela': destino, 'data_switching_janela': data_sw, 'valor_liquido_disponivel': valor_ref, 'valor_bruto_disponivel': valor_ref, 'produto_nome_canonico': destino}
+        linhas_pos_switching.append(linha)
     if not linhas_pos_switching:
         return candidatos, diagnostico
     return pd.concat([base, pd.DataFrame(linhas_pos_switching)], ignore_index=True), diagnostico
@@ -395,7 +433,12 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         subclasse = str(row_central.get('subclasse_pagamento_operacional') or '')
 
         candidatos = quadro_fontes[quadro_fontes['pagamento_id'] == pagamento_id].copy()
-        candidatos, diagnostico_pos_switch = _materializar_fontes_pos_switching_janela(candidatos, mapa_switching_janela, data_pagamento)
+        candidatos, diagnostico_pos_switch = _materializar_fontes_pos_switching_janela(
+            candidatos,
+            mapa_switching_janela,
+            data_pagamento,
+            saldo_referencia_por_lote=saldo_residual_temporal_por_lote,
+        )
         lotes_descartados_pos_sw: set[str] = set()
         if data_pagamento is not None and not candidatos.empty:
             def _manter_candidato(r: pd.Series) -> bool:
