@@ -454,6 +454,11 @@ def _construir_extrato_passado(contexto: Any) -> list[dict[str, Any]]:
         rem = _round_monetario(row.get('Saldo Remanescente'), 0.0)
         if rem != '' and rem <= limiar:
             rem = 0.0
+        origem_switching = (
+            'motor_pagamento'
+            if str(row_dict.get('produto_destino_switching') or '').strip()
+            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
+        )
         linhas.append({
             'Data': _fmt_data(row.get('Data')),
             'Conta': row.get('Conta') or '',
