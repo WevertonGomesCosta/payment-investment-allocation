@@ -220,7 +220,11 @@ class PacoteSaidaCanonica:
             ranking_destino = next(
                 (
                     rk for rk in self.ranking_amostra
-                    if _norm(rk.get('Produto') or rk.get('Nome') or rk.get('produto_nome_canonico')) == destino_norm
+                    if (
+                        _norm(rk.get('Produto') or rk.get('Nome') or rk.get('produto_nome_canonico')) == destino_norm
+                        or destino_norm in _norm(rk.get('Produto') or rk.get('Nome') or rk.get('produto_nome_canonico'))
+                        or _norm(rk.get('Produto') or rk.get('Nome') or rk.get('produto_nome_canonico')) in destino_norm
+                    )
                 ),
                 {},
             )
