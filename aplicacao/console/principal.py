@@ -35,6 +35,7 @@ from nucleo.saida_observavel import (
 
 def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
     amostras = construir_amostras_pagamentos_operacionais(saida_canonica, limite=5)
+    amostras.pop('recebidos_futuros', None)
 
     _imprimir_titulo(amostras['titulo'])
 
