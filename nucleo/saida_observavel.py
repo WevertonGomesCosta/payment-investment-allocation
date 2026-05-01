@@ -244,17 +244,129 @@ COLS_PAGAMENTOS_REALIZADOS_CONSOLE = [
 
 COLS_PAGAMENTOS_PROXIMOS_CONSOLE = [
     'Data',
-    'Descrição',
+    'Conta',
     'Valor',
-    'Lote sugerido',
-    'Pacote do dia',
-    'Necessita switching',
-    'Lote reserva',
-    'Saldo Antes',
+    'Lote',
+    'Pacote',
+    'Switch?',
+    'Reserva',
+    'Saldo ant.',
     'Bruto',
-    'Imposto',
-    'Líquido',
-    'Saldo Remanescente',
+    'IR',
+    'Liq.',
+    'Rem.',
+    'Sw. ant.',
+    'Sw. dep.',
+    'Status',
+    'Bloq.',
+]
+
+COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE = [
+    'Data',
+    'Conta',
+    'Valor',
+    'Lote',
+    'Pacote',
+    'Switch?',
+    'Reserva',
+    'Saldo ant.',
+    'Bruto',
+    'IR',
+    'Liq.',
+    'Rem.',
+]
+
+COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS = [
+    'Data',
+    'Conta',
+    'Lote',
+    'Pacote',
+    'Sw. ant.',
+    'Sw. dep.',
+    'Status',
+    'Bloq.',
+]
+
+COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE = [
+    'Data',
+    'Conta',
+    'Valor',
+    'Lote',
+    'Pós-switch',
+    'Destino sw.',
+    'Origem sw.',
+    'Fonte sw.',
+    'Data sw.',
+    'Ganho sw.',
+    'Pacote',
+    'Sw. ant.',
+    'Status',
+    'Saldo temp. ant.',
+    'Consumo temp.',
+    'Saldo temp. dep.',
+]
+
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DECISAO = [
+    'Data',
+    'Conta',
+    'Valor',
+    'Lote',
+    'Pós-switch',
+    'Pacote',
+    'Sw. ant.',
+    'Status',
+]
+
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_AUDITORIA_SW = [
+    'Data',
+    'Conta',
+    'Lote',
+    'Destino sw.',
+    'Origem sw.',
+    'Fonte sw.',
+    'Data sw.',
+    'Ganho sw.',
+]
+
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONSUMO = [
+    'Data',
+    'Conta',
+    'Lote',
+    'Saldo ant.',
+    'Consumo',
+    'Saldo dep.',
+]
+
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONCILIACAO = [
+    'Data',
+    'Conta',
+    'Lote original',
+    'Destino sw.',
+    'Data janela',
+    'Destino janela',
+    'Conciliação sw.',
+]
+
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DIAGNOSTICO_POS_SW = [
+    'Data',
+    'Conta',
+    'Lote original',
+    'Pos sw?',
+    'Fonte pos sw',
+    'Saldo pos sw',
+    'Motivo pos sw',
+    'Status',
+]
+
+COLS_RECEBIDOS_FUTUROS_CONSOLE = [
+    'Data',
+    'Lote',
+    'Valor',
+    'Status',
+    'Destino',
+    'Carteira',
+    'Usado',
+    'Saldo',
 ]
 
 
@@ -282,4 +394,166 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dic
             'linhas': saida.pagamentos_proximos_console(limite=limite),
             'limite': limite,
         },
+        'proximos_valores_fonte': {
+            'rotulo': 'próximos 5 pagamentos — valores/fonte',
+            'headers': list(COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE),
+            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'limite': limite,
+        },
+        'proximos_switching_status': {
+            'rotulo': 'próximos 5 pagamentos — switching/status',
+            'headers': list(COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS),
+            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'limite': limite,
+        },
+        'proximos_relevantes_switching_status': construir_amostra_pagamentos_futuros_switching_relevante(saida, limite=limite),
+    }
+
+
+def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: int = 5) -> dict[str, object]:
+    if hasattr(saida, 'pagamentos_futuros_console_completo'):
+        linhas_base = list(saida.pagamentos_futuros_console_completo() or [])
+    else:
+        linhas_base = list(getattr(saida, 'pagamentos_proximos_console', lambda **_: [])(limite=limite) or [])
+    relevantes: list[dict[str, object]] = []
+    for item in linhas_base:
+        sw_ant = str(item.get('Sw. ant.') or '').strip().lower()
+        sw_dep = str(item.get('Sw. dep.') or '').strip().lower()
+        status = str(item.get('Status') or '').strip().lower()
+        bloq = str(item.get('Bloq.') or '').strip().lower()
+        pacote = str(item.get('Pacote') or '').strip().lower()
+        switch = str(item.get('Switch?') or '').strip().lower()
+        eh_relevante = (
+            sw_ant == 'sim'
+            or sw_dep == 'sim'
+            or (status not in {'', 'ok', 'n/d'})
+            or (bloq not in {'', 'n/d'})
+            or (pacote not in {'', 'pay_only'})
+            or switch == 'sim'
+        )
+        if eh_relevante:
+            relevantes.append(item)
+    switchings_janela = list(getattr(saida, 'switchings', []) or [])
+
+    def _conciliar(row: dict[str, object]) -> dict[str, object]:
+        lote = str(row.get('Lote original') or row.get('Lote') or '').strip()
+        data_pag = str(row.get('Data') or '').strip()
+        destino_sw = str(row.get('Destino sw.') or '').strip()
+        candidatos = [
+            item for item in switchings_janela
+            if str(item.get('Lote origem') or '').strip() == lote
+            and str(item.get('Data') or '').strip() <= data_pag
+        ]
+        if not candidatos:
+            return {'Data janela': 'n/d', 'Destino janela': 'n/d', 'Conciliação sw.': 'sem_sw_janela'}
+        candidatos = sorted(candidatos, key=lambda x: str(x.get('Data') or ''), reverse=True)
+        escolhido = candidatos[0]
+        data_janela = str(escolhido.get('Data') or 'n/d')
+        destino_janela = str(escolhido.get('Destino') or 'n/d')
+        lote_ja_migrado = True
+        divergente_destino = bool(destino_sw and destino_janela and destino_sw != destino_janela)
+        if lote_ja_migrado and divergente_destino:
+            status = 'lote_ja_migrado_divergente'
+        elif divergente_destino:
+            status = 'divergente_destino'
+        elif lote_ja_migrado:
+            status = 'lote_ja_migrado'
+        else:
+            status = 'alinhado'
+        return {'Data janela': data_janela, 'Destino janela': destino_janela, 'Conciliação sw.': status}
+
+    linhas_conciliadas: list[dict[str, object]] = []
+    for row in relevantes[:limite]:
+        conc = _conciliar(row)
+        status_conc = str(conc.get('Conciliação sw.') or '')
+        if status_conc in {'lote_ja_migrado', 'lote_ja_migrado_divergente'}:
+            linha = dict(row)
+            linha['Lote original'] = row.get('Lote')
+            linha['Lote'] = 'não determinado'
+            linha['Status'] = 'lote_ja_migrado_janela'
+            linha['Bloq.'] = 'lote_ja_migrado_janela'
+            linha['Saldo temp. ant.'] = 'n/d'
+            linha['Consumo temp.'] = 'n/d'
+            linha['Saldo temp. dep.'] = 'n/d'
+            linhas_conciliadas.append(linha)
+        else:
+            linha = dict(row)
+            linha['Lote original'] = row.get('Lote')
+            linhas_conciliadas.append(linha)
+
+    return {
+        'rotulo': 'pagamentos futuros com switching/status relevante',
+        'headers': list(COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE),
+        'linhas': linhas_conciliadas,
+        'limite': limite,
+        'decisao': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — decisão',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DECISAO),
+            'linhas': linhas_conciliadas,
+            'limite': limite,
+        },
+        'auditoria_switching': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — auditoria switching',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_AUDITORIA_SW),
+            'linhas': linhas_conciliadas,
+            'limite': limite,
+        },
+        'consumo_temporal': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — consumo temporal',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONSUMO),
+            'linhas': [
+                {
+                    'Data': row.get('Data'),
+                    'Conta': row.get('Conta'),
+                    'Lote': row.get('Lote'),
+                    'Saldo ant.': row.get('Saldo temp. ant.'),
+                    'Consumo': row.get('Consumo temp.'),
+                    'Saldo dep.': row.get('Saldo temp. dep.'),
+                }
+                for row in linhas_conciliadas
+            ],
+            'limite': limite,
+        },
+        'conciliacao_janela': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — conciliação janela',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONCILIACAO),
+            'linhas': [
+                {
+                    'Data': row.get('Data'),
+                    'Conta': row.get('Conta'),
+                    'Lote original': row.get('Lote original'),
+                    'Destino sw.': row.get('Destino sw.'),
+                    **_conciliar(row),
+                }
+                for row in linhas_conciliadas
+            ],
+            'limite': limite,
+        },
+        'diagnostico_pos_switch': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — diagnóstico pos-switch',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DIAGNOSTICO_POS_SW),
+            'linhas': [
+                {
+                    'Data': row.get('Data'),
+                    'Conta': row.get('Conta'),
+                    'Lote original': row.get('Lote original') or row.get('Lote'),
+                    'Pos sw?': row.get('Pos sw?', 'n/d'),
+                    'Fonte pos sw': row.get('Fonte pos sw', 'n/d'),
+                    'Saldo pos sw': row.get('Saldo pos sw', 'n/d'),
+                    'Motivo pos sw': row.get('Motivo pos sw', 'n/d'),
+                    'Status': row.get('Status', 'n/d'),
+                }
+                for row in linhas_conciliadas
+            ],
+            'limite': limite,
+        },
+    }
+
+
+def construir_amostra_alocacao_recebidos_futuros(saida, *, limite: int = 5) -> dict[str, object]:
+    return {
+        'rotulo': 'aportes futuros / alocação',
+        'headers': list(COLS_RECEBIDOS_FUTUROS_CONSOLE),
+        'linhas': saida.recebidos_futuros_console(limite=limite),
+        'limite': limite,
     }
