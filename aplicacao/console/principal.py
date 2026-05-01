@@ -86,6 +86,13 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
             relevantes_consumo['linhas'],
             limite=relevantes_consumo['limite'],
         )
+        relevantes_conciliacao = relevantes['conciliacao_janela']
+        print(f"\n- {relevantes_conciliacao['rotulo']}:")
+        _imprimir_tabela(
+            relevantes_conciliacao['headers'],
+            relevantes_conciliacao['linhas'],
+            limite=relevantes_conciliacao['limite'],
+        )
     else:
         print(f"\n- {relevantes['rotulo']}:")
         print("  sem pagamentos futuros com switching/status relevante na amostra atual")

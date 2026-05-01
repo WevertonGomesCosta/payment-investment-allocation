@@ -337,6 +337,16 @@ COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONSUMO = [
     'Saldo dep.',
 ]
 
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONCILIACAO = [
+    'Data',
+    'Conta',
+    'Lote',
+    'Destino sw.',
+    'Data janela',
+    'Destino janela',
+    'Conciliação sw.',
+]
+
 COLS_RECEBIDOS_FUTUROS_CONSOLE = [
     'Data',
     'Lote',
@@ -418,6 +428,35 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
         )
         if eh_relevante:
             relevantes.append(item)
+    switchings_janela = list(getattr(saida, 'switchings', []) or [])
+
+    def _conciliar(row: dict[str, object]) -> dict[str, object]:
+        lote = str(row.get('Lote') or '').strip()
+        data_pag = str(row.get('Data') or '').strip()
+        destino_sw = str(row.get('Destino sw.') or '').strip()
+        candidatos = [
+            item for item in switchings_janela
+            if str(item.get('Lote origem') or '').strip() == lote
+            and str(item.get('Data') or '').strip() <= data_pag
+        ]
+        if not candidatos:
+            return {'Data janela': 'n/d', 'Destino janela': 'n/d', 'Conciliação sw.': 'sem_sw_janela'}
+        candidatos = sorted(candidatos, key=lambda x: str(x.get('Data') or ''), reverse=True)
+        escolhido = candidatos[0]
+        data_janela = str(escolhido.get('Data') or 'n/d')
+        destino_janela = str(escolhido.get('Destino') or 'n/d')
+        lote_ja_migrado = True
+        divergente_destino = bool(destino_sw and destino_janela and destino_sw != destino_janela)
+        if lote_ja_migrado and divergente_destino:
+            status = 'lote_ja_migrado_divergente'
+        elif divergente_destino:
+            status = 'divergente_destino'
+        elif lote_ja_migrado:
+            status = 'lote_ja_migrado'
+        else:
+            status = 'alinhado'
+        return {'Data janela': data_janela, 'Destino janela': destino_janela, 'Conciliação sw.': status}
+
     return {
         'rotulo': 'pagamentos futuros com switching/status relevante',
         'headers': list(COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE),
@@ -446,6 +485,21 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
                     'Saldo ant.': row.get('Saldo temp. ant.'),
                     'Consumo': row.get('Consumo temp.'),
                     'Saldo dep.': row.get('Saldo temp. dep.'),
+                }
+                for row in relevantes[:limite]
+            ],
+            'limite': limite,
+        },
+        'conciliacao_janela': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — conciliação janela',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONCILIACAO),
+            'linhas': [
+                {
+                    'Data': row.get('Data'),
+                    'Conta': row.get('Conta'),
+                    'Lote': row.get('Lote'),
+                    'Destino sw.': row.get('Destino sw.'),
+                    **_conciliar(row),
                 }
                 for row in relevantes[:limite]
             ],
