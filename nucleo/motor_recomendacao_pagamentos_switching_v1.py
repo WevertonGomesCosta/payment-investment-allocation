@@ -158,6 +158,8 @@ def _materializar_fontes_pos_switching_janela(
     mapa_switching_janela: dict[str, dict[str, Any]],
     data_pagamento: date | None,
     saldo_referencia_por_lote: dict[str, float] | None = None,
+    saldo_inicial_temporal_por_lote: dict[str, float] | None = None,
+    saldo_residual_temporal_por_lote: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     if candidatos is None or candidatos.empty or data_pagamento is None or not mapa_switching_janela:
         return candidatos, {}
@@ -267,6 +269,10 @@ def _materializar_fontes_pos_switching_janela(
         if destino:
             linha['produto_nome_canonico'] = destino
         linhas_pos_switching.append(linha)
+        if saldo_inicial_temporal_por_lote is not None:
+            saldo_inicial_temporal_por_lote[fonte_pos_sw] = valor_total
+        if saldo_residual_temporal_por_lote is not None:
+            saldo_residual_temporal_por_lote[fonte_pos_sw] = valor_total
         for lote in lotes_origem:
             if lote in diagnostico:
                 diagnostico[lote]['fonte_pos_sw'] = fonte_pos_sw
@@ -309,6 +315,10 @@ def _materializar_fontes_pos_switching_janela(
         diagnostico[lote]['lote_nome_operacional_pos_sw'] = lote_nome_operacional
         linha = {'lote_id': fonte_pos_sw, 'lote_id_sintetico': fonte_pos_sw, 'lote_nome_operacional': lote_nome_operacional, 'lote_origem_pos_switching': lote, 'fonte_origem_pos_switching': 'estado_pos_switching_janela', 'destino_switching_janela': destino, 'data_switching_janela': data_sw, 'valor_liquido_disponivel': valor_ref, 'valor_bruto_disponivel': valor_ref, 'produto_nome_canonico': destino}
         linhas_pos_switching.append(linha)
+        if saldo_inicial_temporal_por_lote is not None:
+            saldo_inicial_temporal_por_lote[fonte_pos_sw] = valor_ref
+        if saldo_residual_temporal_por_lote is not None:
+            saldo_residual_temporal_por_lote[fonte_pos_sw] = valor_ref
     if not linhas_pos_switching:
         return candidatos, diagnostico
     return pd.concat([base, pd.DataFrame(linhas_pos_switching)], ignore_index=True), diagnostico
@@ -459,6 +469,8 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             mapa_switching_janela,
             data_pagamento,
             saldo_referencia_por_lote=saldo_residual_temporal_por_lote,
+            saldo_inicial_temporal_por_lote=saldo_inicial_temporal_por_lote,
+            saldo_residual_temporal_por_lote=saldo_residual_temporal_por_lote,
         )
         lotes_descartados_pos_sw: set[str] = set()
         if data_pagamento is not None and not candidatos.empty:
@@ -482,6 +494,13 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         score_no_switch = round(float(row_central.get('score_proxy_central') or row_local.get('custo_economico_proxy') or 0.0), 4)
         integral_no_switch = bool(row_central.get('pagamento_totalmente_coberto_central') or row_local.get('pagamento_totalmente_coberto'))
         lote_reserva, fonte_reserva = _selecionar_backup(candidatos, lote_no_switch, fonte_no_switch)
+        lotes_validos = set(candidatos['lote_id'].fillna('').astype(str).str.strip().tolist()) if not candidatos.empty else set()
+        if lote_no_switch and lote_no_switch not in lotes_validos:
+            lote_no_switch = ''
+            fonte_no_switch = ''
+            cobertura_no_switch = 0.0
+            integral_no_switch = False
+            lote_reserva, fonte_reserva = _selecionar_backup(candidatos, '', '')
 
         estrategia_base = {
             'estrategia': 'sem_switching',
@@ -510,6 +529,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         ):
             estrategia_base['lote_recomendado'] = 'não determinado'
             estrategia_base['motivo_recomendacao'] = 'lote original migrado por switching da janela antes do pagamento'
+            estrategia_base['status_recomendacao'] = 'lote_ja_migrado_janela'
 
         estrategia_switch = _melhor_switching_para_pagamento(
             candidatos,
