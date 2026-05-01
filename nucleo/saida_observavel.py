@@ -312,14 +312,20 @@ COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DECISAO = [
     'Valor',
     'Lote',
     'Pós-switch',
+    'Pacote',
+    'Sw. ant.',
+    'Status',
+]
+
+COLS_PAGAMENTOS_FUTUROS_RELEVANTE_AUDITORIA_SW = [
+    'Data',
+    'Conta',
+    'Lote',
     'Destino sw.',
     'Origem sw.',
     'Fonte sw.',
     'Data sw.',
     'Ganho sw.',
-    'Pacote',
-    'Sw. ant.',
-    'Status',
 ]
 
 COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONSUMO = [
@@ -420,6 +426,12 @@ def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: i
         'decisao': {
             'rotulo': 'pagamentos futuros com switching/status relevante — decisão',
             'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DECISAO),
+            'linhas': relevantes[:limite],
+            'limite': limite,
+        },
+        'auditoria_switching': {
+            'rotulo': 'pagamentos futuros com switching/status relevante — auditoria switching',
+            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_AUDITORIA_SW),
             'linhas': relevantes[:limite],
             'limite': limite,
         },

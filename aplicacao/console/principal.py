@@ -72,6 +72,13 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
             relevantes_decisao['linhas'],
             limite=relevantes_decisao['limite'],
         )
+        relevantes_auditoria = relevantes['auditoria_switching']
+        print(f"\n- {relevantes_auditoria['rotulo']}:")
+        _imprimir_tabela(
+            relevantes_auditoria['headers'],
+            relevantes_auditoria['linhas'],
+            limite=relevantes_auditoria['limite'],
+        )
         relevantes_consumo = relevantes['consumo_temporal']
         print(f"\n- {relevantes_consumo['rotulo']}:")
         _imprimir_tabela(
