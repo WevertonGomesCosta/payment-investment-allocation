@@ -461,7 +461,15 @@ def _mapa_resumos_futuros(contexto: Any, quadro_futuro: pd.DataFrame | None) -> 
 
 def _resumo_futuro(contexto: Any, pagamento_id: str, decisao_row: dict[str, Any], mapa_resumos: dict[str, dict[str, Any]], mapa_central: dict[str, dict[str, Any]]) -> dict[str, Any]:
     central = mapa_central.get(str(pagamento_id or '').strip(), {})
-    if central:
+    resumo = mapa_resumos.get(str(pagamento_id or '').strip())
+    usa_motor = bool(
+        str(decisao_row.get('status_recomendacao') or '').strip()
+        or str(decisao_row.get('lote_recomendado') or '').strip()
+        or str(decisao_row.get('lote_nome_operacional') or '').strip()
+    )
+    if usa_motor and resumo:
+        return resumo
+    if central and not usa_motor:
         return {
             'Saldo Antes': _round_monetario(central.get('saldo_antes_central')),
             'Bruto': _round_monetario(central.get('bruto_central')),
@@ -470,7 +478,6 @@ def _resumo_futuro(contexto: Any, pagamento_id: str, decisao_row: dict[str, Any]
             'Saldo Remanescente': _round_monetario(central.get('saldo_remanescente_central')),
             'Lote sugerido': central.get('lote_final_central') or central.get('lote_sugerido_original') or '',
         }
-    resumo = mapa_resumos.get(str(pagamento_id or '').strip())
     if resumo:
         return resumo
     return {
