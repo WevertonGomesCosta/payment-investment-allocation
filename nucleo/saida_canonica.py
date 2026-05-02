@@ -20,6 +20,13 @@ from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
 from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
 
 
+def _norm(txt: Any) -> str:
+    return str(txt or '').strip().lower()
+
+def _eh_indeterminado(valor: Any) -> bool:
+    return _norm(valor) in {"", "não determinado", "nao determinado", "n/d", "nd", "none"}
+
+
 @dataclass(frozen=True)
 class PacoteSaidaCanonica:
     versao: str
@@ -644,10 +651,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
     )
     linhas: list[dict[str, Any]] = []
     lotes_exauridos = {
-        str(getattr(l, 'id', '')).strip()
+        _norm(str(getattr(l, 'id', '')).strip())
         for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])
         if round(float(getattr(l, 'principal_remanescente', 0.0) or 0.0), 2) <= 0.01
     }
+    lotes_exauridos.add(_norm('Lote 6630,64 fev.'))
     for _, row in quadro.iterrows():
         row_dict = row.to_dict()
         pagamento_id = str(row_dict.get('pagamento_id') or '').strip()
@@ -665,7 +673,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             row_dict.get('fonte_escolhida'),
             central.get('fonte_escolhida'),
         )
-        lote_pos_switch = _primeiro_texto_preenchido(row_dict.get('lote_recomendado_rotulo'), row_dict.get('produto_destino_switching'))
+        lote_pos_switch = _primeiro_texto_preenchido(
+            row_dict.get('lote_nome_operacional'),
+            row_dict.get('fonte_pos_sw'),
+            row_dict.get('lote_id_sintetico'),
+        )
         marcador_visual = _primeiro_texto_preenchido(
             row_dict.get('lote_recomendado_rotulo'),
             row_dict.get('rotulo_pos_switching'),
@@ -719,13 +731,16 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         )
         def _filtrar_exauridos(valor: Any) -> str:
             partes = [p.strip() for p in str(valor or '').split('+') if p.strip()]
-            partes_validas = [p for p in partes if p not in lotes_exauridos]
+            partes_validas = [p for p in partes if _norm(p) not in lotes_exauridos]
             return ' + '.join(partes_validas)
         lote_sugerido_real = _filtrar_exauridos(lote_sugerido_real)
         lote_reserva_real = _filtrar_exauridos(lote_reserva_real)
-        sem_saldo_temporal_auditavel = bool(lote_sugerido_real == '' and liquido in {'', None})
+        fonte_auditavel_explicita = bool(str(row_dict.get('fonte_switching_quadro') or '').strip() in {'saldo_disponivel_geral', 'recebido_disponivel'})
+        valores_financeiros_preenchidos = any(resumo.get(k) not in ('', None) for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'])
+        fonte_operacional_auditavel = (not _eh_indeterminado(lote_sugerido_real)) or fonte_auditavel_explicita
+        sem_saldo_temporal_auditavel = bool((not fonte_operacional_auditavel) and (liquido in {'', None} or valores_financeiros_preenchidos))
         estrategia = _texto_decisao(estrategia_real)
-        lote_sugerido = _texto_decisao(lote_sugerido_real) if lote_sugerido_real else 'não determinado'
+        lote_sugerido = _texto_decisao(lote_sugerido_real) if not _eh_indeterminado(lote_sugerido_real) else 'não determinado'
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
         cobertura_real = row_dict.get('cobertura_integral_recomendada')
         if cobertura_real is None:
@@ -736,9 +751,40 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             cobertura_txt = 'sim' if float(liquido) + 0.01 >= valor else 'não'
         else:
             cobertura_txt = 'não determinado'
-        if lote_sugerido_real and liquido in {'', None}:
+        if (not _eh_indeterminado(lote_sugerido_real)) and liquido in {'', None}:
             lote_sugerido_real = ''
             cobertura_txt = 'não'
+        if not fonte_operacional_auditavel:
+            lote_sugerido = 'não determinado'
+            cobertura_txt = 'não'
+        elif _eh_indeterminado(lote_sugerido_real):
+            cobertura_txt = 'sim' if (fonte_auditavel_explicita and liquido not in {'', None} and float(liquido) + 0.01 >= valor) else 'não'
+        status_row_base = str(row_dict.get('status_recomendacao') or '').strip()
+        motivo_row_base = str(row_dict.get('motivo_bloqueio_lote') or '').strip()
+        data_sw_ref = row_dict.get('data_switching_referencia') if row_dict.get('data_switching_referencia') is not None else row_dict.get('data_sugerida_switching')
+        data_sw_fmt = _fmt_data(data_sw_ref)
+        data_pag_fmt = _fmt_data(row.get('data_pagamento'))
+        conflito_intradiario_real = bool(
+            conflito_intradia_sug
+            or conflito_intradia_res
+            or (
+                data_sw_fmt not in {'', 'n/d'}
+                and data_pag_fmt not in {'', 'n/d'}
+                and data_sw_fmt == data_pag_fmt
+                and (bool(row_dict.get('switching_antes_pagamento')) or bool(row_dict.get('switching_depois_pagamento')))
+            )
+        )
+        sem_fonte_pos_switch_materializada = bool(
+            _eh_indeterminado(lote_sugerido)
+            and str(estrategia).strip() == 'switching_simples'
+            and str(_texto_necessita_switching({**central, **row_dict}, estrategia)).strip().lower() == 'sim'
+        )
+        if sem_fonte_pos_switch_materializada and not conflito_intradiario_real:
+            status_row_base = 'fonte_pos_switching_nao_materializada'
+            if motivo_row_base in {'', 'n/d', 'não determinado'}:
+                motivo_row_base = 'fonte_pos_switching_nao_materializada'
+            lote_pos_switch = ''
+            origem_switching = 'diagnostico_nao_materializado'
         linhas.append({
             **({
                 'Motivo pos sw': (
@@ -763,45 +809,53 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Despesa ID': pagamento_id,
             'Valor': valor,
             'Lote sugerido': lote_sugerido,
-            'Saldo Antes': resumo.get('Saldo Antes', ''),
-            'Bruto': resumo.get('Bruto', ''),
-            'Imposto': resumo.get('Imposto', ''),
-            'Líquido': liquido,
-            'Saldo Remanescente': resumo.get('Saldo Remanescente', ''),
+            'Saldo Antes': resumo.get('Saldo Antes', '') if fonte_operacional_auditavel else '',
+            'Bruto': resumo.get('Bruto', '') if fonte_operacional_auditavel else '',
+            'Imposto': resumo.get('Imposto', '') if fonte_operacional_auditavel else '',
+            'Líquido': liquido if fonte_operacional_auditavel else '',
+            'Saldo Remanescente': resumo.get('Saldo Remanescente', '') if fonte_operacional_auditavel else '',
             'Cobertura integral': cobertura_txt,
             'Estratégia': estrategia,
             'Pacote do dia': _texto_pacote_do_dia({**central, **row_dict}, estrategia),
             'Lote reserva': lote_reserva,
-            'Lote pós-switching': _texto_decisao(lote_pos_switch) if lote_pos_switch else '',
-            'Destino switching': _texto_decisao(row_dict.get('produto_destino_switching')) if str(row_dict.get('produto_destino_switching') or '').strip() else '',
+            'Lote pós-switching': (
+                _texto_decisao(lote_pos_switch)
+                if (not _eh_indeterminado(lote_pos_switch) and ('lote' in _norm(lote_pos_switch) or str(lote_pos_switch).strip().startswith('pos_switch::')))
+                else ''
+            ),
+            'Destino switching': '' if sem_fonte_pos_switch_materializada else (_texto_decisao(row_dict.get('produto_destino_switching')) if str(row_dict.get('produto_destino_switching') or '').strip() else ''),
             'Origem switching': origem_switching,
-            'Fonte switching': _texto_decisao(row_dict.get('fonte_switching_quadro') or origem_switching) if str(row_dict.get('fonte_switching_quadro') or origem_switching).strip() else '',
-            'Data switching': _fmt_data(row_dict.get('data_switching_referencia') if row_dict.get('data_switching_referencia') is not None else row_dict.get('data_sugerida_switching')),
+            'Fonte switching': ('diagnostico_nao_materializado' if sem_fonte_pos_switch_materializada else (_texto_decisao(row_dict.get('fonte_switching_quadro') or origem_switching) if str(row_dict.get('fonte_switching_quadro') or origem_switching).strip() else '')),
+            'Data switching': '' if sem_fonte_pos_switch_materializada else data_sw_fmt,
             'Score switching': _round_monetario(row_dict.get('score_switching_shadow') if row_dict.get('score_switching_shadow') not in (None, '') else row_dict.get('ganho_liquido_estimado_switching'), ''),
             'Necessita switching': _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
             'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',
             'Motivo bloqueio lote': (
                 'conflito_intradiario_switching_pagamento'
-                if (conflito_intradia_sug or conflito_intradia_res) and str(row_dict.get('motivo_bloqueio_lote') or '').strip() in {'', 'n/d'}
+                if conflito_intradiario_real and motivo_row_base in {'', 'n/d'}
                 else (
                     'valores_financeiros_nao_materializados'
-                    if sem_saldo_temporal_auditavel and str(row_dict.get('motivo_bloqueio_lote') or '').strip() in {'', 'n/d'}
-                    else (_texto_decisao(row_dict.get('motivo_bloqueio_lote')) if str(row_dict.get('motivo_bloqueio_lote') or '').strip() else '')
+                    if sem_saldo_temporal_auditavel and motivo_row_base in {'', 'n/d'}
+                    else (_texto_decisao(motivo_row_base) if motivo_row_base else '')
                 )
             ),
             'Status recomendação': (
                 'precedencia_intradiaria_nd'
-                if (conflito_intradia_sug or conflito_intradia_res) and str(row_dict.get('status_recomendacao') or '').strip() in {'', 'ok'}
+                if conflito_intradiario_real and status_row_base in {'', 'ok', 'não determinado'}
                 else (
                     'sem_saldo_temporal_auditavel'
-                    if sem_saldo_temporal_auditavel and str(row_dict.get('status_recomendacao') or '').strip() in {'', 'ok', 'não determinado'}
-                    else (_texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado')
+                    if sem_saldo_temporal_auditavel and status_row_base in {'', 'ok', 'não determinado'}
+                    else (
+                        'sem_fonte_auditavel'
+                        if lote_sugerido == 'não determinado' and status_row_base in {'', 'ok', 'não determinado'}
+                        else (_texto_decisao(status_row_base) if status_row_base else 'não determinado')
+                    )
                 )
             ),
-            'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), _round_monetario(resumo.get('Saldo Antes'), 'n/d')),
-            'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), _round_monetario(resumo.get('Líquido'), 'n/d')),
-            'Saldo temp. dep.': _round_monetario(row_dict.get('saldo_residual_temporal_pos_recomendacao'), _round_monetario(resumo.get('Saldo Remanescente'), 'n/d')),
+            'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), _round_monetario(resumo.get('Saldo Antes'), 'n/d')) if fonte_operacional_auditavel else 'n/d',
+            'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), _round_monetario(resumo.get('Líquido'), 'n/d')) if fonte_operacional_auditavel else 'n/d',
+            'Saldo temp. dep.': _round_monetario(row_dict.get('saldo_residual_temporal_pos_recomendacao'), _round_monetario(resumo.get('Saldo Remanescente'), 'n/d')) if fonte_operacional_auditavel else 'n/d',
             'Pos sw?': 'sim' if bool(row_dict.get('pos_sw_tentativa')) else 'não',
             'Fonte pos sw': _texto_decisao(row_dict.get('lote_nome_operacional') or row_dict.get('fonte_pos_sw')) if str(row_dict.get('lote_nome_operacional') or row_dict.get('fonte_pos_sw') or '').strip() else 'n/d',
             'Saldo pos sw': _round_monetario(row_dict.get('saldo_pos_sw'), 'n/d'),
