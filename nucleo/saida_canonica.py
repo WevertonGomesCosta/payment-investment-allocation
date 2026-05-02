@@ -765,13 +765,16 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         data_sw_fmt = _fmt_data(data_sw_ref)
         data_pag_fmt = _fmt_data(row.get('data_pagamento'))
         conflito_intradiario_real = bool(
-            conflito_intradia_sug
-            or conflito_intradia_res
-            or (
+            (
                 data_sw_fmt not in {'', 'n/d'}
                 and data_pag_fmt not in {'', 'n/d'}
                 and data_sw_fmt == data_pag_fmt
                 and (bool(row_dict.get('switching_antes_pagamento')) or bool(row_dict.get('switching_depois_pagamento')))
+            )
+            or (
+                (conflito_intradia_sug or conflito_intradia_res)
+                and data_sw_fmt not in {'', 'n/d'}
+                and data_sw_fmt == data_pag_fmt
             )
         )
         sem_fonte_pos_switch_materializada = bool(
@@ -779,10 +782,14 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             and str(estrategia).strip() == 'switching_simples'
             and str(_texto_necessita_switching({**central, **row_dict}, estrategia)).strip().lower() == 'sim'
         )
-        if sem_fonte_pos_switch_materializada and not conflito_intradiario_real:
+        sem_evidencia_materializacao_sw = bool(
+            _eh_indeterminado(lote_pos_switch)
+            and data_sw_fmt in {'', 'n/d'}
+            and _eh_indeterminado(row_dict.get('produto_destino_switching'))
+        )
+        if sem_fonte_pos_switch_materializada and sem_evidencia_materializacao_sw:
             status_row_base = 'fonte_pos_switching_nao_materializada'
-            if motivo_row_base in {'', 'n/d', 'não determinado'}:
-                motivo_row_base = 'fonte_pos_switching_nao_materializada'
+            motivo_row_base = 'fonte_pos_switching_nao_materializada'
             lote_pos_switch = ''
             origem_switching = 'diagnostico_nao_materializado'
         linhas.append({
@@ -823,15 +830,18 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
                 if (not _eh_indeterminado(lote_pos_switch) and ('lote' in _norm(lote_pos_switch) or str(lote_pos_switch).strip().startswith('pos_switch::')))
                 else ''
             ),
-            'Destino switching': '' if sem_fonte_pos_switch_materializada else (_texto_decisao(row_dict.get('produto_destino_switching')) if str(row_dict.get('produto_destino_switching') or '').strip() else ''),
+            'Destino switching': '' if (sem_fonte_pos_switch_materializada and sem_evidencia_materializacao_sw) else (_texto_decisao(row_dict.get('produto_destino_switching')) if str(row_dict.get('produto_destino_switching') or '').strip() else ''),
             'Origem switching': origem_switching,
-            'Fonte switching': ('diagnostico_nao_materializado' if sem_fonte_pos_switch_materializada else (_texto_decisao(row_dict.get('fonte_switching_quadro') or origem_switching) if str(row_dict.get('fonte_switching_quadro') or origem_switching).strip() else '')),
-            'Data switching': '' if sem_fonte_pos_switch_materializada else data_sw_fmt,
+            'Fonte switching': ('diagnostico_nao_materializado' if (sem_fonte_pos_switch_materializada and sem_evidencia_materializacao_sw) else (_texto_decisao(row_dict.get('fonte_switching_quadro') or origem_switching) if str(row_dict.get('fonte_switching_quadro') or origem_switching).strip() else '')),
+            'Data switching': '' if (sem_fonte_pos_switch_materializada and sem_evidencia_materializacao_sw) else data_sw_fmt,
             'Score switching': _round_monetario(row_dict.get('score_switching_shadow') if row_dict.get('score_switching_shadow') not in (None, '') else row_dict.get('ganho_liquido_estimado_switching'), ''),
             'Necessita switching': _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
             'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',
             'Motivo bloqueio lote': (
+                'fonte_pos_switching_nao_materializada'
+                if (sem_fonte_pos_switch_materializada and sem_evidencia_materializacao_sw)
+                else (
                 'conflito_intradiario_switching_pagamento'
                 if conflito_intradiario_real and motivo_row_base in {'', 'n/d'}
                 else (
@@ -839,8 +849,12 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
                     if sem_saldo_temporal_auditavel and motivo_row_base in {'', 'n/d'}
                     else (_texto_decisao(motivo_row_base) if motivo_row_base else '')
                 )
+                )
             ),
             'Status recomendação': (
+                'fonte_pos_switching_nao_materializada'
+                if (sem_fonte_pos_switch_materializada and sem_evidencia_materializacao_sw)
+                else (
                 'precedencia_intradiaria_nd'
                 if conflito_intradiario_real and status_row_base in {'', 'ok', 'não determinado'}
                 else (
@@ -851,6 +865,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
                         if lote_sugerido == 'não determinado' and status_row_base in {'', 'ok', 'não determinado'}
                         else (_texto_decisao(status_row_base) if status_row_base else 'não determinado')
                     )
+                )
                 )
             ),
             'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), _round_monetario(resumo.get('Saldo Antes'), 'n/d')) if fonte_operacional_auditavel else 'n/d',
