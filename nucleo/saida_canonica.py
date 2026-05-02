@@ -617,11 +617,6 @@ def _construir_extrato_passado(contexto: Any) -> list[dict[str, Any]]:
         rem = _round_monetario(row.get('Saldo Remanescente'), 0.0)
         if rem != '' and rem <= limiar:
             rem = 0.0
-        origem_switching = (
-            'motor_pagamento'
-            if str(row_dict.get('produto_destino_switching') or '').strip()
-            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
-        )
         linhas.append({
             'Data': _fmt_data(row.get('Data')),
             'Conta': row.get('Conta') or '',
@@ -695,6 +690,12 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))
         if status_migrado_janela:
             lote_reserva_real = ''
+
+        origem_switching = (
+            'motor_pagamento'
+            if str(row_dict.get('produto_destino_switching') or '').strip()
+            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
+        )
         lote_origem_migrada = str(row_dict.get('lote_origem_pos_switching') or '').strip()
         if lote_origem_migrada:
             origem_tokens = [x.strip() for x in lote_origem_migrada.split('+') if x.strip()]
