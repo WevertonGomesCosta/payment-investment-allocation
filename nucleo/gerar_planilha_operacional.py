@@ -92,11 +92,22 @@ def _caminhos_saida_operacional(contexto) -> tuple[Path, Path]:
 def _cabecalhos_operacionais(contexto, chave: str) -> list[str]:
     config = getattr(getattr(contexto, 'pacote_config', None), 'conteudo', {}) or {}
     valor = _cfg_get(config, 'saidas', 'planilha_operacional', 'cabecalhos', chave, padrao=None)
+    default_headers = list(DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL[chave])
 
-    if isinstance(valor, list) and all(isinstance(item, str) and item.strip() for item in valor):
-        return list(valor)
+    if not (isinstance(valor, list) and all(isinstance(item, str) and item.strip() for item in valor)):
+        return default_headers
 
-    return list(DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL[chave])
+    headers_cfg = [str(item).strip() for item in valor if str(item).strip()]
+    if chave != 'extrato_futuro':
+        return headers_cfg
+
+    merged = []
+    seen = set()
+    for h in headers_cfg + default_headers:
+        if h not in seen:
+            merged.append(h)
+            seen.add(h)
+    return merged
 
 
 def _valor(item: dict[str, Any], chave: str) -> Any:
