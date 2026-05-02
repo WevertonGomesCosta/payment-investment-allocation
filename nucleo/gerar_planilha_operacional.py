@@ -335,6 +335,26 @@ def main(*, contexto=None, saida=None) -> Path:
     headers_switching = _cabecalhos_operacionais(contexto, "switching")
     _apply_table_style(ws_switching, headers_switching, _rows(saida.switchings, headers_switching), freeze=True)
 
+    ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
+    headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
+    linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
+    _apply_table_style(
+        ws_switching_sint,
+        headers_switching_sint,
+        _rows(linhas_switching_sint, headers_switching_sint),
+        freeze=True,
+    )
+
+    ws_estado_pos = wb.create_sheet("Estado Pos-Switching")
+    headers_estado_pos = ['Data', 'Novo lote', 'Produto destino', 'Valor inicial', 'Lotes origem', 'Status origem', 'Status novo', 'Liquidez', 'Carência', 'Ticket mín.', 'Origem valor']
+    linhas_estado_pos = list(getattr(saida, 'estado_pos_switching_lotes_console', lambda **_: [])(limite=200) or [])
+    _apply_table_style(
+        ws_estado_pos,
+        headers_estado_pos,
+        _rows(linhas_estado_pos, headers_estado_pos),
+        freeze=True,
+    )
+
     _adicionar_abas_ranking(wb, contexto)
     _adicionar_situacao_atual(wb, contexto, saida)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
