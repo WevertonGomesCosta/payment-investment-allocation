@@ -29,28 +29,6 @@ try:
 except Exception:  # pragma: no cover
     Brazil = None  # type: ignore
 
-# CACHE_LOCAL_WORKALENDAR_V1
-_CALENDARIO_BRASIL_CACHE = None
-_DIA_UTIL_BANCARIO_CACHE: dict[date, bool] = {}
-
-
-def _obter_calendario_brasil_cacheado():
-    """Retorna uma única instância cacheada do calendário Brasil.
-
-    Motivo: instanciar Brazil() dentro de eh_dia_util_bancario para cada dia
-    força recomputação/cache interno do workalendar repetidas vezes e pode
-    tornar a execução muito lenta em loops longos de valuation/replay.
-    """
-    global _CALENDARIO_BRASIL_CACHE
-    if Brazil is None:
-        return None
-    if _CALENDARIO_BRASIL_CACHE is None:
-        try:
-            _CALENDARIO_BRASIL_CACHE = Brazil()
-        except Exception:
-            _CALENDARIO_BRASIL_CACHE = None
-    return _CALENDARIO_BRASIL_CACHE
-
 
 @dataclass(slots=True)
 class PacoteCalendarioFinanceiro:
@@ -220,22 +198,15 @@ def eh_dia_util_bancario(data_atual: date, pacote: PacoteCalendarioFinanceiro) -
     if data_atual in pacote.dias_sem_rendimento_bancario:
         return False
 
-    if data_atual in _DIA_UTIL_BANCARIO_CACHE:
-        return _DIA_UTIL_BANCARIO_CACHE[data_atual]
-
-    calendario_brasil = _obter_calendario_brasil_cacheado()
-    if calendario_brasil is not None:
+    if Brazil is not None:
         try:
-            resultado = bool(calendario_brasil.is_working_day(data_atual))
-            _DIA_UTIL_BANCARIO_CACHE[data_atual] = resultado
-            return resultado
+            return bool(Brazil().is_working_day(data_atual))
         except Exception:
             pass
 
     # Fallback neutro: dias úteis padrão de segunda a sexta.
-    resultado = data_atual.weekday() < 5
-    _DIA_UTIL_BANCARIO_CACHE[data_atual] = resultado
-    return resultado
+    return data_atual.weekday() < 5
+
 
 def proximo_dia_util_bancario_em_ou_apos(data_base: date, pacote: PacoteCalendarioFinanceiro) -> date:
     atual = data_base
