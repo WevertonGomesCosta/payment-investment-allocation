@@ -1,25 +1,25 @@
-# CONTRATO OPERACIONAL MESTRE DO PROJETO `payment-investment-allocation` — V183
+# CONTRATO OPERACIONAL MESTRE DO PROJETO `payment-investment-allocation`
 
-## 1. Status, função e baseline única
+## 1. Status e função normativa
 
 ### 1.1. Documento mestre vigente
 Este documento é o **Contrato Operacional Mestre vigente** do projeto `payment-investment-allocation`.
 
-### 1.2. Baseline única vigente
-A **baseline única vigente** do projeto é a **V183**.
+### 1.2. Referência normativa principal
+O contrato mestre e o modelo matemático-estatístico-financeiro oficial constituem a referência normativa principal do projeto.
 
-A V183 deve ser tratada simultaneamente como:
+Este contrato deve ser tratado simultaneamente como:
 
-- baseline contratual vigente;
-- baseline metodológica vigente;
-- baseline operacional de referência vigente.
+- norma operacional superior;
+- referência metodológica de interpretação;
+- referência de governança para implementação, auditoria e validação.
 
-### 1.3. Estrutura normativa da baseline única
-Dentro da baseline única V183:
+### 1.3. Estrutura normativa
+Na estrutura normativa do projeto:
 
 - este contrato é o **documento normativo superior**;
-- o arquivo `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` é o **anexo metodológico vinculante** do projeto;
-- implementações, relatórios, runners, auditorias, saídas operacionais e documentos históricos não têm prevalência sobre este contrato nem sobre o anexo metodológico vinculante.
+- o modelo matemático-estatístico-financeiro oficial é o **anexo metodológico vinculante**;
+- implementações, relatórios, runners, auditorias, saídas operacionais e documentos históricos não têm prevalência sobre este contrato nem sobre o modelo oficial.
 
 ### 1.4. Regra de prevalência
 Em caso de divergência entre:
@@ -38,10 +38,10 @@ Em caso de divergência entre:
 Para formulação matemática, econômica e estatística detalhada, a leitura correta é conjunta:
 
 - este contrato mestre como norma superior;
-- o anexo metodológico vinculante como formulação detalhada.
+- o modelo oficial como formulação detalhada vinculante.
 
 ### 1.5. Cláusula de estabilização
-O núcleo lógico, econômico e matemático definido por este contrato e por seu anexo metodológico vinculante é tratado como **estabilizado**.
+O núcleo lógico, econômico e matemático definido por este contrato e pelo modelo oficial é tratado como **estabilizado**.
 
 É vedado reabrir sua estrutura em conversas futuras ou em implementações novas sem justificativa explícita de revisão contratual.
 
@@ -52,20 +52,19 @@ O núcleo lógico, econômico e matemático definido por este contrato e por seu
 ### 2.1. Contrato canônico
 O arquivo canônico do contrato mestre no repositório é:
 
-`relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`
+`relatorios/principais/CONTRATO_OPERACIONAL_PROJETO.md`
 
-### 2.2. Anexo metodológico vinculante
-O arquivo metodológico vinculante do projeto é:
+### 2.2. Modelo matemático-estatístico-financeiro oficial
+O arquivo canônico do modelo é o documento oficial de modelo matemático-estatístico-financeiro localizado em `relatorios/principais/`.
 
-`relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`
-
-### 2.3. Artefatos versionados
-Arquivos com nomes versionados, como exportações, cópias de revisão ou arquivos de congelamento, devem ser tratados apenas como artefatos de:
+### 2.3. Artefatos de revisão e distribuição
+Arquivos de exportação, cópias de revisão, relatórios de auditoria, pacotes de entrega ou arquivos de congelamento devem ser tratados apenas como artefatos de:
 
 - exportação;
 - revisão;
 - auditoria;
-- distribuição.
+- distribuição;
+- rastreabilidade histórica.
 
 Eles não substituem os arquivos canônicos internos do repositório.
 
@@ -75,32 +74,25 @@ Eles não substituem os arquivos canônicos internos do repositório.
 
 A hierarquia documental vigente do projeto é:
 
-1. `relatorios/atuais/CONTRATO_OPERACIONAL_PROJETO.md`  
-   **Contrato mestre normativo superior**.
-2. `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md`  
-   **Anexo metodológico vinculante**.
-3. Suplementos históricos de validação e auditoria  
-   **Documentos auxiliares relevantes, sem prevalência normativa superior**.
-4. Auditorias, reexecuções e validações vigentes  
-   **Camada de evidência e verificação**.
-5. Backlogs e documentos de fases futuras  
-   **Camada de planejamento, sem força normativa principal**.
-6. Documentos históricos intermediários e antigos  
-   **Camada histórica preservada**.
+1. contrato mestre normativo superior;
+2. modelo matemático-estatístico-financeiro oficial;
+3. auditorias, reexecuções e validações compatíveis com os documentos normativos;
+4. documentos auxiliares de planejamento, sem força normativa principal;
+5. documentos históricos preservados, sem autonomia normativa.
 
 Quando houver conflito:
 
 - prevalece o contrato mestre;
-- depois, o anexo metodológico vinculante;
+- depois, o modelo oficial;
 - depois, a evidência de auditoria mais recente compatível com ambos;
 - por fim, os documentos históricos.
 
 ---
 
-## 4. Status dos documentos anteriores
+## 4. Status dos documentos históricos
 
 ### 4.1. Documentos históricos preservados
-Documentos anteriores são preservados para:
+Documentos históricos são preservados para:
 
 - rastreabilidade;
 - auditoria de regressão;
@@ -108,20 +100,10 @@ Documentos anteriores são preservados para:
 - compreensão da evolução do projeto.
 
 ### 4.2. Sem autonomia normativa
-É vedado tratar documentos anteriores como normas autônomas diante da V183.
+É vedado tratar documentos históricos, intermediários ou superados como normas autônomas diante deste contrato e do modelo oficial.
 
-### 4.3. V176 e V177
-Os documentos V176 e V177 permanecem como **suplementos históricos de validação e auditoria**, úteis para:
-
-- rastreabilidade da validação diária;
-- correções de pós-vencimento;
-- correções de gate de switching;
-- comparação de regressão.
-
-Eles não prevalecem sobre este contrato nem sobre o anexo metodológico vinculante.
-
-### 4.4. V117 e V108
-Os documentos V117 e V108 permanecem como **histórico útil para auditoria e comparação de regressão**, sem força normativa principal.
+### 4.3. Uso permitido
+Documentos históricos podem ser consultados apenas como evidência auxiliar ou memória de decisão, desde que não contrariem os documentos normativos vigentes.
 
 ---
 
@@ -239,6 +221,117 @@ Se \(\mathbb I_t^{pay}=1\), os pacotes factíveis são:
 - a mesma cronologia intradiária;
 - a mesma regra de desempate;
 - o mesmo horizonte principal.
+
+---
+
+## 7-A. Fonte única de verdade temporal
+
+### 7-A.1. Regra principal
+A decisão operacional do projeto deve ser derivada de uma **única fonte de verdade temporal**.
+
+Essa fonte deve representar, para cada data e para cada etapa intradiária relevante, o estado conjunto de:
+
+- recebidos disponíveis;
+- saldo disponível;
+- lotes aportados;
+- lotes não aportados;
+- lotes vencidos;
+- lotes bloqueados;
+- switchings candidatos;
+- switchings promovidos;
+- switchings materializados;
+- lotes sintéticos pós-switching;
+- pagamentos liquidados;
+- saldos remanescentes;
+- bloqueios operacionais;
+- estado final do dia.
+
+### 7-A.2. Vedação a trilhas independentes
+É vedado calcular pagamentos e switchings em trilhas independentes e reconciliá-los posteriormente em camadas de saída.
+
+Pagamentos, switchings, fontes, lotes, saldos, cobertura e status devem ser derivados do mesmo estado temporal canônico.
+
+### 7-A.3. Ledger canônico de eventos
+O motor diário deve produzir um **ledger canônico de eventos** contendo, no mínimo:
+
+- data do evento;
+- ordem intradiária;
+- tipo de evento;
+- pacote do dia;
+- conta, quando aplicável;
+- lote ou fonte de origem;
+- lote ou fonte de destino;
+- produto de origem;
+- produto de destino;
+- valor bruto;
+- imposto;
+- valor líquido;
+- saldo antes;
+- consumo;
+- saldo depois;
+- status do evento;
+- motivo de bloqueio;
+- impacto terminal estimado;
+- fonte decisória.
+
+Console, planilha, markdown, JSON e demais saídas devem ser renderizações desse ledger, não fontes alternativas de decisão.
+
+---
+
+## 7-B. Estados normativos de switching e fontes
+
+### 7-B.1. Estados normativos de switching
+Todo switching deve possuir estado operacional explícito. Os estados mínimos são:
+
+- candidato;
+- rejeitado;
+- promovido;
+- materializado;
+- consumido em pagamento;
+- bloqueado.
+
+Um switching candidato representa apenas uma oportunidade avaliada.
+
+Um switching promovido representa uma decisão selecionada pelo motor, mas só se torna fonte de pagamento quando materializado no estado temporal.
+
+Um switching materializado representa a efetiva transição de estado que cria ou atualiza uma fonte/lote disponível.
+
+Switching candidato ou promovido sem materialização não pode ser usado como fonte operacional de pagamento.
+
+### 7-B.2. Estados normativos de lote ou fonte
+Cada lote ou fonte deve possuir estado único e auditável em cada etapa temporal. Os estados mínimos são:
+
+- futuro;
+- disponível;
+- ativo aportado;
+- vencido normalizado;
+- bloqueado;
+- migrado por switching;
+- sintético pós-switching;
+- consumido;
+- residual;
+- exaurido.
+
+Fontes futuras, migradas, exauridas ou não materializadas não podem ser apresentadas como fonte operacional de pagamento.
+
+### 7-B.3. Campos operacionais e diagnósticos
+Campos operacionais devem conter apenas eventos, fontes, lotes e saldos materializados.
+
+Informações candidatas, estimadas ou diagnósticas devem ser identificadas como tais e não podem preencher campos operacionais.
+
+Produto destino, oportunidade de switching ou ganho estimado não equivalem a lote pós-switching materializado.
+
+---
+
+## 7-C. Regra de trajetória conjunta dos pacotes
+
+No pacote `pay_only`, os pagamentos devem consumir o estado disponível sem switching materializado no mesmo pacote.
+
+No pacote `switch_then_pay`, o pagamento deve consumir o estado pós-switching materializado.
+
+No pacote `pay_then_switch`, o switching deve consumir o estado residual após pagamento.
+
+A escolha do pacote deve considerar a trajetória completa de estado, e não apenas uma comparação local por conta ou por switching isolado.
 
 ---
 
@@ -395,7 +488,7 @@ Esse estado pós-pagamento deve ser entendido como o conjunto efetivamente reman
 ## 14. Valoração, rendimento e critério econômico
 
 ### 14.1. Submodelo de rendimento obrigatório
-É obrigatório usar o submodelo de rendimento e valoração já validado no projeto e alinhado à lógica da saída do console.
+É obrigatório usar o submodelo oficial de rendimento e valoração do projeto.
 
 ### 14.2. Função normativa do submodelo
 Esse submodelo fornece, no mínimo:
@@ -498,7 +591,7 @@ Todo pacote do dia deve começar nesta ordem obrigatória:
 3. manter o estado.
 
 #### `switch_only`
-3. executar o switching vencedor;  
+3. materializar o switching vencedor;  
 4. fechar o estado do dia.
 
 #### `pay_only`
@@ -506,14 +599,14 @@ Todo pacote do dia deve começar nesta ordem obrigatória:
 4. fechar o estado do dia.
 
 #### `switch_then_pay`
-3. executar switching sobre o conjunto pré-pagamento;  
-4. pagar integralmente as contas do dia no estado pós-switching;  
+3. materializar switching sobre o conjunto pré-pagamento;  
+4. pagar integralmente as contas do dia no estado pós-switching materializado;  
 5. fechar o estado do dia.
 
 #### `pay_then_switch`
 3. pagar integralmente as contas do dia;  
 4. construir o estado pós-pagamento;  
-5. executar switching sobre o estado pós-pagamento;  
+5. materializar switching sobre o estado pós-pagamento;  
 6. fechar o estado do dia.
 
 ### 16.4. Disponibilidade por etapa
@@ -551,10 +644,10 @@ Sensibilidades:
 Quando dois pacotes forem praticamente equivalentes, isto é:
 
 \[
-|Z_t^{(k_1)} - Z_t^{(k_2)}| \le arepsilon
+|Z_t^{(k_1)} - Z_t^{(k_2)}| \le \epsilon
 \]
 
-com \(arepsilon\) definido no `config` vigente como **parâmetro contratualmente único por baseline e auditável**, a decisão deve obedecer à seguinte ordem:
+com \(\epsilon\) definido no `config` oficial como **parâmetro contratualmente único e auditável**, a decisão deve obedecer à seguinte ordem:
 
 1. maior valor terminal líquido;
 2. maior liquidez residual útil;
@@ -575,7 +668,7 @@ A camada user-facing de validação diária deve ser compatível com:
 
 - este contrato mestre;
 - o anexo metodológico vinculante;
-- a baseline única vigente.
+- o contrato e o modelo oficiais.
 
 É vedado aceitar saída diária que:
 
@@ -596,7 +689,7 @@ As saídas operacionais do projeto devem ser:
 - não redundantes;
 - não duplicadas sem função;
 - legíveis para validação humana;
-- consistentes com a baseline vigente;
+- consistentes com a referência normativa vigente;
 - estratificadas por finalidade.
 
 É vedado gerar múltiplas saídas que repitam a mesma informação sem diferença clara de propósito.
@@ -620,6 +713,39 @@ Quando duas saídas coexistirem, deve ser possível identificar claramente:
 - qual é a saída detalhada;
 - qual é a saída oficial de auditoria;
 - qual é apenas apoio diagnóstico.
+
+### 19.2-A. Vedação à decisão em camadas de saída
+As camadas de saída são estritamente renderizadoras.
+
+Essa regra se aplica a:
+
+- saída canônica;
+- saída observável;
+- geração de planilha operacional;
+- console;
+- markdown;
+- JSON;
+- relatórios operacionais.
+
+Essas camadas não podem:
+
+- escolher lote sugerido;
+- substituir fonte de pagamento;
+- escolher pacote do dia;
+- alterar cobertura integral;
+- inferir lote pós-switching;
+- promover switching candidato;
+- preencher campo operacional com dado candidato;
+- recalcular saldo antes, consumo ou saldo depois;
+- transformar produto destino em lote;
+- mascarar status decisório.
+
+Qualquer inconsistência identificada nessas camadas deve ser tratada como falha da simulação temporal conjunta, e não corrigida localmente por fallback visual.
+
+### 19.2-B. Consistência obrigatória entre console e planilha
+Para qualquer data e conta, console, planilha e demais saídas oficiais devem derivar dos mesmos campos do ledger canônico.
+
+Campos como lote sugerido, lote reserva, pacote do dia, cobertura integral, status, motivo de bloqueio, destino de switching materializado, data de switching materializada, lote pós-switching materializado, saldo antes, consumo e saldo depois não podem divergir entre saídas.
 
 ### 19.3. Função do console
 O console é a **camada de leitura operacional rápida**.
@@ -720,13 +846,29 @@ As saídas oficiais devem favorecer:
 
 ---
 
+## 19-A. Gate de aderência ao contrato conjunto
+
+Antes de promover qualquer entrega funcional, deve ser verificado que:
+
+1. pagamentos consomem o estado temporal correto;
+2. switchings materializados alteram efetivamente o estado dos lotes;
+3. lotes migrados ou exauridos não reaparecem como fonte futura;
+4. campos operacionais não recebem informação candidata;
+5. console e planilha derivam da mesma fonte canônica;
+6. camadas de saída não executam fallback decisório;
+7. o pacote vencedor é resultado de trajetória conjunta de estado, e não de decisão local isolada.
+
+A violação de qualquer item acima deve bloquear a promoção funcional até que a causa seja corrigida na simulação temporal conjunta.
+
+---
+
 ## 20. Governança do repositório
 
 ### 20.1. Repositório oficial
 O repositório-base oficial é `payment-investment-allocation`.
 
-### 20.2. Entrega e versionamento
-Cada atualização deve ser entregue como repositório completo em `.zip`, com versionamento sequencial.
+### 20.2. Entrega e identificação
+Cada atualização deve ser entregue como repositório completo em `.zip`, com identificação sequencial de entrega.
 
 ### 20.3. Estrutura do `.zip`
 O `.zip` deve abrir sem pasta interna raiz, com os arquivos e pastas diretamente na raiz.
@@ -767,28 +909,25 @@ Eles servem para:
 - compreensão da evolução do projeto;
 - comparação metodológica histórica.
 
-### 21.3. Exemplos
-São históricos preservados, entre outros:
-
-- contratos V117;
-- referências V108;
-- suplementos V176 e V177;
-- demais documentos intermediários superados pela baseline única vigente.
+### 21.3. Vedação
+É vedado recuperar regra histórica para substituir o contrato ou o modelo oficial, salvo por revisão normativa explícita dos próprios documentos oficiais.
 
 ---
 
 ## 22. Relação entre contrato mestre e modelo metodológico
 
-O arquivo `relatorios/atuais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL_V182.md` permanece como **anexo metodológico vinculante** do projeto.
+O modelo matemático-estatístico-financeiro oficial permanece como **anexo metodológico vinculante** do projeto.
 
 A leitura correta é:
 
 - este contrato define a norma superior;
-- o anexo metodológico detalha a formulação matemática, econômica e estatística vinculada a esta norma;
-- ambos coexistem dentro da baseline única V183, sem competição normativa entre si.
+- o modelo oficial detalha a formulação matemática, econômica e estatística vinculada a esta norma;
+- ambos coexistem sem competição normativa entre si.
 
 ---
 
-## 23. Status final da V183
+## 23. Status final do contrato
 
-A V183 representa a baseline única vigente do projeto e a referência principal para sua continuidade contratual, metodológica e operacional.
+Este contrato representa a referência principal para a continuidade contratual, metodológica e operacional do projeto.
+
+Qualquer evolução funcional deve permanecer compatível com a fonte única de verdade temporal, o ledger canônico de eventos e a vedação de decisão em camadas de saída.
