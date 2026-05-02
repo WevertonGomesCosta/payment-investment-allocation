@@ -15,7 +15,7 @@ import pandas as pd
 
 from nucleo.calendario_financeiro import calcular_dias_lote, proximo_dia_util_bancario_em_ou_apos
 from nucleo.contexto_baseline import obter_limiar_residuo_resolvido
-from nucleo.nucleo_financeiro_minimo import executar_saque_lote
+from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
 from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
 
@@ -644,8 +644,9 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
     quadro = _quadro_futuro_preferencial(contexto)
     if not isinstance(quadro, pd.DataFrame) or len(quadro) == 0:
         return []
-    mapa_resumos = _mapa_resumos_futuros(contexto, quadro)
     mapa_central = _mapa_pagamentos_central(contexto)
+    ledger_eventos = construir_ledger_temporal_conjunto(quadro, mapa_central)
+    ledger_por_pagamento = {str(e.get("pagamento_id") or "").strip(): e for e in ledger_eventos}
     mapa_migrados_global = _mapa_global_lotes_migrados_pos_switching(
         PacoteSaidaCanonica(versao='', switchings=_construir_switchings(contexto))
     )
@@ -661,8 +662,16 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         pagamento_id = str(row_dict.get('pagamento_id') or '').strip()
         valor = round(float(row.get('valor_pagamento') or 0.0), 2)
         central = mapa_central.get(pagamento_id, {})
-        resumo = _resumo_futuro(contexto, pagamento_id, row_dict, mapa_resumos, mapa_central)
-        liquido = _round_monetario(resumo.get('Líquido'), '')
+        ledger = ledger_por_pagamento.get(pagamento_id, {})
+        resumo = {
+            'Saldo Antes': ledger.get('saldo_antes', ''),
+            'Bruto': ledger.get('bruto', ''),
+            'Imposto': ledger.get('imposto', ''),
+            'Líquido': ledger.get('liquido', ''),
+            'Saldo Remanescente': ledger.get('saldo_depois', ''),
+            'Lote sugerido': ledger.get('lote_fonte_origem', ''),
+        }
+        liquido = _round_monetario(ledger.get('liquido'), '')
         estrategia_real = _primeiro_texto_preenchido(
             row_dict.get('estrategia_recomendada'),
             central.get('estrategia_recomendada'),
@@ -742,23 +751,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real) if not _eh_indeterminado(lote_sugerido_real) else 'não determinado'
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
-        cobertura_real = row_dict.get('cobertura_integral_recomendada')
-        if cobertura_real is None:
-            cobertura_real = central.get('pagamento_totalmente_coberto_central')
-        if isinstance(cobertura_real, bool):
-            cobertura_txt = 'sim' if cobertura_real else 'não'
-        elif liquido != '':
-            cobertura_txt = 'sim' if float(liquido) + 0.01 >= valor else 'não'
-        else:
-            cobertura_txt = 'não determinado'
+        cobertura_txt = str(ledger.get('cobertura_integral') or 'não determinado')
         if (not _eh_indeterminado(lote_sugerido_real)) and liquido in {'', None}:
             lote_sugerido_real = ''
-            cobertura_txt = 'não'
         if not fonte_operacional_auditavel:
             lote_sugerido = 'não determinado'
-            cobertura_txt = 'não'
-        elif _eh_indeterminado(lote_sugerido_real):
-            cobertura_txt = 'sim' if (fonte_auditavel_explicita and liquido not in {'', None} and float(liquido) + 0.01 >= valor) else 'não'
         status_row_base = str(row_dict.get('status_recomendacao') or '').strip()
         motivo_row_base = str(row_dict.get('motivo_bloqueio_lote') or '').strip()
         data_sw_ref = row_dict.get('data_switching_referencia') if row_dict.get('data_switching_referencia') is not None else row_dict.get('data_sugerida_switching')
@@ -845,39 +842,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Necessita switching': necessita_switching_txt if necessita_switching_txt in {'sim', 'não'} else _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
             'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',
-            'Motivo bloqueio lote': (
-                'fonte_pos_switching_nao_materializada'
-                if sem_fonte_pos_switch_materializada
-                else (
-                'conflito_intradiario_switching_pagamento'
-                if conflito_intradiario_real and motivo_row_base in {'', 'n/d'}
-                else (
-                    'valores_financeiros_nao_materializados'
-                    if sem_saldo_temporal_auditavel and motivo_row_base in {'', 'n/d'}
-                    else (_texto_decisao(motivo_row_base) if motivo_row_base else '')
-                )
-                )
-            ),
-            'Status recomendação': (
-                'fonte_pos_switching_nao_materializada'
-                if sem_fonte_pos_switch_materializada
-                else (
-                'precedencia_intradiaria_nd'
-                if conflito_intradiario_real and status_row_base in {'', 'ok', 'não determinado'}
-                else (
-                    'sem_saldo_temporal_auditavel'
-                    if sem_saldo_temporal_auditavel and status_row_base in {'', 'ok', 'não determinado'}
-                    else (
-                        'sem_fonte_auditavel'
-                        if lote_sugerido == 'não determinado' and status_row_base in {'', 'ok', 'não determinado'}
-                        else (_texto_decisao(status_row_base) if status_row_base else 'não determinado')
-                    )
-                )
-                )
-            ),
-            'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), _round_monetario(resumo.get('Saldo Antes'), 'n/d')) if fonte_operacional_auditavel else 'n/d',
-            'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), _round_monetario(resumo.get('Líquido'), 'n/d')) if fonte_operacional_auditavel else 'n/d',
-            'Saldo temp. dep.': _round_monetario(row_dict.get('saldo_residual_temporal_pos_recomendacao'), _round_monetario(resumo.get('Saldo Remanescente'), 'n/d')) if fonte_operacional_auditavel else 'n/d',
+            'Motivo bloqueio lote': _texto_decisao(ledger.get('motivo_bloqueio') or motivo_row_base),
+            'Status recomendação': _texto_decisao(ledger.get('status') or status_row_base),
+            'Saldo temp. ant.': _round_monetario(ledger.get('saldo_antes'), 'n/d') if fonte_operacional_auditavel else 'n/d',
+            'Consumo temp.': _round_monetario(ledger.get('consumo'), 'n/d') if fonte_operacional_auditavel else 'n/d',
+            'Saldo temp. dep.': _round_monetario(ledger.get('saldo_depois'), 'n/d') if fonte_operacional_auditavel else 'n/d',
             'Pos sw?': 'sim' if bool(row_dict.get('pos_sw_tentativa')) else 'não',
             'Fonte pos sw': _texto_decisao(row_dict.get('lote_nome_operacional') or row_dict.get('fonte_pos_sw')) if str(row_dict.get('lote_nome_operacional') or row_dict.get('fonte_pos_sw') or '').strip() else 'n/d',
             'Saldo pos sw': _round_monetario(row_dict.get('saldo_pos_sw'), 'n/d'),
