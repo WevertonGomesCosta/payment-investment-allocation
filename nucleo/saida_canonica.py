@@ -648,6 +648,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         PacoteSaidaCanonica(versao='', switchings=_construir_switchings(contexto))
     )
     linhas: list[dict[str, Any]] = []
+    lotes_exauridos = {
+        str(getattr(l, 'id', '')).strip()
+        for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])
+        if round(float(getattr(l, 'principal_remanescente', 0.0) or 0.0), 2) <= 0.01
+    }
     for _, row in quadro.iterrows():
         row_dict = row.to_dict()
         pagamento_id = str(row_dict.get('pagamento_id') or '').strip()
@@ -716,6 +721,12 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
                 if str(info.get('data_switching') or '') <= str(row.get('data_pagamento') or '') and str(info.get('novo_lote') or '').strip():
                     lote_sugerido_real = str(info.get('novo_lote') or '').strip()
                     break
+        def _filtrar_exauridos(valor: Any) -> str:
+            partes = [p.strip() for p in str(valor or '').split('+') if p.strip()]
+            partes_validas = [p for p in partes if p not in lotes_exauridos]
+            return ' + '.join(partes_validas)
+        lote_sugerido_real = _filtrar_exauridos(lote_sugerido_real)
+        lote_reserva_real = _filtrar_exauridos(lote_reserva_real)
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real) if lote_sugerido_real else 'não determinado'
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
@@ -728,11 +739,14 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             cobertura_txt = 'sim' if float(liquido) + 0.01 >= valor else 'não'
         else:
             cobertura_txt = 'não determinado'
-        origem_switching = (
-            'motor_pagamento'
-            if str(row_dict.get('produto_destino_switching') or '').strip()
-            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
-        )
+        if lote_sugerido_real and liquido in {'', None}:
+            liquido = valor
+            resumo['Líquido'] = valor
+            resumo['Saldo Antes'] = _round_monetario(resumo.get('Saldo Antes'), valor)
+            resumo['Bruto'] = _round_monetario(resumo.get('Bruto'), valor)
+            resumo['Imposto'] = _round_monetario(resumo.get('Imposto'), 0.0)
+            resumo['Saldo Remanescente'] = _round_monetario(resumo.get('Saldo Remanescente'), max(float(resumo['Saldo Antes']) - float(valor), 0.0) if str(resumo.get('Saldo Antes') or '').strip() not in {'', 'n/d'} else 'n/d')
+            cobertura_txt = 'sim'
         linhas.append({
             **({
                 'Motivo pos sw': (
