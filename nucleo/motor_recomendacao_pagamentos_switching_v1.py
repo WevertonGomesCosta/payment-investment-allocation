@@ -723,11 +723,25 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         status_inicial = str(melhor.get('status_recomendacao') or '').strip()
         motivo_inicial = str(melhor.get('motivo_bloqueio_lote') or '').strip()
         sem_saldo_temporal = float(melhor.get('valor_residual_temporal_lote') or 0.0) <= 0.0
+        info_intradia = _info_switching_lote(mapa_switching_janela, lote_recomendado_origem)
+        data_switching_janela = info_intradia.get('data_switching_janela')
+        conflito_intradia_janela = bool(
+            data_switching_janela is not None
+            and data_pagamento is not None
+            and data_switching_janela == data_pagamento
+        )
+        lote_migrado_antes_pagamento = bool(
+            data_switching_janela is not None
+            and data_pagamento is not None
+            and data_switching_janela < data_pagamento
+        )
         invalida_operacional = bool(
             bloqueio_janela
             or lote_nd
             or status_inicial == 'lote_ja_migrado_janela'
             or sem_saldo_temporal
+            or conflito_intradia_janela
+            or lote_migrado_antes_pagamento
         )
         status_final = status_inicial
         motivo_final = motivo_inicial
@@ -744,9 +758,12 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             melhor['saldo_temporal_antes_recomendacao'] = ''
             melhor['consumo_residual_temporal_estimado'] = ''
             melhor['saldo_residual_temporal_pos_recomendacao'] = ''
-            if bloqueio_janela or (conflito_intradia_sug or conflito_intradia_res):
+            if conflito_intradia_janela:
                 status_final = 'precedencia_intradiaria_nd'
                 motivo_final = motivo_final or 'conflito_intradiario_switching_pagamento'
+            elif bloqueio_janela or lote_migrado_antes_pagamento:
+                status_final = 'lote_ja_migrado_janela'
+                motivo_final = motivo_final or 'lote_ja_migrado_janela'
             elif sem_saldo_temporal:
                 status_final = 'sem_saldo_temporal_auditavel'
                 motivo_final = motivo_final or 'sem_saldo_temporal_auditavel'
@@ -758,7 +775,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             status_final = 'sem_fonte_auditavel'
             motivo_final = motivo_final or 'sem_fonte_auditavel'
 
-        if bloqueio_janela:
+        if invalida_operacional or bloqueio_janela:
             melhor['saldo_temporal_antes_recomendacao'] = ''
             melhor['consumo_residual_temporal_estimado'] = ''
             melhor['saldo_residual_temporal_pos_recomendacao'] = ''
@@ -785,7 +802,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'subclasse_pagamento_operacional': subclasse,
             'estrategia_recomendada': melhor['estrategia'],
             'lote_recomendado': lote_final,
-            'lote_recomendado_consumivel': melhor.get('lote_recomendado_consumivel') if melhor.get('lote_recomendado_consumivel') is not None else ('' if bloqueio_janela else (melhor.get('lote_recomendado') or '')),
+            'lote_recomendado_consumivel': lote_consumivel_final if lote_consumivel_final is not None else '',
             'lote_recomendado_rotulo': melhor.get('lote_recomendado_rotulo') or '',
             'lote_reserva': melhor.get('lote_reserva') or '',
             'necessidade_switching': bool(melhor.get('necessidade_switching')),
@@ -803,9 +820,9 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'materialidade_minima_switching': limiar_switch,
             'valor_residual_temporal_lote': round(float(melhor.get('valor_residual_temporal_lote') or 0.0), 2),
             'fracao_residual_temporal_lote': round(float(melhor.get('fracao_residual_temporal_lote') or 0.0), 6),
-            'consumo_residual_temporal_estimado': round(float(melhor.get('consumo_residual_temporal_estimado') or 0.0), 2),
-            'saldo_residual_temporal_pos_recomendacao': round(float(melhor.get('saldo_residual_temporal_pos_recomendacao') or 0.0), 2),
-            'saldo_temporal_antes_recomendacao': round(float(melhor.get('saldo_temporal_antes_recomendacao') or 0.0), 2),
+            'consumo_residual_temporal_estimado': '' if melhor.get('consumo_residual_temporal_estimado') in {'', None} else round(float(melhor.get('consumo_residual_temporal_estimado') or 0.0), 2),
+            'saldo_residual_temporal_pos_recomendacao': '' if melhor.get('saldo_residual_temporal_pos_recomendacao') in {'', None} else round(float(melhor.get('saldo_residual_temporal_pos_recomendacao') or 0.0), 2),
+            'saldo_temporal_antes_recomendacao': '' if melhor.get('saldo_temporal_antes_recomendacao') in {'', None} else round(float(melhor.get('saldo_temporal_antes_recomendacao') or 0.0), 2),
             'fallback_automatico_sem_switching': bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching'),
             'motivo_fallback_automatico': motivo_fallback_automatico if bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching') else '',
             'motivo_recomendacao': melhor.get('motivo_recomendacao') or '',
