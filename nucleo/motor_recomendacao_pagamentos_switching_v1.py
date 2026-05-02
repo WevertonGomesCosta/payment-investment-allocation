@@ -65,6 +65,74 @@ def _rotulo_candidato(row: pd.Series | dict[str, Any]) -> str:
     return str(row.get('produto_nome_canonico') or row.get('fonte_id') or '').strip()
 
 
+def _data_switching_janela(row: pd.Series | dict[str, Any]) -> date | None:
+    for campo in ('data_sugerida_switching', 'data_evento', 'data_execucao', 'data'):
+        valor = _coerce_date(row.get(campo) if hasattr(row, 'get') else None)
+        if valor is not None:
+            return valor
+    return None
+
+
+def _mapa_switching_janela_por_lote(quadro_switching: pd.DataFrame, switching_economico_shadow: Any) -> dict[str, dict[str, Any]]:
+    mapa: dict[str, dict[str, Any]] = {}
+
+    def _registrar(row: dict[str, Any]) -> None:
+        lote = str(row.get('lote_id') or row.get('Lote origem') or '').strip()
+        if not lote:
+            return
+        data_sw = _data_switching_janela(row)
+        if data_sw is None:
+            return
+        atual = mapa.get(lote)
+        if atual is None or data_sw < atual['data_switching_janela']:
+            mapa[lote] = {
+                'data_switching_janela': data_sw,
+                'destino_janela': str(
+                    row.get('produto_destino_nome')
+                    or row.get('produto_destino_key')
+                    or row.get('Destino')
+                    or ''
+                ).strip(),
+            }
+
+    if quadro_switching is not None and not quadro_switching.empty:
+        for _, row in quadro_switching.iterrows():
+            recomendado = bool(row.get('recomendado_shadow', row.get('elegivel_shadow', False)))
+            if not recomendado:
+                continue
+            _registrar(row.to_dict() if hasattr(row, 'to_dict') else dict(row))
+
+    plano_shadow = getattr(switching_economico_shadow, 'plano_shadow', None) if switching_economico_shadow is not None else None
+    if isinstance(plano_shadow, pd.DataFrame) and len(plano_shadow):
+        for _, row in plano_shadow.iterrows():
+            recomendado = bool(row.get('recomendado_shadow', True))
+            if not recomendado:
+                continue
+            _registrar(row.to_dict())
+    return mapa
+
+
+def _normalizar_chave_lote(valor: Any) -> str:
+    txt = str(valor or '').strip().lower()
+    txt = txt.replace('lote ', '').replace('lote', '').strip()
+    return ''.join(ch for ch in txt if ch.isalnum())
+
+
+def _info_switching_lote(mapa_switching_janela: dict[str, dict[str, Any]], lote_id: Any) -> dict[str, Any]:
+    chave = str(lote_id or '').strip()
+    if not chave:
+        return {}
+    if chave in mapa_switching_janela:
+        return mapa_switching_janela.get(chave, {})
+    norm = _normalizar_chave_lote(chave)
+    if not norm:
+        return {}
+    for k, v in mapa_switching_janela.items():
+        if _normalizar_chave_lote(k) == norm:
+            return v
+    return {}
+
+
 def _aplicar_saldo_temporal_candidatos(
     candidatos: pd.DataFrame,
     saldo_residual_temporal_por_lote: dict[str, float],
@@ -83,6 +151,177 @@ def _aplicar_saldo_temporal_candidatos(
         elegiveis.append(valor > 0.01)
     ajustado['valor_liquido_disponivel'] = valores
     return ajustado[elegiveis].copy()
+
+
+def _materializar_fontes_pos_switching_janela(
+    candidatos: pd.DataFrame,
+    mapa_switching_janela: dict[str, dict[str, Any]],
+    data_pagamento: date | None,
+    saldo_referencia_por_lote: dict[str, float] | None = None,
+    saldo_inicial_temporal_por_lote: dict[str, float] | None = None,
+    saldo_residual_temporal_por_lote: dict[str, float] | None = None,
+) -> pd.DataFrame:
+    if candidatos is None or candidatos.empty or data_pagamento is None or not mapa_switching_janela:
+        return candidatos, {}
+    base = candidatos.copy()
+    linhas_pos_switching: list[dict[str, Any]] = []
+    diagnostico: dict[str, dict[str, Any]] = {}
+    mapa_mes_pt = {
+        1: 'jan.', 2: 'fev.', 3: 'mar.', 4: 'abr.', 5: 'mai.', 6: 'jun.',
+        7: 'jul.', 8: 'ago.', 9: 'set.', 10: 'out.', 11: 'nov.', 12: 'dez.',
+    }
+
+    def _fmt_valor_lote(valor: float) -> str:
+        v = round(float(valor or 0.0), 2)
+        if abs(v - int(v)) <= 0.0001:
+            return f"{int(v)}"
+        return f"{v:.2f}".replace('.', ',')
+
+    grupos: dict[tuple[str, str], dict[str, Any]] = {}
+    lotes_processados: set[str] = set()
+    for _, row in base.iterrows():
+        lote = str(row.get('lote_id') or '').strip()
+        if not lote:
+            continue
+        lotes_processados.add(lote)
+        info_janela = _info_switching_lote(mapa_switching_janela, lote)
+        data_sw = info_janela.get('data_switching_janela')
+        if data_sw is None:
+            continue
+        if data_sw > data_pagamento:
+            diagnostico[lote] = {
+                'pos_sw_tentativa': True,
+                'pos_sw_criada': False,
+                'fonte_pos_sw': '',
+                'saldo_pos_sw': 0.0,
+                'motivo_pos_sw': 'nao_criada',
+                'destino_pos_sw': str(info_janela.get('destino_janela') or '').strip(),
+                'origem_saldo_pos_sw': 'nao_encontrado',
+                'saldo_pos_sw_bruto_candidato': 0.0,
+                'saldo_pos_sw_liquido_candidato': 0.0,
+                'data_base_saldo_pos_sw': data_pagamento,
+                'motivo_saldo_pos_sw': 'saldo_zero_ou_ausente',
+            }
+            continue
+        valor = round(float(row.get('valor_liquido_disponivel') or row.get('valor_liquido') or 0.0), 2)
+        if valor <= 0.01:
+            diagnostico[lote] = {
+                'pos_sw_tentativa': True,
+                'pos_sw_criada': False,
+                'fonte_pos_sw': '',
+                'saldo_pos_sw': valor,
+                'motivo_pos_sw': 'sem_saldo_confiavel',
+                'destino_pos_sw': str(info_janela.get('destino_janela') or '').strip(),
+                'origem_saldo_pos_sw': 'saldo_temporal_lote',
+                'saldo_pos_sw_bruto_candidato': round(float(row.get('valor_bruto_disponivel') or row.get('valor_bruto') or 0.0), 2),
+                'saldo_pos_sw_liquido_candidato': valor,
+                'data_base_saldo_pos_sw': row.get('data_pagamento') or data_pagamento,
+                'motivo_saldo_pos_sw': 'saldo_zero_ou_ausente',
+            }
+            continue
+        destino = str(info_janela.get('destino_janela') or '').strip()
+        data_sw_txt = data_sw.isoformat() if hasattr(data_sw, 'isoformat') else str(data_sw)
+        chave = (data_sw_txt, destino)
+        grupo = grupos.setdefault(chave, {
+            'data_sw': data_sw,
+            'destino': destino,
+            'valor_liquido_total': 0.0,
+            'valor_bruto_total': 0.0,
+            'lotes_origem': [],
+            'base_row': row.to_dict(),
+        })
+        grupo['valor_liquido_total'] = round(float(grupo['valor_liquido_total']) + valor, 2)
+        grupo['valor_bruto_total'] = round(float(grupo['valor_bruto_total']) + float(row.get('valor_bruto_disponivel') or row.get('valor_bruto') or valor), 2)
+        grupo['lotes_origem'].append(lote)
+        diagnostico[lote] = {
+            'pos_sw_tentativa': True,
+            'pos_sw_criada': True,
+            'fonte_pos_sw': '',
+            'lote_nome_operacional_pos_sw': '',
+            'saldo_pos_sw': valor,
+            'motivo_pos_sw': 'materializada',
+            'destino_pos_sw': destino,
+            'origem_saldo_pos_sw': 'saldo_temporal_lote',
+            'saldo_pos_sw_bruto_candidato': round(float(row.get('valor_bruto_disponivel') or row.get('valor_bruto') or valor), 2),
+            'saldo_pos_sw_liquido_candidato': valor,
+            'data_base_saldo_pos_sw': row.get('data_pagamento') or data_pagamento,
+            'motivo_saldo_pos_sw': 'saldo_encontrado',
+        }
+    for (data_sw_txt, destino), grupo in grupos.items():
+        valor_total = round(float(grupo.get('valor_liquido_total') or 0.0), 2)
+        if valor_total <= 0.01:
+            continue
+        data_sw = grupo.get('data_sw')
+        lotes_origem = [str(x) for x in grupo.get('lotes_origem', []) if str(x).strip()]
+        mes_sw = mapa_mes_pt.get(data_sw.month, 'n/d') if hasattr(data_sw, 'month') else 'n/d'
+        lote_nome_operacional = f"Lote {_fmt_valor_lote(valor_total)} {mes_sw}"
+        fonte_pos_sw = f"pos_switch::{data_sw_txt}::{destino or 'destino'}::{' + '.join(lotes_origem)}"
+        linha = dict(grupo.get('base_row') or {})
+        linha['lote_id'] = fonte_pos_sw
+        linha['lote_id_sintetico'] = fonte_pos_sw
+        linha['lote_nome_operacional'] = lote_nome_operacional
+        linha['lote_origem_pos_switching'] = ' + '.join(lotes_origem)
+        linha['fonte_origem_pos_switching'] = 'estado_pos_switching_janela'
+        linha['destino_switching_janela'] = destino
+        linha['data_switching_janela'] = data_sw
+        linha['valor_liquido_disponivel'] = valor_total
+        linha['valor_bruto_disponivel'] = round(float(grupo.get('valor_bruto_total') or valor_total), 2)
+        if destino:
+            linha['produto_nome_canonico'] = destino
+        linhas_pos_switching.append(linha)
+        if saldo_inicial_temporal_por_lote is not None:
+            saldo_inicial_temporal_por_lote[fonte_pos_sw] = valor_total
+        if saldo_residual_temporal_por_lote is not None:
+            saldo_residual_temporal_por_lote[fonte_pos_sw] = valor_total
+        for lote in lotes_origem:
+            if lote in diagnostico:
+                diagnostico[lote]['fonte_pos_sw'] = fonte_pos_sw
+                diagnostico[lote]['lote_nome_operacional_pos_sw'] = lote_nome_operacional
+                diagnostico[lote]['saldo_pos_sw'] = valor_total
+                diagnostico[lote]['saldo_pos_sw_liquido_candidato'] = valor_total
+                diagnostico[lote]['saldo_pos_sw_bruto_candidato'] = round(float(grupo.get('valor_bruto_total') or valor_total), 2)
+
+    saldo_ref = saldo_referencia_por_lote or {}
+    for lote, info_janela in mapa_switching_janela.items():
+        lote = str(lote or '').strip()
+        if not lote or lote in lotes_processados:
+            continue
+        data_sw = info_janela.get('data_switching_janela')
+        if data_sw is None or data_pagamento is None or data_sw > data_pagamento:
+            continue
+        valor_ref = round(float(saldo_ref.get(lote, 0.0) or 0.0), 2)
+        diagnostico[lote] = {
+            'pos_sw_tentativa': True,
+            'pos_sw_criada': bool(valor_ref > 0.01),
+            'fonte_pos_sw': '',
+            'lote_nome_operacional_pos_sw': '',
+            'saldo_pos_sw': valor_ref,
+            'motivo_pos_sw': 'materializada' if valor_ref > 0.01 else 'sem_saldo_confiavel',
+            'destino_pos_sw': str(info_janela.get('destino_janela') or '').strip(),
+            'origem_saldo_pos_sw': 'saldo_temporal_lote',
+            'saldo_pos_sw_bruto_candidato': valor_ref,
+            'saldo_pos_sw_liquido_candidato': valor_ref,
+            'data_base_saldo_pos_sw': data_sw,
+            'motivo_saldo_pos_sw': 'ok' if valor_ref > 0.01 else 'saldo_zero_ou_ausente',
+        }
+        if valor_ref <= 0.01:
+            continue
+        data_sw_txt = data_sw.isoformat() if hasattr(data_sw, 'isoformat') else str(data_sw)
+        destino = str(info_janela.get('destino_janela') or '').strip()
+        mes_sw = mapa_mes_pt.get(data_sw.month, 'n/d') if hasattr(data_sw, 'month') else 'n/d'
+        lote_nome_operacional = f"Lote {_fmt_valor_lote(valor_ref)} {mes_sw}"
+        fonte_pos_sw = f"pos_switch::{data_sw_txt}::{destino or 'destino'}::{lote}"
+        diagnostico[lote]['fonte_pos_sw'] = fonte_pos_sw
+        diagnostico[lote]['lote_nome_operacional_pos_sw'] = lote_nome_operacional
+        linha = {'lote_id': fonte_pos_sw, 'lote_id_sintetico': fonte_pos_sw, 'lote_nome_operacional': lote_nome_operacional, 'lote_origem_pos_switching': lote, 'fonte_origem_pos_switching': 'estado_pos_switching_janela', 'destino_switching_janela': destino, 'data_switching_janela': data_sw, 'valor_liquido_disponivel': valor_ref, 'valor_bruto_disponivel': valor_ref, 'produto_nome_canonico': destino}
+        linhas_pos_switching.append(linha)
+        if saldo_inicial_temporal_por_lote is not None:
+            saldo_inicial_temporal_por_lote[fonte_pos_sw] = valor_ref
+        if saldo_residual_temporal_por_lote is not None:
+            saldo_residual_temporal_por_lote[fonte_pos_sw] = valor_ref
+    if not linhas_pos_switching:
+        return candidatos, diagnostico
+    return pd.concat([base, pd.DataFrame(linhas_pos_switching)], ignore_index=True), diagnostico
 
 
 def _consumir_saldo_temporal(
@@ -167,6 +406,8 @@ def _melhor_switching_para_pagamento(
             'valor_liquido_origem': valor_base,
             'valor_residual_temporal_lote': valor_residual_temporal,
             'fracao_residual_temporal_lote': round(fracao_residual_temporal, 6),
+            'score_switch_shadow': round(float(melhor.get('score_switch_shadow') or 0.0), 4),
+            'ordem_switch_shadow': int(melhor.get('ordem_prioridade') or 0) if str(melhor.get('ordem_prioridade') or '').strip() else 0,
         })
     if not melhores:
         return {}
@@ -195,6 +436,7 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
     quadro_local = decisao_local_v1.quadro_decisao_local_v1.copy() if decisao_local_v1 is not None else pd.DataFrame()
     quadro_central = recomputacao_sequencial_central_v1.quadro_recomputacao_sequencial_central.copy() if recomputacao_sequencial_central_v1 is not None else pd.DataFrame()
     quadro_switching = switching_economico_shadow.quadro_oportunidades.copy() if switching_economico_shadow is not None else pd.DataFrame()
+    mapa_switching_janela = _mapa_switching_janela_por_lote(quadro_switching, switching_economico_shadow)
 
     quadro_fontes_temporais = quadro_fontes[quadro_fontes['lote_id'].fillna('').astype(str).str.strip() != ''].copy()
     saldo_inicial_temporal_por_lote = {
@@ -222,6 +464,27 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         subclasse = str(row_central.get('subclasse_pagamento_operacional') or '')
 
         candidatos = quadro_fontes[quadro_fontes['pagamento_id'] == pagamento_id].copy()
+        candidatos, diagnostico_pos_switch = _materializar_fontes_pos_switching_janela(
+            candidatos,
+            mapa_switching_janela,
+            data_pagamento,
+            saldo_referencia_por_lote=saldo_residual_temporal_por_lote,
+            saldo_inicial_temporal_por_lote=saldo_inicial_temporal_por_lote,
+            saldo_residual_temporal_por_lote=saldo_residual_temporal_por_lote,
+        )
+        lotes_descartados_pos_sw: set[str] = set()
+        if data_pagamento is not None and not candidatos.empty:
+            def _manter_candidato(r: pd.Series) -> bool:
+                lote_id = str(r.get('lote_id') or '').strip()
+                if lote_id.startswith('pos_switch::'):
+                    return True
+                info = _info_switching_lote(mapa_switching_janela, lote_id)
+                bloqueado = bool(info and info.get('data_switching_janela') is not None and info.get('data_switching_janela') <= data_pagamento)
+                if bloqueado:
+                    lotes_descartados_pos_sw.add(lote_id)
+                return not bloqueado
+
+            candidatos = candidatos[candidatos.apply(_manter_candidato, axis=1)].copy()
         candidatos = _aplicar_saldo_temporal_candidatos(candidatos, saldo_residual_temporal_por_lote)
         candidatos = candidatos.sort_values(by=['valor_liquido_disponivel', 'lote_id'], ascending=[False, True], kind='stable')
 
@@ -231,6 +494,21 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         score_no_switch = round(float(row_central.get('score_proxy_central') or row_local.get('custo_economico_proxy') or 0.0), 4)
         integral_no_switch = bool(row_central.get('pagamento_totalmente_coberto_central') or row_local.get('pagamento_totalmente_coberto'))
         lote_reserva, fonte_reserva = _selecionar_backup(candidatos, lote_no_switch, fonte_no_switch)
+        lotes_validos = set(candidatos['lote_id'].fillna('').astype(str).str.strip().tolist()) if not candidatos.empty else set()
+        if lote_no_switch and lote_no_switch not in lotes_validos:
+            if not candidatos.empty:
+                cand_base = candidatos.iloc[0].to_dict()
+                lote_no_switch = str(cand_base.get('lote_id') or '').strip()
+                fonte_no_switch = str(cand_base.get('fonte_id') or '')
+                cobertura_no_switch = round(min(valor_pagamento, float(cand_base.get('valor_liquido_disponivel') or 0.0)), 2)
+                integral_no_switch = bool(cobertura_no_switch + 0.009 >= valor_pagamento)
+                lote_reserva, fonte_reserva = _selecionar_backup(candidatos, lote_no_switch, fonte_no_switch)
+            else:
+                lote_no_switch = ''
+                fonte_no_switch = ''
+                cobertura_no_switch = 0.0
+                integral_no_switch = False
+                lote_reserva, fonte_reserva = _selecionar_backup(candidatos, '', '')
 
         estrategia_base = {
             'estrategia': 'sem_switching',
@@ -245,10 +523,23 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'cobertura_esperada': cobertura_no_switch,
             'cobertura_integral': integral_no_switch,
             'score_base': score_no_switch,
-            'tipo_fonte_recomendada': str(row_central.get('tipo_fonte_final') or row_local.get('tipo_fonte_escolhida') or ''),
-            'motivo_recomendacao': 'usar a recomendação central atual sem switching',
+            'tipo_fonte_recomendada': ('estado_pos_switching_janela' if lote_no_switch.startswith('pos_switch::') else str(row_central.get('tipo_fonte_final') or row_local.get('tipo_fonte_escolhida') or '')),
+            'motivo_recomendacao': ('fonte pós-switching já materializada usada como base' if lote_no_switch.startswith('pos_switch::') else 'usar a recomendação central atual sem switching'),
             'comparador_rank': (0 if integral_no_switch else 1, -cobertura_no_switch, 0.0, score_no_switch),
         }
+        if lote_no_switch.startswith('pos_switch::'):
+            estrategia_base['lote_recomendado_consumivel'] = lote_no_switch
+        info_janela_lote_base = _info_switching_lote(mapa_switching_janela, lote_no_switch)
+        if (
+            lote_no_switch
+            and data_pagamento is not None
+            and info_janela_lote_base
+            and info_janela_lote_base.get('data_switching_janela') is not None
+            and info_janela_lote_base.get('data_switching_janela') <= data_pagamento
+        ):
+            estrategia_base['lote_recomendado'] = 'não determinado'
+            estrategia_base['motivo_recomendacao'] = 'lote original migrado por switching da janela antes do pagamento'
+            estrategia_base['status_recomendacao'] = 'lote_ja_migrado_janela'
 
         estrategia_switch = _melhor_switching_para_pagamento(
             candidatos,
@@ -273,6 +564,13 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
                     score_no_switch,
                 ),
             })
+            data_sw = _coerce_date(estrategia_switch.get('data_sugerida_switching'))
+            if data_sw is not None and data_pagamento is not None and data_sw <= data_pagamento:
+                estrategia_switch['lote_recomendado_rotulo'] = _rotulo_candidato({
+                    'lote_id': '',
+                    'produto_nome_canonico': estrategia_switch.get('produto_destino_switching') or 'não determinado',
+                    'fonte_id': estrategia_switch.get('fonte_origem_id') or '',
+                }) or 'não determinado'
 
         estrategia_combo: dict[str, Any] = {}
         top = []
@@ -374,6 +672,44 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             if estrategia_combo and estrategia_combo.get('cobertura_integral') and not bool(getattr(melhor, 'get', lambda *_: False)('cobertura_integral')):
                 melhor = estrategia_combo
 
+        lote_recomendado_candidato = str(melhor.get('lote_recomendado') or '').strip()
+        lote_recomendado_origem = lote_recomendado_candidato.replace('pos_switch::', '') if lote_recomendado_candidato.startswith('pos_switch::') else lote_recomendado_candidato
+        info_janela_lote_final = _info_switching_lote(mapa_switching_janela, lote_recomendado_candidato)
+        bloqueio_janela = bool(
+            lote_recomendado_candidato
+            and data_pagamento is not None
+            and info_janela_lote_final
+            and info_janela_lote_final.get('data_switching_janela') is not None
+            and info_janela_lote_final.get('data_switching_janela') <= data_pagamento
+        )
+        if bloqueio_janela:
+            melhor['lote_recomendado'] = 'não determinado'
+            melhor['lote_recomendado_consumivel'] = ''
+            melhor['motivo_recomendacao'] = 'lote original migrado por switching da janela antes do pagamento'
+        fonte_pos_switching = lote_recomendado_candidato.startswith('pos_switch::')
+        lote_origem_pos_switching = str(melhor.get('lote_origem_pos_switching') or (lote_recomendado_candidato.replace('pos_switch::', '') if fonte_pos_switching else '')).strip()
+        diag_pos_sw = diagnostico_pos_switch.get(lote_recomendado_origem, {})
+        pos_sw_tentativa = bool(diag_pos_sw.get('pos_sw_tentativa'))
+        fonte_pos_sw = str(diag_pos_sw.get('fonte_pos_sw') or '')
+        lote_nome_operacional_pos_sw = str(diag_pos_sw.get('lote_nome_operacional_pos_sw') or '')
+        saldo_pos_sw = round(float(diag_pos_sw.get('saldo_pos_sw') or 0.0), 2)
+        motivo_pos_sw = str(diag_pos_sw.get('motivo_pos_sw') or '')
+        origem_saldo_pos_sw = str(diag_pos_sw.get('origem_saldo_pos_sw') or '')
+        saldo_pos_sw_bruto_candidato = round(float(diag_pos_sw.get('saldo_pos_sw_bruto_candidato') or 0.0), 2)
+        saldo_pos_sw_liquido_candidato = round(float(diag_pos_sw.get('saldo_pos_sw_liquido_candidato') or 0.0), 2)
+        data_base_saldo_pos_sw = diag_pos_sw.get('data_base_saldo_pos_sw')
+        motivo_saldo_pos_sw = str(diag_pos_sw.get('motivo_saldo_pos_sw') or '')
+        if lote_recomendado_origem in lotes_descartados_pos_sw and motivo_pos_sw in {'', 'nao_criada'}:
+            motivo_pos_sw = 'descartada_por_filtro'
+        if not pos_sw_tentativa and lote_recomendado_origem in mapa_switching_janela:
+            motivo_pos_sw = 'nao_criada'
+        if not motivo_pos_sw:
+            motivo_pos_sw = 'n/d'
+        if not origem_saldo_pos_sw:
+            origem_saldo_pos_sw = 'nao_encontrado' if lote_recomendado_origem in mapa_switching_janela else 'n/d'
+        if not motivo_saldo_pos_sw:
+            motivo_saldo_pos_sw = 'saldo_zero_ou_ausente' if origem_saldo_pos_sw != 'n/d' and saldo_pos_sw_liquido_candidato <= 0.0 else 'n/d'
+
         contagem[melhor['estrategia']] += 1
         fontes_consumo = _split_fontes_compostas(melhor.get('lote_recomendado') or '')
         if melhor['estrategia'] == 'switching_simples':
@@ -381,15 +717,24 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             ganhos_switch += float(melhor.get('ganho_liquido_estimado_switching') or 0.0)
         if melhor['estrategia'] == 'combinacao_minima':
             combinacao_acionada += 1
-        consumo_temporal, saldo_pos_temporal = _consumir_saldo_temporal(
-            saldo_residual_temporal_por_lote,
-            fontes_consumo,
-            valor_pagamento,
-        )
-        if consumo_temporal > 0.0:
+        if bloqueio_janela:
+            melhor['saldo_temporal_antes_recomendacao'] = ''
+            melhor['consumo_residual_temporal_estimado'] = ''
+            melhor['saldo_residual_temporal_pos_recomendacao'] = ''
+        else:
+            saldo_temporal_antes = 0.0
+            for fonte in fontes_consumo:
+                if str(fonte or '').strip() in saldo_residual_temporal_por_lote:
+                    saldo_temporal_antes = round(float(saldo_residual_temporal_por_lote.get(str(fonte).strip(), 0.0) or 0.0), 2)
+                    break
+            consumo_temporal, saldo_pos_temporal = _consumir_saldo_temporal(
+                saldo_residual_temporal_por_lote,
+                fontes_consumo,
+                valor_pagamento,
+            )
+            melhor['saldo_temporal_antes_recomendacao'] = saldo_temporal_antes
             melhor['consumo_residual_temporal_estimado'] = consumo_temporal
             melhor['saldo_residual_temporal_pos_recomendacao'] = saldo_pos_temporal
-
         linhas.append({
             'pagamento_id': pagamento_id,
             'data_pagamento': data_pagamento,
@@ -398,7 +743,9 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'classe_pagamento_operacional': classe,
             'subclasse_pagamento_operacional': subclasse,
             'estrategia_recomendada': melhor['estrategia'],
-            'lote_recomendado': melhor.get('lote_recomendado') or '',
+            'lote_recomendado': 'não determinado' if bloqueio_janela else (melhor.get('lote_recomendado') or ''),
+            'lote_recomendado_consumivel': melhor.get('lote_recomendado_consumivel') if melhor.get('lote_recomendado_consumivel') is not None else ('' if bloqueio_janela else (melhor.get('lote_recomendado') or '')),
+            'lote_recomendado_rotulo': melhor.get('lote_recomendado_rotulo') or '',
             'lote_reserva': melhor.get('lote_reserva') or '',
             'necessidade_switching': bool(melhor.get('necessidade_switching')),
             'data_sugerida_switching': melhor.get('data_sugerida_switching'),
@@ -417,9 +764,49 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'fracao_residual_temporal_lote': round(float(melhor.get('fracao_residual_temporal_lote') or 0.0), 6),
             'consumo_residual_temporal_estimado': round(float(melhor.get('consumo_residual_temporal_estimado') or 0.0), 2),
             'saldo_residual_temporal_pos_recomendacao': round(float(melhor.get('saldo_residual_temporal_pos_recomendacao') or 0.0), 2),
+            'saldo_temporal_antes_recomendacao': round(float(melhor.get('saldo_temporal_antes_recomendacao') or 0.0), 2),
             'fallback_automatico_sem_switching': bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching'),
             'motivo_fallback_automatico': motivo_fallback_automatico if bool(fallback_automatico_sem_switching and melhor['estrategia'] == 'sem_switching') else '',
             'motivo_recomendacao': melhor.get('motivo_recomendacao') or '',
+            'switching_antes_pagamento': bool(melhor.get('necessidade_switching')) and melhor.get('data_sugerida_switching') is not None and data_pagamento is not None and _coerce_date(melhor.get('data_sugerida_switching')) <= data_pagamento,
+            'switching_depois_pagamento': bool(melhor.get('necessidade_switching')) and melhor.get('data_sugerida_switching') is not None and data_pagamento is not None and _coerce_date(melhor.get('data_sugerida_switching')) > data_pagamento,
+            'motivo_bloqueio_lote': (
+                'lote_ja_migrado_janela'
+                if bloqueio_janela
+                else (
+                    'saldo insuficiente'
+                    if float(melhor.get('valor_residual_temporal_lote') or 0.0) < valor_pagamento and bool(melhor.get('necessidade_switching'))
+                    else ''
+                )
+            ),
+            'status_recomendacao': (
+                'lote_ja_migrado_janela'
+                if bloqueio_janela
+                else ('lote_indisponivel_pos_switching' if bool(melhor.get('necessidade_switching')) and str(melhor.get('lote_recomendado') or '').strip() in {'', 'não determinado'} else 'ok')
+            ),
+            'fonte_switching_quadro': 'estado_pos_switching_janela' if fonte_pos_switching else 'motor_pagamento',
+            'data_switching_referencia': melhor.get('data_sugerida_switching'),
+            'score_switching_shadow': round(float(melhor.get('score_switch_shadow') or 0.0), 4),
+            'ordem_switching_shadow': int(melhor.get('ordem_switch_shadow') or 0),
+            'data_switching_janela': _info_switching_lote(mapa_switching_janela, lote_origem_pos_switching if fonte_pos_switching else str(melhor.get('lote_recomendado') or '').strip()).get('data_switching_janela'),
+            'destino_switching_janela': _info_switching_lote(mapa_switching_janela, lote_origem_pos_switching if fonte_pos_switching else str(melhor.get('lote_recomendado') or '').strip()).get('destino_janela', ''),
+            'lote_origem_pos_switching': lote_origem_pos_switching,
+            'pos_sw_tentativa': pos_sw_tentativa,
+            'fonte_pos_sw': lote_nome_operacional_pos_sw or fonte_pos_sw,
+            'lote_id_sintetico': fonte_pos_sw,
+            'lote_nome_operacional': lote_nome_operacional_pos_sw,
+            'saldo_pos_sw': saldo_pos_sw,
+            'motivo_pos_sw': motivo_pos_sw,
+            'origem_saldo_pos_sw': origem_saldo_pos_sw,
+            'saldo_pos_sw_bruto_candidato': saldo_pos_sw_bruto_candidato,
+            'saldo_pos_sw_liquido_candidato': saldo_pos_sw_liquido_candidato,
+            'data_base_saldo_pos_sw': data_base_saldo_pos_sw,
+            'motivo_saldo_pos_sw': motivo_saldo_pos_sw,
+            'conciliacao_pos_switching': (
+                'fonte_pos_switching_janela'
+                if fonte_pos_switching
+                else ('lote_ja_migrado_divergente' if bloqueio_janela else '')
+            ),
         })
 
     quadro = pd.DataFrame(linhas)
