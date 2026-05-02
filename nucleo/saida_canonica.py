@@ -637,8 +637,8 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             row_dict.get('lote_recomendado'),
             row_dict.get('lote_id_escolhido'),
             row_dict.get('fonte_origem_id'),
-            central.get('lote_final_central'),
-            central.get('lote_sugerido_original'),
+            '' if str(row_dict.get('lote_recomendado') or '').strip() in {'', 'não determinado'} else central.get('lote_final_central'),
+            '' if str(row_dict.get('lote_recomendado') or '').strip() in {'', 'não determinado'} else central.get('lote_sugerido_original'),
             resumo.get('Lote sugerido'),
         )
         status_migrado_janela = str(row_dict.get('status_recomendacao') or '').strip() == 'lote_ja_migrado_janela'

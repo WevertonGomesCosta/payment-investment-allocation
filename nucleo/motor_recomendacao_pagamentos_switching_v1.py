@@ -496,11 +496,19 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
         lote_reserva, fonte_reserva = _selecionar_backup(candidatos, lote_no_switch, fonte_no_switch)
         lotes_validos = set(candidatos['lote_id'].fillna('').astype(str).str.strip().tolist()) if not candidatos.empty else set()
         if lote_no_switch and lote_no_switch not in lotes_validos:
-            lote_no_switch = ''
-            fonte_no_switch = ''
-            cobertura_no_switch = 0.0
-            integral_no_switch = False
-            lote_reserva, fonte_reserva = _selecionar_backup(candidatos, '', '')
+            if not candidatos.empty:
+                cand_base = candidatos.iloc[0].to_dict()
+                lote_no_switch = str(cand_base.get('lote_id') or '').strip()
+                fonte_no_switch = str(cand_base.get('fonte_id') or '')
+                cobertura_no_switch = round(min(valor_pagamento, float(cand_base.get('valor_liquido_disponivel') or 0.0)), 2)
+                integral_no_switch = bool(cobertura_no_switch + 0.009 >= valor_pagamento)
+                lote_reserva, fonte_reserva = _selecionar_backup(candidatos, lote_no_switch, fonte_no_switch)
+            else:
+                lote_no_switch = ''
+                fonte_no_switch = ''
+                cobertura_no_switch = 0.0
+                integral_no_switch = False
+                lote_reserva, fonte_reserva = _selecionar_backup(candidatos, '', '')
 
         estrategia_base = {
             'estrategia': 'sem_switching',
@@ -515,10 +523,12 @@ def carregar_motor_recomendacao_pagamentos_switching_v1(
             'cobertura_esperada': cobertura_no_switch,
             'cobertura_integral': integral_no_switch,
             'score_base': score_no_switch,
-            'tipo_fonte_recomendada': str(row_central.get('tipo_fonte_final') or row_local.get('tipo_fonte_escolhida') or ''),
-            'motivo_recomendacao': 'usar a recomendação central atual sem switching',
+            'tipo_fonte_recomendada': ('estado_pos_switching_janela' if lote_no_switch.startswith('pos_switch::') else str(row_central.get('tipo_fonte_final') or row_local.get('tipo_fonte_escolhida') or '')),
+            'motivo_recomendacao': ('fonte pós-switching já materializada usada como base' if lote_no_switch.startswith('pos_switch::') else 'usar a recomendação central atual sem switching'),
             'comparador_rank': (0 if integral_no_switch else 1, -cobertura_no_switch, 0.0, score_no_switch),
         }
+        if lote_no_switch.startswith('pos_switch::'):
+            estrategia_base['lote_recomendado_consumivel'] = lote_no_switch
         info_janela_lote_base = _info_switching_lote(mapa_switching_janela, lote_no_switch)
         if (
             lote_no_switch
