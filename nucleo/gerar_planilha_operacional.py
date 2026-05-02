@@ -37,7 +37,7 @@ DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
 
 DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
     'extrato_passado': ['Data', 'Conta', 'Despesa ID', 'Lote', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'],
-    'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Lote reserva', 'Necessita switching'],
+    'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Pacote do dia', 'Lote reserva', 'Lote pós-switching', 'Destino switching', 'Origem switching', 'Fonte switching', 'Data switching', 'Score switching', 'Necessita switching', 'Switching antes do pagamento', 'Switching depois do pagamento', 'Motivo bloqueio lote', 'Status recomendação', 'Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.', 'Pos sw?', 'Fonte pos sw', 'Saldo pos sw', 'Motivo pos sw', 'Origem saldo pos', 'Bruto pos', 'Líq. pos', 'Data saldo pos', 'Motivo saldo pos'],
     'switching': ['Data sugerida', 'Lote origem', 'Produto origem', 'Produto destino switching', 'Ganho estimado', 'Valor líquido origem', 'Status'],
 }
 
@@ -334,6 +334,26 @@ def main(*, contexto=None, saida=None) -> Path:
     ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, "switching"))
     headers_switching = _cabecalhos_operacionais(contexto, "switching")
     _apply_table_style(ws_switching, headers_switching, _rows(saida.switchings, headers_switching), freeze=True)
+
+    ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
+    headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
+    linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
+    _apply_table_style(
+        ws_switching_sint,
+        headers_switching_sint,
+        _rows(linhas_switching_sint, headers_switching_sint),
+        freeze=True,
+    )
+
+    ws_estado_pos = wb.create_sheet("Estado Pos-Switching")
+    headers_estado_pos = ['Data', 'Novo lote', 'Produto destino', 'Valor inicial', 'Lotes origem', 'Status origem', 'Status novo', 'Liquidez', 'Carência', 'Ticket mín.', 'Origem valor']
+    linhas_estado_pos = list(getattr(saida, 'estado_pos_switching_lotes_console', lambda **_: [])(limite=200) or [])
+    _apply_table_style(
+        ws_estado_pos,
+        headers_estado_pos,
+        _rows(linhas_estado_pos, headers_estado_pos),
+        freeze=True,
+    )
 
     _adicionar_abas_ranking(wb, contexto)
     _adicionar_situacao_atual(wb, contexto, saida)
