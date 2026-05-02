@@ -284,6 +284,37 @@ def _split_fontes(valor: Any) -> list[str]:
     return [parte for parte in partes if parte]
 
 
+def _mapa_global_lotes_migrados_pos_switching(saida: "PacoteSaidaCanonica") -> dict[str, dict[str, Any]]:
+    mapa: dict[str, dict[str, Any]] = {}
+    for row in saida.estado_pos_switching_lotes_console(limite=500):
+        data_sw = str(row.get('Data') or '')
+        novo_lote = str(row.get('Novo lote') or '')
+        lotes_origem = [x.strip() for x in str(row.get('Lotes origem') or '').split('+') if x.strip()]
+        for lote in lotes_origem:
+            mapa[lote] = {'data_switching': data_sw, 'novo_lote': novo_lote}
+    return mapa
+
+
+def _limpar_lotes_migrados_datado(valor: Any, *, data_pagamento: Any, mapa_migrados: dict[str, dict[str, Any]]) -> tuple[str, bool]:
+    partes = [p.strip() for p in str(valor or '').split('+') if p.strip()]
+    partes_validas: list[str] = []
+    conflito_intradia = False
+    data_pag = str(data_pagamento or '')
+    for p in partes:
+        info = mapa_migrados.get(p)
+        if not info:
+            partes_validas.append(p)
+            continue
+        data_sw = str(info.get('data_switching') or '')
+        if data_pag and data_sw and data_pag > data_sw:
+            continue
+        if data_pag and data_sw and data_pag == data_sw:
+            conflito_intradia = True
+            continue
+        partes_validas.append(p)
+    return ' + '.join(partes_validas), conflito_intradia
+
+
 def _mapa_saldo_disponivel(contexto: Any) -> dict[str, dict[str, Any]]:
     mapa: dict[str, dict[str, Any]] = {}
     pacote = getattr(contexto, 'saldo_disponivel_geral', None)
@@ -613,6 +644,9 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         return []
     mapa_resumos = _mapa_resumos_futuros(contexto, quadro)
     mapa_central = _mapa_pagamentos_central(contexto)
+    mapa_migrados_global = _mapa_global_lotes_migrados_pos_switching(
+        PacoteSaidaCanonica(versao='', switchings=_construir_switchings(contexto))
+    )
     linhas: list[dict[str, Any]] = []
     for _, row in quadro.iterrows():
         row_dict = row.to_dict()
@@ -667,6 +701,21 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             lote_reserva_real = _limpar_composto(lote_reserva_real)
             if not lote_sugerido_real and str(row_dict.get('lote_nome_operacional') or '').strip():
                 lote_sugerido_real = str(row_dict.get('lote_nome_operacional') or '').strip()
+        lote_sugerido_real, conflito_intradia_sug = _limpar_lotes_migrados_datado(
+            lote_sugerido_real,
+            data_pagamento=row.get('data_pagamento'),
+            mapa_migrados=mapa_migrados_global,
+        )
+        lote_reserva_real, conflito_intradia_res = _limpar_lotes_migrados_datado(
+            lote_reserva_real,
+            data_pagamento=row.get('data_pagamento'),
+            mapa_migrados=mapa_migrados_global,
+        )
+        if not lote_sugerido_real:
+            for info in mapa_migrados_global.values():
+                if str(info.get('data_switching') or '') <= str(row.get('data_pagamento') or '') and str(info.get('novo_lote') or '').strip():
+                    lote_sugerido_real = str(info.get('novo_lote') or '').strip()
+                    break
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real) if lote_sugerido_real else 'não determinado'
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
@@ -726,8 +775,16 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Necessita switching': _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
             'Switching depois do pagamento': 'sim' if bool(row_dict.get('switching_depois_pagamento')) else 'não',
-            'Motivo bloqueio lote': _texto_decisao(row_dict.get('motivo_bloqueio_lote')) if str(row_dict.get('motivo_bloqueio_lote') or '').strip() else '',
-            'Status recomendação': _texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado',
+            'Motivo bloqueio lote': (
+                'conflito_intradiario_switching_pagamento'
+                if (conflito_intradia_sug or conflito_intradia_res) and str(row_dict.get('motivo_bloqueio_lote') or '').strip() in {'', 'n/d'}
+                else (_texto_decisao(row_dict.get('motivo_bloqueio_lote')) if str(row_dict.get('motivo_bloqueio_lote') or '').strip() else '')
+            ),
+            'Status recomendação': (
+                'precedencia_intradiaria_nd'
+                if (conflito_intradia_sug or conflito_intradia_res) and str(row_dict.get('status_recomendacao') or '').strip() in {'', 'ok'}
+                else (_texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado')
+            ),
             'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), _round_monetario(resumo.get('Saldo Antes'), 'n/d')),
             'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), _round_monetario(resumo.get('Líquido'), 'n/d')),
             'Saldo temp. dep.': _round_monetario(row_dict.get('saldo_residual_temporal_pos_recomendacao'), _round_monetario(resumo.get('Saldo Remanescente'), 'n/d')),
