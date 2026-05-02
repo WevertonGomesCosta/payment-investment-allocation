@@ -20,6 +20,10 @@ from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
 from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
 
 
+def _norm(txt: Any) -> str:
+    return str(txt or '').strip().lower()
+
+
 @dataclass(frozen=True)
 class PacoteSaidaCanonica:
     versao: str
