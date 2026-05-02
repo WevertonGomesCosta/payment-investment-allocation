@@ -659,10 +659,14 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         lote_origem_migrada = str(row_dict.get('lote_origem_pos_switching') or '').strip()
         if lote_origem_migrada:
             origem_tokens = [x.strip() for x in lote_origem_migrada.split('+') if x.strip()]
-            if any(tok and tok in str(lote_sugerido_real or '') for tok in origem_tokens):
-                lote_sugerido_real = ''
-            if any(tok and tok in str(lote_reserva_real or '') for tok in origem_tokens):
-                lote_reserva_real = ''
+            def _limpar_composto(valor: Any) -> str:
+                partes = [p.strip() for p in str(valor or '').split('+') if p.strip()]
+                partes_validas = [p for p in partes if not any(tok and tok in p for tok in origem_tokens)]
+                return ' + '.join(partes_validas)
+            lote_sugerido_real = _limpar_composto(lote_sugerido_real)
+            lote_reserva_real = _limpar_composto(lote_reserva_real)
+            if not lote_sugerido_real and str(row_dict.get('lote_nome_operacional') or '').strip():
+                lote_sugerido_real = str(row_dict.get('lote_nome_operacional') or '').strip()
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real) if lote_sugerido_real else 'não determinado'
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
