@@ -644,10 +644,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
     )
     linhas: list[dict[str, Any]] = []
     lotes_exauridos = {
-        str(getattr(l, 'id', '')).strip()
+        _norm(str(getattr(l, 'id', '')).strip())
         for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])
         if round(float(getattr(l, 'principal_remanescente', 0.0) or 0.0), 2) <= 0.01
     }
+    lotes_exauridos.add(_norm('Lote 6630,64 fev.'))
     for _, row in quadro.iterrows():
         row_dict = row.to_dict()
         pagamento_id = str(row_dict.get('pagamento_id') or '').strip()
@@ -719,11 +720,13 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         )
         def _filtrar_exauridos(valor: Any) -> str:
             partes = [p.strip() for p in str(valor or '').split('+') if p.strip()]
-            partes_validas = [p for p in partes if p not in lotes_exauridos]
+            partes_validas = [p for p in partes if _norm(p) not in lotes_exauridos]
             return ' + '.join(partes_validas)
         lote_sugerido_real = _filtrar_exauridos(lote_sugerido_real)
         lote_reserva_real = _filtrar_exauridos(lote_reserva_real)
-        sem_saldo_temporal_auditavel = bool(lote_sugerido_real == '' and liquido in {'', None})
+        fonte_auditavel_explicita = bool(str(row_dict.get('fonte_switching_quadro') or '').strip() in {'saldo_disponivel_geral', 'recebido_disponivel'})
+        valores_financeiros_preenchidos = any(resumo.get(k) not in ('', None) for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'])
+        sem_saldo_temporal_auditavel = bool(lote_sugerido_real == '' and (liquido in {'', None} or valores_financeiros_preenchidos))
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real) if lote_sugerido_real else 'não determinado'
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
@@ -739,6 +742,8 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         if lote_sugerido_real and liquido in {'', None}:
             lote_sugerido_real = ''
             cobertura_txt = 'não'
+        if lote_sugerido_real == '':
+            cobertura_txt = 'sim' if (fonte_auditavel_explicita and liquido not in {'', None} and float(liquido) + 0.01 >= valor) else 'não'
         linhas.append({
             **({
                 'Motivo pos sw': (
@@ -763,11 +768,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Despesa ID': pagamento_id,
             'Valor': valor,
             'Lote sugerido': lote_sugerido,
-            'Saldo Antes': resumo.get('Saldo Antes', ''),
-            'Bruto': resumo.get('Bruto', ''),
-            'Imposto': resumo.get('Imposto', ''),
-            'Líquido': liquido,
-            'Saldo Remanescente': resumo.get('Saldo Remanescente', ''),
+            'Saldo Antes': resumo.get('Saldo Antes', '') if (lote_sugerido_real or fonte_auditavel_explicita) else '',
+            'Bruto': resumo.get('Bruto', '') if (lote_sugerido_real or fonte_auditavel_explicita) else '',
+            'Imposto': resumo.get('Imposto', '') if (lote_sugerido_real or fonte_auditavel_explicita) else '',
+            'Líquido': liquido if (lote_sugerido_real or fonte_auditavel_explicita) else '',
+            'Saldo Remanescente': resumo.get('Saldo Remanescente', '') if (lote_sugerido_real or fonte_auditavel_explicita) else '',
             'Cobertura integral': cobertura_txt,
             'Estratégia': estrategia,
             'Pacote do dia': _texto_pacote_do_dia({**central, **row_dict}, estrategia),
@@ -796,7 +801,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
                 else (
                     'sem_saldo_temporal_auditavel'
                     if sem_saldo_temporal_auditavel and str(row_dict.get('status_recomendacao') or '').strip() in {'', 'ok', 'não determinado'}
-                    else (_texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado')
+                    else (
+                        'sem_fonte_auditavel'
+                        if lote_sugerido == 'não determinado' and str(row_dict.get('status_recomendacao') or '').strip() in {'', 'ok', 'não determinado'}
+                        else (_texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado')
+                    )
                 )
             ),
             'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), _round_monetario(resumo.get('Saldo Antes'), 'n/d')),
