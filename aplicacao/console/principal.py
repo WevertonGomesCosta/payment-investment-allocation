@@ -117,7 +117,7 @@ def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> Non
         ('destinos elegíveis de switching', ranking.auditoria.get('qtd_destinos_switch')),
         ('destino top 1', ranking.auditoria.get('destino_top1')),
         ('método', ranking.auditoria.get('metodo')),
-        ('origem da amostra', 'saida_canonica_v202'),
+        ('origem da amostra', getattr(saida_canonica, 'versao', VERSAO_BASELINE)),
     ])
 
     linhas = list(getattr(saida_canonica, 'ranking_amostra', []) or [])
@@ -145,7 +145,7 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
         ),
         ('switchings promovidos/executados', len(linhas)),
         ('destino top 1 do ranking', destino_top1),
-        ('origem da amostra', 'saida_canonica_v202'),
+        ('origem da amostra', getattr(saida_canonica, 'versao', VERSAO_BASELINE)),
     ])
 
     print('- amostra de switchings reais da janela (independente de pagamentos):')

@@ -37,7 +37,7 @@ DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
 
 DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
     'extrato_passado': ['Data', 'Conta', 'Despesa ID', 'Lote', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'],
-    'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Lote reserva', 'Necessita switching'],
+    'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Pacote do dia', 'Lote reserva', 'Lote pós-switching', 'Destino switching', 'Origem switching', 'Fonte switching', 'Data switching', 'Score switching', 'Necessita switching', 'Switching antes do pagamento', 'Switching depois do pagamento', 'Motivo bloqueio lote', 'Status recomendação', 'Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.', 'Pos sw?', 'Fonte pos sw', 'Saldo pos sw', 'Motivo pos sw', 'Origem saldo pos', 'Bruto pos', 'Líq. pos', 'Data saldo pos', 'Motivo saldo pos'],
     'switching': ['Data sugerida', 'Lote origem', 'Produto origem', 'Produto destino switching', 'Ganho estimado', 'Valor líquido origem', 'Status'],
 }
 

@@ -617,6 +617,11 @@ def _construir_extrato_passado(contexto: Any) -> list[dict[str, Any]]:
         rem = _round_monetario(row.get('Saldo Remanescente'), 0.0)
         if rem != '' and rem <= limiar:
             rem = 0.0
+        origem_switching = (
+            'motor_pagamento'
+            if str(row_dict.get('produto_destino_switching') or '').strip()
+            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
+        )
         linhas.append({
             'Data': _fmt_data(row.get('Data')),
             'Conta': row.get('Conta') or '',
@@ -690,12 +695,6 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         lote_reserva_real = _primeiro_texto_preenchido(row_dict.get('lote_reserva'), central.get('lote_reserva'))
         if status_migrado_janela:
             lote_reserva_real = ''
-
-        origem_switching = (
-            'motor_pagamento'
-            if str(row_dict.get('produto_destino_switching') or '').strip()
-            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
-        )
         lote_origem_migrada = str(row_dict.get('lote_origem_pos_switching') or '').strip()
         if lote_origem_migrada:
             origem_tokens = [x.strip() for x in lote_origem_migrada.split('+') if x.strip()]
@@ -717,17 +716,13 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             data_pagamento=row.get('data_pagamento'),
             mapa_migrados=mapa_migrados_global,
         )
-        if not lote_sugerido_real:
-            for info in mapa_migrados_global.values():
-                if str(info.get('data_switching') or '') <= str(row.get('data_pagamento') or '') and str(info.get('novo_lote') or '').strip():
-                    lote_sugerido_real = str(info.get('novo_lote') or '').strip()
-                    break
         def _filtrar_exauridos(valor: Any) -> str:
             partes = [p.strip() for p in str(valor or '').split('+') if p.strip()]
             partes_validas = [p for p in partes if p not in lotes_exauridos]
             return ' + '.join(partes_validas)
         lote_sugerido_real = _filtrar_exauridos(lote_sugerido_real)
         lote_reserva_real = _filtrar_exauridos(lote_reserva_real)
+        sem_saldo_temporal_auditavel = bool(lote_sugerido_real == '' and liquido in {'', None})
         estrategia = _texto_decisao(estrategia_real)
         lote_sugerido = _texto_decisao(lote_sugerido_real) if lote_sugerido_real else 'não determinado'
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
@@ -741,13 +736,8 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         else:
             cobertura_txt = 'não determinado'
         if lote_sugerido_real and liquido in {'', None}:
-            liquido = valor
-            resumo['Líquido'] = valor
-            resumo['Saldo Antes'] = _round_monetario(resumo.get('Saldo Antes'), valor)
-            resumo['Bruto'] = _round_monetario(resumo.get('Bruto'), valor)
-            resumo['Imposto'] = _round_monetario(resumo.get('Imposto'), 0.0)
-            resumo['Saldo Remanescente'] = _round_monetario(resumo.get('Saldo Remanescente'), max(float(resumo['Saldo Antes']) - float(valor), 0.0) if str(resumo.get('Saldo Antes') or '').strip() not in {'', 'n/d'} else 'n/d')
-            cobertura_txt = 'sim'
+            lote_sugerido_real = ''
+            cobertura_txt = 'não'
         linhas.append({
             **({
                 'Motivo pos sw': (
@@ -793,12 +783,20 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Motivo bloqueio lote': (
                 'conflito_intradiario_switching_pagamento'
                 if (conflito_intradia_sug or conflito_intradia_res) and str(row_dict.get('motivo_bloqueio_lote') or '').strip() in {'', 'n/d'}
-                else (_texto_decisao(row_dict.get('motivo_bloqueio_lote')) if str(row_dict.get('motivo_bloqueio_lote') or '').strip() else '')
+                else (
+                    'valores_financeiros_nao_materializados'
+                    if sem_saldo_temporal_auditavel and str(row_dict.get('motivo_bloqueio_lote') or '').strip() in {'', 'n/d'}
+                    else (_texto_decisao(row_dict.get('motivo_bloqueio_lote')) if str(row_dict.get('motivo_bloqueio_lote') or '').strip() else '')
+                )
             ),
             'Status recomendação': (
                 'precedencia_intradiaria_nd'
                 if (conflito_intradia_sug or conflito_intradia_res) and str(row_dict.get('status_recomendacao') or '').strip() in {'', 'ok'}
-                else (_texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado')
+                else (
+                    'sem_saldo_temporal_auditavel'
+                    if sem_saldo_temporal_auditavel and str(row_dict.get('status_recomendacao') or '').strip() in {'', 'ok', 'não determinado'}
+                    else (_texto_decisao(row_dict.get('status_recomendacao')) if str(row_dict.get('status_recomendacao') or '').strip() else 'não determinado')
+                )
             ),
             'Saldo temp. ant.': _round_monetario(row_dict.get('saldo_temporal_antes_recomendacao'), _round_monetario(resumo.get('Saldo Antes'), 'n/d')),
             'Consumo temp.': _round_monetario(row_dict.get('consumo_residual_temporal_estimado'), _round_monetario(resumo.get('Líquido'), 'n/d')),
