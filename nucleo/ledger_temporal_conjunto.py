@@ -25,11 +25,6 @@ def _round(v: Any) -> Any:
         return ''
 
 
-def _bool_to_sim_nao(v: Any) -> str:
-    if isinstance(v, bool):
-        return 'sim' if v else 'não'
-    return ''
-
 
 def _inferir_pacote(row: dict[str, Any]) -> str:
     pacote = _txt(row.get('pacote_dia_escolhido'))
@@ -53,85 +48,74 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         return []
     mapa_central = mapa_central or {}
     eventos: list[dict[str, Any]] = []
-    for _, row in quadro_futuro.sort_values(['data_pagamento', 'pagamento_id'], kind='stable').iterrows():
+    materializados: dict[tuple[str, str], dict[str, Any]] = {}
+
+    quadro_ord = quadro_futuro.sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
+    for _, row in quadro_ord.iterrows():
         d = row.to_dict()
-        pid = _txt(d.get('pagamento_id'))
-        central = mapa_central.get(pid, {})
-        pacote = _inferir_pacote(d)
+        lote_origem = _txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id'))
+        lote_pos = _txt(d.get('lote_nome_operacional') or d.get('fonte_pos_sw') or d.get('lote_id_sintetico'))
+        if lote_origem and lote_pos:
+            k=(str(d.get('data_pagamento') or ''), lote_origem)
+            materializados[k]={
+                'evento_switching_id': f"sw::{str(d.get('data_pagamento') or '')}::{lote_origem}::{lote_pos}",
+                'data_switching': d.get('data_switching_referencia') if d.get('data_switching_referencia') is not None else d.get('data_sugerida_switching'),
+                'lote_origem': lote_origem,
+                'lote_pos_switching': lote_pos,
+                'produto_destino': _txt(d.get('produto_destino_switching')),
+                'valor_liquido_materializado': _round(d.get('saldo_pos_sw') if d.get('saldo_pos_sw') is not None else d.get('liquido_recomendado')),
+                'estado': 'materializado',
+            }
 
-        lote_origem = _txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id') or central.get('lote_final_central'))
-        lote_pos_sw = _txt(d.get('lote_nome_operacional') or d.get('fonte_pos_sw') or d.get('lote_id_sintetico'))
+    for _, row in quadro_ord.iterrows():
+        d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
+        pacote=_inferir_pacote(d)
+        lote_origem=_txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id') or central.get('lote_final_central'))
+        if not lote_origem or _norm(lote_origem) in {'não determinado','nao determinado','n/d'}:
+            lote_origem='não determinado'
+        ev_sw=materializados.get((str(d.get('data_pagamento') or ''), lote_origem))
+        sw_mat=ev_sw is not None
+        necessita_sw=_norm(d.get('necessita_switching') if d.get('necessita_switching') is not None else d.get('necessidade_switching')) in {'sim','true','1'}
 
-        switching_candidato = bool(_txt(d.get('produto_destino_switching')))
-        switching_promovido = bool(d.get('switching_antes_pagamento') or d.get('switching_depois_pagamento'))
-        switching_materializado = bool(lote_pos_sw)
+        if lote_origem != 'não determinado' and not sw_mat and pacote=='switch_then_pay':
+            pacote='pay_only'; necessita_sw=False
 
-        bruto = _round(d.get('bruto_recomendado') if d.get('bruto_recomendado') is not None else central.get('bruto_central'))
-        imposto = _round(d.get('imposto_recomendado') if d.get('imposto_recomendado') is not None else central.get('imposto_central'))
-        liquido = _round(d.get('liquido_recomendado') if d.get('liquido_recomendado') is not None else central.get('liquido_central'))
-        saldo_antes = _round(d.get('saldo_temporal_antes_recomendacao') if d.get('saldo_temporal_antes_recomendacao') is not None else central.get('saldo_antes_central'))
-        saldo_depois = _round(d.get('saldo_residual_temporal_pos_recomendacao') if d.get('saldo_residual_temporal_pos_recomendacao') is not None else central.get('saldo_remanescente_central'))
-
-        valor_pag = _round(d.get('valor_pagamento'))
-        necessita_switching = _norm(d.get('necessita_switching') if d.get('necessita_switching') is not None else d.get('necessidade_switching')) in {'sim', 'true', '1'}
-
-        motivo = _txt(d.get('motivo_bloqueio_lote') or central.get('motivo_bloqueio_lote'))
-        status = _txt(d.get('status_recomendacao') or central.get('status_recomendacao') or 'não determinado')
-
-        cobertura_txt = 'sim' if (liquido != '' and valor_pag != '' and liquido + 0.01 >= valor_pag) else 'não'
-
-        if not lote_origem or _norm(lote_origem) in {'não determinado', 'nao determinado', 'n/d'}:
-            lote_origem = 'não determinado'
-            cobertura_txt = 'não'
-            if status in {'', 'ok', 'não determinado'}:
-                status = 'sem_fonte_auditavel'
-            if not motivo:
-                motivo = 'sem_fonte_auditavel'
-
-        if motivo == 'fonte_pos_switching_nao_materializada':
-            cobertura_txt = 'não'
-            status = 'fonte_pos_switching_nao_materializada'
-
-        if necessita_switching and not switching_materializado:
-            cobertura_txt = 'não'
-            if status in {'', 'ok', 'não determinado'}:
-                status = 'fonte_pos_switching_nao_materializada'
-            if not motivo:
-                motivo = 'fonte_pos_switching_nao_materializada'
-
-        # regra de pacote temporal
-        if pacote == 'switch_then_pay' and not switching_materializado:
-            cobertura_txt = 'não'
-            status = 'switch_then_pay_sem_materializacao'
-            motivo = 'switch_then_pay_sem_materializacao'
-
-        destino_sw = _txt(d.get('produto_destino_switching')) if switching_materializado else ''
-        data_sw = d.get('data_switching_referencia') if d.get('data_switching_referencia') is not None else d.get('data_sugerida_switching')
-        data_sw = data_sw if switching_materializado else None
+        if pacote=='switch_then_pay' and not sw_mat:
+            status='switch_then_pay_sem_materializacao'; motivo=status; cobertura='não'; lote_op='não determinado'
+            sal_ant=br=imp=liq=cons=sal_dep=''
+        else:
+            status=_txt(d.get('status_recomendacao') or central.get('status_recomendacao') or 'não determinado')
+            motivo=_txt(d.get('motivo_bloqueio_lote') or central.get('motivo_bloqueio_lote'))
+            sal_ant=_round(d.get('saldo_temporal_antes_recomendacao') if d.get('saldo_temporal_antes_recomendacao') is not None else central.get('saldo_antes_central'))
+            br=_round(d.get('bruto_recomendado') if d.get('bruto_recomendado') is not None else central.get('bruto_central'))
+            imp=_round(d.get('imposto_recomendado') if d.get('imposto_recomendado') is not None else central.get('imposto_central'))
+            liq=_round(d.get('liquido_recomendado') if d.get('liquido_recomendado') is not None else central.get('liquido_central'))
+            cons=liq
+            sal_dep=_round(d.get('saldo_residual_temporal_pos_recomendacao') if d.get('saldo_residual_temporal_pos_recomendacao') is not None else central.get('saldo_remanescente_central'))
+            val=_round(d.get('valor_pagamento'))
+            cobertura='sim' if (liq!='' and val!='' and liq+0.01>=val) else 'não'
+            lote_op = ev_sw['lote_pos_switching'] if sw_mat and pacote=='switch_then_pay' else lote_origem
+            if lote_op=='não determinado':
+                cobertura='não'
+                if status in {'','ok','não determinado'}: status='sem_fonte_auditavel'
+                if not motivo: motivo='sem_fonte_auditavel'
+            if necessita_sw and not sw_mat:
+                cobertura='não'
+                if status in {'','ok','não determinado'}: status='fonte_pos_switching_nao_materializada'
+                if not motivo: motivo='fonte_pos_switching_nao_materializada'
 
         eventos.append({
-            'data': d.get('data_pagamento'),
-            'conta': d.get('descricao_pagamento') or '',
-            'pagamento_id': pid,
-            'pacote_do_dia': pacote,
-            'lote_fonte_origem': lote_origem,
-            'switching_materializado': switching_materializado,
-            'lote_pos_switching_materializado': lote_pos_sw if switching_materializado else '',
-            'destino_switching_operacional': destino_sw,
-            'data_switching_operacional': data_sw,
-            'saldo_antes': saldo_antes,
-            'bruto': bruto,
-            'imposto': imposto,
-            'liquido': liquido,
-            'consumo': liquido,
-            'saldo_depois': saldo_depois,
-            'cobertura_integral': cobertura_txt,
-            'status': status or 'não determinado',
-            'motivo_bloqueio': motivo or '',
-            'switching_candidato': switching_candidato,
-            'switching_promovido': switching_promovido,
-            'fonte_consumida_em_pagamento': lote_origem,
-            'fonte_exaurida': bool(saldo_depois != '' and saldo_depois <= 0.01),
-            'residual': '' if saldo_depois == '' else max(saldo_depois, 0.0),
+            'pagamento_id': pid,'data': d.get('data_pagamento'),'conta': d.get('descricao_pagamento') or '',
+            'pacote_do_dia': pacote,'necessita_switching': 'sim' if necessita_sw else 'não',
+            'lote_fonte_origem': lote_origem,'lote_sugerido_operacional': lote_op,
+            'switching_candidato': bool(_txt(d.get('produto_destino_switching'))),
+            'switching_promovido': bool(d.get('switching_antes_pagamento') or d.get('switching_depois_pagamento')),
+            'switching_materializado': sw_mat,
+            'evento_switching_id': ev_sw.get('evento_switching_id') if ev_sw else '',
+            'data_switching_operacional': ev_sw.get('data_switching') if ev_sw and pacote=='switch_then_pay' else None,
+            'destino_switching_operacional': ev_sw.get('produto_destino') if ev_sw and pacote=='switch_then_pay' else '',
+            'lote_pos_switching_materializado': ev_sw.get('lote_pos_switching') if ev_sw and pacote=='switch_then_pay' else '',
+            'saldo_antes': sal_ant,'bruto': br,'imposto': imp,'liquido': liq,'consumo': cons,'saldo_depois': sal_dep,
+            'cobertura_integral': cobertura,'status': status or 'não determinado','motivo_bloqueio': motivo or '',
         })
     return eventos
