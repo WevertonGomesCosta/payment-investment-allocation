@@ -945,6 +945,26 @@ def _aplicar_invariantes_extrato_futuro_linha(linha: dict[str, Any]) -> dict[str
         for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
             linha[k] = 'n/d'
 
+    # sincroniza trilha de auditoria com estado final operacional
+    linha['status_ledger'] = linha.get('Status recomendação')
+    linha['motivo_bloqueio_ledger'] = linha.get('Motivo bloqueio lote')
+    linha['pacote_do_dia_ledger'] = linha.get('Pacote do dia')
+
+    lote_final_nd = _norm(linha.get('Lote sugerido')) in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}
+    if lote_final_nd:
+        linha['promovida_para_lote_sugerido'] = False
+        if str(linha.get('etapa_descarte_fonte') or '').strip() == '':
+            linha['etapa_descarte_fonte'] = 'selecao_fonte_operacional'
+        if str(linha.get('motivo_descarte_fonte') or '').strip() == '':
+            if str(linha.get('Lote reserva') or '').strip() not in {'', 'n/d', 'não determinado', 'nao determinado'}:
+                linha['motivo_descarte_fonte'] = 'reserva_nao_promovida_sem_motivo_estruturado'
+                linha['origem_motivo_descarte'] = 'causa_nao_rastreada_no_pipeline'
+            else:
+                linha['motivo_descarte_fonte'] = 'sem_fonte_auditavel'
+                linha['origem_motivo_descarte'] = 'registrada_pipeline'
+        elif str(linha.get('origem_motivo_descarte') or '').strip() == '':
+            linha['origem_motivo_descarte'] = 'registrada_pipeline'
+
     return linha
 
 def _texto_decisao(valor: Any) -> str:

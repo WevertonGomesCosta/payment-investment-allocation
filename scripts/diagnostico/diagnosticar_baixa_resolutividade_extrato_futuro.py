@@ -124,11 +124,37 @@ def main()->int:
     sw_df=pd.DataFrame(sw_rows)
     sw_df.to_csv(OUT_DIR/'diagnostico_switchings_materializados.csv',index=False)
 
+
+    diverg_status = 0
+    diverg_motivo = 0
+    diverg_pacote = 0
+    promovida_invalida = 0
+    sem_motivo_estruturado = 0
+    if len(aud_fontes):
+        base = aud_fontes.copy()
+        key = 'Despesa ID' if 'Despesa ID' in base.columns else None
+        if key is not None:
+            ef = extrato[['Despesa ID','Status recomendação','Motivo bloqueio lote','Pacote do dia','Lote sugerido']].copy()
+            m = ef.merge(base, on='Despesa ID', how='left', suffixes=('_ef','_af'))
+            diverg_status = int((m['Status recomendação'].fillna('').astype(str) != m.get('status_ledger', pd.Series(['']*len(m))).fillna('').astype(str)).sum())
+            diverg_motivo = int((m['Motivo bloqueio lote'].fillna('').astype(str) != m.get('motivo_bloqueio_ledger', pd.Series(['']*len(m))).fillna('').astype(str)).sum())
+            diverg_pacote = int((m['Pacote do dia'].fillna('').astype(str) != m.get('pacote_do_dia_ledger', pd.Series(['']*len(m))).fillna('').astype(str)).sum())
+            lote_col = 'Lote sugerido' if 'Lote sugerido' in m.columns else ('Lote sugerido_ef' if 'Lote sugerido_ef' in m.columns else None)
+            lote_nd = m[lote_col].fillna('').astype(str).str.lower().isin(['','n/d','nd','não determinado','nao determinado']) if lote_col else pd.Series([False]*len(m))
+            promovida = m.get('promovida_para_lote_sugerido', pd.Series([False]*len(m))).fillna(False).astype(bool)
+            promovida_invalida = int((lote_nd & promovida).sum())
+            sem_motivo_estruturado = int((lote_nd & m.get('etapa_descarte_fonte', pd.Series(['']*len(m))).fillna('').astype(str).str.strip().eq('')).sum())
+
     resumo=pd.DataFrame([{
         'xlsx_escolhido':str(xlsx),'xlsx_mtime_utc':mtime,'abas_disponiveis':' | '.join(abas),
         'total_pagamentos_futuros':len(extrato),'total_lote_sugerido_determinado':int((~extrato['_lote_nd']).sum()),'total_lote_sugerido_nao_determinado':int(extrato['_lote_nd'].sum()),
         'total_reserva_preenchida':int(extrato['_reserva_preenchida'].sum()),'total_reserva_preenchida_e_lote_nd':int((extrato['_reserva_preenchida'] & extrato['_lote_nd']).sum()),
-        'total_lotes_pos_switching_materializados':len(sw_df),'total_pagamentos_que_consumiram_lote_pos_switching':int(extrato['_consumiu_lote_pos_sw'].sum())
+        'total_lotes_pos_switching_materializados':len(sw_df),'total_pagamentos_que_consumiram_lote_pos_switching':int(extrato['_consumiu_lote_pos_sw'].sum()),
+        'divergencias_status_extrato_vs_auditoria': diverg_status,
+        'divergencias_motivo_extrato_vs_auditoria': diverg_motivo,
+        'divergencias_pacote_extrato_vs_auditoria': diverg_pacote,
+        'linhas_promovida_invalida_lote_nd': promovida_invalida,
+        'linhas_lote_nd_sem_motivo_estruturado': sem_motivo_estruturado
     }])
     resumo.to_csv(OUT_DIR/'diagnostico_baixa_resolutividade_resumo.csv',index=False)
     pd.DataFrame(aba_shapes).to_csv(OUT_DIR/'diagnostico_baixa_resolutividade_abas_shapes.csv', index=False)
@@ -141,6 +167,8 @@ def main()->int:
     qtd_inferida = int((sem_lote['tipo_causa'] == 'inferida').sum())
     print('causas_raiz_agrupadas:'); print(causas_agg.to_string(index=False))
     print(f'causas_estruturadas={qtd_estruturada} | causas_inferidas={qtd_inferida} | causas_nao_rastreadas={qtd_nao_rastreada}')
+    print(f'divergencias_status={diverg_status} | divergencias_motivo={diverg_motivo} | divergencias_pacote={diverg_pacote}')
+    print(f'linhas_promovida_invalida={promovida_invalida} | linhas_sem_motivo_estruturado={sem_motivo_estruturado}')
     print('lotes_pos_switching_materializados_encontrados:')
     if len(sw_df): print(sw_df[['lote_pos_switching','entrou_como_fonte_no_extrato_futuro']].to_string(index=False))
     else: print('nenhum')
