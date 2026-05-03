@@ -645,7 +645,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
     if not isinstance(quadro, pd.DataFrame) or len(quadro) == 0:
         return []
     mapa_central = _mapa_pagamentos_central(contexto)
-    ledger_eventos = construir_ledger_temporal_conjunto(quadro, mapa_central)
+    ledger_eventos = construir_ledger_temporal_conjunto(quadro, mapa_central, contexto)
     ledger_por_pagamento = {str(e.get("pagamento_id") or "").strip(): e for e in ledger_eventos}
     mapa_migrados_global = _mapa_global_lotes_migrados_pos_switching(
         PacoteSaidaCanonica(versao='', switchings=_construir_switchings(contexto))

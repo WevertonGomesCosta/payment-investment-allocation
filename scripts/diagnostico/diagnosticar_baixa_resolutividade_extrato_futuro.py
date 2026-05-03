@@ -166,7 +166,11 @@ def main()->int:
     qtd_nao_rastreada = int((sem_lote['tipo_causa'] == 'causa_nao_rastreada_no_pipeline').sum())
     qtd_inferida = int((sem_lote['tipo_causa'] == 'inferida').sum())
     print('causas_raiz_agrupadas:'); print(causas_agg.to_string(index=False))
+    resolvidos_fifo = 0
+    if len(aud_fontes) and 'origem_fonte_candidata' in aud_fontes.columns:
+        resolvidos_fifo = int((aud_fontes['origem_fonte_candidata'].fillna('').astype(str) == 'pay_only_fifo_v1').sum())
     print(f'causas_estruturadas={qtd_estruturada} | causas_inferidas={qtd_inferida} | causas_nao_rastreadas={qtd_nao_rastreada}')
+    print(f'pagamentos_resolvidos_por_pay_only_fifo_v1={resolvidos_fifo}')
     print(f'divergencias_status={diverg_status} | divergencias_motivo={diverg_motivo} | divergencias_pacote={diverg_pacote}')
     print(f'linhas_promovida_invalida={promovida_invalida} | linhas_sem_motivo_estruturado={sem_motivo_estruturado}')
     print('lotes_pos_switching_materializados_encontrados:')

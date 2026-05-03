@@ -47,7 +47,7 @@ def _inferir_pacote(row: dict[str, Any]) -> str:
     return 'não determinado'
 
 
-def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_central: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_central: dict[str, dict[str, Any]] | None = None, contexto: Any | None = None) -> list[dict[str, Any]]:
     if not isinstance(quadro_futuro, pd.DataFrame) or quadro_futuro.empty:
         return []
     mapa_central = mapa_central or {}
@@ -55,6 +55,21 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     materializados: dict[tuple[str, str], dict[str, Any]] = {}
 
     quadro_ord = quadro_futuro.sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
+    # estado temporal simplificado de lotes para pay_only_fifo_v1
+    estado_lotes: dict[str, dict[str, Any]] = {}
+    lotes_replay = list(getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or []) if contexto is not None else []
+    for l in lotes_replay:
+        try:
+            saldo_liq = float(l.valor_liquido_hoje(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir) or 0.0)
+        except Exception:
+            saldo_liq = float(getattr(l, 'saldo_bruto', 0.0) or 0.0)
+        estado_lotes[str(getattr(l, 'id', ''))] = {
+            'data_aplicacao': getattr(l, 'data_aplicacao', None),
+            'carencia_ate': getattr(l, 'carencia_ate', None),
+            'saldo_liquido': round(saldo_liq, 2),
+            'migrado_em': None,
+        }
+
     for _, row in quadro_ord.iterrows():
         d = row.to_dict()
         lote_origem = _txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id'))
@@ -70,6 +85,11 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 'valor_liquido_materializado': _round(d.get('saldo_pos_sw') if d.get('saldo_pos_sw') is not None else d.get('liquido_recomendado')),
                 'estado': 'materializado',
             }
+
+    for ev in materializados.values():
+        lo = str(ev.get('lote_origem') or '')
+        if lo in estado_lotes:
+            estado_lotes[lo]['migrado_em'] = ev.get('data_switching')
 
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
@@ -124,10 +144,55 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 cobertura='não'
                 if status in {'','ok','não determinado'}: status='fonte_pos_switching_nao_materializada'
                 if not motivo: motivo='fonte_pos_switching_nao_materializada'
+            if lote_op=='não determinado' and pacote == 'pay_only':
+                # pay_only_fifo_v1: escolhe lote elegível mais antigo que cobre integralmente
+                data_pag = d.get('data_pagamento')
+                valor_pag = val if val != '' else 0.0
+                elegiveis = []
+                for lid, meta in estado_lotes.items():
+                    saldo = float(meta.get('saldo_liquido') or 0.0)
+                    if saldo + 0.01 < float(valor_pag or 0.0):
+                        continue
+                    da = meta.get('data_aplicacao')
+                    if da is not None and data_pag is not None and da > data_pag:
+                        continue
+                    car = meta.get('carencia_ate')
+                    if car is not None and data_pag is not None and car > data_pag:
+                        continue
+                    mig = meta.get('migrado_em')
+                    if mig is not None and data_pag is not None and mig <= data_pag:
+                        continue
+                    elegiveis.append((da, -saldo, lid, saldo))
+                elegiveis.sort(key=lambda x: (x[0] or '', x[1], x[2]))
+                if elegiveis:
+                    _, _, lid, saldo = elegiveis[0]
+                    lote_op = lid
+                    fonte_candidata_id = lid
+                    origem_fonte_candidata = 'pay_only_fifo_v1'
+                    tipo_fonte_candidata = 'lote_aportado'
+                    saldo_liquido_disponivel = round(saldo, 2)
+                    promovida_para_lote_sugerido = True
+                    cobertura = 'sim'
+                    status = 'ok'
+                    motivo = 'n/d'
+                    liq = round(float(valor_pag), 2)
+                    cons = liq
+                    sal_ant = round(float(saldo), 2)
+                    sal_dep = round(float(saldo - liq), 2)
+                    estado_lotes[lid]['saldo_liquido'] = sal_dep
+                    etapa_descarte_fonte = ''
+                    motivo_descarte_fonte = ''
+                    origem_motivo_descarte = ''
+                else:
+                    status = 'lote_individual_insuficiente' if estado_lotes else 'sem_fonte_auditavel'
+                    cobertura = 'não'
+                    etapa_descarte_fonte = 'selecao_fonte_operacional'
+                    motivo_descarte_fonte = status
+                    origem_motivo_descarte = 'registrada_pipeline'
             if lote_op=='não determinado':
-                etapa_descarte_fonte = 'selecao_fonte_operacional'
-                motivo_descarte_fonte = motivo or status or 'sem_fonte_auditavel'
-                origem_motivo_descarte = 'registrada_pipeline' if motivo else 'inferida'
+                etapa_descarte_fonte = etapa_descarte_fonte or 'selecao_fonte_operacional'
+                motivo_descarte_fonte = motivo_descarte_fonte or motivo or status or 'sem_fonte_auditavel'
+                origem_motivo_descarte = origem_motivo_descarte or ('registrada_pipeline' if motivo else 'inferida')
 
         eventos.append({
             'pagamento_id': pid,'data': d.get('data_pagamento'),'conta': d.get('descricao_pagamento') or '',
