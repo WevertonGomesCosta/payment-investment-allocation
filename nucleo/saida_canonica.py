@@ -775,7 +775,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             )
         )
         necessita_switching_txt = str(_texto_necessita_switching({**central, **row_dict}, estrategia)).strip().lower()
-        pacote_dia = _texto_pacote_do_dia({**central, **row_dict}, estrategia)
+        pacote_dia = str(ledger.get('pacote_do_dia') or _texto_pacote_do_dia({**central, **row_dict}, estrategia))
         estrategia_indica_switching = bool(
             str(estrategia).strip() == 'switching_simples'
             or str(pacote_dia).strip() in {'switch_then_pay', 'pay_then_switch', 'switch_only'}
@@ -827,17 +827,13 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Saldo Remanescente': resumo.get('Saldo Remanescente', '') if fonte_operacional_auditavel else '',
             'Cobertura integral': cobertura_txt,
             'Estratégia': estrategia,
-            'Pacote do dia': _texto_pacote_do_dia({**central, **row_dict}, estrategia),
+            'Pacote do dia': pacote_dia,
             'Lote reserva': lote_reserva,
-            'Lote pós-switching': (
-                _texto_decisao(lote_pos_switch)
-                if (not _eh_indeterminado(lote_pos_switch) and ('lote' in _norm(lote_pos_switch) or str(lote_pos_switch).strip().startswith('pos_switch::')))
-                else ''
-            ),
-            'Destino switching': '' if (sem_fonte_pos_switch_materializada and sem_evidencia_materializacao_sw) else (_texto_decisao(row_dict.get('produto_destino_switching')) if str(row_dict.get('produto_destino_switching') or '').strip() else ''),
+            'Lote pós-switching': _texto_decisao(ledger.get('lote_pos_switching_materializado')) if str(ledger.get('lote_pos_switching_materializado') or '').strip() else '',
+            'Destino switching': _texto_decisao(ledger.get('destino_switching_operacional')) if str(ledger.get('destino_switching_operacional') or '').strip() else '',
             'Origem switching': origem_switching,
-            'Fonte switching': ('diagnostico_nao_materializado' if (sem_fonte_pos_switch_materializada and sem_evidencia_materializacao_sw) else (_texto_decisao(row_dict.get('fonte_switching_quadro') or origem_switching) if str(row_dict.get('fonte_switching_quadro') or origem_switching).strip() else '')),
-            'Data switching': '' if (sem_fonte_pos_switch_materializada and sem_evidencia_materializacao_sw) else data_sw_fmt,
+            'Fonte switching': ('materializado' if bool(ledger.get('switching_materializado')) else ''),
+            'Data switching': _fmt_data(ledger.get('data_switching_operacional')) if ledger.get('data_switching_operacional') is not None else '',
             'Score switching': _round_monetario(row_dict.get('score_switching_shadow') if row_dict.get('score_switching_shadow') not in (None, '') else row_dict.get('ganho_liquido_estimado_switching'), ''),
             'Necessita switching': necessita_switching_txt if necessita_switching_txt in {'sim', 'não'} else _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': 'sim' if bool(row_dict.get('switching_antes_pagamento')) else 'não',
