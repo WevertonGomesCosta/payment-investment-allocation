@@ -126,6 +126,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             cobertura='sim' if (liq!='' and val!='' and liq+0.01>=val) else 'não'
             lote_op = ev_sw['lote_pos_switching'] if sw_mat and pacote=='switch_then_pay' else lote_origem
             promovida_reserva=False
+            qtd_avaliados = qtd_saldo_suf = bloq_saldo = bloq_data = bloq_car = bloq_mig = 0
+            melhor_lote = ''
+            melhor_saldo = ''
+            melhor_data = ''
+            melhor_car = ''
+            motivo_fifo = ''
             if _eh_nd(lote_op) and (not _eh_nd(reserva)) and liq != '' and val != '' and liq + 0.01 >= val:
                 lote_op = reserva
                 promovida_reserva=True
@@ -149,18 +155,33 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 data_pag = d.get('data_pagamento')
                 valor_pag = val if val != '' else 0.0
                 elegiveis = []
+                qtd_avaliados = 0
+                qtd_saldo_suf = 0
+                bloq_saldo = bloq_data = bloq_car = bloq_mig = 0
+                melhor_lote = ''
+                melhor_saldo = ''
+                melhor_data = ''
+                melhor_car = ''
                 for lid, meta in estado_lotes.items():
+                    qtd_avaliados += 1
                     saldo = float(meta.get('saldo_liquido') or 0.0)
-                    if saldo + 0.01 < float(valor_pag or 0.0):
-                        continue
                     da = meta.get('data_aplicacao')
-                    if da is not None and data_pag is not None and da > data_pag:
-                        continue
                     car = meta.get('carencia_ate')
-                    if car is not None and data_pag is not None and car > data_pag:
-                        continue
                     mig = meta.get('migrado_em')
+                    if melhor_lote == '' or (da, -saldo, lid) < (melhor_data or '', -(float(melhor_saldo or 0) if melhor_saldo!='' else 0.0), str(melhor_lote)):
+                        melhor_lote = lid; melhor_saldo = round(saldo,2); melhor_data = da; melhor_car = car
+                    if saldo + 0.01 < float(valor_pag or 0.0):
+                        bloq_saldo += 1
+                        continue
+                    qtd_saldo_suf += 1
+                    if da is not None and data_pag is not None and da > data_pag:
+                        bloq_data += 1
+                        continue
+                    if car is not None and data_pag is not None and car > data_pag:
+                        bloq_car += 1
+                        continue
                     if mig is not None and data_pag is not None and mig <= data_pag:
+                        bloq_mig += 1
                         continue
                     elegiveis.append((da, -saldo, lid, saldo))
                 elegiveis.sort(key=lambda x: (x[0] or '', x[1], x[2]))
@@ -181,10 +202,23 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                     sal_dep = round(float(saldo - liq), 2)
                     estado_lotes[lid]['saldo_liquido'] = sal_dep
                     etapa_descarte_fonte = ''
+                    motivo_fifo = 'promovido_pay_only_fifo_v1'
                     motivo_descarte_fonte = ''
                     origem_motivo_descarte = ''
                 else:
                     status = 'lote_individual_insuficiente' if estado_lotes else 'sem_fonte_auditavel'
+                    if len(estado_lotes)==0:
+                        motivo_fifo='sem_lotes_no_estado'
+                    elif qtd_avaliados>0 and bloq_saldo==qtd_avaliados:
+                        motivo_fifo='todos_bloqueados_por_saldo'
+                    elif qtd_saldo_suf>0 and bloq_data>=qtd_saldo_suf:
+                        motivo_fifo='todos_bloqueados_por_data'
+                    elif qtd_saldo_suf>0 and bloq_car>=qtd_saldo_suf:
+                        motivo_fifo='todos_bloqueados_por_carencia'
+                    elif qtd_saldo_suf>0 and bloq_mig>=qtd_saldo_suf:
+                        motivo_fifo='todos_bloqueados_por_migracao'
+                    else:
+                        motivo_fifo='outro'
                     cobertura = 'não'
                     etapa_descarte_fonte = 'selecao_fonte_operacional'
                     motivo_descarte_fonte = status
@@ -217,5 +251,20 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'etapa_descarte_fonte': etapa_descarte_fonte or '',
             'motivo_descarte_fonte': motivo_descarte_fonte or '',
             'origem_motivo_descarte': origem_motivo_descarte or '',
+            'fifo_pagamento_id': pid,
+            'fifo_data_pagamento': d.get('data_pagamento'),
+            'fifo_valor_pagamento': val if 'val' in locals() else '',
+            'fifo_qtd_lotes_estado': len(estado_lotes),
+            'fifo_qtd_lotes_avaliados': qtd_avaliados if 'qtd_avaliados' in locals() else 0,
+            'fifo_qtd_lotes_saldo_suficiente': qtd_saldo_suf if 'qtd_saldo_suf' in locals() else 0,
+            'fifo_qtd_lotes_bloqueados_por_saldo': bloq_saldo if 'bloq_saldo' in locals() else 0,
+            'fifo_qtd_lotes_bloqueados_por_data': bloq_data if 'bloq_data' in locals() else 0,
+            'fifo_qtd_lotes_bloqueados_por_carencia': bloq_car if 'bloq_car' in locals() else 0,
+            'fifo_qtd_lotes_bloqueados_por_migracao': bloq_mig if 'bloq_mig' in locals() else 0,
+            'fifo_melhor_lote_candidato': melhor_lote,
+            'fifo_saldo_melhor_lote': melhor_saldo,
+            'fifo_data_aplicacao_melhor_lote': melhor_data,
+            'fifo_carencia_melhor_lote': melhor_car,
+            'fifo_motivo_nao_promocao': motivo_fifo if 'motivo_fifo' in locals() else '',
         })
     return eventos

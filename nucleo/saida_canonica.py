@@ -867,6 +867,21 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'pacote_do_dia_ledger': ledger.get('pacote_do_dia') or '',
             'status_ledger': ledger.get('status') or '',
             'motivo_bloqueio_ledger': ledger.get('motivo_bloqueio') or '',
+            'fifo_pagamento_id': ledger.get('fifo_pagamento_id'),
+            'fifo_data_pagamento': ledger.get('fifo_data_pagamento'),
+            'fifo_valor_pagamento': ledger.get('fifo_valor_pagamento'),
+            'fifo_qtd_lotes_estado': ledger.get('fifo_qtd_lotes_estado'),
+            'fifo_qtd_lotes_avaliados': ledger.get('fifo_qtd_lotes_avaliados'),
+            'fifo_qtd_lotes_saldo_suficiente': ledger.get('fifo_qtd_lotes_saldo_suficiente'),
+            'fifo_qtd_lotes_bloqueados_por_saldo': ledger.get('fifo_qtd_lotes_bloqueados_por_saldo'),
+            'fifo_qtd_lotes_bloqueados_por_data': ledger.get('fifo_qtd_lotes_bloqueados_por_data'),
+            'fifo_qtd_lotes_bloqueados_por_carencia': ledger.get('fifo_qtd_lotes_bloqueados_por_carencia'),
+            'fifo_qtd_lotes_bloqueados_por_migracao': ledger.get('fifo_qtd_lotes_bloqueados_por_migracao'),
+            'fifo_melhor_lote_candidato': ledger.get('fifo_melhor_lote_candidato'),
+            'fifo_saldo_melhor_lote': ledger.get('fifo_saldo_melhor_lote'),
+            'fifo_data_aplicacao_melhor_lote': ledger.get('fifo_data_aplicacao_melhor_lote'),
+            'fifo_carencia_melhor_lote': ledger.get('fifo_carencia_melhor_lote'),
+            'fifo_motivo_nao_promocao': ledger.get('fifo_motivo_nao_promocao'),
         }
         linha_saida = _aplicar_invariantes_extrato_futuro_linha(linha_saida)
         linhas.append(linha_saida)
