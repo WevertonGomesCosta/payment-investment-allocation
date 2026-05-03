@@ -64,6 +64,7 @@ def main()->int:
         return pd.DataFrame()
     aba_shapes.append({'aba':'Extrato Futuro','linhas':len(extrato),'colunas':len(extrato.columns)})
     estado=ler('Estado Pos-Switching'); sint=ler('Lotes Sinteticos Pos-Sw'); sw=ler('Switching'); sws=ler('Switchings'); aud_fontes=ler('Auditoria Fontes'); aud_fifo=ler('Auditoria FIFO'); saida_can=ler('Saida Canonica')
+    estado=ler('Estado Pos-Switching'); sint=ler('Lotes Sinteticos Pos-Sw'); sw=ler('Switching'); sws=ler('Switchings'); aud_fontes=ler('Auditoria Fontes'); saida_can=ler('Saida Canonica')
 
 
     estruturado = pd.DataFrame()
