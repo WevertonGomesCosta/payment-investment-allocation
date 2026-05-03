@@ -167,6 +167,14 @@ def main()->int:
     qtd_inferida = int((sem_lote['tipo_causa'] == 'inferida').sum())
 
     fifo_avaliados = fifo_resolvidos = 0
+
+    pagamentos_estado_sem_avaliacao_sem_motivo = 0
+    if len(aud_fifo):
+        motivos = aud_fifo.get('fifo_motivo_nao_promocao', pd.Series(['']*len(aud_fifo))).fillna('').astype(str)
+        est = aud_fifo.get('fifo_qtd_lotes_estado', pd.Series([0]*len(aud_fifo))).fillna(0).astype(float)
+        av = aud_fifo.get('fifo_qtd_lotes_avaliados', pd.Series([0]*len(aud_fifo))).fillna(0).astype(float)
+        motivo_ok = motivos.str.startswith('fifo_nao_aplicavel_') | (~motivos.str.strip().isin(['', 'n/d', 'nd']))
+        pagamentos_estado_sem_avaliacao_sem_motivo = int(((est > 0) & (av == 0) & (~motivo_ok)).sum())
     dist_motivos_fifo = pd.Series(dtype='int64')
     estado_vazio = saldo_todos = data_todos = car_todos = mig_todos = 0
     total_candidatos_fifo = 0
@@ -206,6 +214,7 @@ def main()->int:
         print('fifo_distribuicao_bloqueios_por_candidato:')
         print(dist_bloq_cand.to_string())
     print(f'fifo_total_candidatos_elegiveis={total_candidatos_elegiveis} | fifo_pagamentos_com_ao_menos_um_elegivel={pagamentos_com_candidato_elegivel}')
+    print(f'pagamentos_estado_lotes_gt0_avaliados_zero_sem_motivo={pagamentos_estado_sem_avaliacao_sem_motivo}')
     print(f'divergencias_status={diverg_status} | divergencias_motivo={diverg_motivo} | divergencias_pacote={diverg_pacote}')
     print(f'linhas_promovida_invalida={promovida_invalida} | linhas_sem_motivo_estruturado={sem_motivo_estruturado}')
     print('lotes_pos_switching_materializados_encontrados:')

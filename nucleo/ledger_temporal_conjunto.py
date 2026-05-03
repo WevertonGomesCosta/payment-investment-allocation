@@ -101,11 +101,12 @@ def _inferir_pacote(row: dict[str, Any]) -> str:
     return 'não determinado'
 
 
-def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_central: dict[str, dict[str, Any]] | None = None, contexto: Any | None = None) -> list[dict[str, Any]]:
+def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_central: dict[str, dict[str, Any]] | None = None, contexto: Any | None = None) -> dict[str, Any]:
     if not isinstance(quadro_futuro, pd.DataFrame) or quadro_futuro.empty:
-        return []
+        return {"eventos": [], "fifo_candidatos_avaliados": []}
     mapa_central = mapa_central or {}
     eventos: list[dict[str, Any]] = []
+    fifo_candidatos_avaliados: list[dict[str, Any]] = []
     materializados: dict[tuple[str, str], dict[str, Any]] = {}
 
     quadro_ord = quadro_futuro.sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
@@ -284,6 +285,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
 
         valor_pag_fifo = float(val or 0.0) if 'val' in locals() and val != '' else float(_round(d.get('valor_pagamento')) or 0.0)
         cand_rows, cand_sum = _auditar_fifo_candidatos(pid, d, estado_lotes, d.get('data_pagamento'), valor_pag_fifo, pacote, lote_op)
+        fifo_candidatos_avaliados.extend(cand_rows)
 
         eventos.append({
             'pagamento_id': pid,'data': d.get('data_pagamento'),'conta': d.get('descricao_pagamento') or '',
@@ -324,4 +326,4 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'fifo_carencia_melhor_lote': melhor_car,
             'fifo_motivo_nao_promocao': motivo_fifo if 'motivo_fifo' in locals() else '',
         })
-    return eventos
+    return {"eventos": eventos, "fifo_candidatos_avaliados": fifo_candidatos_avaliados}
