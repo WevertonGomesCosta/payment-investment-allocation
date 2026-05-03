@@ -35,6 +35,7 @@ DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
     'saida_canonica': 'Saida Canonica',
     'auditoria_fontes': 'Auditoria Fontes',
     'auditoria_fifo': 'Auditoria FIFO',
+    'auditoria_fifo_candidatos': 'Auditoria FIFO Candidatos',
 }
 
 DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
@@ -373,6 +374,7 @@ def main(*, contexto=None, saida=None) -> Path:
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
     _adicionar_aba_auditoria_fontes(wb, contexto, saida)
     _adicionar_aba_auditoria_fifo(wb, contexto, saida)
+    _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, saida)
 
     saida_interna.parent.mkdir(parents=True, exist_ok=True)
     wb.save(saida_interna)
@@ -418,4 +420,14 @@ def _adicionar_aba_auditoria_fifo(wb, contexto, pacote_saida) -> None:
     itens=[]
     for row in pacote_saida.extrato_futuro:
         itens.append({h: row.get(h) for h in headers})
+    _apply_table_style(ws, headers, _rows(itens, headers), freeze=True)
+
+
+def _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, pacote_saida) -> None:
+    ws = wb.create_sheet(_nome_aba_operacional(contexto, 'auditoria_fifo_candidatos'))
+    headers = ['Data','Conta','Despesa ID','Valor','lote_id','data_aplicacao','carencia_ate','migrado_em','saldo_liquido','avaliado_fifo','bloqueado_por_saldo','bloqueado_por_data','bloqueado_por_carencia','bloqueado_por_migracao','elegivel_fifo','ordem_fifo','motivo_bloqueio_fifo']
+    itens=[]
+    for row in pacote_saida.extrato_futuro:
+        for cand in (row.get('fifo_candidatos_avaliados') or []):
+            itens.append({h: cand.get(h) for h in headers})
     _apply_table_style(ws, headers, _rows(itens, headers), freeze=True)

@@ -30,6 +30,60 @@ def _eh_nd(v: Any) -> bool:
     return _norm(v) in {'', 'n/d', 'nd', 'não determinado', 'nao determinado', 'none'}
 
 
+
+
+def _auditar_fifo_candidatos(pid: str, d: dict[str, Any], estado_lotes: dict[str, dict[str, Any]], data_pag: Any, valor_pag: float, pacote: str, lote_sugerido: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    candidatos=[]
+    qtd_estado=len(estado_lotes)
+    qtd_av=qtd_suf=b_saldo=b_data=b_car=b_mig=0
+    melhor_lote=''
+    melhor_saldo=''
+    melhor_data=''
+    melhor_car=''
+    motivo='n/d'
+    if pacote != 'pay_only':
+        motivo='fifo_nao_aplicavel_pacote_nao_pay_only'
+        return candidatos, {'qtd_estado':qtd_estado,'qtd_av':0,'qtd_suf':0,'b_saldo':0,'b_data':0,'b_car':0,'b_mig':0,'melhor_lote':'','melhor_saldo':'','melhor_data':'','melhor_car':'','motivo':motivo}
+    if valor_pag <= 0:
+        motivo='fifo_nao_aplicavel_sem_valor_pagamento'
+        return candidatos, {'qtd_estado':qtd_estado,'qtd_av':0,'qtd_suf':0,'b_saldo':0,'b_data':0,'b_car':0,'b_mig':0,'melhor_lote':'','melhor_saldo':'','melhor_data':'','melhor_car':'','motivo':motivo}
+    if qtd_estado == 0:
+        motivo='fifo_nao_aplicavel_sem_estado_lotes'
+        return candidatos, {'qtd_estado':0,'qtd_av':0,'qtd_suf':0,'b_saldo':0,'b_data':0,'b_car':0,'b_mig':0,'melhor_lote':'','melhor_saldo':'','melhor_data':'','melhor_car':'','motivo':motivo}
+
+    ordem=0
+    for lid,meta in estado_lotes.items():
+        ordem += 1
+        qtd_av += 1
+        saldo=float(meta.get('saldo_liquido') or 0.0)
+        da=meta.get('data_aplicacao'); car=meta.get('carencia_ate'); mig=meta.get('migrado_em')
+        if melhor_lote == '' or (da or '', -saldo, lid) < (melhor_data or '', -(float(melhor_saldo or 0) if melhor_saldo!='' else 0.0), melhor_lote):
+            melhor_lote=lid; melhor_saldo=round(saldo,2); melhor_data=da; melhor_car=car
+        bs = saldo + 0.01 < valor_pag
+        bd = (not bs) and (da is not None and data_pag is not None and da > data_pag)
+        bc = (not bs and not bd) and (car is not None and data_pag is not None and car > data_pag)
+        bm = (not bs and not bd and not bc) and (mig is not None and data_pag is not None and mig <= data_pag)
+        eleg = not (bs or bd or bc or bm)
+        if bs: b_saldo += 1
+        if bd: b_data += 1
+        if bc: b_car += 1
+        if bm: b_mig += 1
+        if not bs: qtd_suf += 1
+        candidatos.append({'Data': d.get('data_pagamento'),'Conta': d.get('descricao_pagamento') or '','Despesa ID': pid,'Valor': valor_pag,'lote_id': lid,'data_aplicacao': da,'carencia_ate': car,'migrado_em': mig,'saldo_liquido': round(saldo,2),'avaliado_fifo': True,'bloqueado_por_saldo': bs,'bloqueado_por_data': bd,'bloqueado_por_carencia': bc,'bloqueado_por_migracao': bm,'elegivel_fifo': eleg,'ordem_fifo': ordem,'motivo_bloqueio_fifo': 'saldo' if bs else ('data' if bd else ('carencia' if bc else ('migracao' if bm else '')) )})
+    if lote_sugerido and _norm(lote_sugerido) not in {'','n/d','nd','não determinado','nao determinado'}:
+        motivo='fifo_nao_aplicavel_linha_ja_resolvida'
+    elif b_saldo == qtd_av:
+        motivo='todos_bloqueados_por_saldo'
+    elif b_data == qtd_suf and qtd_suf>0:
+        motivo='todos_bloqueados_por_data'
+    elif b_car == qtd_suf and qtd_suf>0:
+        motivo='todos_bloqueados_por_carencia'
+    elif b_mig == qtd_suf and qtd_suf>0:
+        motivo='todos_bloqueados_por_migracao'
+    else:
+        motivo='sem_promocao_fifo'
+    return candidatos, {'qtd_estado':qtd_estado,'qtd_av':qtd_av,'qtd_suf':qtd_suf,'b_saldo':b_saldo,'b_data':b_data,'b_car':b_car,'b_mig':b_mig,'melhor_lote':melhor_lote,'melhor_saldo':melhor_saldo,'melhor_data':melhor_data,'melhor_car':melhor_car,'motivo':motivo}
+
 def _inferir_pacote(row: dict[str, Any]) -> str:
     pacote = _txt(row.get('pacote_dia_escolhido'))
     if pacote:
@@ -227,6 +281,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 etapa_descarte_fonte = etapa_descarte_fonte or 'selecao_fonte_operacional'
                 motivo_descarte_fonte = motivo_descarte_fonte or motivo or status or 'sem_fonte_auditavel'
                 origem_motivo_descarte = origem_motivo_descarte or ('registrada_pipeline' if motivo else 'inferida')
+
+        valor_pag_fifo = float(val or 0.0) if 'val' in locals() and val != '' else float(_round(d.get('valor_pagamento')) or 0.0)
+        cand_rows, cand_sum = _auditar_fifo_candidatos(pid, d, estado_lotes, d.get('data_pagamento'), valor_pag_fifo, pacote, lote_op)
 
         eventos.append({
             'pagamento_id': pid,'data': d.get('data_pagamento'),'conta': d.get('descricao_pagamento') or '',

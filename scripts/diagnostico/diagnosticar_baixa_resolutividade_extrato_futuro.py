@@ -63,8 +63,7 @@ def main()->int:
             return df
         return pd.DataFrame()
     aba_shapes.append({'aba':'Extrato Futuro','linhas':len(extrato),'colunas':len(extrato.columns)})
-    estado=ler('Estado Pos-Switching'); sint=ler('Lotes Sinteticos Pos-Sw'); sw=ler('Switching'); sws=ler('Switchings'); aud_fontes=ler('Auditoria Fontes'); aud_fifo=ler('Auditoria FIFO'); saida_can=ler('Saida Canonica')
-    estado=ler('Estado Pos-Switching'); sint=ler('Lotes Sinteticos Pos-Sw'); sw=ler('Switching'); sws=ler('Switchings'); aud_fontes=ler('Auditoria Fontes'); saida_can=ler('Saida Canonica')
+    estado=ler('Estado Pos-Switching'); sint=ler('Lotes Sinteticos Pos-Sw'); sw=ler('Switching'); sws=ler('Switchings'); aud_fontes=ler('Auditoria Fontes'); aud_fifo=ler('Auditoria FIFO'); aud_fifo_cand=ler('Auditoria FIFO Candidatos'); saida_can=ler('Saida Canonica')
 
 
     estruturado = pd.DataFrame()
@@ -170,27 +169,43 @@ def main()->int:
     fifo_avaliados = fifo_resolvidos = 0
     dist_motivos_fifo = pd.Series(dtype='int64')
     estado_vazio = saldo_todos = data_todos = car_todos = mig_todos = 0
+    total_candidatos_fifo = 0
+    dist_bloq_cand = pd.Series(dtype='int64')
+    total_candidatos_elegiveis = 0
+    pagamentos_com_candidato_elegivel = 0
     if len(aud_fifo):
         fifo_avaliados = int((aud_fifo.get('fifo_qtd_lotes_avaliados', pd.Series([0]*len(aud_fifo))).fillna(0).astype(float) > 0).sum())
         fifo_resolvidos = int((aud_fifo.get('origem_fonte_candidata', pd.Series(['']*len(aud_fifo))).fillna('').astype(str) == 'pay_only_fifo_v1').sum())
         dist_motivos_fifo = aud_fifo.get('fifo_motivo_nao_promocao', pd.Series([], dtype='object')).fillna('n/d').astype(str).value_counts()
         estado_vazio = int((aud_fifo.get('fifo_qtd_lotes_estado', pd.Series([0]*len(aud_fifo))).fillna(0).astype(float) == 0).sum())
-        saldo_todos = int((aud_fifo.get('fifo_motivo_nao_promocao', pd.Series(['']*len(aud_fifo))).astype(str) == 'todos_bloqueados_por_saldo').sum())
-        data_todos = int((aud_fifo.get('fifo_motivo_nao_promocao', pd.Series(['']*len(aud_fifo))).astype(str) == 'todos_bloqueados_por_data').sum())
-        car_todos = int((aud_fifo.get('fifo_motivo_nao_promocao', pd.Series(['']*len(aud_fifo))).astype(str) == 'todos_bloqueados_por_carencia').sum())
-        mig_todos = int((aud_fifo.get('fifo_motivo_nao_promocao', pd.Series(['']*len(aud_fifo))).astype(str) == 'todos_bloqueados_por_migracao').sum())
+    if len(aud_fifo_cand):
+        total_candidatos_fifo = len(aud_fifo_cand)
+        total_candidatos_elegiveis = int(aud_fifo_cand.get('elegivel_fifo', pd.Series([False]*len(aud_fifo_cand))).fillna(False).astype(bool).sum())
+        pagamentos_com_candidato_elegivel = int(aud_fifo_cand[aud_fifo_cand.get('elegivel_fifo', pd.Series([False]*len(aud_fifo_cand))).fillna(False).astype(bool)]['Despesa ID'].astype(str).nunique()) if 'Despesa ID' in aud_fifo_cand.columns else 0
+        motivos = aud_fifo_cand.get('motivo_bloqueio_fifo', pd.Series(['']*len(aud_fifo_cand))).fillna('elegivel').astype(str)
+        dist_bloq_cand = motivos.value_counts()
+        saldo_todos = int((motivos == 'saldo').sum())
+        data_todos = int((motivos == 'data').sum())
+        car_todos = int((motivos == 'carencia').sum())
+        mig_todos = int((motivos == 'migracao').sum())
 
-    print('causas_raiz_agrupadas:'); print(causas_agg.to_string(index=False))
+    print('causas_raiz_agrupadas:')
+    print(causas_agg.to_string(index=False))
     resolvidos_fifo = 0
     if len(aud_fontes) and 'origem_fonte_candidata' in aud_fontes.columns:
         resolvidos_fifo = int((aud_fontes['origem_fonte_candidata'].fillna('').astype(str) == 'pay_only_fifo_v1').sum())
     print(f'causas_estruturadas={qtd_estruturada} | causas_inferidas={qtd_inferida} | causas_nao_rastreadas={qtd_nao_rastreada}')
     print(f'pagamentos_resolvidos_por_pay_only_fifo_v1={resolvidos_fifo}')
     print(f'fifo_total_avaliado={fifo_avaliados} | fifo_total_resolvido={fifo_resolvidos}')
+    print(f'fifo_total_candidatos_pagamento_x_lote={total_candidatos_fifo}')
     if len(dist_motivos_fifo):
         print('fifo_distribuicao_motivos_nao_promocao:')
         print(dist_motivos_fifo.to_string())
     print(f'fifo_estado_lotes_vazio={estado_vazio} | fifo_todos_bloq_saldo={saldo_todos} | fifo_todos_bloq_data={data_todos} | fifo_todos_bloq_carencia={car_todos} | fifo_todos_bloq_migracao={mig_todos}')
+    if len(dist_bloq_cand):
+        print('fifo_distribuicao_bloqueios_por_candidato:')
+        print(dist_bloq_cand.to_string())
+    print(f'fifo_total_candidatos_elegiveis={total_candidatos_elegiveis} | fifo_pagamentos_com_ao_menos_um_elegivel={pagamentos_com_candidato_elegivel}')
     print(f'divergencias_status={diverg_status} | divergencias_motivo={diverg_motivo} | divergencias_pacote={diverg_pacote}')
     print(f'linhas_promovida_invalida={promovida_invalida} | linhas_sem_motivo_estruturado={sem_motivo_estruturado}')
     print('lotes_pos_switching_materializados_encontrados:')
