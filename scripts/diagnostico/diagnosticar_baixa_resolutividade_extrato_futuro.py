@@ -63,7 +63,18 @@ def main()->int:
             return df
         return pd.DataFrame()
     aba_shapes.append({'aba':'Extrato Futuro','linhas':len(extrato),'colunas':len(extrato.columns)})
-    estado=ler('Estado Pos-Switching'); sint=ler('Lotes Sinteticos Pos-Sw'); sw=ler('Switching'); sws=ler('Switchings')
+    estado=ler('Estado Pos-Switching'); sint=ler('Lotes Sinteticos Pos-Sw'); sw=ler('Switching'); sws=ler('Switchings'); saida_can=ler('Saida Canonica')
+
+
+    estruturado = pd.DataFrame()
+    if len(saida_can):
+        cand_cols = ['Despesa ID','fonte_candidata_id','tipo_fonte_candidata','origem_fonte_candidata','elegivel_temporalmente','saldo_liquido_disponivel','elegivel_liquidez_carencia','promovida_para_lote_sugerido','etapa_descarte_fonte','motivo_descarte_fonte','origem_motivo_descarte','evento_switching_id']
+        has=[c for c in cand_cols if c in saida_can.columns]
+        if has and 'Despesa ID' in has:
+            estruturado = saida_can[has].copy()
+            estruturado = estruturado.rename(columns={'Despesa ID':'_join_despesa_id'})
+            extrato['_join_despesa_id']=extrato['Despesa ID'].astype(str)
+            extrato = extrato.merge(estruturado, how='left', on='_join_despesa_id')
 
     extrato['_lote_nd']=extrato['Lote sugerido'].apply(is_nd)
     extrato['_reserva_preenchida']=~extrato['Lote reserva'].apply(is_nd)
@@ -74,13 +85,15 @@ def main()->int:
     sem_lote=extrato[extrato['_lote_nd']].copy()
     causas=sem_lote.apply(_inferir_causa, axis=1, result_type='expand')
     sem_lote[['causa_raiz','etapa_descarte_fonte','tipo_causa']]=causas
-    sem_lote['fontes_candidatas_motor']=sem_lote['Lote reserva'].fillna('n/d')
-    sem_lote['saldo_liquido_reserva_data']=sem_lote['Saldo Antes'].fillna('n/d')
+    sem_lote['fontes_candidatas_motor']=sem_lote.get('fonte_candidata_id', sem_lote['Lote reserva']).fillna('n/d')
+    sem_lote['saldo_liquido_reserva_data']=sem_lote.get('saldo_liquido_disponivel', sem_lote['Saldo Antes']).fillna('n/d')
     sem_lote['elegibilidade_temporal_reserva']=sem_lote['_reserva_futura_sinal'].map({True:'ineligivel_data_inferido',False:'sem_evidencia_ineligibilidade_data'})
     sem_lote['liquidez_carencia_reserva']=sem_lote['_reserva_prazo_sinal'].map({True:'sinal_produto_com_carencia_liquidez',False:'n/d'})
     sem_lote['reserva_descartada']=sem_lote['_reserva_preenchida'].map({True:'sim',False:'não'})
+    sem_lote['motivo_descarte_fonte_estruturado']=sem_lote.get('motivo_descarte_fonte', pd.Series(['']*len(sem_lote))).fillna('')
+    sem_lote['origem_motivo_descarte_estruturado']=sem_lote.get('origem_motivo_descarte', pd.Series(['']*len(sem_lote))).fillna('')
 
-    sem_lote[['Data','Conta','Valor','Lote reserva','Status recomendação','Motivo bloqueio lote','fontes_candidatas_motor','saldo_liquido_reserva_data','elegibilidade_temporal_reserva','liquidez_carencia_reserva','reserva_descartada','etapa_descarte_fonte','causa_raiz','tipo_causa']].to_csv(OUT_DIR/'diagnostico_baixa_resolutividade_detalhe.csv',index=False)
+    sem_lote[['Data','Conta','Valor','Lote reserva','Status recomendação','Motivo bloqueio lote','fontes_candidatas_motor','saldo_liquido_reserva_data','elegibilidade_temporal_reserva','liquidez_carencia_reserva','reserva_descartada','etapa_descarte_fonte','motivo_descarte_fonte_estruturado','origem_motivo_descarte_estruturado','causa_raiz','tipo_causa']].to_csv(OUT_DIR/'diagnostico_baixa_resolutividade_detalhe.csv',index=False)
     causas_agg=sem_lote['causa_raiz'].value_counts().rename_axis('causa_raiz').reset_index(name='qtd')
     causas_agg.to_csv(OUT_DIR/'diagnostico_baixa_resolutividade_causas.csv',index=False)
 

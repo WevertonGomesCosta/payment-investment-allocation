@@ -26,6 +26,10 @@ def _round(v: Any) -> Any:
 
 
 
+def _eh_nd(v: Any) -> bool:
+    return _norm(v) in {'', 'n/d', 'nd', 'não determinado', 'nao determinado', 'none'}
+
+
 def _inferir_pacote(row: dict[str, Any]) -> str:
     pacote = _txt(row.get('pacote_dia_escolhido'))
     if pacote:
@@ -71,6 +75,10 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         pacote=_inferir_pacote(d)
         lote_origem=_txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id') or central.get('lote_final_central'))
+        reserva=_txt(d.get('lote_reserva') or central.get('lote_reserva'))
+        fonte_candidata_id = lote_origem if not _eh_nd(lote_origem) else (reserva if not _eh_nd(reserva) else '')
+        tipo_fonte_candidata = 'lote' if not _eh_nd(fonte_candidata_id) else 'indeterminada'
+        origem_fonte_candidata = 'motor_recomendacao' if not _eh_nd(lote_origem) else ('reserva' if not _eh_nd(reserva) else 'nao_rastreada')
         if not lote_origem or _norm(lote_origem) in {'não determinado','nao determinado','n/d'}:
             lote_origem='não determinado'
         ev_sw=materializados.get((str(d.get('data_pagamento') or ''), lote_origem))
@@ -83,6 +91,8 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         if pacote=='switch_then_pay' and not sw_mat:
             status='switch_then_pay_sem_materializacao'; motivo=status; cobertura='não'; lote_op='não determinado'
             sal_ant=br=imp=liq=cons=sal_dep=''
+            elegivel_temporalmente=False; saldo_liquido_disponivel=''; elegivel_liquidez_carencia=False
+            promovida_para_lote_sugerido=False; etapa_descarte_fonte='injecao_pos_switching_no_fluxo'; motivo_descarte_fonte=status; origem_motivo_descarte='registrada_pipeline'
         else:
             status=_txt(d.get('status_recomendacao') or central.get('status_recomendacao') or 'não determinado')
             motivo=_txt(d.get('motivo_bloqueio_lote') or central.get('motivo_bloqueio_lote'))
@@ -95,6 +105,17 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             val=_round(d.get('valor_pagamento'))
             cobertura='sim' if (liq!='' and val!='' and liq+0.01>=val) else 'não'
             lote_op = ev_sw['lote_pos_switching'] if sw_mat and pacote=='switch_then_pay' else lote_origem
+            promovida_reserva=False
+            if _eh_nd(lote_op) and (not _eh_nd(reserva)) and liq != '' and val != '' and liq + 0.01 >= val:
+                lote_op = reserva
+                promovida_reserva=True
+            elegivel_temporalmente = (not _eh_nd(fonte_candidata_id))
+            saldo_liquido_disponivel = liq if liq != '' else ''
+            elegivel_liquidez_carencia = bool(liq != '' and liq > 0)
+            promovida_para_lote_sugerido = bool((not _eh_nd(lote_op)) and (_eh_nd(lote_origem) and not _eh_nd(reserva))) if 'promovida_reserva' in locals() else False
+            etapa_descarte_fonte = ''
+            motivo_descarte_fonte = ''
+            origem_motivo_descarte = ''
             if lote_op=='não determinado':
                 cobertura='não'
                 if status in {'','ok','não determinado'}: status='sem_fonte_auditavel'
@@ -103,6 +124,10 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 cobertura='não'
                 if status in {'','ok','não determinado'}: status='fonte_pos_switching_nao_materializada'
                 if not motivo: motivo='fonte_pos_switching_nao_materializada'
+            if lote_op=='não determinado':
+                etapa_descarte_fonte = 'selecao_fonte_operacional'
+                motivo_descarte_fonte = motivo or status or 'sem_fonte_auditavel'
+                origem_motivo_descarte = 'registrada_pipeline' if motivo else 'inferida'
 
         eventos.append({
             'pagamento_id': pid,'data': d.get('data_pagamento'),'conta': d.get('descricao_pagamento') or '',
@@ -117,5 +142,15 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'lote_pos_switching_materializado': ev_sw.get('lote_pos_switching') if ev_sw and pacote=='switch_then_pay' else '',
             'saldo_antes': sal_ant,'bruto': br,'imposto': imp,'liquido': liq,'consumo': cons,'saldo_depois': sal_dep,
             'cobertura_integral': cobertura,'status': status or 'não determinado','motivo_bloqueio': motivo or '',
+            'fonte_candidata_id': fonte_candidata_id or 'n/d',
+            'tipo_fonte_candidata': tipo_fonte_candidata,
+            'origem_fonte_candidata': origem_fonte_candidata,
+            'elegivel_temporalmente': bool(elegivel_temporalmente),
+            'saldo_liquido_disponivel': saldo_liquido_disponivel,
+            'elegivel_liquidez_carencia': bool(elegivel_liquidez_carencia),
+            'promovida_para_lote_sugerido': bool((not _eh_nd(lote_op)) and (_eh_nd(lote_origem) and not _eh_nd(reserva))),
+            'etapa_descarte_fonte': etapa_descarte_fonte or '',
+            'motivo_descarte_fonte': motivo_descarte_fonte or '',
+            'origem_motivo_descarte': origem_motivo_descarte or '',
         })
     return eventos
