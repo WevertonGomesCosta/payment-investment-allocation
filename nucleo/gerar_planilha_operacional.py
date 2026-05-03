@@ -33,6 +33,8 @@ DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
     'resumo_switching': 'Resumo Switching',
     'situacao_atual': 'Situação Atual',
     'saida_canonica': 'Saida Canonica',
+    'auditoria_fontes': 'Auditoria Fontes',
+    'auditoria_fifo': 'Auditoria FIFO',
 }
 
 DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
@@ -369,6 +371,8 @@ def main(*, contexto=None, saida=None) -> Path:
     _adicionar_abas_ranking(wb, contexto)
     _adicionar_situacao_atual(wb, contexto, saida)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
+    _adicionar_aba_auditoria_fontes(wb, contexto, saida)
+    _adicionar_aba_auditoria_fifo(wb, contexto, saida)
 
     saida_interna.parent.mkdir(parents=True, exist_ok=True)
     wb.save(saida_interna)
@@ -383,3 +387,35 @@ def main(*, contexto=None, saida=None) -> Path:
 
 if __name__ == '__main__':
     print(main())
+
+
+def _adicionar_aba_auditoria_fontes(wb, contexto, pacote_saida) -> None:
+    ws = wb.create_sheet(_nome_aba_operacional(contexto, 'auditoria_fontes'))
+    headers = [
+        'Data','Conta','Despesa ID','Valor','Lote sugerido','Lote reserva',
+        'fonte_candidata_id','tipo_fonte_candidata','origem_fonte_candidata','elegivel_temporalmente',
+        'saldo_liquido_disponivel','elegivel_liquidez_carencia','promovida_para_lote_sugerido',
+        'etapa_descarte_fonte','motivo_descarte_fonte','origem_motivo_descarte','evento_switching_id',
+        'lote_pos_switching_materializado','pacote_do_dia_ledger','status_ledger','motivo_bloqueio_ledger'
+    ]
+    itens = []
+    for row in pacote_saida.extrato_futuro:
+        itens.append({h: row.get(h) for h in headers})
+    rows = _rows(itens, headers)
+    _apply_table_style(ws, headers, rows, freeze=True)
+
+
+def _adicionar_aba_auditoria_fifo(wb, contexto, pacote_saida) -> None:
+    ws = wb.create_sheet(_nome_aba_operacional(contexto, 'auditoria_fifo'))
+    headers = [
+        'Data','Conta','Despesa ID','Valor','Lote sugerido','Pacote do dia',
+        'fifo_qtd_lotes_estado','fifo_qtd_lotes_avaliados','fifo_qtd_lotes_saldo_suficiente',
+        'fifo_qtd_lotes_bloqueados_por_saldo','fifo_qtd_lotes_bloqueados_por_data',
+        'fifo_qtd_lotes_bloqueados_por_carencia','fifo_qtd_lotes_bloqueados_por_migracao',
+        'fifo_melhor_lote_candidato','fifo_saldo_melhor_lote','fifo_data_aplicacao_melhor_lote',
+        'fifo_carencia_melhor_lote','fifo_motivo_nao_promocao','origem_fonte_candidata','status_ledger'
+    ]
+    itens=[]
+    for row in pacote_saida.extrato_futuro:
+        itens.append({h: row.get(h) for h in headers})
+    _apply_table_style(ws, headers, _rows(itens, headers), freeze=True)
