@@ -852,6 +852,21 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Líq. pos': _round_monetario(row_dict.get('saldo_pos_sw_liquido_candidato'), 'n/d'),
             'Data saldo pos': _fmt_data(row_dict.get('data_base_saldo_pos_sw')) if row_dict.get('data_base_saldo_pos_sw') not in (None, '') else 'n/d',
             'Motivo saldo pos': _texto_decisao(row_dict.get('motivo_saldo_pos_sw')) if str(row_dict.get('motivo_saldo_pos_sw') or '').strip() else 'n/d',
+            'fonte_candidata_id': ledger.get('fonte_candidata_id') or 'n/d',
+            'tipo_fonte_candidata': ledger.get('tipo_fonte_candidata') or 'n/d',
+            'origem_fonte_candidata': ledger.get('origem_fonte_candidata') or 'n/d',
+            'elegivel_temporalmente': ledger.get('elegivel_temporalmente'),
+            'saldo_liquido_disponivel': ledger.get('saldo_liquido_disponivel'),
+            'elegivel_liquidez_carencia': ledger.get('elegivel_liquidez_carencia'),
+            'promovida_para_lote_sugerido': ledger.get('promovida_para_lote_sugerido'),
+            'etapa_descarte_fonte': ledger.get('etapa_descarte_fonte') or '',
+            'motivo_descarte_fonte': ledger.get('motivo_descarte_fonte') or '',
+            'origem_motivo_descarte': ledger.get('origem_motivo_descarte') or '',
+            'evento_switching_id': ledger.get('evento_switching_id') or '',
+            'lote_pos_switching_materializado': ledger.get('lote_pos_switching_materializado') or '',
+            'pacote_do_dia_ledger': ledger.get('pacote_do_dia') or '',
+            'status_ledger': ledger.get('status') or '',
+            'motivo_bloqueio_ledger': ledger.get('motivo_bloqueio') or '',
         }
         linha_saida = _aplicar_invariantes_extrato_futuro_linha(linha_saida)
         linhas.append(linha_saida)

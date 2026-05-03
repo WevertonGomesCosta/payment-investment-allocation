@@ -63,15 +63,16 @@ def main()->int:
             return df
         return pd.DataFrame()
     aba_shapes.append({'aba':'Extrato Futuro','linhas':len(extrato),'colunas':len(extrato.columns)})
-    estado=ler('Estado Pos-Switching'); sint=ler('Lotes Sinteticos Pos-Sw'); sw=ler('Switching'); sws=ler('Switchings'); saida_can=ler('Saida Canonica')
+    estado=ler('Estado Pos-Switching'); sint=ler('Lotes Sinteticos Pos-Sw'); sw=ler('Switching'); sws=ler('Switchings'); aud_fontes=ler('Auditoria Fontes'); saida_can=ler('Saida Canonica')
 
 
     estruturado = pd.DataFrame()
-    if len(saida_can):
+    base_struct = aud_fontes if len(aud_fontes) else saida_can
+    if len(base_struct):
         cand_cols = ['Despesa ID','fonte_candidata_id','tipo_fonte_candidata','origem_fonte_candidata','elegivel_temporalmente','saldo_liquido_disponivel','elegivel_liquidez_carencia','promovida_para_lote_sugerido','etapa_descarte_fonte','motivo_descarte_fonte','origem_motivo_descarte','evento_switching_id']
-        has=[c for c in cand_cols if c in saida_can.columns]
+        has=[c for c in cand_cols if c in base_struct.columns]
         if has and 'Despesa ID' in has:
-            estruturado = saida_can[has].copy()
+            estruturado = base_struct[has].copy()
             estruturado = estruturado.rename(columns={'Despesa ID':'_join_despesa_id'})
             extrato['_join_despesa_id']=extrato['Despesa ID'].astype(str)
             extrato = extrato.merge(estruturado, how='left', on='_join_despesa_id')
@@ -135,7 +136,11 @@ def main()->int:
     print('shapes_lidos:')
     print(pd.DataFrame(aba_shapes).to_string(index=False))
     print(resumo.to_string(index=False))
+    qtd_estruturada = int((~sem_lote['motivo_descarte_fonte_estruturado'].astype(str).str.strip().eq('')).sum()) if 'motivo_descarte_fonte_estruturado' in sem_lote.columns else 0
+    qtd_nao_rastreada = int((sem_lote['tipo_causa'] == 'causa_nao_rastreada_no_pipeline').sum())
+    qtd_inferida = int((sem_lote['tipo_causa'] == 'inferida').sum())
     print('causas_raiz_agrupadas:'); print(causas_agg.to_string(index=False))
+    print(f'causas_estruturadas={qtd_estruturada} | causas_inferidas={qtd_inferida} | causas_nao_rastreadas={qtd_nao_rastreada}')
     print('lotes_pos_switching_materializados_encontrados:')
     if len(sw_df): print(sw_df[['lote_pos_switching','entrou_como_fonte_no_extrato_futuro']].to_string(index=False))
     else: print('nenhum')
