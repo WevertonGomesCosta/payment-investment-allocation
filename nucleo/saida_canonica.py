@@ -796,7 +796,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             motivo_row_base = 'fonte_pos_switching_nao_materializada'
             lote_pos_switch = ''
             origem_switching = 'diagnostico_nao_materializado'
-        linhas.append({
+        linha_saida = {
             **({
                 'Motivo pos sw': (
                     'sem_saldo_confiavel'
@@ -852,11 +852,47 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Líq. pos': _round_monetario(row_dict.get('saldo_pos_sw_liquido_candidato'), 'n/d'),
             'Data saldo pos': _fmt_data(row_dict.get('data_base_saldo_pos_sw')) if row_dict.get('data_base_saldo_pos_sw') not in (None, '') else 'n/d',
             'Motivo saldo pos': _texto_decisao(row_dict.get('motivo_saldo_pos_sw')) if str(row_dict.get('motivo_saldo_pos_sw') or '').strip() else 'n/d',
-        })
+        }
+        linha_saida = _aplicar_invariantes_extrato_futuro_linha(linha_saida)
+        linhas.append(linha_saida)
     return linhas
 
 
 
+
+
+def _aplicar_invariantes_extrato_futuro_linha(linha: dict[str, Any]) -> dict[str, Any]:
+    lote = _norm(linha.get('Lote sugerido'))
+    sem_lote = lote in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}
+    status = _norm(linha.get('Status recomendação'))
+    motivo = _norm(linha.get('Motivo bloqueio lote'))
+
+    if sem_lote:
+        linha['Cobertura integral'] = 'não'
+        if status in {'', 'ok', 'não determinado', 'nao determinado'}:
+            linha['Status recomendação'] = 'sem_fonte_auditavel'
+        if motivo in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
+            linha['Motivo bloqueio lote'] = 'sem_fonte_auditavel'
+        for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
+            linha[k] = ''
+        for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
+            linha[k] = 'n/d'
+
+    if _norm(linha.get('Motivo bloqueio lote')) not in {'', 'n/d', 'nd'} and _norm(linha.get('Status recomendação')) == 'ok':
+        linha['Status recomendação'] = 'sem_saldo_temporal_auditavel'
+
+    pacote = _norm(linha.get('Pacote do dia'))
+    lote_pos = _norm(linha.get('Lote pós-switching'))
+    if pacote == 'switch_then_pay' and lote_pos in {'', 'n/d', 'nd'}:
+        linha['Cobertura integral'] = 'não'
+        linha['Status recomendação'] = 'switch_then_pay_sem_materializacao'
+        linha['Motivo bloqueio lote'] = 'switch_then_pay_sem_materializacao'
+        for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
+            linha[k] = ''
+        for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
+            linha[k] = 'n/d'
+
+    return linha
 
 def _texto_decisao(valor: Any) -> str:
     txt = str(valor or '').strip()
