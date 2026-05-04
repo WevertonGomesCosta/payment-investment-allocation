@@ -953,41 +953,23 @@ def _aplicar_invariantes_extrato_futuro_linha(linha: dict[str, Any]) -> dict[str
     if _norm(linha.get('Estratégia')) == 'switching_simples' and pacote == 'pay_only' and necessita == 'não':
         linha['Estratégia'] = 'sem_switching'
 
-    # sem lote auditável => bloqueio completo
+    # sem lote auditável: nesta fase não mutar status/cobertura/motivo
     if sem_lote:
-        linha['Cobertura integral'] = 'não'
-        linha['Status recomendação'] = 'sem_fonte_auditavel'
-        if motivo in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
-            linha['Motivo bloqueio lote'] = 'sem_fonte_auditavel'
-        for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
-            linha[k] = ''
-        for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
-            linha[k] = 'n/d'
+        pass
 
     status = _norm(linha.get('Status recomendação'))
     motivo = _norm(linha.get('Motivo bloqueio lote'))
     cob = _norm(linha.get('Cobertura integral'))
 
-    # cobertura sim exige ok + sem motivo real
+    # cobertura/status/motivo: validação não-mutável já feita no validador sombra
     if cob == 'sim':
-        linha['Status recomendação'] = 'ok'
-        if motivo not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
-            linha['Motivo bloqueio lote'] = 'n/d'
-        if sem_lote:
-            linha['Cobertura integral'] = 'não'
-            linha['Status recomendação'] = 'sem_fonte_auditavel'
+        pass
 
-    # motivo real implica não cobertura/sem ok
+    # motivo bloqueante vs status/cobertura: sem mutação nesta fase
     motivo = _norm(linha.get('Motivo bloqueio lote'))
-    if motivo not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
-        linha['Cobertura integral'] = 'não'
-        if _norm(linha.get('Status recomendação')) == 'ok':
-            linha['Status recomendação'] = 'sem_saldo_temporal_auditavel'
 
-    # status de bloqueio implica sem cobertura e sem valores operacionais
+    # status de bloqueio: manter limpeza financeira/temporal, sem mutar cobertura/status/motivo
     status = _norm(linha.get('Status recomendação'))
-    if status != 'ok':
-        linha['Cobertura integral'] = 'não'
     if status in bloqueios:
         for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
             linha[k] = ''
@@ -996,9 +978,6 @@ def _aplicar_invariantes_extrato_futuro_linha(linha: dict[str, Any]) -> dict[str
 
     lote_pos = _norm(linha.get('Lote pós-switching'))
     if pacote == 'switch_then_pay' and lote_pos in {'', 'n/d', 'nd'}:
-        linha['Cobertura integral'] = 'não'
-        linha['Status recomendação'] = 'switch_then_pay_sem_materializacao'
-        linha['Motivo bloqueio lote'] = 'switch_then_pay_sem_materializacao'
         for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
             linha[k] = ''
         for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
