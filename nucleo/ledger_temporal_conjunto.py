@@ -383,6 +383,112 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd2a_promovidas_extrato_futuro_auditoria_fontes': 0,
         'd2a_motivo_gap_shadow_vs_ativacao': 'rollback_d2a_parcial_sem_ganho_funcional',
     }
+    d2a_plano_por_pagamento: list[dict[str, Any]] = []
+    d2a_plano_por_data: list[dict[str, Any]] = []
+    d2a_plano = {
+        'd2a_plano_datas_fonte_unica_total': 0,
+        'd2a_plano_datas_materializaveis': 0,
+        'd2a_plano_datas_nao_materializaveis': 0,
+        'd2a_plano_pagamentos_total': 0,
+        'd2a_plano_pagamentos_validos_para_ativacao': 0,
+        'd2a_plano_pagamentos_invalidos': 0,
+        'd2a_plano_pagamentos_hoje_nao_determinados_validos': 0,
+        'd2a_plano_conflitos_migracao': 0,
+        'd2a_plano_consumo_pos_switching_indevido': 0,
+        'd2a_plano_violacoes_residual_global': 0,
+        'd2a_plano_divergencias_shadow_vs_plano': 0,
+    }
+
+    linhas_por_data_pay_only: dict[str, list[dict[str, Any]]] = {}
+    for _, row in quadro_ord.iterrows():
+        dr = row.to_dict()
+        if _inferir_pacote(dr) == 'pay_only':
+            linhas_por_data_pay_only.setdefault(str(dr.get('data_pagamento') or ''), []).append(dr)
+
+    datas_fonte_unica = [x for x in shadow_por_data if str(x.get('status_shadow') or '') == 'resolvido_fonte_unica']
+    d2a_plano['d2a_plano_datas_fonte_unica_total'] = len(datas_fonte_unica)
+    for info_data in datas_fonte_unica:
+        dt = str(info_data.get('data') or '')
+        fonte = str((info_data.get('fontes_escolhidas_shadow') or [''])[0] or '')
+        linhas_dia = list(sorted(linhas_por_data_pay_only.get(dt, []), key=lambda z: str(z.get('pagamento_id') or '')))
+        if not fonte or not linhas_dia:
+            d2a_plano['d2a_plano_datas_nao_materializaveis'] += 1
+            d2a_plano_por_data.append({'data': dt, 'status_plano_data': 'nao_materializavel', 'motivo_data': 'sem_fonte_ou_sem_linhas'})
+            continue
+        meta_fonte = estado_lotes.get(fonte, {})
+        saldo_planejado = float(meta_fonte.get('saldo_liquido') or 0.0)
+        data_apl = meta_fonte.get('data_aplicacao')
+        car_ate = meta_fonte.get('carencia_ate')
+        mig_em = meta_fonte.get('migrado_em')
+        data_ok = not (data_apl is not None and str(data_apl) > dt)
+        car_ok = not (car_ate is not None and str(car_ate) > dt)
+        mig_motivo = _motivo_bloqueio_migracao(dt, mig_em, 'pay_only')
+        mig_ok = not bool(mig_motivo)
+        if not mig_ok:
+            d2a_plano['d2a_plano_conflitos_migracao'] += 1
+
+        validos_data = True
+        saldo_cursor = saldo_planejado
+        residuals = []
+        for linha in linhas_dia:
+            d2a_plano['d2a_plano_pagamentos_total'] += 1
+            val_pag = float(_round(linha.get('valor_pagamento')) or 0.0)
+            lote_atual = _txt(linha.get('lote_recomendado_consumivel') or linha.get('lote_recomendado') or linha.get('lote_id_escolhido') or linha.get('fonte_origem_id'))
+            motivo_nao_ativavel = ''
+            valido = True
+            if not data_ok:
+                valido = False; motivo_nao_ativavel = 'fonte_futura'
+            elif not car_ok:
+                valido = False; motivo_nao_ativavel = 'bloqueada_por_carencia'
+            elif not mig_ok:
+                valido = False; motivo_nao_ativavel = mig_motivo or 'bloqueada_por_migracao'
+            elif saldo_cursor + 0.01 < val_pag:
+                valido = False; motivo_nao_ativavel = 'saldo_insuficiente_no_plano'
+            saldo_antes = round(saldo_cursor, 2)
+            consumo = round(val_pag if valido else 0.0, 2)
+            saldo_depois = round(saldo_cursor - consumo, 2)
+            if valido:
+                d2a_plano['d2a_plano_pagamentos_validos_para_ativacao'] += 1
+                if _eh_nd(lote_atual):
+                    d2a_plano['d2a_plano_pagamentos_hoje_nao_determinados_validos'] += 1
+                saldo_cursor = saldo_depois
+                residuals.append(saldo_depois)
+            else:
+                d2a_plano['d2a_plano_pagamentos_invalidos'] += 1
+                validos_data = False
+            d2a_plano_por_pagamento.append({
+                'data': dt,
+                'despesa_id': _txt(linha.get('pagamento_id')),
+                'conta': _txt(linha.get('descricao_pagamento')),
+                'valor_pagamento': round(val_pag, 2),
+                'fonte_unica_escolhida': fonte,
+                'saldo_antes_planejado': saldo_antes,
+                'bruto_planejado': round(val_pag, 2) if valido else '',
+                'imposto_planejado': 0.0 if valido else '',
+                'liquido_planejado': round(val_pag, 2) if valido else '',
+                'consumo_planejado': consumo,
+                'saldo_depois_planejado': saldo_depois if valido else saldo_antes,
+                'cobertura_integral_planejada': 'sim' if valido else 'não',
+                'status_planejado': 'ok' if valido else 'nao_ativavel',
+                'motivo_planejado': 'n/d' if valido else motivo_nao_ativavel,
+                'origem_planejada': 'pay_only_diario_v1',
+                'valido_para_ativacao': bool(valido),
+                'motivo_nao_ativavel': motivo_nao_ativavel,
+            })
+        # D2A-1: plano desta etapa considera somente fonte única;
+        # portanto não há violação da regra global de residual por múltiplas fontes.
+        if validos_data:
+            d2a_plano['d2a_plano_datas_materializaveis'] += 1
+            status_plano = 'materializavel'
+            motivo_data = 'ok'
+        else:
+            d2a_plano['d2a_plano_datas_nao_materializaveis'] += 1
+            status_plano = 'nao_materializavel'
+            motivo_data = 'pagamentos_invalidos_no_plano'
+        d2a_plano_por_data.append({
+            'data': dt, 'fonte_unica': fonte, 'qtd_pagamentos': len(linhas_dia),
+            'status_plano_data': status_plano, 'motivo_data': motivo_data,
+        })
 
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
@@ -625,6 +731,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
         "pay_only_diario_shadow_por_data": shadow_por_data,
+        "plano_pay_only_diario_v1_por_pagamento": d2a_plano_por_pagamento,
+        "d2a_plano_por_data": d2a_plano_por_data,
         **d2a_funil,
+        **d2a_plano,
         **shadow_counters,
     }

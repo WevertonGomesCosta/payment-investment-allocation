@@ -1305,6 +1305,8 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'qtd_eventos_ledger': len(eventos_ledger),
         **({k: v for k, v in ledger_result.items() if (str(k).startswith('pay_only_diario_shadow_') or str(k).startswith('d2a_')) and not isinstance(v, (list, dict, tuple, set))}),
         'pay_only_diario_shadow_por_data': ledger_result.get('pay_only_diario_shadow_por_data', []),
+        'plano_pay_only_diario_v1_por_pagamento': ledger_result.get('plano_pay_only_diario_v1_por_pagamento', []),
+        'd2a_plano_por_data': ledger_result.get('d2a_plano_por_data', []),
         **(_PRE_INVARIANTE_EXTRATO_FUTURO or {}),
         **(_SOMBRA_DIVERGENCIAS_LEDGER or {}),
     }
