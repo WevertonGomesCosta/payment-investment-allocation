@@ -398,6 +398,22 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd2a_plano_violacoes_residual_global': 0,
         'd2a_plano_divergencias_shadow_vs_plano': 0,
     }
+    d2b0_plano_por_pagamento_fonte: list[dict[str, Any]] = []
+    d2b0_plano_por_data: list[dict[str, Any]] = []
+    d2b0 = {
+        'd2b0_datas_combinacao_total': 0,
+        'd2b0_datas_materializaveis': 0,
+        'd2b0_datas_nao_materializaveis': 0,
+        'd2b0_pagamentos_total': 0,
+        'd2b0_pagamentos_validos_para_ativacao': 0,
+        'd2b0_pagamentos_invalidos': 0,
+        'd2b0_fontes_usadas_total': 0,
+        'd2b0_fontes_com_residual_positivo_total': 0,
+        'd2b0_violacoes_residual_global': 0,
+        'd2b0_conflitos_migracao': 0,
+        'd2b0_consumo_pos_switching_indevido': 0,
+        'd2b0_divergencias_shadow_vs_plano': 0,
+    }
     d2a2 = {
         'd2a2_datas_ativadas': 0,
         'd2a2_datas_bloqueadas': 0,
@@ -501,6 +517,86 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         d2a_plano_por_data.append({
             'data': dt, 'fonte_unica': fonte, 'qtd_pagamentos': len(linhas_dia),
             'status_plano_data': status_plano, 'motivo_data': motivo_data,
+        })
+
+    datas_combinacao = [x for x in shadow_por_data if str(x.get('status_shadow') or '') == 'resolvido_combinacao_minima']
+    d2b0['d2b0_datas_combinacao_total'] = len(datas_combinacao)
+    for info_data in datas_combinacao:
+        dt = str(info_data.get('data') or '')
+        fontes = [str(f) for f in list(info_data.get('fontes_escolhidas_shadow') or []) if str(f)]
+        linhas_dia = list(sorted(linhas_por_data_pay_only.get(dt, []), key=lambda z: str(z.get('pagamento_id') or '')))
+        if not fontes or not linhas_dia:
+            d2b0['d2b0_datas_nao_materializaveis'] += 1
+            d2b0_plano_por_data.append({'data': dt, 'status_plano_data': 'nao_materializavel', 'motivo_data': 'sem_fontes_ou_sem_linhas'})
+            continue
+        saldos = {f: float((estado_lotes.get(f, {}) or {}).get('saldo_liquido') or 0.0) for f in fontes}
+        fontes_usadas_data = set()
+        data_ok = True
+        motivo_data = 'ok'
+        for f in fontes:
+            meta_f = estado_lotes.get(f, {})
+            da = meta_f.get('data_aplicacao'); car = meta_f.get('carencia_ate'); mig = meta_f.get('migrado_em')
+            if da is not None and str(da) > dt:
+                data_ok = False; motivo_data = 'fonte_futura'
+            if car is not None and str(car) > dt:
+                data_ok = False; motivo_data = 'fonte_carencia'
+            mig_motivo = ''
+            if mig is not None and str(mig) <= str(dt):
+                mig_motivo = 'fonte_migrada_antes_ou_no_dia_pagamento'
+            if mig_motivo:
+                data_ok = False; motivo_data = mig_motivo; d2b0['d2b0_conflitos_migracao'] += 1
+        for linha in linhas_dia:
+            d2b0['d2b0_pagamentos_total'] += 1
+            pid = _txt(linha.get('pagamento_id'))
+            conta = _txt(linha.get('descricao_pagamento'))
+            restante = float(_round(linha.get('valor_pagamento')) or 0.0)
+            pago_total = 0.0
+            for idx, f in enumerate(fontes, start=1):
+                if restante <= 0.0001:
+                    break
+                saldo_antes = float(saldos.get(f, 0.0))
+                pago = round(min(saldo_antes, restante), 2) if data_ok else 0.0
+                saldo_depois = round(saldo_antes - pago, 2)
+                saldos[f] = saldo_depois
+                restante = round(restante - pago, 2)
+                pago_total = round(pago_total + pago, 2)
+                if pago > 0:
+                    fontes_usadas_data.add(f)
+                d2b0_plano_por_pagamento_fonte.append({
+                    'data': dt, 'despesa_id': pid, 'conta': conta, 'valor_pagamento': float(_round(linha.get('valor_pagamento')) or 0.0),
+                    'fonte_usada': f, 'ordem_fonte': idx, 'valor_pago_pela_fonte': pago, 'saldo_antes_fonte': saldo_antes,
+                    'bruto_planejado': pago, 'imposto_planejado': 0.0, 'liquido_planejado': pago, 'consumo_planejado': pago,
+                    'saldo_depois_fonte': saldo_depois, 'residual_fonte': max(saldo_depois, 0.0), 'residual_positivo': bool(saldo_depois > 0.20),
+                    'cobertura_integral_planejada': 'sim' if (restante <= 0.01 and data_ok) else 'não',
+                    'status_planejado': 'ok' if (restante <= 0.01 and data_ok) else 'nao_ativavel',
+                    'motivo_planejado': 'n/d' if (restante <= 0.01 and data_ok) else ('saldo_insuficiente_no_plano' if data_ok else motivo_data),
+                    'origem_planejada': 'pay_only_diario_v1_combinacao_minima',
+                    'valido_para_ativacao': bool(restante <= 0.01 and data_ok),
+                    'motivo_nao_ativavel': '' if (restante <= 0.01 and data_ok) else ('saldo_insuficiente_no_plano' if data_ok else motivo_data),
+                })
+            if restante <= 0.01 and data_ok:
+                d2b0['d2b0_pagamentos_validos_para_ativacao'] += 1
+            else:
+                d2b0['d2b0_pagamentos_invalidos'] += 1
+                data_ok = False
+                if motivo_data == 'ok':
+                    motivo_data = 'pagamento_sem_cobertura_integral'
+        resid_positivos = sum(1 for f in fontes_usadas_data if float(saldos.get(f, 0.0)) > 0.20)
+        d2b0['d2b0_fontes_usadas_total'] += len(fontes_usadas_data)
+        d2b0['d2b0_fontes_com_residual_positivo_total'] += resid_positivos
+        if resid_positivos > 1:
+            d2b0['d2b0_violacoes_residual_global'] += 1
+            data_ok = False
+            motivo_data = 'violacao_residual_global'
+        if data_ok:
+            d2b0['d2b0_datas_materializaveis'] += 1
+            status_data = 'materializavel'
+        else:
+            d2b0['d2b0_datas_nao_materializaveis'] += 1
+            status_data = 'nao_materializavel'
+        d2b0_plano_por_data.append({
+            'data': dt, 'fontes': fontes, 'qtd_pagamentos': len(linhas_dia),
+            'status_plano_data': status_data, 'motivo_data': motivo_data,
         })
     plano_por_pagamento_id = {str(x.get('despesa_id') or ''): x for x in d2a_plano_por_pagamento}
     datas_bloqueadas_d2a2 = {str(x.get('data') or '') for x in d2a_plano_por_data if str(x.get('status_plano_data') or '') != 'materializavel'}
@@ -784,8 +880,11 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "pay_only_diario_shadow_por_data": shadow_por_data,
         "plano_pay_only_diario_v1_por_pagamento": d2a_plano_por_pagamento,
         "d2a_plano_por_data": d2a_plano_por_data,
+        "plano_pay_only_diario_v1_combinacao_minima_por_pagamento_fonte": d2b0_plano_por_pagamento_fonte,
+        "d2b0_plano_por_data": d2b0_plano_por_data,
         **d2a_funil,
         **d2a_plano,
         **d2a2,
+        **d2b0,
         **shadow_counters,
     }
