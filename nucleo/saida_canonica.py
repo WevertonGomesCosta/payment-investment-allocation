@@ -645,13 +645,28 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
     if not isinstance(quadro, pd.DataFrame) or len(quadro) == 0:
         return []
     mapa_central = _mapa_pagamentos_central(contexto)
-    ledger_result = construir_ledger_temporal_conjunto(quadro, mapa_central, contexto)
-    ledger_eventos = list((ledger_result or {}).get('eventos', []))
-    ledger_por_pagamento = {str(e.get("pagamento_id") or "").strip(): e for e in ledger_eventos}
+    ledger_result = construir_ledger_temporal_conjunto(quadro, mapa_central, contexto) or {}
+    eventos_ledger = list(ledger_result.get('eventos', []))
+    fifo_candidatos_avaliados = list(ledger_result.get('fifo_candidatos_avaliados', []))
+    ledger_por_pagamento = {str(e.get("pagamento_id") or "").strip(): e for e in eventos_ledger}
     mapa_migrados_global = _mapa_global_lotes_migrados_pos_switching(
         PacoteSaidaCanonica(versao='', switchings=_construir_switchings(contexto))
     )
     linhas: list[dict[str, Any]] = []
+    pre_invariante = {
+        'pre_invariante_lote_nd_com_status_ok': 0,
+        'pre_invariante_lote_nd_com_cobertura_sim': 0,
+        'pre_invariante_lote_nd_com_valores_operacionais': 0,
+        'pre_invariante_cobertura_sim_status_nao_ok': 0,
+        'pre_invariante_status_bloqueado_com_valores_operacionais': 0,
+        'pre_invariante_motivo_bloqueante_status_ok': 0,
+        'pre_invariante_lote_nd_com_saldo_antes': 0,
+        'pre_invariante_lote_nd_com_bruto': 0,
+        'pre_invariante_lote_nd_com_liquido': 0,
+        'pre_invariante_lote_nd_com_saldo_remanescente': 0,
+        'pre_invariante_status_bloqueado_com_saldo_antes': 0,
+        'pre_invariante_status_bloqueado_com_consumo_temporal': 0,
+    }
     lotes_exauridos = {
         _norm(str(getattr(l, 'id', '')).strip())
         for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])
@@ -797,6 +812,16 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             motivo_row_base = 'fonte_pos_switching_nao_materializada'
             lote_pos_switch = ''
             origem_switching = 'diagnostico_nao_materializado'
+
+        if str(ledger.get('origem_fonte_candidata') or '').strip() == 'pay_only_fifo_v1':
+            lote_fifo = str(ledger.get('lote_sugerido_operacional') or '').strip()
+            if lote_fifo and _norm(lote_fifo) not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
+                lote_sugerido = lote_fifo
+                lote_reserva = ''
+                cobertura_txt = 'sim'
+                status_row_base = 'ok'
+                motivo_row_base = 'n/d'
+                fonte_operacional_auditavel = True
         linha_saida = {
             **({
                 'Motivo pos sw': (
@@ -884,12 +909,42 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'fifo_carencia_melhor_lote': ledger.get('fifo_carencia_melhor_lote'),
             'fifo_motivo_nao_promocao': ledger.get('fifo_motivo_nao_promocao'),
         }
+        flags_pre = _validar_invariantes_extrato_futuro_linha_nao_mutavel(linha_saida)
+        for k in pre_invariante:
+            pre_invariante[k] += int(flags_pre.get(k, 0) or 0)
         linha_saida = _aplicar_invariantes_extrato_futuro_linha(linha_saida)
         linhas.append(linha_saida)
+    global _PRE_INVARIANTE_EXTRATO_FUTURO
+    _PRE_INVARIANTE_EXTRATO_FUTURO = pre_invariante
     return linhas
 
 
 
+
+
+def _validar_invariantes_extrato_futuro_linha_nao_mutavel(linha: dict[str, Any]) -> dict[str, int]:
+    lote = _norm(linha.get('Lote sugerido'))
+    sem_lote = lote in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}
+    status = _norm(linha.get('Status recomendação'))
+    motivo = _norm(linha.get('Motivo bloqueio lote'))
+    cob = _norm(linha.get('Cobertura integral'))
+    bloqueios = {'sem_saldo_temporal_auditavel', 'sem_fonte_auditavel', 'switch_then_pay_sem_materializacao', 'fonte_pos_switching_nao_materializada'}
+
+    tem_valores_op = any(str(linha.get(k) or '').strip() not in {'', 'n/d'} for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.'])
+    return {
+        'pre_invariante_lote_nd_com_status_ok': int(sem_lote and status == 'ok'),
+        'pre_invariante_lote_nd_com_cobertura_sim': int(sem_lote and cob == 'sim'),
+        'pre_invariante_lote_nd_com_valores_operacionais': int(sem_lote and tem_valores_op),
+        'pre_invariante_cobertura_sim_status_nao_ok': int(cob == 'sim' and status != 'ok'),
+        'pre_invariante_status_bloqueado_com_valores_operacionais': int(status in bloqueios and tem_valores_op),
+        'pre_invariante_motivo_bloqueante_status_ok': int(status == 'ok' and motivo not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}),
+        'pre_invariante_lote_nd_com_saldo_antes': int(sem_lote and str(linha.get('Saldo Antes') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_lote_nd_com_bruto': int(sem_lote and str(linha.get('Bruto') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_lote_nd_com_liquido': int(sem_lote and str(linha.get('Líquido') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_lote_nd_com_saldo_remanescente': int(sem_lote and str(linha.get('Saldo Remanescente') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_status_bloqueado_com_saldo_antes': int(status in bloqueios and str(linha.get('Saldo Antes') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_status_bloqueado_com_consumo_temporal': int(status in bloqueios and str(linha.get('Consumo temp.') or '').strip() not in {'', 'n/d'}),
+    }
 
 
 def _aplicar_invariantes_extrato_futuro_linha(linha: dict[str, Any]) -> dict[str, Any]:
@@ -910,56 +965,29 @@ def _aplicar_invariantes_extrato_futuro_linha(linha: dict[str, Any]) -> dict[str
     if _norm(linha.get('Estratégia')) == 'switching_simples' and pacote == 'pay_only' and necessita == 'não':
         linha['Estratégia'] = 'sem_switching'
 
-    # sem lote auditável => bloqueio completo
+    # sem lote auditável: nesta fase não mutar status/cobertura/motivo
     if sem_lote:
-        linha['Cobertura integral'] = 'não'
-        linha['Status recomendação'] = 'sem_fonte_auditavel'
-        if motivo in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
-            linha['Motivo bloqueio lote'] = 'sem_fonte_auditavel'
-        for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
-            linha[k] = ''
-        for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
-            linha[k] = 'n/d'
+        pass
 
     status = _norm(linha.get('Status recomendação'))
     motivo = _norm(linha.get('Motivo bloqueio lote'))
     cob = _norm(linha.get('Cobertura integral'))
 
-    # cobertura sim exige ok + sem motivo real
+    # cobertura/status/motivo: validação não-mutável já feita no validador sombra
     if cob == 'sim':
-        linha['Status recomendação'] = 'ok'
-        if motivo not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
-            linha['Motivo bloqueio lote'] = 'n/d'
-        if sem_lote:
-            linha['Cobertura integral'] = 'não'
-            linha['Status recomendação'] = 'sem_fonte_auditavel'
+        pass
 
-    # motivo real implica não cobertura/sem ok
+    # motivo bloqueante vs status/cobertura: sem mutação nesta fase
     motivo = _norm(linha.get('Motivo bloqueio lote'))
-    if motivo not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
-        linha['Cobertura integral'] = 'não'
-        if _norm(linha.get('Status recomendação')) == 'ok':
-            linha['Status recomendação'] = 'sem_saldo_temporal_auditavel'
 
-    # status de bloqueio implica sem cobertura e sem valores operacionais
+    # status de bloqueio: manter limpeza financeira/temporal, sem mutar cobertura/status/motivo
     status = _norm(linha.get('Status recomendação'))
-    if status != 'ok':
-        linha['Cobertura integral'] = 'não'
     if status in bloqueios:
-        for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
-            linha[k] = ''
-        for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
-            linha[k] = 'n/d'
+        pass
 
     lote_pos = _norm(linha.get('Lote pós-switching'))
     if pacote == 'switch_then_pay' and lote_pos in {'', 'n/d', 'nd'}:
-        linha['Cobertura integral'] = 'não'
-        linha['Status recomendação'] = 'switch_then_pay_sem_materializacao'
-        linha['Motivo bloqueio lote'] = 'switch_then_pay_sem_materializacao'
-        for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
-            linha[k] = ''
-        for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
-            linha[k] = 'n/d'
+        pass
 
     # sincroniza trilha de auditoria com estado final operacional
     linha['status_ledger'] = linha.get('Status recomendação')
@@ -1253,7 +1281,9 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     recebidos_atuais = _construir_recebidos_atuais(contexto)
     quadro_futuro = _quadro_futuro_preferencial(contexto)
     mapa_central = _mapa_pagamentos_central(contexto)
-    ledger_result = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto)
+    ledger_result = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto) or {}
+    eventos_ledger = list(ledger_result.get('eventos', []))
+    fifo_candidatos_avaliados = list(ledger_result.get('fifo_candidatos_avaliados', []))
     auditoria = {
         'origem': 'nucleo.saida_canonica.construir_saida_canonica',
         'camada_unica_saida': True,
@@ -1264,7 +1294,9 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'qtd_lotes_exauridos': len(lotes_exauridos),
         'qtd_futuro_sem_cobertura_integral': sum(1 for item in extrato_futuro if item.get('Cobertura integral') != 'sim'),
         'qtd_futuro_multifonte': sum(1 for item in extrato_futuro if '+' in str(item.get('Lote sugerido') or '')),
-        'fifo_candidatos_avaliados': list((ledger_result or {}).get('fifo_candidatos_avaliados', [])),
+        'fifo_candidatos_avaliados': fifo_candidatos_avaliados,
+        'qtd_eventos_ledger': len(eventos_ledger),
+        **(_PRE_INVARIANTE_EXTRATO_FUTURO or {}),
     }
     return PacoteSaidaCanonica(
         versao=versao,
