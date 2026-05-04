@@ -71,6 +71,13 @@ def _nome_aba_operacional(contexto, chave: str) -> str:
     return str(valor)
 
 
+
+
+def _usar_abas_diagnosticas(contexto) -> bool:
+    cfg = _config_planilha_operacional(contexto)
+    valor = cfg.get('incluir_abas_diagnosticas', False)
+    return bool(valor)
+
 def _nome_arquivo_operacional(contexto) -> str:
     cfg = _config_planilha_operacional(contexto)
     valor = cfg.get('arquivo') or cfg.get('nome_arquivo') or nome_relatorio_operacional()
@@ -276,21 +283,22 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     rows_carteira = quadro_carteira.astype(object).where(quadro_carteira.notna(), '').values.tolist()
     _apply_table_style(ws_carteira, headers_carteira, rows_carteira, freeze=True)
 
-    ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
-    top30 = ranking.top30.copy()
-    rows_top30 = top30.astype(object).where(top30.notna(), '').values.tolist()
-    _apply_table_style(ws_top30, list(top30.columns), rows_top30, freeze=True)
+    if _usar_abas_diagnosticas(contexto):
+        ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
+        top30 = ranking.top30.copy()
+        rows_top30 = top30.astype(object).where(top30.notna(), '').values.tolist()
+        _apply_table_style(ws_top30, list(top30.columns), rows_top30, freeze=True)
 
-    ws_resumo = wb.create_sheet(_nome_aba_operacional(contexto, 'resumo_switching'))
-    resumo_rows = [
-        ['produtos_total', ranking.resumo.get('produtos_total')],
-        ['produtos_ativos_ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')],
-        ['qtd_destinos_switch', ranking.auditoria.get('qtd_destinos_switch')],
-        ['destino_top1', ranking.auditoria.get('destino_top1')],
-        ['qtd_diffs_materiais_nucleo', ranking.validacao.get('qtd_diffs_materiais_nucleo')],
-        ['aceite_nucleo', ranking.validacao.get('aceite_nucleo')],
-    ]
-    _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows)
+        ws_resumo = wb.create_sheet(_nome_aba_operacional(contexto, 'resumo_switching'))
+        resumo_rows = [
+            ['produtos_total', ranking.resumo.get('produtos_total')],
+            ['produtos_ativos_ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')],
+            ['qtd_destinos_switch', ranking.auditoria.get('qtd_destinos_switch')],
+            ['destino_top1', ranking.auditoria.get('destino_top1')],
+            ['qtd_diffs_materiais_nucleo', ranking.validacao.get('qtd_diffs_materiais_nucleo')],
+            ['aceite_nucleo', ranking.validacao.get('aceite_nucleo')],
+        ]
+        _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows)
 
 
 def _adicionar_situacao_atual(wb, contexto, saida) -> None:
@@ -353,32 +361,34 @@ def main(*, contexto=None, saida=None) -> Path:
     headers_switching = _cabecalhos_operacionais(contexto, "switching")
     _apply_table_style(ws_switching, headers_switching, _rows(saida.switchings, headers_switching), freeze=True)
 
-    ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
-    headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
-    linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
-    _apply_table_style(
-        ws_switching_sint,
-        headers_switching_sint,
-        _rows(linhas_switching_sint, headers_switching_sint),
-        freeze=True,
-    )
+    if _usar_abas_diagnosticas(contexto):
+        ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
+        headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
+        linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
+        _apply_table_style(
+            ws_switching_sint,
+            headers_switching_sint,
+            _rows(linhas_switching_sint, headers_switching_sint),
+            freeze=True,
+        )
 
-    ws_estado_pos = wb.create_sheet("Estado Pos-Switching")
-    headers_estado_pos = ['Data', 'Novo lote', 'Produto destino', 'Valor inicial', 'Lotes origem', 'Status origem', 'Status novo', 'Liquidez', 'Carência', 'Ticket mín.', 'Origem valor']
-    linhas_estado_pos = list(getattr(saida, 'estado_pos_switching_lotes_console', lambda **_: [])(limite=200) or [])
-    _apply_table_style(
-        ws_estado_pos,
-        headers_estado_pos,
-        _rows(linhas_estado_pos, headers_estado_pos),
-        freeze=True,
-    )
+        ws_estado_pos = wb.create_sheet("Estado Pos-Switching")
+        headers_estado_pos = ['Data', 'Novo lote', 'Produto destino', 'Valor inicial', 'Lotes origem', 'Status origem', 'Status novo', 'Liquidez', 'Carência', 'Ticket mín.', 'Origem valor']
+        linhas_estado_pos = list(getattr(saida, 'estado_pos_switching_lotes_console', lambda **_: [])(limite=200) or [])
+        _apply_table_style(
+            ws_estado_pos,
+            headers_estado_pos,
+            _rows(linhas_estado_pos, headers_estado_pos),
+            freeze=True,
+        )
 
     _adicionar_abas_ranking(wb, contexto)
     _adicionar_situacao_atual(wb, contexto, saida)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
     _adicionar_aba_auditoria_fontes(wb, contexto, saida)
-    _adicionar_aba_auditoria_fifo(wb, contexto, saida)
-    _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, saida)
+    if _usar_abas_diagnosticas(contexto):
+        _adicionar_aba_auditoria_fifo(wb, contexto, saida)
+        _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, saida)
 
     saida_interna.parent.mkdir(parents=True, exist_ok=True)
     wb.save(saida_interna)
