@@ -775,6 +775,211 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
+    d2a_funil = {
+        'd2a_linhas_no_bloco_pay_only': 0,
+        'd2a_com_data_no_mapa_fonte_unica': 0,
+        'd2a_com_lote_op_nao_determinado': 0,
+        'd2a_passa_filtro_status': 0,
+        'd2a_rejeitadas_por_saldo': 0,
+        'd2a_rejeitadas_por_data_carencia_migracao': 0,
+        'd2a_promovidas_internamente_pay_only_diario_v1': 0,
+        'd2a_promovidas_evento_final_pay_only_diario_v1': 0,
+        'd2a_promovidas_extrato_futuro_auditoria_fontes': 0,
+        'd2a_motivo_gap_shadow_vs_ativacao': 'rollback_d2a_parcial_sem_ganho_funcional',
+    }
+    d2a_plano_por_pagamento: list[dict[str, Any]] = []
+    d2a_plano_por_data: list[dict[str, Any]] = []
+    d2a_plano = {
+        'd2a_plano_datas_fonte_unica_total': 0,
+        'd2a_plano_datas_materializaveis': 0,
+        'd2a_plano_datas_nao_materializaveis': 0,
+        'd2a_plano_pagamentos_total': 0,
+        'd2a_plano_pagamentos_validos_para_ativacao': 0,
+        'd2a_plano_pagamentos_invalidos': 0,
+        'd2a_plano_pagamentos_hoje_nao_determinados_validos': 0,
+        'd2a_plano_conflitos_migracao': 0,
+        'd2a_plano_consumo_pos_switching_indevido': 0,
+        'd2a_plano_violacoes_residual_global': 0,
+        'd2a_plano_divergencias_shadow_vs_plano': 0,
+    }
+    d2b0_plano_por_pagamento_fonte: list[dict[str, Any]] = []
+    d2b0_plano_por_data: list[dict[str, Any]] = []
+    d2b0 = {
+        'd2b0_datas_combinacao_total': 0,
+        'd2b0_datas_materializaveis': 0,
+        'd2b0_datas_nao_materializaveis': 0,
+        'd2b0_pagamentos_total': 0,
+        'd2b0_pagamentos_validos_para_ativacao': 0,
+        'd2b0_pagamentos_invalidos': 0,
+        'd2b0_fontes_usadas_total': 0,
+        'd2b0_fontes_com_residual_positivo_total': 0,
+        'd2b0_violacoes_residual_global': 0,
+        'd2b0_conflitos_migracao': 0,
+        'd2b0_consumo_pos_switching_indevido': 0,
+        'd2b0_divergencias_shadow_vs_plano': 0,
+    }
+    d2b1 = {
+        'd2b1_datas_ativadas': 0,
+        'd2b1_datas_bloqueadas': 0,
+        'd2b1_pagamentos_ativados': 0,
+        'd2b1_pagamentos_nao_determinados_ativados': 0,
+        'd2b1_fontes_usadas_total': 0,
+        'd2b1_fontes_com_residual_positivo_total': 0,
+        'd2b1_violacoes_residual_global': 0,
+        'd2b1_conflitos_migracao': 0,
+        'd2b1_consumo_pos_switching_indevido': 0,
+        'd2b1_divergencias_plano_vs_evento_final': 0,
+        'd2b1_divergencias_evento_vs_extrato_futuro': 0,
+        'd2b1_falhas_ativacao': 0,
+        'd2b1_residual_pagamentos_planejados': 0,
+        'd2b1_residual_pagamentos_ativados': 0,
+        'd2b1_residual_pagamentos_falhos': 0,
+        'd2b1_residual_falhas_por_mapeamento_despesa_id': 0,
+        'd2b1_residual_falhas_por_multifonte': 0,
+        'd2b1_residual_falhas_por_data': 0,
+        'd2b1_residual_falhas_por_sobrescrita': 0,
+        'd2b1_residual_falhas_por_evento_final': 0,
+        'd2b1_residual_divergencias_plano_evento': 0,
+        'd2b1_residual_divergencias_evento_saida': 0,
+    }
+    d2c = {
+        'd2c_pagamentos_residuais_total': 0,
+        'd2c_residuais_bloqueio_legitimo_migracao': 0,
+        'd2c_residuais_com_fonte_unica_alternativa': 0,
+        'd2c_residuais_com_combinacao_alternativa': 0,
+        'd2c_residuais_sem_fonte_elegivel': 0,
+        'd2c_residuais_falha_planejamento': 0,
+        'd2c_conflitos_migracao': 0,
+        'd2c_consumo_pos_switching_indevido': 0,
+        'd2c_violacoes_residual_global': 0,
+    }
+    d2c_residuais_detalhe: list[dict[str, Any]] = []
+    d3 = {
+        'd3_residuais_total': 0,
+        'd3_residuais_inviabilizados_por_switching': 0,
+        'd3_residuais_sem_fonte_mesmo_sem_switching': 0,
+        'd3_datas_residuais_total': 0,
+        'd3_datas_com_pay_only_sem_switching_factivel': 0,
+        'd3_datas_com_switch_then_pay_factivel': 0,
+        'd3_datas_com_pay_then_switch_factivel': 0,
+        'd3_datas_sem_pacote_factivel': 0,
+        'd3_switchings_bloqueantes_identificados': 0,
+        'd3_conflitos_pagamento_switching': 0,
+        'd3_consumo_pos_switching_indevido': 0,
+        'd3_violacoes_residual_global': 0,
+    }
+    d3_residuais_detalhe: list[dict[str, Any]] = []
+    d3_datas_residuais_detalhe: list[dict[str, Any]] = []
+    d3b = {
+        'd3b_lotes_estado_total': 0,'d3b_lotes_candidatos_switching': 0,'d3b_lotes_candidatos_alocacao_aporte': 0,
+        'd3b_lotes_disponiveis_nao_candidatos': 0,'d3b_lotes_excluidos_por_carencia': 0,'d3b_lotes_excluidos_por_liquidez': 0,
+        'd3b_lotes_excluidos_por_vencimento_prazo': 0,'d3b_lotes_excluidos_por_migracao': 0,'d3b_lotes_excluidos_por_exaurido': 0,
+        'd3b_lotes_excluidos_por_fonte_futura': 0,'d3b_lotes_excluidos_por_filtro_indefinido': 0,'d3b_lotes_disponiveis_hoje_candidatos': 0,
+        'd3b_lotes_disponiveis_hoje_fora_do_motor': 0,'d3b_datas_switching_por_vencimento': 0,'d3b_datas_switching_por_disponibilidade_real': 0,
+        'd3b_datas_switching_por_carencia': 0,'d3b_datas_switching_por_fallback': 0,'d3b_inconsistencias_universo_switching': 0,
+        'd3b_inconsistencias_universo_alocacao': 0,'d3b_pacotes_d3_com_violacao_residual_global': 0,
+    }
+    d3b_lotes_detalhe: list[dict[str, Any]] = []
+    d3c = {
+        'd3c_fontes_total': 0, 'd3c_fontes_exauridas': 0, 'd3c_fontes_pagamento_disponiveis': 0,
+        'd3c_lotes_aportados_candidatos_switching': 0, 'd3c_fontes_disponiveis_para_aporte': 0,
+        'd3c_fontes_bloqueadas_carencia': 0, 'd3c_fontes_bloqueadas_migracao': 0, 'd3c_fontes_futuras': 0,
+        'd3c_fontes_com_dupla_classificacao': 0, 'd3c_fontes_exauridas_reintroduzidas': 0, 'd3c_fontes_migradas_reintroduzidas': 0,
+        'd3c_inconsistencias_universo_pagamento': 0, 'd3c_inconsistencias_universo_switching': 0, 'd3c_inconsistencias_universo_alocacao': 0,
+        'd3c_pacotes_d3_com_violacao_residual_global': 0,
+    }
+    d3c_fontes_saneadas: list[dict[str, Any]] = []
+    LIMIAR_RESIDUAL_OPERACIONAL = 0.20
+    d3d = {
+        'd3d_fontes_total': 0,'d3d_fontes_exauridas_operacionais': 0,'d3d_fontes_residual_marginal_acima_limiar': 0,
+        'd3d_fontes_pagamento_pay_only': 0,'d3d_fontes_switch_then_pay': 0,'d3d_fontes_pay_then_switch_residual': 0,
+        'd3d_fontes_alocacao_aporte': 0,'d3d_fontes_apenas_diagnostico': 0,'d3d_fontes_migradas_reintroduzidas': 0,
+        'd3d_fontes_exauridas_reintroduzidas': 0,'d3d_fontes_com_risco_dupla_contagem': 0,'d3d_inconsistencias_universo_pagamento': 0,
+        'd3d_inconsistencias_universo_switching': 0,'d3d_inconsistencias_universo_alocacao': 0,'d3d_pacotes_operacionalmente_factiveis': 0,
+        'd3d_pacotes_bloqueados_por_residual_global': 0,'d3d_pacotes_bloqueados_por_migracao': 0,'d3d_pacotes_bloqueados_por_dupla_contagem': 0,
+    }
+    d3d_fontes_saneadas: list[dict[str, Any]] = []
+    d3e = {
+        'd3e_fontes_total': 0,'d3e_fontes_classificadas_total': 0,'d3e_fontes_nao_classificadas': 0,
+        'd3e_fontes_exauridas_operacionais': 0,'d3e_fontes_residual_marginal': 0,'d3e_fontes_pagamento_pay_only': 0,
+        'd3e_fontes_switch_then_pay': 0,'d3e_fontes_pay_then_switch_residual': 0,'d3e_fontes_bloqueadas_migracao': 0,
+        'd3e_fontes_bloqueadas_carencia': 0,'d3e_fontes_futuras': 0,'d3e_fontes_apenas_diagnostico': 0,
+        'd3e_fontes_com_risco_dupla_contagem': 0,'d3e_pacotes_d3_total': 0,'d3e_pacotes_operacionalmente_factiveis': 0,
+        'd3e_pacotes_bloqueados_por_residual_global': 0,'d3e_pacotes_bloqueados_por_migracao': 0,'d3e_pacotes_bloqueados_por_dupla_contagem': 0,
+        'd3e_pacotes_bloqueados_por_fonte_indisponivel': 0,'d3e_inconsistencias_classificacao': 0,
+    }
+    d3e_fontes_saneadas: list[dict[str, Any]] = []
+    d3e_pacotes_por_data: list[dict[str, Any]] = []
+    d3f = {
+        'd3f_fontes_total': 0,'d3f_fontes_classificadas_total': 0,'d3f_fontes_nao_classificadas': 0,'d3f_status_primario_soma': 0,
+        'd3f_fontes_com_status_primario_duplicado': 0,'d3f_fontes_exauridas_operacionais': 0,'d3f_fontes_residual_marginal': 0,
+        'd3f_fontes_lote_aportado_ativo': 0,'d3f_fontes_bloqueadas_migracao': 0,'d3f_fontes_bloqueadas_carencia': 0,'d3f_fontes_futuras': 0,
+        'd3f_fontes_com_risco_dupla_contagem': 0,'d3f_papeis_pay_only': 0,'d3f_papeis_switch_then_pay': 0,'d3f_papeis_pay_then_switch': 0,
+        'd3f_pacotes_operacionalmente_factiveis': 0,'d3f_pacotes_bloqueados_por_residual_global': 0,'d3f_pacotes_bloqueados_por_migracao': 0,'d3f_pacotes_bloqueados_por_dupla_contagem': 0,
+    }
+    d3f_fontes_saneadas: list[dict[str, Any]] = []
+    d31 = {
+        'd31_datas_residuais_total': 0,'d31_cenarios_avaliados_total': 0,'d31_cenarios_operacionalmente_factiveis': 0,
+        'd31_cenarios_bloqueados_residual_global': 0,'d31_cenarios_bloqueados_migracao': 0,'d31_cenarios_bloqueados_dupla_contagem': 0,
+        'd31_cenarios_pagamento_integral': 0,'d31_cenarios_sem_pagamento_integral': 0,'d31_cenarios_com_ganho_terminal': 0,'d31_cenarios_com_perda_terminal': 0,
+        'd31_melhor_cenario_por_data_definido': 0,'d31_recomendacoes_revisar_switching': 0,'d31_recomendacoes_manter_switching': 0,'d31_recomendacoes_adiar_switching': 0,
+    }
+    d31_cenarios_por_data: list[dict[str, Any]] = []
+    d31b = {
+        'd31b_datas_residuais_total': 0,'d31b_cenarios_avaliados_total': 0,'d31b_cenarios_com_contrafactual_recalculado': 0,
+        'd31b_cenarios_pagamento_integral': 0,'d31b_cenarios_sem_pagamento_integral': 0,'d31b_cenarios_operacionalmente_factiveis': 0,
+        'd31b_cenarios_bloqueados_residual_global': 0,'d31b_cenarios_bloqueados_migracao': 0,'d31b_cenarios_bloqueados_dupla_contagem': 0,
+        'd31b_cenarios_bloqueados_sem_materializacao_pos_switching': 0,'d31b_cenarios_com_delta_terminal_nao_zero': 0,'d31b_cenarios_sem_delta_discriminativo': 0,
+        'd31b_melhor_cenario_por_data_definido': 0,'d31b_recomendacoes_revisar_switching': 0,'d31b_recomendacoes_adiar_switching': 0,'d31b_recomendacoes_manter_switching': 0,'d31b_recomendacoes_sem_confiabilidade': 0,
+    }
+    d31b_cenarios_por_data: list[dict[str, Any]] = []
+    d31c = {
+        'd31c_datas_residuais_total': 0,'d31c_cenarios_valorados_total': 0,'d31c_cenarios_com_delta_terminal_nao_zero': 0,
+        'd31c_cenarios_sem_delta_por_falta_modelo': 0,'d31c_cenarios_sem_delta_por_dados_insuficientes': 0,'d31c_cenarios_operacionalmente_factiveis_valorados': 0,
+        'd31c_cenarios_com_ganho_terminal': 0,'d31c_cenarios_com_perda_terminal': 0,'d31c_melhor_cenario_economico_por_data_definido': 0,
+        'd31c_recomendacoes_adiar_switching': 0,'d31c_recomendacoes_cancelar_switching': 0,'d31c_recomendacoes_pay_then_switch': 0,'d31c_recomendacoes_sem_confiabilidade_economica': 0,
+    }
+    d31c_cenarios_por_data: list[dict[str, Any]] = []
+    d31d = {
+        'd31d_datas_residuais_total': 0,'d31d_cenarios_total': 0,'d31d_cenarios_valorados': 0,'d31d_cenarios_nao_valorados': 0,
+        'd31d_cenarios_valorados_com_delta': 0,'d31d_cenarios_sem_delta_por_falta_horizonte': 0,'d31d_cenarios_sem_delta_por_falta_taxa_destino': 0,
+        'd31d_cenarios_sem_delta_por_falta_residual': 0,'d31d_cenarios_sem_delta_por_falta_funcao_terminal': 0,'d31d_cenarios_bloqueados_operacionalmente': 0,
+        'd31d_funcoes_terminal_existentes_identificadas': 0,'d31d_reuso_switching_shadow_possivel': 0,'d31d_reuso_ranking_proxy_possivel': 0,
+        'd31d_melhor_cenario_economico_definido': 0,'d31d_melhor_cenario_operacional_definido': 0,'d31d_recomendacoes_sem_confiabilidade_economica': 0,
+    }
+    d31d_cenarios_detalhe: list[dict[str, Any]] = []
+    d31e = {
+        'd31e_datas_residuais_total': 0,'d31e_cenarios_alvo_total': 0,'d31e_bases_valoracao_completas': 0,'d31e_bases_valoracao_incompletas': 0,
+        'd31e_bases_incompletas_falta_residual': 0,'d31e_bases_incompletas_falta_destino': 0,'d31e_bases_incompletas_falta_taxa': 0,
+        'd31e_bases_incompletas_falta_horizonte': 0,'d31e_bases_incompletas_falta_funcao_terminal': 0,'d31e_bases_com_residual_zero_operacional': 0,
+        'd31e_bases_com_residual_positivo': 0,'d31e_reuso_switching_shadow_aplicado': 0,'d31e_reuso_ranking_proxy_aplicado': 0,'d31e_prontas_para_delta_terminal': 0,
+    }
+    d31e_bases_por_cenario: list[dict[str, Any]] = []
+    d31f = {
+        'd31f_cenarios_alvo_total': 0,'d31f_bases_completas_total': 0,'d31f_bases_completas_sem_residual_terminal': 0,'d31f_bases_completas_com_residual_positivo': 0,
+        'd31f_bases_incompletas_total': 0,'d31f_bases_incompletas_falta_residual_real': 0,'d31f_bases_incompletas_falta_destino': 0,'d31f_bases_incompletas_falta_taxa': 0,'d31f_bases_incompletas_falta_horizonte': 0,
+        'd31f_bases_prontas_para_delta_terminal': 0,'d31f_cenarios_com_delta_terminal_zero_justificado': 0,'d31f_cenarios_com_delta_terminal_nao_zero': 0,'d31f_cenarios_economicamente_equivalentes': 0,
+        'd31f_recomendacoes_operacionais_adiar_switching': 0,'d31f_recomendacoes_economicas_sem_diferenca_terminal': 0,
+    }
+    d31f_bases_reclassificadas: list[dict[str, Any]] = []
+    def _pid_norm(v: Any) -> str:
+        s = _txt(v)
+        return s[:-2] if s.endswith('.0') else s
+    d2a2 = {
+        'd2a2_datas_ativadas': 0,
+        'd2a2_datas_bloqueadas': 0,
+        'd2a2_pagamentos_ativados': 0,
+        'd2a2_pagamentos_nao_determinados_ativados': 0,
+        'd2a2_pagamentos_fifo_substituidos': 0,
+        'd2a2_falhas_ativacao': 0,
+        'd2a2_violacoes_residual_global': 0,
+        'd2a2_conflitos_migracao': 0,
+        'd2a2_consumo_pos_switching_indevido': 0,
+        'd2a2_divergencias_plano_vs_evento_final': 0,
+        'd2a2_divergencias_evento_vs_extrato_futuro': 0,
+    }
+
+    linhas_por_data_pay_only: dict[str, list[dict[str, Any]]] = {}
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         fontes_usadas: list[str] = []
