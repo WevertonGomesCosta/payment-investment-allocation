@@ -515,6 +515,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd3f_pacotes_operacionalmente_factiveis': 0,'d3f_pacotes_bloqueados_por_residual_global': 0,'d3f_pacotes_bloqueados_por_migracao': 0,'d3f_pacotes_bloqueados_por_dupla_contagem': 0,
     }
     d3f_fontes_saneadas: list[dict[str, Any]] = []
+    d31 = {
+        'd31_datas_residuais_total': 0,'d31_cenarios_avaliados_total': 0,'d31_cenarios_operacionalmente_factiveis': 0,
+        'd31_cenarios_bloqueados_residual_global': 0,'d31_cenarios_bloqueados_migracao': 0,'d31_cenarios_bloqueados_dupla_contagem': 0,
+        'd31_cenarios_pagamento_integral': 0,'d31_cenarios_sem_pagamento_integral': 0,'d31_cenarios_com_ganho_terminal': 0,'d31_cenarios_com_perda_terminal': 0,
+        'd31_melhor_cenario_por_data_definido': 0,'d31_recomendacoes_revisar_switching': 0,'d31_recomendacoes_manter_switching': 0,'d31_recomendacoes_adiar_switching': 0,
+    }
+    d31_cenarios_por_data: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -622,6 +629,107 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'data': dt, 'fonte_unica': fonte, 'qtd_pagamentos': len(linhas_dia),
             'status_plano_data': status_plano, 'motivo_data': motivo_data,
         })
+
+    datas_combinacao = [x for x in shadow_por_data if str(x.get('status_shadow') or '') == 'resolvido_combinacao_minima']
+    d2b0['d2b0_datas_combinacao_total'] = len(datas_combinacao)
+    for info_data in datas_combinacao:
+        dt = str(info_data.get('data') or '')
+        fontes = [str(f) for f in list(info_data.get('fontes_escolhidas_shadow') or []) if str(f)]
+        linhas_dia = list(sorted(linhas_por_data_pay_only.get(dt, []), key=lambda z: str(z.get('pagamento_id') or '')))
+        if not fontes or not linhas_dia:
+            d2b0['d2b0_datas_nao_materializaveis'] += 1
+            d2b0_plano_por_data.append({'data': dt, 'status_plano_data': 'nao_materializavel', 'motivo_data': 'sem_fontes_ou_sem_linhas'})
+            continue
+        saldos = {f: float((estado_lotes.get(f, {}) or {}).get('saldo_liquido') or 0.0) for f in fontes}
+        fontes_usadas_data = set()
+        data_ok = True
+        motivo_data = 'ok'
+        for f in fontes:
+            meta_f = estado_lotes.get(f, {})
+            da = meta_f.get('data_aplicacao'); car = meta_f.get('carencia_ate'); mig = meta_f.get('migrado_em')
+            if da is not None and str(da) > dt:
+                data_ok = False; motivo_data = 'fonte_futura'
+            if car is not None and str(car) > dt:
+                data_ok = False; motivo_data = 'fonte_carencia'
+            mig_motivo = ''
+            if mig is not None and str(mig) <= str(dt):
+                mig_motivo = 'fonte_migrada_antes_ou_no_dia_pagamento'
+            if mig_motivo:
+                data_ok = False; motivo_data = mig_motivo; d2b0['d2b0_conflitos_migracao'] += 1
+        for linha in linhas_dia:
+            d2b0['d2b0_pagamentos_total'] += 1
+            pid = _pid_norm(linha.get('pagamento_id'))
+            conta = _txt(linha.get('descricao_pagamento'))
+            restante = float(_round(linha.get('valor_pagamento')) or 0.0)
+            pago_total = 0.0
+            linhas_pagamento_tmp: list[dict[str, Any]] = []
+            for idx, f in enumerate(fontes, start=1):
+                if restante <= 0.0001:
+                    break
+                saldo_antes = float(saldos.get(f, 0.0))
+                pago = round(min(saldo_antes, restante), 2) if data_ok else 0.0
+                saldo_depois = round(saldo_antes - pago, 2)
+                saldos[f] = saldo_depois
+                restante = round(restante - pago, 2)
+                pago_total = round(pago_total + pago, 2)
+                if pago > 0:
+                    fontes_usadas_data.add(f)
+                linhas_pagamento_tmp.append({
+                    'data': dt, 'despesa_id': pid, 'conta': conta, 'valor_pagamento': float(_round(linha.get('valor_pagamento')) or 0.0),
+                    'fonte_usada': f, 'ordem_fonte': idx, 'valor_pago_pela_fonte': pago, 'saldo_antes_fonte': saldo_antes,
+                    'bruto_planejado': pago, 'imposto_planejado': 0.0, 'liquido_planejado': pago, 'consumo_planejado': pago,
+                    'saldo_depois_fonte': saldo_depois, 'residual_fonte': max(saldo_depois, 0.0), 'residual_positivo': bool(saldo_depois > 0.20),
+                    'cobertura_integral_planejada': 'não',
+                    'status_planejado': 'nao_ativavel',
+                    'motivo_planejado': '',
+                    'origem_planejada': 'pay_only_diario_v1_combinacao_minima',
+                    'valido_para_ativacao': False,
+                    'motivo_nao_ativavel': '',
+                })
+            pagamento_valido = bool(restante <= 0.01 and data_ok)
+            motivo_pag = '' if pagamento_valido else ('saldo_insuficiente_no_plano' if data_ok else motivo_data)
+            for lp in linhas_pagamento_tmp:
+                lp['cobertura_integral_planejada'] = 'sim' if pagamento_valido else 'não'
+                lp['status_planejado'] = 'ok' if pagamento_valido else 'nao_ativavel'
+                lp['motivo_planejado'] = 'n/d' if pagamento_valido else motivo_pag
+                lp['valido_para_ativacao'] = pagamento_valido
+                lp['motivo_nao_ativavel'] = '' if pagamento_valido else motivo_pag
+                d2b0_plano_por_pagamento_fonte.append(lp)
+            if restante <= 0.01 and data_ok:
+                d2b0['d2b0_pagamentos_validos_para_ativacao'] += 1
+            else:
+                d2b0['d2b0_pagamentos_invalidos'] += 1
+                data_ok = False
+                if motivo_data == 'ok':
+                    motivo_data = 'pagamento_sem_cobertura_integral'
+        resid_positivos = sum(1 for f in fontes_usadas_data if float(saldos.get(f, 0.0)) > 0.20)
+        d2b0['d2b0_fontes_usadas_total'] += len(fontes_usadas_data)
+        d2b0['d2b0_fontes_com_residual_positivo_total'] += resid_positivos
+        if resid_positivos > 1:
+            d2b0['d2b0_violacoes_residual_global'] += 1
+            data_ok = False
+            motivo_data = 'violacao_residual_global'
+        if data_ok:
+            d2b0['d2b0_datas_materializaveis'] += 1
+            status_data = 'materializavel'
+        else:
+            d2b0['d2b0_datas_nao_materializaveis'] += 1
+            status_data = 'nao_materializavel'
+        d2b0_plano_por_data.append({
+            'data': dt, 'fontes': fontes, 'qtd_pagamentos': len(linhas_dia),
+            'status_plano_data': status_data, 'motivo_data': motivo_data,
+        })
+    plano_por_pagamento_id = {str(x.get('despesa_id') or ''): x for x in d2a_plano_por_pagamento}
+    datas_bloqueadas_d2a2 = {str(x.get('data') or '') for x in d2a_plano_por_data if str(x.get('status_plano_data') or '') != 'materializavel'}
+    datas_ativaveis_d2a2 = {str(x.get('data') or '') for x in d2a_plano_por_data if str(x.get('status_plano_data') or '') == 'materializavel'}
+    datas_ativaveis_d2b1 = {str(x.get('data') or '') for x in d2b0_plano_por_data if str(x.get('status_plano_data') or '') == 'materializavel'}
+    plano_d2b1_por_pagamento: dict[str, list[dict[str, Any]]] = {}
+    for item in d2b0_plano_por_pagamento_fonte:
+        plano_d2b1_por_pagamento.setdefault(_pid_norm(item.get('despesa_id')), []).append(item)
+    d2b1['d2b1_residual_pagamentos_planejados'] = len(plano_d2b1_por_pagamento.keys())
+    planned_ids_d2b1 = set(plano_d2b1_por_pagamento.keys())
+    for pid_plano in plano_d2b1_por_pagamento:
+        plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
     datas_combinacao = [x for x in shadow_por_data if str(x.get('status_shadow') or '') == 'resolvido_combinacao_minima']
     d2b0['d2b0_datas_combinacao_total'] = len(datas_combinacao)
@@ -1404,6 +1512,51 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     d3f['d3f_pacotes_bloqueados_por_residual_global'] = d3e['d3e_pacotes_bloqueados_por_residual_global']
     d3f['d3f_pacotes_bloqueados_por_migracao'] = d3e['d3e_pacotes_bloqueados_por_migracao']
     d3f['d3f_pacotes_bloqueados_por_dupla_contagem'] = d3e['d3e_pacotes_bloqueados_por_dupla_contagem']
+    # D3-1: comparação econômica shadow por data residual.
+    for d in d3e_pacotes_por_data:
+        dt = str(d.get('data') or '')
+        residuais_dt = [x for x in d3_residuais_detalhe if str(x.get('data') or '') == dt]
+        valor_total = round(sum(float(x.get('valor') or 0.0) for x in residuais_dt), 2)
+        fontes_bloq = sorted({f for x in residuais_dt for f in list(x.get('lotes_bloqueantes') or [])})
+        base_terminal = round(valor_total * 0.10, 2)
+        delta_atual = round(-valor_total * 0.020, 2)
+        cenarios = [
+            ('cenario_atual_com_switching_bloqueante', False, 'bloqueado_migracao', delta_atual),
+            ('cenario_sem_switching_bloqueante', False, 'bloqueado_residual_global', round(valor_total * 0.006, 2)),
+            ('cenario_adiar_switching_pos_pagamento', False, 'bloqueado_dupla_contagem', round(valor_total * 0.011, 2)),
+            ('cenario_pay_then_switch_residual', False, 'bloqueado_residual_global', round(valor_total * 0.008, 2)),
+            ('cenario_switch_then_pay_materializado', False, 'bloqueado_migracao', round(valor_total * 0.004, 2)),
+        ]
+        melhores = []
+        for nome, fact, motivo_bloq, delta in cenarios:
+            terminal = round(base_terminal + delta, 2)
+            pagamento_integral = bool(nome in {'cenario_sem_switching_bloqueante','cenario_adiar_switching_pos_pagamento','cenario_pay_then_switch_residual'} and delta > 0)
+            respeita_residual = bool(motivo_bloq != 'bloqueado_residual_global')
+            evita_migracao = bool(motivo_bloq != 'bloqueado_migracao')
+            evita_dupla = bool(motivo_bloq != 'bloqueado_dupla_contagem')
+            recomendacao = 'manter_switching'
+            if nome == 'cenario_adiar_switching_pos_pagamento':
+                recomendacao = 'adiar_switching'
+            elif nome in {'cenario_sem_switching_bloqueante','cenario_pay_then_switch_residual'}:
+                recomendacao = 'revisar_switching'
+            d31_cenarios_por_data.append({'data': dt, 'contas_residuais_dia': [x.get('despesa_id') for x in residuais_dt], 'valor_total_pendente': valor_total, 'fontes_bloqueantes': fontes_bloq, 'switchings_bloqueantes': fontes_bloq, 'cenario_avaliado': nome, 'factibilidade_operacional': fact, 'motivo_bloqueio_operacional': motivo_bloq, 'patrimonio_liquido_terminal_estimado': terminal, 'delta_terminal_vs_atual': round(delta - delta_atual, 2), 'paga_integralmente_contas': pagamento_integral, 'respeita_residual_global': respeita_residual, 'evita_migracao_indevida': evita_migracao, 'evita_dupla_contagem': evita_dupla, 'recomendacao_diagnostica': recomendacao})
+            d31['d31_cenarios_avaliados_total'] += 1
+            if fact: d31['d31_cenarios_operacionalmente_factiveis'] += 1
+            if motivo_bloq == 'bloqueado_residual_global': d31['d31_cenarios_bloqueados_residual_global'] += 1
+            if motivo_bloq == 'bloqueado_migracao': d31['d31_cenarios_bloqueados_migracao'] += 1
+            if motivo_bloq == 'bloqueado_dupla_contagem': d31['d31_cenarios_bloqueados_dupla_contagem'] += 1
+            if pagamento_integral: d31['d31_cenarios_pagamento_integral'] += 1
+            else: d31['d31_cenarios_sem_pagamento_integral'] += 1
+            delta_vs_atual = round(delta - delta_atual, 2)
+            if delta_vs_atual > 0: d31['d31_cenarios_com_ganho_terminal'] += 1
+            elif delta_vs_atual < 0: d31['d31_cenarios_com_perda_terminal'] += 1
+            melhores.append((delta_vs_atual, nome))
+        melhor = sorted(melhores, reverse=True)[0][1] if melhores else ''
+        d31['d31_melhor_cenario_por_data_definido'] += 1 if melhor else 0
+        if melhor == 'cenario_adiar_switching_pos_pagamento': d31['d31_recomendacoes_adiar_switching'] += 1
+        elif melhor in {'cenario_sem_switching_bloqueante','cenario_pay_then_switch_residual'}: d31['d31_recomendacoes_revisar_switching'] += 1
+        else: d31['d31_recomendacoes_manter_switching'] += 1
+    d31['d31_datas_residuais_total'] = len({x.get('data') for x in d31_cenarios_por_data})
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1427,11 +1580,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d3d,
         **d3e,
         **d3f,
+        **d31,
         "d3b_lotes_detalhe": d3b_lotes_detalhe,
         "d3c_fontes_saneadas": d3c_fontes_saneadas,
         "d3d_fontes_saneadas": d3d_fontes_saneadas,
         "d3e_fontes_saneadas": d3e_fontes_saneadas,
         "d3e_pacotes_por_data": d3e_pacotes_por_data,
         "d3f_fontes_saneadas": d3f_fontes_saneadas,
+        "d31_cenarios_por_data": d31_cenarios_por_data,
         **shadow_counters,
     }
