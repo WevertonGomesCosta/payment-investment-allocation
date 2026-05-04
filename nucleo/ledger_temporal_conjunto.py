@@ -167,6 +167,36 @@ def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]
             }
     return mapa
 
+
+
+def _normalizar_evento_operacional(ev: dict[str, Any]) -> dict[str, Any]:
+    lote = _norm(ev.get('lote_sugerido_operacional'))
+    status = _norm(ev.get('status'))
+    motivo = _norm(ev.get('motivo_bloqueio'))
+    cob = _norm(ev.get('cobertura_integral'))
+    bloqueios = {'sem_saldo_temporal_auditavel','sem_fonte_auditavel','switch_then_pay_sem_materializacao','fonte_pos_switching_nao_materializada'}
+    sem_lote = lote in {'','n/d','nd','não determinado','nao determinado'}
+    if sem_lote:
+        ev['lote_sugerido_operacional'] = 'não determinado'
+        ev['cobertura_integral'] = 'não'
+        ev['status'] = 'sem_fonte_auditavel'
+        if motivo in {'','n/d','nd','não determinado','nao determinado'}:
+            ev['motivo_bloqueio'] = 'sem_fonte_auditavel'
+        for k in ['saldo_antes','bruto','imposto','liquido','consumo','saldo_depois']:
+            ev[k] = ''
+    if _norm(ev.get('cobertura_integral')) == 'sim':
+        ev['status'] = 'ok'
+        if _norm(ev.get('motivo_bloqueio')) not in {'','n/d','nd','não determinado','nao determinado'}:
+            ev['motivo_bloqueio'] = 'n/d'
+    if _norm(ev.get('motivo_bloqueio')) not in {'','n/d','nd','não determinado','nao determinado'} and _norm(ev.get('status')) == 'ok':
+        ev['status'] = 'sem_saldo_temporal_auditavel'
+        ev['cobertura_integral'] = 'não'
+    if _norm(ev.get('status')) in bloqueios:
+        ev['cobertura_integral'] = 'não'
+        for k in ['saldo_antes','bruto','imposto','liquido','consumo','saldo_depois']:
+            ev[k] = ''
+    return ev
+
 def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_central: dict[str, dict[str, Any]] | None = None, contexto: Any | None = None) -> dict[str, Any]:
     if not isinstance(quadro_futuro, pd.DataFrame) or quadro_futuro.empty:
         return {"eventos": [], "fifo_candidatos_avaliados": []}
@@ -388,7 +418,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         )
         fifo_candidatos_avaliados.extend(cand_rows)
 
-        eventos.append({
+        evento = {
             'pagamento_id': pid,'data': d.get('data_pagamento'),'conta': d.get('descricao_pagamento') or '',
             'pacote_do_dia': pacote,'necessita_switching': 'sim' if necessita_sw else 'não',
             'lote_fonte_origem': lote_origem,'lote_sugerido_operacional': lote_op,
@@ -426,5 +456,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'fifo_data_aplicacao_melhor_lote': cand_sum.get('melhor_data', ''),
             'fifo_carencia_melhor_lote': cand_sum.get('melhor_car', ''),
             'fifo_motivo_nao_promocao': cand_sum.get('motivo', ''),
-        })
+        }
+        eventos.append(_normalizar_evento_operacional(evento))
     return {"eventos": eventos, "fifo_candidatos_avaliados": fifo_candidatos_avaliados}
