@@ -439,6 +439,18 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd2b1_residual_divergencias_plano_evento': 0,
         'd2b1_residual_divergencias_evento_saida': 0,
     }
+    d2c = {
+        'd2c_pagamentos_residuais_total': 0,
+        'd2c_residuais_bloqueio_legitimo_migracao': 0,
+        'd2c_residuais_com_fonte_unica_alternativa': 0,
+        'd2c_residuais_com_combinacao_alternativa': 0,
+        'd2c_residuais_sem_fonte_elegivel': 0,
+        'd2c_residuais_falha_planejamento': 0,
+        'd2c_conflitos_migracao': 0,
+        'd2c_consumo_pos_switching_indevido': 0,
+        'd2c_violacoes_residual_global': 0,
+    }
+    d2c_residuais_detalhe: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -648,6 +660,91 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
+    d2a_funil = {
+        'd2a_linhas_no_bloco_pay_only': 0,
+        'd2a_com_data_no_mapa_fonte_unica': 0,
+        'd2a_com_lote_op_nao_determinado': 0,
+        'd2a_passa_filtro_status': 0,
+        'd2a_rejeitadas_por_saldo': 0,
+        'd2a_rejeitadas_por_data_carencia_migracao': 0,
+        'd2a_promovidas_internamente_pay_only_diario_v1': 0,
+        'd2a_promovidas_evento_final_pay_only_diario_v1': 0,
+        'd2a_promovidas_extrato_futuro_auditoria_fontes': 0,
+        'd2a_motivo_gap_shadow_vs_ativacao': 'rollback_d2a_parcial_sem_ganho_funcional',
+    }
+    d2a_plano_por_pagamento: list[dict[str, Any]] = []
+    d2a_plano_por_data: list[dict[str, Any]] = []
+    d2a_plano = {
+        'd2a_plano_datas_fonte_unica_total': 0,
+        'd2a_plano_datas_materializaveis': 0,
+        'd2a_plano_datas_nao_materializaveis': 0,
+        'd2a_plano_pagamentos_total': 0,
+        'd2a_plano_pagamentos_validos_para_ativacao': 0,
+        'd2a_plano_pagamentos_invalidos': 0,
+        'd2a_plano_pagamentos_hoje_nao_determinados_validos': 0,
+        'd2a_plano_conflitos_migracao': 0,
+        'd2a_plano_consumo_pos_switching_indevido': 0,
+        'd2a_plano_violacoes_residual_global': 0,
+        'd2a_plano_divergencias_shadow_vs_plano': 0,
+    }
+    d2b0_plano_por_pagamento_fonte: list[dict[str, Any]] = []
+    d2b0_plano_por_data: list[dict[str, Any]] = []
+    d2b0 = {
+        'd2b0_datas_combinacao_total': 0,
+        'd2b0_datas_materializaveis': 0,
+        'd2b0_datas_nao_materializaveis': 0,
+        'd2b0_pagamentos_total': 0,
+        'd2b0_pagamentos_validos_para_ativacao': 0,
+        'd2b0_pagamentos_invalidos': 0,
+        'd2b0_fontes_usadas_total': 0,
+        'd2b0_fontes_com_residual_positivo_total': 0,
+        'd2b0_violacoes_residual_global': 0,
+        'd2b0_conflitos_migracao': 0,
+        'd2b0_consumo_pos_switching_indevido': 0,
+        'd2b0_divergencias_shadow_vs_plano': 0,
+    }
+    d2b1 = {
+        'd2b1_datas_ativadas': 0,
+        'd2b1_datas_bloqueadas': 0,
+        'd2b1_pagamentos_ativados': 0,
+        'd2b1_pagamentos_nao_determinados_ativados': 0,
+        'd2b1_fontes_usadas_total': 0,
+        'd2b1_fontes_com_residual_positivo_total': 0,
+        'd2b1_violacoes_residual_global': 0,
+        'd2b1_conflitos_migracao': 0,
+        'd2b1_consumo_pos_switching_indevido': 0,
+        'd2b1_divergencias_plano_vs_evento_final': 0,
+        'd2b1_divergencias_evento_vs_extrato_futuro': 0,
+        'd2b1_falhas_ativacao': 0,
+        'd2b1_residual_pagamentos_planejados': 0,
+        'd2b1_residual_pagamentos_ativados': 0,
+        'd2b1_residual_pagamentos_falhos': 0,
+        'd2b1_residual_falhas_por_mapeamento_despesa_id': 0,
+        'd2b1_residual_falhas_por_multifonte': 0,
+        'd2b1_residual_falhas_por_data': 0,
+        'd2b1_residual_falhas_por_sobrescrita': 0,
+        'd2b1_residual_falhas_por_evento_final': 0,
+        'd2b1_residual_divergencias_plano_evento': 0,
+        'd2b1_residual_divergencias_evento_saida': 0,
+    }
+    def _pid_norm(v: Any) -> str:
+        s = _txt(v)
+        return s[:-2] if s.endswith('.0') else s
+    d2a2 = {
+        'd2a2_datas_ativadas': 0,
+        'd2a2_datas_bloqueadas': 0,
+        'd2a2_pagamentos_ativados': 0,
+        'd2a2_pagamentos_nao_determinados_ativados': 0,
+        'd2a2_pagamentos_fifo_substituidos': 0,
+        'd2a2_falhas_ativacao': 0,
+        'd2a2_violacoes_residual_global': 0,
+        'd2a2_conflitos_migracao': 0,
+        'd2a2_consumo_pos_switching_indevido': 0,
+        'd2a2_divergencias_plano_vs_evento_final': 0,
+        'd2a2_divergencias_evento_vs_extrato_futuro': 0,
+    }
+
+    linhas_por_data_pay_only: dict[str, list[dict[str, Any]]] = {}
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         fontes_usadas: list[str] = []
@@ -994,6 +1091,56 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             d2b1['d2b1_residual_falhas_por_evento_final'] += 1
         eventos.append(_normalizar_evento_operacional(evento))
     d2b1['d2b1_residual_falhas_por_mapeamento_despesa_id'] = len(planned_ids_d2b1 - pagamentos_planejados_encontrados)
+
+    for evento in eventos:
+        motivo = str(evento.get('motivo_bloqueio') or '')
+        if motivo != 'bloqueado_por_migracao_antes_do_pagamento':
+            continue
+        pid = _pid_norm(evento.get('pagamento_id'))
+        candidatos = [c for c in fifo_candidatos_avaliados if _pid_norm(c.get('Despesa ID')) == pid]
+        fontes_candidatas = [str(c.get('lote_id') or '') for c in candidatos]
+        fontes_bloq_mig = [c for c in candidatos if bool(c.get('bloqueado_por_migracao'))]
+        fontes_elegiveis = [c for c in candidatos if bool(c.get('elegivel_fifo'))]
+        valor_pag = float(evento.get('consumo') or evento.get('liquido') or 0.0)
+        existe_fonte_unica = any(float(c.get('saldo_liquido') or 0.0) + 0.01 >= valor_pag for c in fontes_elegiveis)
+        saldo_elegivel_total = round(sum(float(c.get('saldo_liquido') or 0.0) for c in fontes_elegiveis), 2)
+        existe_combinacao = bool(saldo_elegivel_total + 0.01 >= valor_pag and len(fontes_elegiveis) >= 2)
+        residuals_pos = sum(1 for c in fontes_elegiveis if float(c.get('saldo_liquido') or 0.0) > 0.20)
+        regra_residual_ok = bool(residuals_pos <= 1) if fontes_elegiveis else False
+        if existe_fonte_unica or existe_combinacao:
+            classificacao = 'falha_planejamento'
+            d2c['d2c_residuais_falha_planejamento'] += 1
+        elif not fontes_elegiveis:
+            classificacao = 'bloqueio_legitimo_migracao_sem_fonte_elegivel'
+            d2c['d2c_residuais_bloqueio_legitimo_migracao'] += 1
+            d2c['d2c_residuais_sem_fonte_elegivel'] += 1
+        else:
+            classificacao = 'bloqueio_legitimo_migracao'
+            d2c['d2c_residuais_bloqueio_legitimo_migracao'] += 1
+        if existe_fonte_unica:
+            d2c['d2c_residuais_com_fonte_unica_alternativa'] += 1
+        if existe_combinacao:
+            d2c['d2c_residuais_com_combinacao_alternativa'] += 1
+        if not regra_residual_ok and fontes_elegiveis:
+            d2c['d2c_violacoes_residual_global'] += 1
+        d2c['d2c_conflitos_migracao'] += len(fontes_bloq_mig)
+        d2c_residuais_detalhe.append({
+            'despesa_id': pid,
+            'data': evento.get('data'),
+            'conta': evento.get('conta'),
+            'valor': valor_pag,
+            'fontes_candidatas_no_dia': fontes_candidatas,
+            'fontes_bloqueadas_por_migracao': [str(c.get('lote_id') or '') for c in fontes_bloq_mig],
+            'data_migracao_por_fonte': {str(c.get('lote_id') or ''): c.get('migrado_em') for c in fontes_bloq_mig},
+            'destino_switching_fonte_bloqueada': {str(c.get('lote_id') or ''): (mapa_global_sw.get(str(c.get('lote_id') or ''), {}) or {}).get('produto_destino', '') for c in fontes_bloq_mig},
+            'fontes_elegiveis_remanescentes': [str(c.get('lote_id') or '') for c in fontes_elegiveis],
+            'saldo_liquido_fontes_elegiveis': {str(c.get('lote_id') or ''): round(float(c.get('saldo_liquido') or 0.0), 2) for c in fontes_elegiveis},
+            'existe_fonte_unica_suficiente': existe_fonte_unica,
+            'existe_combinacao_minima_suficiente': existe_combinacao,
+            'regra_global_residual_satisfeita': regra_residual_ok,
+            'motivo_final_d2c': classificacao,
+        })
+    d2c['d2c_pagamentos_residuais_total'] = len(d2c_residuais_detalhe)
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1007,5 +1154,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d2a2,
         **d2b0,
         **d2b1,
+        **d2c,
+        "d2c_residuais_detalhe": d2c_residuais_detalhe,
         **shadow_counters,
     }
