@@ -649,9 +649,6 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
     eventos_ledger = list(ledger_result.get('eventos', []))
     fifo_candidatos_avaliados = list(ledger_result.get('fifo_candidatos_avaliados', []))
     ledger_por_pagamento = {str(e.get("pagamento_id") or "").strip(): e for e in eventos_ledger}
-    mapa_migrados_global = _mapa_global_lotes_migrados_pos_switching(
-        PacoteSaidaCanonica(versao='', switchings=_construir_switchings(contexto))
-    )
     linhas: list[dict[str, Any]] = []
     pre_invariante = {
         'pre_invariante_lote_nd_com_status_ok': 0,
@@ -757,16 +754,6 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             lote_reserva_real = _limpar_composto(lote_reserva_real)
             if not lote_sugerido_real and str(row_dict.get('lote_nome_operacional') or '').strip():
                 lote_sugerido_real = str(row_dict.get('lote_nome_operacional') or '').strip()
-        lote_sugerido_real, conflito_intradia_sug = _limpar_lotes_migrados_datado(
-            lote_sugerido_real,
-            data_pagamento=row.get('data_pagamento'),
-            mapa_migrados=mapa_migrados_global,
-        )
-        lote_reserva_real, conflito_intradia_res = _limpar_lotes_migrados_datado(
-            lote_reserva_real,
-            data_pagamento=row.get('data_pagamento'),
-            mapa_migrados=mapa_migrados_global,
-        )
         def _filtrar_exauridos(valor: Any) -> str:
             partes = [p.strip() for p in str(valor or '').split('+') if p.strip()]
             partes_validas = [p for p in partes if _norm(p) not in lotes_exauridos]
@@ -778,13 +765,11 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         fonte_operacional_auditavel = (not _eh_indeterminado(lote_sugerido_real)) or fonte_auditavel_explicita
         sem_saldo_temporal_auditavel = bool((not fonte_operacional_auditavel) and (liquido in {'', None} or valores_financeiros_preenchidos))
         estrategia = _texto_decisao(estrategia_real)
-        lote_sugerido = _texto_decisao(ledger.get('lote_sugerido_operacional')) if str(ledger.get('lote_sugerido_operacional') or '').strip() else (_texto_decisao(lote_sugerido_real) if not _eh_indeterminado(lote_sugerido_real) else 'não determinado')
+        lote_sugerido = _texto_decisao(ledger.get('lote_sugerido_operacional'))
         lote_reserva = _texto_lote_reserva(lote_reserva_real, lote_sugerido_real)
         cobertura_txt = str(ledger.get('cobertura_integral') or 'não')
         if (not _eh_indeterminado(lote_sugerido_real)) and liquido in {'', None}:
             lote_sugerido_real = ''
-        if not fonte_operacional_auditavel:
-            lote_sugerido = 'não determinado'
         status_row_base = str(row_dict.get('status_recomendacao') or '').strip()
         motivo_row_base = str(row_dict.get('motivo_bloqueio_lote') or '').strip()
         data_sw_ref = row_dict.get('data_switching_referencia') if row_dict.get('data_switching_referencia') is not None else row_dict.get('data_sugerida_switching')
@@ -796,11 +781,6 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
                 and data_pag_fmt not in {'', 'n/d'}
                 and data_sw_fmt == data_pag_fmt
                 and (bool(row_dict.get('switching_antes_pagamento')) or bool(row_dict.get('switching_depois_pagamento')))
-            )
-            or (
-                (conflito_intradia_sug or conflito_intradia_res)
-                and data_sw_fmt not in {'', 'n/d'}
-                and data_sw_fmt == data_pag_fmt
             )
         )
         necessita_switching_txt = str(ledger.get('necessita_switching') or _texto_necessita_switching({**central, **row_dict}, estrategia)).strip().lower()
@@ -826,15 +806,6 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             lote_pos_switch = ''
             origem_switching = 'diagnostico_nao_materializado'
 
-        if str(ledger.get('origem_fonte_candidata') or '').strip() == 'pay_only_fifo_v1':
-            lote_fifo = str(ledger.get('lote_sugerido_operacional') or '').strip()
-            if lote_fifo and _norm(lote_fifo) not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
-                lote_sugerido = lote_fifo
-                lote_reserva = ''
-                cobertura_txt = 'sim'
-                status_row_base = 'ok'
-                motivo_row_base = 'n/d'
-                fonte_operacional_auditavel = True
         linha_saida = {
             **({
                 'Motivo pos sw': (
@@ -859,27 +830,27 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Despesa ID': pagamento_id,
             'Valor': valor,
             'Lote sugerido': lote_sugerido,
-            'Saldo Antes': '' if str(ledger.get('status') or '') == 'switch_then_pay_sem_materializacao' else (resumo.get('Saldo Antes', '') if fonte_operacional_auditavel else ''),
-            'Bruto': '' if str(ledger.get('status') or '') == 'switch_then_pay_sem_materializacao' else (resumo.get('Bruto', '') if fonte_operacional_auditavel else ''),
-            'Imposto': '' if str(ledger.get('status') or '') == 'switch_then_pay_sem_materializacao' else (resumo.get('Imposto', '') if fonte_operacional_auditavel else ''),
-            'Líquido': '' if str(ledger.get('status') or '') == 'switch_then_pay_sem_materializacao' else (liquido if fonte_operacional_auditavel else ''),
-            'Saldo Remanescente': '' if str(ledger.get('status') or '') == 'switch_then_pay_sem_materializacao' else (resumo.get('Saldo Remanescente', '') if fonte_operacional_auditavel else ''),
-            'Cobertura integral': cobertura_txt,
+            'Saldo Antes': resumo.get('Saldo Antes', ''),
+            'Bruto': resumo.get('Bruto', ''),
+            'Imposto': resumo.get('Imposto', ''),
+            'Líquido': liquido,
+            'Saldo Remanescente': resumo.get('Saldo Remanescente', ''),
+            'Cobertura integral': str(ledger.get('cobertura_integral') or 'não'),
             'Estratégia': estrategia,
             'Pacote do dia': pacote_dia,
             'Lote reserva': lote_reserva,
-            'Lote pós-switching': _texto_decisao(ledger.get('lote_pos_switching_materializado')) if str(ledger.get('lote_pos_switching_materializado') or '').strip() else '',
-            'Destino switching': _texto_decisao(ledger.get('destino_switching_operacional')) if str(ledger.get('destino_switching_operacional') or '').strip() else '',
-            'Origem switching': origem_switching,
+            'Lote pós-switching': _texto_decisao(ledger.get('lote_pos_switching_materializado')),
+            'Destino switching': _texto_decisao(ledger.get('destino_switching_operacional')),
+            'Origem switching': _texto_decisao(ledger.get('origem_switching_operacional')),
             'Fonte switching': ('materializado' if bool(ledger.get('switching_materializado')) else ''),
-            'Data switching': _fmt_data(ledger.get('data_switching_operacional')) if ledger.get('data_switching_operacional') is not None else '',
+            'Data switching': _fmt_data(ledger.get('data_switching_operacional')) if ledger.get('data_switching_operacional') is not None else 'n/d',
             'Evento switching ID': ledger.get('evento_switching_id') or '',
             'Score switching': _round_monetario(row_dict.get('score_switching_shadow') if row_dict.get('score_switching_shadow') not in (None, '') else row_dict.get('ganho_liquido_estimado_switching'), ''),
             'Necessita switching': necessita_switching_txt if necessita_switching_txt in {'sim', 'não'} else _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': ('sim' if str(ledger.get('pacote_do_dia') or '') == 'switch_then_pay' else 'não'),
             'Switching depois do pagamento': ('sim' if str(ledger.get('pacote_do_dia') or '') == 'pay_then_switch' else 'não'),
-            'Motivo bloqueio lote': _texto_decisao(ledger.get('motivo_bloqueio') or motivo_row_base),
-            'Status recomendação': _texto_decisao(ledger.get('status') or status_row_base),
+            'Motivo bloqueio lote': _texto_decisao(ledger.get('motivo_bloqueio')),
+            'Status recomendação': _texto_decisao(ledger.get('status')),
             'Saldo temp. ant.': ('n/d' if str(ledger.get('status') or '') == 'switch_then_pay_sem_materializacao' else (_round_monetario(ledger.get('saldo_antes'), 'n/d') if fonte_operacional_auditavel else 'n/d')),
             'Consumo temp.': ('n/d' if str(ledger.get('status') or '') == 'switch_then_pay_sem_materializacao' else (_round_monetario(ledger.get('consumo'), 'n/d') if fonte_operacional_auditavel else 'n/d')),
             'Saldo temp. dep.': ('n/d' if str(ledger.get('status') or '') == 'switch_then_pay_sem_materializacao' else (_round_monetario(ledger.get('saldo_depois'), 'n/d') if fonte_operacional_auditavel else 'n/d')),
