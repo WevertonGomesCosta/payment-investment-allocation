@@ -181,12 +181,8 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             val=_round(d.get('valor_pagamento'))
             cobertura='sim' if (liq!='' and val!='' and liq+0.01>=val) else 'não'
             lote_op = ev_sw['lote_pos_switching'] if sw_mat and pacote=='switch_then_pay' else lote_origem
-            if pacote == 'pay_only' and status in {'sem_fonte_auditavel', 'sem_saldo_temporal_auditavel'} and _eh_nd(lote_origem_pipeline):
-                lote_origem = 'não determinado'
+            if pacote == 'pay_only' and status == 'sem_fonte_auditavel' and _eh_nd(lote_origem_pipeline):
                 lote_op = 'não determinado'
-                fonte_candidata_id = reserva if not _eh_nd(reserva) else ''
-                tipo_fonte_candidata = 'lote' if fonte_candidata_id else 'indeterminada'
-                origem_fonte_candidata = 'reserva' if fonte_candidata_id else 'nao_rastreada'
             promovida_reserva=False
             qtd_avaliados = qtd_saldo_suf = bloq_saldo = bloq_data = bloq_car = bloq_mig = 0
             melhor_lote = ''
