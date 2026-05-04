@@ -537,6 +537,14 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd31c_recomendacoes_adiar_switching': 0,'d31c_recomendacoes_cancelar_switching': 0,'d31c_recomendacoes_pay_then_switch': 0,'d31c_recomendacoes_sem_confiabilidade_economica': 0,
     }
     d31c_cenarios_por_data: list[dict[str, Any]] = []
+    d31d = {
+        'd31d_datas_residuais_total': 0,'d31d_cenarios_total': 0,'d31d_cenarios_valorados': 0,'d31d_cenarios_nao_valorados': 0,
+        'd31d_cenarios_valorados_com_delta': 0,'d31d_cenarios_sem_delta_por_falta_horizonte': 0,'d31d_cenarios_sem_delta_por_falta_taxa_destino': 0,
+        'd31d_cenarios_sem_delta_por_falta_residual': 0,'d31d_cenarios_sem_delta_por_falta_funcao_terminal': 0,'d31d_cenarios_bloqueados_operacionalmente': 0,
+        'd31d_funcoes_terminal_existentes_identificadas': 0,'d31d_reuso_switching_shadow_possivel': 0,'d31d_reuso_ranking_proxy_possivel': 0,
+        'd31d_melhor_cenario_economico_definido': 0,'d31d_melhor_cenario_operacional_definido': 0,'d31d_recomendacoes_sem_confiabilidade_economica': 0,
+    }
+    d31d_cenarios_detalhe: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -1543,6 +1551,47 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         elif melhor[1] == 'cenario_pay_then_switch_residual':
             d31c['d31c_recomendacoes_pay_then_switch'] += 1
     d31c['d31c_datas_residuais_total'] = len({x.get('data') for x in d31c_cenarios_por_data})
+    # D3-1D: auditoria da base de valoração terminal.
+    funcoes_terminal_existentes = ['valor_liquido_hoje', 'switching_economico_shadow.plano_shadow']
+    d31d['d31d_funcoes_terminal_existentes_identificadas'] = len(funcoes_terminal_existentes)
+    d31d['d31d_reuso_switching_shadow_possivel'] = 1
+    d31d['d31d_reuso_ranking_proxy_possivel'] = 1
+    for c in d31c_cenarios_por_data:
+        op = bool(c.get('factibilidade_operacional'))
+        delta = float(c.get('delta_terminal_estimado') or 0.0)
+        status = 'valorado'
+        motivo = ''
+        if not op:
+            status = 'nao_valorado_bloqueado_operacionalmente'; motivo = str(c.get('motivo_bloqueio_operacional') or '')
+            d31d['d31d_cenarios_bloqueados_operacionalmente'] += 1
+        elif float(c.get('valor_liquido_antes_pagamento') or 0.0) <= 0:
+            status = 'nao_valorado_falta_residual'; motivo = 'valor_liquido_antes_pagamento_zerado'
+            d31d['d31d_cenarios_sem_delta_por_falta_residual'] += 1
+        elif c.get('terminal_residual_migrar') is None:
+            status = 'nao_valorado_falta_taxa_destino'; motivo = 'produto_destino_sem_proxy_taxa'
+            d31d['d31d_cenarios_sem_delta_por_falta_taxa_destino'] += 1
+        elif c.get('terminal_residual_manter') is None:
+            status = 'nao_valorado_falta_horizonte'; motivo = 'horizonte_terminal_indefinido'
+            d31d['d31d_cenarios_sem_delta_por_falta_horizonte'] += 1
+        elif delta == 0:
+            status = 'nao_valorado_falta_funcao_terminal'; motivo = str(c.get('motivo_delta_nulo') or 'equivalencia_sem_modelo_discriminativo')
+            d31d['d31d_cenarios_sem_delta_por_falta_funcao_terminal'] += 1
+        else:
+            d31d['d31d_cenarios_valorados'] += 1
+            d31d['d31d_cenarios_valorados_com_delta'] += 1
+        if status != 'valorado':
+            d31d['d31d_cenarios_nao_valorados'] += 1
+        d31d_cenarios_detalhe.append({**c, 'status_valoracao': status, 'motivo_nao_valorado': motivo})
+    d31d['d31d_cenarios_total'] = len(d31d_cenarios_detalhe)
+    d31d['d31d_datas_residuais_total'] = len({x.get('data') for x in d31d_cenarios_detalhe})
+    for dt in sorted({x.get('data') for x in d31d_cenarios_detalhe}):
+        rows = [x for x in d31d_cenarios_detalhe if x.get('data') == dt]
+        if any(bool(x.get('factibilidade_operacional')) for x in rows):
+            d31d['d31d_melhor_cenario_operacional_definido'] += 1
+        if any(str(x.get('status_valoracao')) == 'valorado' and float(x.get('delta_terminal_estimado') or 0.0) != 0.0 for x in rows):
+            d31d['d31d_melhor_cenario_economico_definido'] += 1
+        else:
+            d31d['d31d_recomendacoes_sem_confiabilidade_economica'] += 1
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1569,6 +1618,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d31,
         **d31b,
         **d31c,
+        **d31d,
         "d3b_lotes_detalhe": d3b_lotes_detalhe,
         "d3c_fontes_saneadas": d3c_fontes_saneadas,
         "d3d_fontes_saneadas": d3d_fontes_saneadas,
@@ -1578,5 +1628,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d31_cenarios_por_data": d31_cenarios_por_data,
         "d31b_cenarios_por_data": d31b_cenarios_por_data,
         "d31c_cenarios_por_data": d31c_cenarios_por_data,
+        "d31d_cenarios_detalhe": d31d_cenarios_detalhe,
         **shadow_counters,
     }
