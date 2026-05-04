@@ -149,7 +149,8 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         pacote=_inferir_pacote(d)
-        lote_origem=_txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id') or central.get('lote_final_central'))
+        lote_origem_pipeline=_txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id'))
+        lote_origem=_txt(lote_origem_pipeline or central.get('lote_final_central'))
         reserva=_txt(d.get('lote_reserva') or central.get('lote_reserva'))
         fonte_candidata_id = lote_origem if not _eh_nd(lote_origem) else (reserva if not _eh_nd(reserva) else '')
         tipo_fonte_candidata = 'lote' if not _eh_nd(fonte_candidata_id) else 'indeterminada'
@@ -180,6 +181,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             val=_round(d.get('valor_pagamento'))
             cobertura='sim' if (liq!='' and val!='' and liq+0.01>=val) else 'não'
             lote_op = ev_sw['lote_pos_switching'] if sw_mat and pacote=='switch_then_pay' else lote_origem
+            if pacote == 'pay_only' and status in {'sem_fonte_auditavel', 'sem_saldo_temporal_auditavel'} and _eh_nd(lote_origem_pipeline):
+                lote_origem = 'não determinado'
+                lote_op = 'não determinado'
+                fonte_candidata_id = reserva if not _eh_nd(reserva) else ''
+                tipo_fonte_candidata = 'lote' if fonte_candidata_id else 'indeterminada'
+                origem_fonte_candidata = 'reserva' if fonte_candidata_id else 'nao_rastreada'
             promovida_reserva=False
             qtd_avaliados = qtd_saldo_suf = bloq_saldo = bloq_data = bloq_car = bloq_mig = 0
             melhor_lote = ''
@@ -187,7 +194,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             melhor_data = ''
             melhor_car = ''
             motivo_fifo = ''
-            if _eh_nd(lote_op) and (not _eh_nd(reserva)) and liq != '' and val != '' and liq + 0.01 >= val:
+            if _eh_nd(lote_op) and (not _eh_nd(reserva)) and liq != '' and val != '' and liq + 0.01 >= val and status not in {'sem_fonte_auditavel', 'sem_saldo_temporal_auditavel'}:
                 lote_op = reserva
                 promovida_reserva=True
             elegivel_temporalmente = (not _eh_nd(fonte_candidata_id))

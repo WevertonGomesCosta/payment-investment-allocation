@@ -645,9 +645,10 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
     if not isinstance(quadro, pd.DataFrame) or len(quadro) == 0:
         return []
     mapa_central = _mapa_pagamentos_central(contexto)
-    ledger_result = construir_ledger_temporal_conjunto(quadro, mapa_central, contexto)
-    ledger_eventos = list((ledger_result or {}).get('eventos', []))
-    ledger_por_pagamento = {str(e.get("pagamento_id") or "").strip(): e for e in ledger_eventos}
+    ledger_result = construir_ledger_temporal_conjunto(quadro, mapa_central, contexto) or {}
+    eventos_ledger = list(ledger_result.get('eventos', []))
+    fifo_candidatos_avaliados = list(ledger_result.get('fifo_candidatos_avaliados', []))
+    ledger_por_pagamento = {str(e.get("pagamento_id") or "").strip(): e for e in eventos_ledger}
     mapa_migrados_global = _mapa_global_lotes_migrados_pos_switching(
         PacoteSaidaCanonica(versao='', switchings=_construir_switchings(contexto))
     )
@@ -797,6 +798,16 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             motivo_row_base = 'fonte_pos_switching_nao_materializada'
             lote_pos_switch = ''
             origem_switching = 'diagnostico_nao_materializado'
+
+        if str(ledger.get('origem_fonte_candidata') or '').strip() == 'pay_only_fifo_v1':
+            lote_fifo = str(ledger.get('lote_sugerido_operacional') or '').strip()
+            if lote_fifo and _norm(lote_fifo) not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
+                lote_sugerido = lote_fifo
+                lote_reserva = ''
+                cobertura_txt = 'sim'
+                status_row_base = 'ok'
+                motivo_row_base = 'n/d'
+                fonte_operacional_auditavel = True
         linha_saida = {
             **({
                 'Motivo pos sw': (
@@ -1253,7 +1264,9 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     recebidos_atuais = _construir_recebidos_atuais(contexto)
     quadro_futuro = _quadro_futuro_preferencial(contexto)
     mapa_central = _mapa_pagamentos_central(contexto)
-    ledger_result = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto)
+    ledger_result = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto) or {}
+    eventos_ledger = list(ledger_result.get('eventos', []))
+    fifo_candidatos_avaliados = list(ledger_result.get('fifo_candidatos_avaliados', []))
     auditoria = {
         'origem': 'nucleo.saida_canonica.construir_saida_canonica',
         'camada_unica_saida': True,
@@ -1264,7 +1277,8 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'qtd_lotes_exauridos': len(lotes_exauridos),
         'qtd_futuro_sem_cobertura_integral': sum(1 for item in extrato_futuro if item.get('Cobertura integral') != 'sim'),
         'qtd_futuro_multifonte': sum(1 for item in extrato_futuro if '+' in str(item.get('Lote sugerido') or '')),
-        'fifo_candidatos_avaliados': list((ledger_result or {}).get('fifo_candidatos_avaliados', [])),
+        'fifo_candidatos_avaliados': fifo_candidatos_avaliados,
+        'qtd_eventos_ledger': len(eventos_ledger),
     }
     return PacoteSaidaCanonica(
         versao=versao,
