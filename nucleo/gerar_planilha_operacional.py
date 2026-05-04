@@ -71,6 +71,13 @@ def _nome_aba_operacional(contexto, chave: str) -> str:
     return str(valor)
 
 
+
+
+def _usar_abas_diagnosticas(contexto) -> bool:
+    cfg = _config_planilha_operacional(contexto)
+    valor = cfg.get('incluir_abas_diagnosticas', False)
+    return bool(valor)
+
 def _nome_arquivo_operacional(contexto) -> str:
     cfg = _config_planilha_operacional(contexto)
     valor = cfg.get('arquivo') or cfg.get('nome_arquivo') or nome_relatorio_operacional()
@@ -276,21 +283,22 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     rows_carteira = quadro_carteira.astype(object).where(quadro_carteira.notna(), '').values.tolist()
     _apply_table_style(ws_carteira, headers_carteira, rows_carteira, freeze=True)
 
-    ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
-    top30 = ranking.top30.copy()
-    rows_top30 = top30.astype(object).where(top30.notna(), '').values.tolist()
-    _apply_table_style(ws_top30, list(top30.columns), rows_top30, freeze=True)
+    if _usar_abas_diagnosticas(contexto):
+        ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
+        top30 = ranking.top30.copy()
+        rows_top30 = top30.astype(object).where(top30.notna(), '').values.tolist()
+        _apply_table_style(ws_top30, list(top30.columns), rows_top30, freeze=True)
 
-    ws_resumo = wb.create_sheet(_nome_aba_operacional(contexto, 'resumo_switching'))
-    resumo_rows = [
-        ['produtos_total', ranking.resumo.get('produtos_total')],
-        ['produtos_ativos_ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')],
-        ['qtd_destinos_switch', ranking.auditoria.get('qtd_destinos_switch')],
-        ['destino_top1', ranking.auditoria.get('destino_top1')],
-        ['qtd_diffs_materiais_nucleo', ranking.validacao.get('qtd_diffs_materiais_nucleo')],
-        ['aceite_nucleo', ranking.validacao.get('aceite_nucleo')],
-    ]
-    _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows)
+        ws_resumo = wb.create_sheet(_nome_aba_operacional(contexto, 'resumo_switching'))
+        resumo_rows = [
+            ['produtos_total', ranking.resumo.get('produtos_total')],
+            ['produtos_ativos_ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')],
+            ['qtd_destinos_switch', ranking.auditoria.get('qtd_destinos_switch')],
+            ['destino_top1', ranking.auditoria.get('destino_top1')],
+            ['qtd_diffs_materiais_nucleo', ranking.validacao.get('qtd_diffs_materiais_nucleo')],
+            ['aceite_nucleo', ranking.validacao.get('aceite_nucleo')],
+        ]
+        _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows)
 
 
 def _adicionar_situacao_atual(wb, contexto, saida) -> None:
@@ -353,32 +361,34 @@ def main(*, contexto=None, saida=None) -> Path:
     headers_switching = _cabecalhos_operacionais(contexto, "switching")
     _apply_table_style(ws_switching, headers_switching, _rows(saida.switchings, headers_switching), freeze=True)
 
-    ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
-    headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
-    linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
-    _apply_table_style(
-        ws_switching_sint,
-        headers_switching_sint,
-        _rows(linhas_switching_sint, headers_switching_sint),
-        freeze=True,
-    )
+    if _usar_abas_diagnosticas(contexto):
+        ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
+        headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
+        linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
+        _apply_table_style(
+            ws_switching_sint,
+            headers_switching_sint,
+            _rows(linhas_switching_sint, headers_switching_sint),
+            freeze=True,
+        )
 
-    ws_estado_pos = wb.create_sheet("Estado Pos-Switching")
-    headers_estado_pos = ['Data', 'Novo lote', 'Produto destino', 'Valor inicial', 'Lotes origem', 'Status origem', 'Status novo', 'Liquidez', 'Carência', 'Ticket mín.', 'Origem valor']
-    linhas_estado_pos = list(getattr(saida, 'estado_pos_switching_lotes_console', lambda **_: [])(limite=200) or [])
-    _apply_table_style(
-        ws_estado_pos,
-        headers_estado_pos,
-        _rows(linhas_estado_pos, headers_estado_pos),
-        freeze=True,
-    )
+        ws_estado_pos = wb.create_sheet("Estado Pos-Switching")
+        headers_estado_pos = ['Data', 'Novo lote', 'Produto destino', 'Valor inicial', 'Lotes origem', 'Status origem', 'Status novo', 'Liquidez', 'Carência', 'Ticket mín.', 'Origem valor']
+        linhas_estado_pos = list(getattr(saida, 'estado_pos_switching_lotes_console', lambda **_: [])(limite=200) or [])
+        _apply_table_style(
+            ws_estado_pos,
+            headers_estado_pos,
+            _rows(linhas_estado_pos, headers_estado_pos),
+            freeze=True,
+        )
 
     _adicionar_abas_ranking(wb, contexto)
     _adicionar_situacao_atual(wb, contexto, saida)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
     _adicionar_aba_auditoria_fontes(wb, contexto, saida)
-    _adicionar_aba_auditoria_fifo(wb, contexto, saida)
-    _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, saida)
+    if _usar_abas_diagnosticas(contexto):
+        _adicionar_aba_auditoria_fifo(wb, contexto, saida)
+        _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, saida)
 
     saida_interna.parent.mkdir(parents=True, exist_ok=True)
     wb.save(saida_interna)
@@ -415,7 +425,7 @@ def _adicionar_aba_auditoria_fifo(wb, contexto, pacote_saida) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'auditoria_fifo'))
     headers = [
         'Data','Conta','Despesa ID','Valor','Lote sugerido','Pacote do dia',
-        'fifo_qtd_lotes_estado','fifo_qtd_lotes_avaliados','fifo_qtd_lotes_saldo_suficiente',
+        'fifo_qtd_lotes_estado','fifo_qtd_lotes_avaliados','fifo_qtd_lotes_saldo_suficiente','fifo_qtd_lotes_elegiveis',
         'fifo_qtd_lotes_bloqueados_por_saldo','fifo_qtd_lotes_bloqueados_por_data',
         'fifo_qtd_lotes_bloqueados_por_carencia','fifo_qtd_lotes_bloqueados_por_migracao',
         'fifo_melhor_lote_candidato','fifo_saldo_melhor_lote','fifo_data_aplicacao_melhor_lote',
@@ -432,26 +442,35 @@ def _adicionar_aba_auditoria_fifo(wb, contexto, pacote_saida) -> None:
         cands = cand_por_despesa.get(despesa_id, [])
         qtd_av = len(cands)
         qtd_suf = sum(1 for c in cands if not bool(c.get('bloqueado_por_saldo')))
+        qtd_eleg = sum(1 for c in cands if bool(c.get('elegivel_fifo')))
         b_saldo = sum(1 for c in cands if bool(c.get('bloqueado_por_saldo')))
         b_data = sum(1 for c in cands if bool(c.get('bloqueado_por_data')))
         b_car = sum(1 for c in cands if bool(c.get('bloqueado_por_carencia')))
         b_mig = sum(1 for c in cands if bool(c.get('bloqueado_por_migracao')))
-        melhor = cands[0] if cands else {}
+        cands_ordenados = sorted(cands, key=lambda c: (float(c.get('ordem_fifo') or 10**9), str(c.get('lote_id') or '')))
+        cands_elegiveis = [c for c in cands_ordenados if bool(c.get('elegivel_fifo'))]
+        melhor = cands_elegiveis[0] if cands_elegiveis else {}
         motivo = row.get('fifo_motivo_nao_promocao')
+        lote_sugerido_nd = str(row.get('Lote sugerido') or '').strip().lower() in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}
+        if qtd_eleg == 0 and (not str(motivo or '').strip() or str(motivo).strip() == 'fifo_nao_aplicavel_lote_ja_determinado'):
+            motivo = 'fifo_sem_candidato_elegivel'
+        if lote_sugerido_nd and str(motivo or '').strip() == 'fifo_nao_aplicavel_lote_ja_determinado':
+            motivo = 'fifo_sem_candidato_elegivel' if qtd_eleg == 0 else 'fifo_candidato_elegivel_sem_promocao'
         if (row.get('fifo_qtd_lotes_estado') or 0) > 0 and qtd_av == 0 and not str(motivo or '').strip():
             motivo = 'fifo_nao_aplicavel_sem_motivo_explicito'
         item = {h: row.get(h) for h in headers}
         item.update({
             'fifo_qtd_lotes_avaliados': qtd_av,
             'fifo_qtd_lotes_saldo_suficiente': qtd_suf,
+            'fifo_qtd_lotes_elegiveis': qtd_eleg,
             'fifo_qtd_lotes_bloqueados_por_saldo': b_saldo,
             'fifo_qtd_lotes_bloqueados_por_data': b_data,
             'fifo_qtd_lotes_bloqueados_por_carencia': b_car,
             'fifo_qtd_lotes_bloqueados_por_migracao': b_mig,
-            'fifo_melhor_lote_candidato': melhor.get('lote_id', row.get('fifo_melhor_lote_candidato')),
-            'fifo_saldo_melhor_lote': melhor.get('saldo_liquido', row.get('fifo_saldo_melhor_lote')),
-            'fifo_data_aplicacao_melhor_lote': melhor.get('data_aplicacao', row.get('fifo_data_aplicacao_melhor_lote')),
-            'fifo_carencia_melhor_lote': melhor.get('carencia_ate', row.get('fifo_carencia_melhor_lote')),
+            'fifo_melhor_lote_candidato': melhor.get('lote_id', 'n/d'),
+            'fifo_saldo_melhor_lote': melhor.get('saldo_liquido', 'n/d'),
+            'fifo_data_aplicacao_melhor_lote': melhor.get('data_aplicacao', 'n/d'),
+            'fifo_carencia_melhor_lote': melhor.get('carencia_ate', 'n/d'),
             'fifo_motivo_nao_promocao': motivo,
         })
         itens.append(item)

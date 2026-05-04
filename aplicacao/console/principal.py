@@ -23,14 +23,11 @@ from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_observavel import (
     construir_amostras_pagamentos_operacionais,
-    construir_amostra_alocacao_recebidos_futuros,
     COLS_LOTES_ID_CURTAS,
     COLS_LOTES_VALORES_CURTAS,
     construir_linhas_lotes_id_curta,
     construir_linhas_lotes_valores_curta,
     construir_resumo_patrimonio_total_lotes,
-    construir_amostra_lotes_sinteticos_pos_switching,
-    construir_amostra_estado_pos_switching_lotes,
 )
 
 
@@ -43,68 +40,59 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
 
     realizados = amostras['realizados']
     print(f"- {realizados['rotulo']}:")
-    _imprimir_tabela(
-        realizados['headers'],
-        realizados['linhas'],
-        limite=realizados['limite'],
-    )
+    _imprimir_tabela(realizados['headers'], realizados['linhas'], limite=realizados['limite'])
 
-    proximos_valores_fonte = amostras['proximos_valores_fonte']
-    print(f"\n- {proximos_valores_fonte['rotulo']}:")
-    _imprimir_tabela(
-        proximos_valores_fonte['headers'],
-        proximos_valores_fonte['linhas'],
-        limite=proximos_valores_fonte['limite'],
-    )
+    proximos_decisao = amostras['proximos_switching_status']
+    print(f"\n- {proximos_decisao['rotulo']}:")
+    _imprimir_tabela(proximos_decisao['headers'], proximos_decisao['linhas'], limite=proximos_decisao['limite'])
 
-    proximos_switching_status = amostras['proximos_switching_status']
-    print(f"\n- {proximos_switching_status['rotulo']}:")
-    _imprimir_tabela(
-        proximos_switching_status['headers'],
-        proximos_switching_status['linhas'],
-        limite=proximos_switching_status['limite'],
-    )
+    proximos_valores = amostras['proximos_valores_fonte']
+    print("\n- próximos 5 pagamentos — valores:")
+    _imprimir_tabela(['Data','Conta','Saldo ant.','Bruto','IR','Liq.','Rem.'], proximos_valores['linhas'], limite=proximos_valores['limite'])
 
     relevantes = amostras['proximos_relevantes_switching_status']
-    if relevantes['linhas']:
-        relevantes_decisao = relevantes['decisao']
-        print(f"\n- {relevantes_decisao['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_decisao['headers'],
-            relevantes_decisao['linhas'],
-            limite=relevantes_decisao['limite'],
-        )
-        relevantes_auditoria = relevantes['auditoria_switching']
-        print(f"\n- {relevantes_auditoria['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_auditoria['headers'],
-            relevantes_auditoria['linhas'],
-            limite=relevantes_auditoria['limite'],
-        )
-        relevantes_consumo = relevantes['consumo_temporal']
-        print(f"\n- {relevantes_consumo['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_consumo['headers'],
-            relevantes_consumo['linhas'],
-            limite=relevantes_consumo['limite'],
-        )
-        relevantes_conciliacao = relevantes['conciliacao_janela']
-        print(f"\n- {relevantes_conciliacao['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_conciliacao['headers'],
-            relevantes_conciliacao['linhas'],
-            limite=relevantes_conciliacao['limite'],
-        )
-        relevantes_diag_pos_sw = relevantes['diagnostico_pos_switch']
-        print(f"\n- {relevantes_diag_pos_sw['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_diag_pos_sw['headers'],
-            relevantes_diag_pos_sw['linhas'],
-            limite=relevantes_diag_pos_sw['limite'],
-        )
+    alertas = []
+    for row in relevantes.get('linhas', []):
+        status = str(row.get('Status') or '').strip().lower()
+        lote = str(row.get('Lote') or '').strip().lower()
+        cobertura = str(row.get('Cobertura') or '').strip().lower()
+        bloq = str(row.get('Bloq.') or '').strip().lower()
+        pacote = str(row.get('Pacote') or '').strip().lower()
+        necessita_sw = str(row.get('Switch?') or '').strip().lower()
+
+        lote_nd = lote in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}
+        cobertura_nao_sim = cobertura not in {'sim'}
+        status_nao_ok = status not in {'ok'}
+        bloqueio_real = bloq not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}
+
+        problema = None
+        motivo = None
+        if status_nao_ok:
+            problema = row.get('Status')
+            motivo = row.get('Bloq.') if bloqueio_real else row.get('Status')
+        elif lote_nd:
+            problema = 'lote_nao_determinado'
+            motivo = row.get('Status')
+        elif cobertura_nao_sim:
+            problema = 'cobertura_nao_integral'
+            motivo = row.get('Cobertura')
+        elif bloqueio_real:
+            problema = 'motivo_bloqueio_lote'
+            motivo = row.get('Bloq.')
+
+        # Não considerar ausência de campos de switching como alerta quando pay_only + ok + lote definido + sem switching.
+        if problema and (not status_nao_ok) and (not lote_nd) and pacote == 'pay_only' and necessita_sw == 'não' and not bloqueio_real:
+            problema = None
+            motivo = None
+
+        if problema:
+            alertas.append({'Data': row.get('Data'), 'Conta': row.get('Conta'), 'problema': problema, 'motivo': motivo})
+    print("\n- alertas operacionais:")
+    if alertas:
+        _imprimir_tabela(['Data','Conta','problema','motivo'], alertas, limite=5)
     else:
-        print(f"\n- {relevantes['rotulo']}:")
-        print("  sem pagamentos futuros com switching/status relevante na amostra atual")
+        print('  [OK] sem alertas na amostra atual')
+
 def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> None:
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     if ranking is None:
@@ -149,24 +137,21 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
     ])
 
     print('- amostra de switchings reais da janela (independente de pagamentos):')
-    _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=10)
-    sinteticos = construir_amostra_lotes_sinteticos_pos_switching(saida_canonica, limite=10)
-    print(f"\n- {sinteticos['rotulo']}:")
-    if sinteticos['linhas']:
-        _imprimir_tabela(sinteticos['headers'], sinteticos['linhas'], limite=sinteticos['limite'])
-    else:
-        print("  sem lotes sintéticos pós-switching materializáveis na amostra atual")
-    estado_pos_sw = construir_amostra_estado_pos_switching_lotes(saida_canonica, limite=10)
-    print(f"\n- {estado_pos_sw['rotulo']}:")
-    if estado_pos_sw['linhas']:
-        _imprimir_tabela(estado_pos_sw['headers'], estado_pos_sw['linhas'], limite=estado_pos_sw['limite'])
-    else:
-        print("  sem estado pós-switching dos lotes na amostra atual")
+    _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=5)
 
-    alocacao = construir_amostra_alocacao_recebidos_futuros(saida_canonica, limite=5)
-    print(f"\n- {alocacao['rotulo']}:")
-    _imprimir_tabela(alocacao['headers'], alocacao['linhas'], limite=alocacao['limite'])
+    total_sinteticos = len(getattr(saida_canonica, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
+    total_aportes = len(getattr(saida_canonica, 'recebidos_atuais', []) or [])
+    alocacao = {'linhas': list(getattr(saida_canonica, 'recebidos_futuros_console', lambda **_: [])(limite=3) or [])}
 
+    print('\n- resumo operacional curto:')
+    _imprimir_pares([
+        ('total de switchings promovidos', len(linhas)),
+        ('total de lotes sintéticos pós-switching', total_sinteticos),
+        ('total de aportes futuros', total_aportes),
+    ])
+    if alocacao['linhas']:
+        print('- próximos 3 aportes (resumo):')
+        _imprimir_tabela(['Data', 'Lote', 'Valor', 'Status'], alocacao['linhas'], limite=3)
 
 def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos) -> None:
     _imprimir_titulo('SITUAÇÃO ATUAL')
