@@ -467,6 +467,16 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     }
     d3_residuais_detalhe: list[dict[str, Any]] = []
     d3_datas_residuais_detalhe: list[dict[str, Any]] = []
+    d3b = {
+        'd3b_lotes_estado_total': 0,'d3b_lotes_candidatos_switching': 0,'d3b_lotes_candidatos_alocacao_aporte': 0,
+        'd3b_lotes_disponiveis_nao_candidatos': 0,'d3b_lotes_excluidos_por_carencia': 0,'d3b_lotes_excluidos_por_liquidez': 0,
+        'd3b_lotes_excluidos_por_vencimento_prazo': 0,'d3b_lotes_excluidos_por_migracao': 0,'d3b_lotes_excluidos_por_exaurido': 0,
+        'd3b_lotes_excluidos_por_fonte_futura': 0,'d3b_lotes_excluidos_por_filtro_indefinido': 0,'d3b_lotes_disponiveis_hoje_candidatos': 0,
+        'd3b_lotes_disponiveis_hoje_fora_do_motor': 0,'d3b_datas_switching_por_vencimento': 0,'d3b_datas_switching_por_disponibilidade_real': 0,
+        'd3b_datas_switching_por_carencia': 0,'d3b_datas_switching_por_fallback': 0,'d3b_inconsistencias_universo_switching': 0,
+        'd3b_inconsistencias_universo_alocacao': 0,'d3b_pacotes_d3_com_violacao_residual_global': 0,
+    }
+    d3b_lotes_detalhe: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -676,6 +686,130 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
+    ativacao_fonte_unica_por_data: dict[str, str] = {}
+    saldo_ativacao_por_data: dict[str, float] = {}
+    for item_shadow in shadow_por_data:
+        if str(item_shadow.get('status_shadow') or '') == 'resolvido_fonte_unica':
+            data_key = str(item_shadow.get('data') or '')
+            fontes = list(item_shadow.get('fontes_escolhidas_shadow') or [])
+            if data_key and fontes:
+                ativacao_fonte_unica_por_data[data_key] = str(fontes[0])
+                meta_lote = estado_lotes.get(str(fontes[0]), {})
+                saldo_ativacao_por_data[data_key] = float(meta_lote.get('saldo_liquido') or 0.0)
+
+    d2a_funil = {
+        'd2a_linhas_no_bloco_pay_only': 0,
+        'd2a_com_data_no_mapa_fonte_unica': 0,
+        'd2a_com_lote_op_nao_determinado': 0,
+        'd2a_passa_filtro_status': 0,
+        'd2a_rejeitadas_por_saldo': 0,
+        'd2a_rejeitadas_por_data_carencia_migracao': 0,
+        'd2a_promovidas_internamente_pay_only_diario_v1': 0,
+        'd2a_promovidas_evento_final_pay_only_diario_v1': 0,
+        'd2a_promovidas_extrato_futuro_auditoria_fontes': 0,
+        'd2a_motivo_gap_shadow_vs_ativacao': 'rollback_d2a_parcial_sem_ganho_funcional',
+    }
+    d2a_plano_por_pagamento: list[dict[str, Any]] = []
+    d2a_plano_por_data: list[dict[str, Any]] = []
+    d2a_plano = {
+        'd2a_plano_datas_fonte_unica_total': 0,
+        'd2a_plano_datas_materializaveis': 0,
+        'd2a_plano_datas_nao_materializaveis': 0,
+        'd2a_plano_pagamentos_total': 0,
+        'd2a_plano_pagamentos_validos_para_ativacao': 0,
+        'd2a_plano_pagamentos_invalidos': 0,
+        'd2a_plano_pagamentos_hoje_nao_determinados_validos': 0,
+        'd2a_plano_conflitos_migracao': 0,
+        'd2a_plano_consumo_pos_switching_indevido': 0,
+        'd2a_plano_violacoes_residual_global': 0,
+        'd2a_plano_divergencias_shadow_vs_plano': 0,
+    }
+    d2b0_plano_por_pagamento_fonte: list[dict[str, Any]] = []
+    d2b0_plano_por_data: list[dict[str, Any]] = []
+    d2b0 = {
+        'd2b0_datas_combinacao_total': 0,
+        'd2b0_datas_materializaveis': 0,
+        'd2b0_datas_nao_materializaveis': 0,
+        'd2b0_pagamentos_total': 0,
+        'd2b0_pagamentos_validos_para_ativacao': 0,
+        'd2b0_pagamentos_invalidos': 0,
+        'd2b0_fontes_usadas_total': 0,
+        'd2b0_fontes_com_residual_positivo_total': 0,
+        'd2b0_violacoes_residual_global': 0,
+        'd2b0_conflitos_migracao': 0,
+        'd2b0_consumo_pos_switching_indevido': 0,
+        'd2b0_divergencias_shadow_vs_plano': 0,
+    }
+    d2b1 = {
+        'd2b1_datas_ativadas': 0,
+        'd2b1_datas_bloqueadas': 0,
+        'd2b1_pagamentos_ativados': 0,
+        'd2b1_pagamentos_nao_determinados_ativados': 0,
+        'd2b1_fontes_usadas_total': 0,
+        'd2b1_fontes_com_residual_positivo_total': 0,
+        'd2b1_violacoes_residual_global': 0,
+        'd2b1_conflitos_migracao': 0,
+        'd2b1_consumo_pos_switching_indevido': 0,
+        'd2b1_divergencias_plano_vs_evento_final': 0,
+        'd2b1_divergencias_evento_vs_extrato_futuro': 0,
+        'd2b1_falhas_ativacao': 0,
+        'd2b1_residual_pagamentos_planejados': 0,
+        'd2b1_residual_pagamentos_ativados': 0,
+        'd2b1_residual_pagamentos_falhos': 0,
+        'd2b1_residual_falhas_por_mapeamento_despesa_id': 0,
+        'd2b1_residual_falhas_por_multifonte': 0,
+        'd2b1_residual_falhas_por_data': 0,
+        'd2b1_residual_falhas_por_sobrescrita': 0,
+        'd2b1_residual_falhas_por_evento_final': 0,
+        'd2b1_residual_divergencias_plano_evento': 0,
+        'd2b1_residual_divergencias_evento_saida': 0,
+    }
+    d2c = {
+        'd2c_pagamentos_residuais_total': 0,
+        'd2c_residuais_bloqueio_legitimo_migracao': 0,
+        'd2c_residuais_com_fonte_unica_alternativa': 0,
+        'd2c_residuais_com_combinacao_alternativa': 0,
+        'd2c_residuais_sem_fonte_elegivel': 0,
+        'd2c_residuais_falha_planejamento': 0,
+        'd2c_conflitos_migracao': 0,
+        'd2c_consumo_pos_switching_indevido': 0,
+        'd2c_violacoes_residual_global': 0,
+    }
+    d2c_residuais_detalhe: list[dict[str, Any]] = []
+    d3 = {
+        'd3_residuais_total': 0,
+        'd3_residuais_inviabilizados_por_switching': 0,
+        'd3_residuais_sem_fonte_mesmo_sem_switching': 0,
+        'd3_datas_residuais_total': 0,
+        'd3_datas_com_pay_only_sem_switching_factivel': 0,
+        'd3_datas_com_switch_then_pay_factivel': 0,
+        'd3_datas_com_pay_then_switch_factivel': 0,
+        'd3_datas_sem_pacote_factivel': 0,
+        'd3_switchings_bloqueantes_identificados': 0,
+        'd3_conflitos_pagamento_switching': 0,
+        'd3_consumo_pos_switching_indevido': 0,
+        'd3_violacoes_residual_global': 0,
+    }
+    d3_residuais_detalhe: list[dict[str, Any]] = []
+    d3_datas_residuais_detalhe: list[dict[str, Any]] = []
+    def _pid_norm(v: Any) -> str:
+        s = _txt(v)
+        return s[:-2] if s.endswith('.0') else s
+    d2a2 = {
+        'd2a2_datas_ativadas': 0,
+        'd2a2_datas_bloqueadas': 0,
+        'd2a2_pagamentos_ativados': 0,
+        'd2a2_pagamentos_nao_determinados_ativados': 0,
+        'd2a2_pagamentos_fifo_substituidos': 0,
+        'd2a2_falhas_ativacao': 0,
+        'd2a2_violacoes_residual_global': 0,
+        'd2a2_conflitos_migracao': 0,
+        'd2a2_consumo_pos_switching_indevido': 0,
+        'd2a2_divergencias_plano_vs_evento_final': 0,
+        'd2a2_divergencias_evento_vs_extrato_futuro': 0,
+    }
+
+    linhas_por_data_pay_only: dict[str, list[dict[str, Any]]] = {}
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         fontes_usadas: list[str] = []
@@ -1148,6 +1282,43 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'recomendacao_diagnostica': 'revisar_switching' if pacote_factivel != 'nenhum' else 'manter_bloqueio',
         })
     d3['d3_datas_residuais_total'] = len(d3_datas_residuais_detalhe)
+    d3b['d3b_pacotes_d3_com_violacao_residual_global'] = d3.get('d3_violacoes_residual_global', 0)
+    data_ref = getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
+    for lote_id, meta in estado_lotes.items():
+        saldo = float(meta.get('saldo_liquido') or 0.0); da = meta.get('data_aplicacao'); car = meta.get('carencia_ate'); mig = meta.get('migrado_em')
+        motivo = ''
+        cand_sw = lote_id in mapa_global_sw
+        if cand_sw:
+            d3b['d3b_lotes_candidatos_switching'] += 1
+            origem_map = str(meta.get('origem_mapa_migracao') or '')
+            if 'data_operacional' in origem_map:
+                d3b['d3b_datas_switching_por_disponibilidade_real'] += 1
+            elif 'materializacao' in origem_map:
+                d3b['d3b_datas_switching_por_fallback'] += 1
+            else:
+                d3b['d3b_datas_switching_por_fallback'] += 1
+        if saldo <= 0.01:
+            motivo = 'ja_exaurido'; d3b['d3b_lotes_excluidos_por_exaurido'] += 1
+        elif da is not None and data_ref is not None and da > data_ref:
+            motivo = 'fonte_futura'; d3b['d3b_lotes_excluidos_por_fonte_futura'] += 1
+        elif car is not None and data_ref is not None and car > data_ref:
+            motivo = 'carencia'; d3b['d3b_lotes_excluidos_por_carencia'] += 1
+        elif mig is not None and data_ref is not None and mig <= data_ref:
+            motivo = 'ja_migrado'; d3b['d3b_lotes_excluidos_por_migracao'] += 1
+        else:
+            d3b['d3b_lotes_candidatos_alocacao_aporte'] += 1
+            if cand_sw:
+                d3b['d3b_lotes_disponiveis_hoje_candidatos'] += 1
+            else:
+                d3b['d3b_lotes_disponiveis_hoje_fora_do_motor'] += 1
+                d3b['d3b_inconsistencias_universo_switching'] += 1
+            motivo = 'disponivel_para_aporte_nao_switching' if not cand_sw else 'candidato_switching'
+        if not cand_sw and saldo > 0.01 and motivo in {'', 'disponivel_para_aporte_nao_switching'}:
+            d3b['d3b_lotes_disponiveis_nao_candidatos'] += 1
+        d3b_lotes_detalhe.append({'lote_id': lote_id, 'saldo_liquido': round(saldo, 2), 'data_aplicacao': da, 'carencia_ate': car, 'migrado_em': mig, 'candidato_switching': cand_sw, 'candidato_alocacao_aporte': bool(saldo > 0.01 and motivo in {'disponivel_para_aporte_nao_switching','candidato_switching'}), 'motivo_classificacao': motivo or 'filtro_indefinido', 'origem_data_switching': meta.get('origem_mapa_migracao') or ('mapa_global_switching' if cand_sw else '')})
+    d3b['d3b_lotes_estado_total'] = len(estado_lotes)
+    if d3b['d3b_lotes_disponiveis_hoje_fora_do_motor'] > 0:
+        d3b['d3b_inconsistencias_universo_alocacao'] += d3b['d3b_lotes_disponiveis_hoje_fora_do_motor']
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1166,5 +1337,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d2c_residuais_detalhe": d2c_residuais_detalhe,
         "d3_residuais_detalhe": d3_residuais_detalhe,
         "d3_datas_residuais_detalhe": d3_datas_residuais_detalhe,
+        **d3b,
+        "d3b_lotes_detalhe": d3b_lotes_detalhe,
         **shadow_counters,
     }
