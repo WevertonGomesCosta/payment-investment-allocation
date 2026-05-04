@@ -371,6 +371,19 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 meta_lote = estado_lotes.get(str(fontes[0]), {})
                 saldo_ativacao_por_data[data_key] = float(meta_lote.get('saldo_liquido') or 0.0)
 
+    d2a_funil = {
+        'd2a_linhas_no_bloco_pay_only': 0,
+        'd2a_com_data_no_mapa_fonte_unica': 0,
+        'd2a_com_lote_op_nao_determinado': 0,
+        'd2a_passa_filtro_status': 0,
+        'd2a_rejeitadas_por_saldo': 0,
+        'd2a_rejeitadas_por_data_carencia_migracao': 0,
+        'd2a_promovidas_internamente_pay_only_diario_v1': 0,
+        'd2a_promovidas_evento_final_pay_only_diario_v1': 0,
+        'd2a_promovidas_extrato_futuro_auditoria_fontes': 0,
+        'd2a_motivo_gap_shadow_vs_ativacao': 'rollback_d2a_parcial_sem_ganho_funcional',
+    }
+
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         pacote=_inferir_pacote(d)
@@ -449,10 +462,17 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 if status in {'','ok','não determinado'}: status='fonte_pos_switching_nao_materializada'
                 if not motivo: motivo='fonte_pos_switching_nao_materializada'
             if lote_op=='não determinado' and pacote == 'pay_only':
+                d2a_funil['d2a_linhas_no_bloco_pay_only'] += 1
                 valor_pag = val if val != '' else 0.0
                 # D2A: ativação funcional do pay_only_diario_v1 apenas para datas
                 # resolvidas por fonte única no shadow.
                 lote_diario = ativacao_fonte_unica_por_data.get(data_pagamento_key, '')
+                if lote_diario:
+                    d2a_funil['d2a_com_data_no_mapa_fonte_unica'] += 1
+                if lote_op == 'não determinado':
+                    d2a_funil['d2a_com_lote_op_nao_determinado'] += 1
+                if status in {'sem_fonte_auditavel', 'sem_saldo_temporal_auditavel', '', 'não determinado'}:
+                    d2a_funil['d2a_passa_filtro_status'] += 1
                 if lote_diario and lote_diario in estado_lotes:
                     meta_diario = estado_lotes.get(lote_diario, {})
                     saldo_diario = float(meta_diario.get('saldo_liquido') or saldo_ativacao_por_data.get(data_pagamento_key, 0.0))
@@ -465,28 +485,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                         or (car_ate is not None and d.get('data_pagamento') is not None and car_ate > d.get('data_pagamento'))
                         or bool(motivo_mig)
                     )
-                    if (not bloqueado_temporal) and saldo_diario + 0.01 >= float(valor_pag or 0.0):
-                        lote_op = lote_diario
-                        fonte_candidata_id = lote_diario
-                        origem_fonte_candidata = 'pay_only_diario_v1'
-                        tipo_fonte_candidata = 'lote_aportado'
-                        saldo_liquido_disponivel = round(saldo_diario, 2)
-                        promovida_para_lote_sugerido = True
-                        cobertura = 'sim'
-                        status = 'ok'
-                        motivo = 'n/d'
-                        liq = round(float(valor_pag), 2)
-                        cons = liq
-                        sal_ant = round(float(saldo_diario), 2)
-                        sal_dep = round(float(saldo_diario - liq), 2)
-                        estado_lotes[lote_diario]['saldo_liquido'] = sal_dep
-                        saldo_ativacao_por_data[data_pagamento_key] = sal_dep
-                        etapa_descarte_fonte = ''
-                        motivo_descarte_fonte = ''
-                        origem_motivo_descarte = ''
-                        motivo_fifo = 'promovido_pay_only_diario_v1'
-                    elif bloqueado_temporal and not motivo:
-                        motivo = motivo_mig or 'fonte_unica_diaria_bloqueada_temporalmente'
+                    if bloqueado_temporal:
+                        d2a_funil['d2a_rejeitadas_por_data_carencia_migracao'] += 1
+                    elif saldo_diario + 0.01 < float(valor_pag or 0.0):
+                        d2a_funil['d2a_rejeitadas_por_saldo'] += 1
+                    else:
+                        d2a_funil['d2a_promovidas_internamente_pay_only_diario_v1'] += 1
 
                 if lote_op=='não determinado':
                     # pay_only_fifo_v1: escolhe lote elegível mais antigo que cobre integralmente
@@ -613,10 +617,14 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'fifo_carencia_melhor_lote': cand_sum.get('melhor_car', ''),
             'fifo_motivo_nao_promocao': cand_sum.get('motivo', ''),
         }
+        if str(evento.get('origem_fonte_candidata') or '').strip() == 'pay_only_diario_v1':
+            d2a_funil['d2a_promovidas_evento_final_pay_only_diario_v1'] += 1
+            d2a_funil['d2a_promovidas_extrato_futuro_auditoria_fontes'] += 1
         eventos.append(_normalizar_evento_operacional(evento))
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
         "pay_only_diario_shadow_por_data": shadow_por_data,
+        **d2a_funil,
         **shadow_counters,
     }

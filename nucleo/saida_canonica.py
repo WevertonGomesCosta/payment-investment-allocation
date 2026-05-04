@@ -1303,7 +1303,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'qtd_futuro_multifonte': sum(1 for item in extrato_futuro if '+' in str(item.get('Lote sugerido') or '')),
         'fifo_candidatos_avaliados': fifo_candidatos_avaliados,
         'qtd_eventos_ledger': len(eventos_ledger),
-        **({k: v for k, v in ledger_result.items() if str(k).startswith('pay_only_diario_shadow_') and not isinstance(v, (list, dict, tuple, set))}),
+        **({k: v for k, v in ledger_result.items() if (str(k).startswith('pay_only_diario_shadow_') or str(k).startswith('d2a_')) and not isinstance(v, (list, dict, tuple, set))}),
         'pay_only_diario_shadow_por_data': ledger_result.get('pay_only_diario_shadow_por_data', []),
         **(_PRE_INVARIANTE_EXTRATO_FUTURO or {}),
         **(_SOMBRA_DIVERGENCIAS_LEDGER or {}),
