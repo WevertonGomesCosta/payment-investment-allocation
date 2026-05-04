@@ -467,6 +467,16 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     }
     d3_residuais_detalhe: list[dict[str, Any]] = []
     d3_datas_residuais_detalhe: list[dict[str, Any]] = []
+    d3b = {
+        'd3b_lotes_estado_total': 0,'d3b_lotes_candidatos_switching': 0,'d3b_lotes_candidatos_alocacao_aporte': 0,
+        'd3b_lotes_disponiveis_nao_candidatos': 0,'d3b_lotes_excluidos_por_carencia': 0,'d3b_lotes_excluidos_por_liquidez': 0,
+        'd3b_lotes_excluidos_por_vencimento_prazo': 0,'d3b_lotes_excluidos_por_migracao': 0,'d3b_lotes_excluidos_por_exaurido': 0,
+        'd3b_lotes_excluidos_por_fonte_futura': 0,'d3b_lotes_excluidos_por_filtro_indefinido': 0,'d3b_lotes_disponiveis_hoje_candidatos': 0,
+        'd3b_lotes_disponiveis_hoje_fora_do_motor': 0,'d3b_datas_switching_por_vencimento': 0,'d3b_datas_switching_por_disponibilidade_real': 0,
+        'd3b_datas_switching_por_carencia': 0,'d3b_datas_switching_por_fallback': 0,'d3b_inconsistencias_universo_switching': 0,
+        'd3b_inconsistencias_universo_alocacao': 0,'d3b_pacotes_d3_com_violacao_residual_global': 0,
+    }
+    d3b_lotes_detalhe: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -1148,6 +1158,43 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'recomendacao_diagnostica': 'revisar_switching' if pacote_factivel != 'nenhum' else 'manter_bloqueio',
         })
     d3['d3_datas_residuais_total'] = len(d3_datas_residuais_detalhe)
+    d3b['d3b_pacotes_d3_com_violacao_residual_global'] = d3.get('d3_violacoes_residual_global', 0)
+    data_ref = getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
+    for lote_id, meta in estado_lotes.items():
+        saldo = float(meta.get('saldo_liquido') or 0.0); da = meta.get('data_aplicacao'); car = meta.get('carencia_ate'); mig = meta.get('migrado_em')
+        motivo = ''
+        cand_sw = lote_id in mapa_global_sw
+        if cand_sw:
+            d3b['d3b_lotes_candidatos_switching'] += 1
+            origem_map = str(meta.get('origem_mapa_migracao') or '')
+            if 'data_operacional' in origem_map:
+                d3b['d3b_datas_switching_por_disponibilidade_real'] += 1
+            elif 'materializacao' in origem_map:
+                d3b['d3b_datas_switching_por_fallback'] += 1
+            else:
+                d3b['d3b_datas_switching_por_fallback'] += 1
+        if saldo <= 0.01:
+            motivo = 'ja_exaurido'; d3b['d3b_lotes_excluidos_por_exaurido'] += 1
+        elif da is not None and data_ref is not None and da > data_ref:
+            motivo = 'fonte_futura'; d3b['d3b_lotes_excluidos_por_fonte_futura'] += 1
+        elif car is not None and data_ref is not None and car > data_ref:
+            motivo = 'carencia'; d3b['d3b_lotes_excluidos_por_carencia'] += 1
+        elif mig is not None and data_ref is not None and mig <= data_ref:
+            motivo = 'ja_migrado'; d3b['d3b_lotes_excluidos_por_migracao'] += 1
+        else:
+            d3b['d3b_lotes_candidatos_alocacao_aporte'] += 1
+            if cand_sw:
+                d3b['d3b_lotes_disponiveis_hoje_candidatos'] += 1
+            else:
+                d3b['d3b_lotes_disponiveis_hoje_fora_do_motor'] += 1
+                d3b['d3b_inconsistencias_universo_switching'] += 1
+            motivo = 'disponivel_para_aporte_nao_switching' if not cand_sw else 'candidato_switching'
+        if not cand_sw and saldo > 0.01 and motivo in {'', 'disponivel_para_aporte_nao_switching'}:
+            d3b['d3b_lotes_disponiveis_nao_candidatos'] += 1
+        d3b_lotes_detalhe.append({'lote_id': lote_id, 'saldo_liquido': round(saldo, 2), 'data_aplicacao': da, 'carencia_ate': car, 'migrado_em': mig, 'candidato_switching': cand_sw, 'candidato_alocacao_aporte': bool(saldo > 0.01 and motivo in {'disponivel_para_aporte_nao_switching','candidato_switching'}), 'motivo_classificacao': motivo or 'filtro_indefinido', 'origem_data_switching': meta.get('origem_mapa_migracao') or ('mapa_global_switching' if cand_sw else '')})
+    d3b['d3b_lotes_estado_total'] = len(estado_lotes)
+    if d3b['d3b_lotes_disponiveis_hoje_fora_do_motor'] > 0:
+        d3b['d3b_inconsistencias_universo_alocacao'] += d3b['d3b_lotes_disponiveis_hoje_fora_do_motor']
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1166,5 +1213,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d2c_residuais_detalhe": d2c_residuais_detalhe,
         "d3_residuais_detalhe": d3_residuais_detalhe,
         "d3_datas_residuais_detalhe": d3_datas_residuais_detalhe,
+        **d3b,
+        "d3b_lotes_detalhe": d3b_lotes_detalhe,
         **shadow_counters,
     }
