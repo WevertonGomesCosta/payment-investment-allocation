@@ -360,9 +360,21 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'fontes_futuras_ou_nao_materializadas': b_fut,
         })
 
+    ativacao_fonte_unica_por_data: dict[str, str] = {}
+    saldo_ativacao_por_data: dict[str, float] = {}
+    for item_shadow in shadow_por_data:
+        if str(item_shadow.get('status_shadow') or '') == 'resolvido_fonte_unica':
+            data_key = str(item_shadow.get('data') or '')
+            fontes = list(item_shadow.get('fontes_escolhidas_shadow') or [])
+            if data_key and fontes:
+                ativacao_fonte_unica_por_data[data_key] = str(fontes[0])
+                meta_lote = estado_lotes.get(str(fontes[0]), {})
+                saldo_ativacao_por_data[data_key] = float(meta_lote.get('saldo_liquido') or 0.0)
+
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         pacote=_inferir_pacote(d)
+        data_pagamento_key = str(d.get('data_pagamento') or '')
         lote_origem_pipeline=_txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id'))
         lote_origem=_txt(lote_origem_pipeline or central.get('lote_final_central'))
         reserva=_txt(d.get('lote_reserva') or central.get('lote_reserva'))
@@ -437,78 +449,117 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 if status in {'','ok','não determinado'}: status='fonte_pos_switching_nao_materializada'
                 if not motivo: motivo='fonte_pos_switching_nao_materializada'
             if lote_op=='não determinado' and pacote == 'pay_only':
-                # pay_only_fifo_v1: escolhe lote elegível mais antigo que cobre integralmente
-                data_pag = d.get('data_pagamento')
                 valor_pag = val if val != '' else 0.0
-                elegiveis = []
-                qtd_avaliados = 0
-                qtd_saldo_suf = 0
-                bloq_saldo = bloq_data = bloq_car = bloq_mig = 0
-                melhor_lote = ''
-                melhor_saldo = ''
-                melhor_data = ''
-                melhor_car = ''
-                for lid, meta in estado_lotes.items():
-                    qtd_avaliados += 1
-                    saldo = float(meta.get('saldo_liquido') or 0.0)
-                    da = meta.get('data_aplicacao')
-                    car = meta.get('carencia_ate')
-                    mig = meta.get('migrado_em')
-                    if melhor_lote == '' or (da, -saldo, lid) < (melhor_data or '', -(float(melhor_saldo or 0) if melhor_saldo!='' else 0.0), str(melhor_lote)):
-                        melhor_lote = lid; melhor_saldo = round(saldo,2); melhor_data = da; melhor_car = car
-                    if saldo + 0.01 < float(valor_pag or 0.0):
-                        bloq_saldo += 1
-                        continue
-                    qtd_saldo_suf += 1
-                    if da is not None and data_pag is not None and da > data_pag:
-                        bloq_data += 1
-                        continue
-                    if car is not None and data_pag is not None and car > data_pag:
-                        bloq_car += 1
-                        continue
-                    if mig is not None and data_pag is not None and mig <= data_pag:
-                        bloq_mig += 1
-                        continue
-                    elegiveis.append((da, -saldo, lid, saldo))
-                elegiveis.sort(key=lambda x: (x[0] or '', x[1], x[2]))
-                if elegiveis:
-                    _, _, lid, saldo = elegiveis[0]
-                    lote_op = lid
-                    fonte_candidata_id = lid
-                    origem_fonte_candidata = 'pay_only_fifo_v1'
-                    tipo_fonte_candidata = 'lote_aportado'
-                    saldo_liquido_disponivel = round(saldo, 2)
-                    promovida_para_lote_sugerido = True
-                    cobertura = 'sim'
-                    status = 'ok'
-                    motivo = 'n/d'
-                    liq = round(float(valor_pag), 2)
-                    cons = liq
-                    sal_ant = round(float(saldo), 2)
-                    sal_dep = round(float(saldo - liq), 2)
-                    estado_lotes[lid]['saldo_liquido'] = sal_dep
-                    etapa_descarte_fonte = ''
-                    motivo_fifo = 'promovido_pay_only_fifo_v1'
-                    motivo_descarte_fonte = ''
-                    origem_motivo_descarte = ''
-                else:
-                    status = 'lote_individual_insuficiente' if estado_lotes else 'sem_fonte_auditavel'
-                    if len(estado_lotes)==0:
-                        motivo_fifo='sem_lotes_no_estado'
-                    elif qtd_avaliados>0 and bloq_saldo==qtd_avaliados:
-                        motivo_fifo='todos_bloqueados_por_saldo'
-                    elif qtd_saldo_suf>0 and bloq_data>=qtd_saldo_suf:
-                        motivo_fifo='todos_bloqueados_por_data'
-                    elif qtd_saldo_suf>0 and bloq_car>=qtd_saldo_suf:
-                        motivo_fifo='todos_bloqueados_por_carencia'
-                    elif qtd_saldo_suf>0 and bloq_mig>=qtd_saldo_suf:
-                        motivo_fifo='todos_bloqueados_por_migracao'
+                # D2A: ativação funcional do pay_only_diario_v1 apenas para datas
+                # resolvidas por fonte única no shadow.
+                lote_diario = ativacao_fonte_unica_por_data.get(data_pagamento_key, '')
+                if lote_diario and lote_diario in estado_lotes:
+                    meta_diario = estado_lotes.get(lote_diario, {})
+                    saldo_diario = float(meta_diario.get('saldo_liquido') or saldo_ativacao_por_data.get(data_pagamento_key, 0.0))
+                    data_apl = meta_diario.get('data_aplicacao')
+                    car_ate = meta_diario.get('carencia_ate')
+                    mig_em = meta_diario.get('migrado_em')
+                    motivo_mig = _motivo_bloqueio_migracao(d.get('data_pagamento'), mig_em, pacote)
+                    bloqueado_temporal = bool(
+                        (data_apl is not None and d.get('data_pagamento') is not None and data_apl > d.get('data_pagamento'))
+                        or (car_ate is not None and d.get('data_pagamento') is not None and car_ate > d.get('data_pagamento'))
+                        or bool(motivo_mig)
+                    )
+                    if (not bloqueado_temporal) and saldo_diario + 0.01 >= float(valor_pag or 0.0):
+                        lote_op = lote_diario
+                        fonte_candidata_id = lote_diario
+                        origem_fonte_candidata = 'pay_only_diario_v1'
+                        tipo_fonte_candidata = 'lote_aportado'
+                        saldo_liquido_disponivel = round(saldo_diario, 2)
+                        promovida_para_lote_sugerido = True
+                        cobertura = 'sim'
+                        status = 'ok'
+                        motivo = 'n/d'
+                        liq = round(float(valor_pag), 2)
+                        cons = liq
+                        sal_ant = round(float(saldo_diario), 2)
+                        sal_dep = round(float(saldo_diario - liq), 2)
+                        estado_lotes[lote_diario]['saldo_liquido'] = sal_dep
+                        saldo_ativacao_por_data[data_pagamento_key] = sal_dep
+                        etapa_descarte_fonte = ''
+                        motivo_descarte_fonte = ''
+                        origem_motivo_descarte = ''
+                        motivo_fifo = 'promovido_pay_only_diario_v1'
+                    elif bloqueado_temporal and not motivo:
+                        motivo = motivo_mig or 'fonte_unica_diaria_bloqueada_temporalmente'
+
+                if lote_op=='não determinado':
+                    # pay_only_fifo_v1: escolhe lote elegível mais antigo que cobre integralmente
+                    data_pag = d.get('data_pagamento')
+                    elegiveis = []
+                    qtd_avaliados = 0
+                    qtd_saldo_suf = 0
+                    bloq_saldo = bloq_data = bloq_car = bloq_mig = 0
+                    melhor_lote = ''
+                    melhor_saldo = ''
+                    melhor_data = ''
+                    melhor_car = ''
+                    for lid, meta in estado_lotes.items():
+                        qtd_avaliados += 1
+                        saldo = float(meta.get('saldo_liquido') or 0.0)
+                        da = meta.get('data_aplicacao')
+                        car = meta.get('carencia_ate')
+                        mig = meta.get('migrado_em')
+                        if melhor_lote == '' or (da, -saldo, lid) < (melhor_data or '', -(float(melhor_saldo or 0) if melhor_saldo!='' else 0.0), str(melhor_lote)):
+                            melhor_lote = lid; melhor_saldo = round(saldo,2); melhor_data = da; melhor_car = car
+                        if saldo + 0.01 < float(valor_pag or 0.0):
+                            bloq_saldo += 1
+                            continue
+                        qtd_saldo_suf += 1
+                        if da is not None and data_pag is not None and da > data_pag:
+                            bloq_data += 1
+                            continue
+                        if car is not None and data_pag is not None and car > data_pag:
+                            bloq_car += 1
+                            continue
+                        if mig is not None and data_pag is not None and mig <= data_pag:
+                            bloq_mig += 1
+                            continue
+                        elegiveis.append((da, -saldo, lid, saldo))
+                    elegiveis.sort(key=lambda x: (x[0] or '', x[1], x[2]))
+                    if elegiveis:
+                        _, _, lid, saldo = elegiveis[0]
+                        lote_op = lid
+                        fonte_candidata_id = lid
+                        origem_fonte_candidata = 'pay_only_fifo_v1'
+                        tipo_fonte_candidata = 'lote_aportado'
+                        saldo_liquido_disponivel = round(saldo, 2)
+                        promovida_para_lote_sugerido = True
+                        cobertura = 'sim'
+                        status = 'ok'
+                        motivo = 'n/d'
+                        liq = round(float(valor_pag), 2)
+                        cons = liq
+                        sal_ant = round(float(saldo), 2)
+                        sal_dep = round(float(saldo - liq), 2)
+                        estado_lotes[lid]['saldo_liquido'] = sal_dep
+                        etapa_descarte_fonte = ''
+                        motivo_fifo = 'promovido_pay_only_fifo_v1'
+                        motivo_descarte_fonte = ''
+                        origem_motivo_descarte = ''
                     else:
-                        motivo_fifo='outro'
-                    cobertura = 'não'
-                    etapa_descarte_fonte = 'selecao_fonte_operacional'
-                    motivo_descarte_fonte = status
-                    origem_motivo_descarte = 'registrada_pipeline'
+                        status = 'lote_individual_insuficiente' if estado_lotes else 'sem_fonte_auditavel'
+                        if len(estado_lotes)==0:
+                            motivo_fifo='sem_lotes_no_estado'
+                        elif qtd_avaliados>0 and bloq_saldo==qtd_avaliados:
+                            motivo_fifo='todos_bloqueados_por_saldo'
+                        elif qtd_saldo_suf>0 and bloq_data>=qtd_saldo_suf:
+                            motivo_fifo='todos_bloqueados_por_data'
+                        elif qtd_saldo_suf>0 and bloq_car>=qtd_saldo_suf:
+                            motivo_fifo='todos_bloqueados_por_carencia'
+                        elif qtd_saldo_suf>0 and bloq_mig>=qtd_saldo_suf:
+                            motivo_fifo='todos_bloqueados_por_migracao'
+                        else:
+                            motivo_fifo='outro'
+                        cobertura = 'não'
+                        etapa_descarte_fonte = 'selecao_fonte_operacional'
+                        motivo_descarte_fonte = status
+                        origem_motivo_descarte = 'registrada_pipeline'
             if lote_op=='não determinado':
                 etapa_descarte_fonte = etapa_descarte_fonte or 'selecao_fonte_operacional'
                 motivo_descarte_fonte = motivo_descarte_fonte or motivo or status or 'sem_fonte_auditavel'
