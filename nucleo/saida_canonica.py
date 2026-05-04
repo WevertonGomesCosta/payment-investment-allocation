@@ -1251,6 +1251,9 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     ranking_amostra = _construir_ranking_amostra(contexto)
     lotes_ativos, lotes_exauridos = _construir_lotes_situacao(contexto)
     recebidos_atuais = _construir_recebidos_atuais(contexto)
+    quadro_futuro = _quadro_futuro_preferencial(contexto)
+    mapa_central = _mapa_pagamentos_central(contexto)
+    ledger_result = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto)
     auditoria = {
         'origem': 'nucleo.saida_canonica.construir_saida_canonica',
         'camada_unica_saida': True,
@@ -1261,6 +1264,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'qtd_lotes_exauridos': len(lotes_exauridos),
         'qtd_futuro_sem_cobertura_integral': sum(1 for item in extrato_futuro if item.get('Cobertura integral') != 'sim'),
         'qtd_futuro_multifonte': sum(1 for item in extrato_futuro if '+' in str(item.get('Lote sugerido') or '')),
+        'fifo_candidatos_avaliados': list((ledger_result or {}).get('fifo_candidatos_avaliados', [])),
     }
     return PacoteSaidaCanonica(
         versao=versao,

@@ -309,7 +309,11 @@ def _adicionar_situacao_atual(wb, contexto, saida) -> None:
 
 def _adicionar_auditoria_saida_canonica(wb, contexto, saida) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'saida_canonica'))
-    linhas = [{'Métrica': k, 'Valor': v} for k, v in saida.auditoria.items()]
+    linhas = []
+    for k, v in saida.auditoria.items():
+        if isinstance(v, (list, dict, tuple, set)):
+            continue
+        linhas.append({'Métrica': k, 'Valor': v})
     _apply_table_style(ws, ['Métrica', 'Valor'], _rows(linhas, ['Métrica', 'Valor']), freeze=True)
 
 def main(*, contexto=None, saida=None) -> Path:
@@ -417,9 +421,40 @@ def _adicionar_aba_auditoria_fifo(wb, contexto, pacote_saida) -> None:
         'fifo_melhor_lote_candidato','fifo_saldo_melhor_lote','fifo_data_aplicacao_melhor_lote',
         'fifo_carencia_melhor_lote','fifo_motivo_nao_promocao','origem_fonte_candidata','status_ledger'
     ]
+    candidatos = list((getattr(pacote_saida, 'auditoria', {}) or {}).get('fifo_candidatos_avaliados', []) or [])
+    cand_por_despesa: dict[str, list[dict[str, object]]] = {}
+    for cand in candidatos:
+        key = str(cand.get('Despesa ID') or '').strip()
+        cand_por_despesa.setdefault(key, []).append(cand)
     itens=[]
     for row in pacote_saida.extrato_futuro:
-        itens.append({h: row.get(h) for h in headers})
+        despesa_id = str(row.get('Despesa ID') or '').strip()
+        cands = cand_por_despesa.get(despesa_id, [])
+        qtd_av = len(cands)
+        qtd_suf = sum(1 for c in cands if not bool(c.get('bloqueado_por_saldo')))
+        b_saldo = sum(1 for c in cands if bool(c.get('bloqueado_por_saldo')))
+        b_data = sum(1 for c in cands if bool(c.get('bloqueado_por_data')))
+        b_car = sum(1 for c in cands if bool(c.get('bloqueado_por_carencia')))
+        b_mig = sum(1 for c in cands if bool(c.get('bloqueado_por_migracao')))
+        melhor = cands[0] if cands else {}
+        motivo = row.get('fifo_motivo_nao_promocao')
+        if (row.get('fifo_qtd_lotes_estado') or 0) > 0 and qtd_av == 0 and not str(motivo or '').strip():
+            motivo = 'fifo_nao_aplicavel_sem_motivo_explicito'
+        item = {h: row.get(h) for h in headers}
+        item.update({
+            'fifo_qtd_lotes_avaliados': qtd_av,
+            'fifo_qtd_lotes_saldo_suficiente': qtd_suf,
+            'fifo_qtd_lotes_bloqueados_por_saldo': b_saldo,
+            'fifo_qtd_lotes_bloqueados_por_data': b_data,
+            'fifo_qtd_lotes_bloqueados_por_carencia': b_car,
+            'fifo_qtd_lotes_bloqueados_por_migracao': b_mig,
+            'fifo_melhor_lote_candidato': melhor.get('lote_id', row.get('fifo_melhor_lote_candidato')),
+            'fifo_saldo_melhor_lote': melhor.get('saldo_liquido', row.get('fifo_saldo_melhor_lote')),
+            'fifo_data_aplicacao_melhor_lote': melhor.get('data_aplicacao', row.get('fifo_data_aplicacao_melhor_lote')),
+            'fifo_carencia_melhor_lote': melhor.get('carencia_ate', row.get('fifo_carencia_melhor_lote')),
+            'fifo_motivo_nao_promocao': motivo,
+        })
+        itens.append(item)
     _apply_table_style(ws, headers, _rows(itens, headers), freeze=True)
 
 
@@ -427,7 +462,6 @@ def _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, pacote_saida) -> None
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'auditoria_fifo_candidatos'))
     headers = ['Data','Conta','Despesa ID','Valor','lote_id','data_aplicacao','carencia_ate','migrado_em','saldo_liquido','avaliado_fifo','bloqueado_por_saldo','bloqueado_por_data','bloqueado_por_carencia','bloqueado_por_migracao','elegivel_fifo','ordem_fifo','motivo_bloqueio_fifo']
     itens=[]
-    for row in pacote_saida.extrato_futuro:
-        for cand in (row.get('fifo_candidatos_avaliados') or []):
-            itens.append({h: cand.get(h) for h in headers})
+    for cand in list((getattr(pacote_saida, 'auditoria', {}) or {}).get('fifo_candidatos_avaliados', []) or []):
+        itens.append({h: cand.get(h) for h in headers})
     _apply_table_style(ws, headers, _rows(itens, headers), freeze=True)

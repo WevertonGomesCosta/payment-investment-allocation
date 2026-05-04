@@ -32,7 +32,7 @@ def _eh_nd(v: Any) -> bool:
 
 
 
-def _auditar_fifo_candidatos(pid: str, d: dict[str, Any], estado_lotes: dict[str, dict[str, Any]], data_pag: Any, valor_pag: float, pacote: str, lote_sugerido: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def avaliar_candidatos_fifo_pagamento(pid: str, d: dict[str, Any], estado_lotes: dict[str, dict[str, Any]], data_pag: Any, valor_pag: float, pacote: str, lote_sugerido: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     candidatos=[]
     qtd_estado=len(estado_lotes)
     qtd_av=qtd_suf=b_saldo=b_data=b_car=b_mig=0
@@ -71,7 +71,7 @@ def _auditar_fifo_candidatos(pid: str, d: dict[str, Any], estado_lotes: dict[str
         if not bs: qtd_suf += 1
         candidatos.append({'Data': d.get('data_pagamento'),'Conta': d.get('descricao_pagamento') or '','Despesa ID': pid,'Valor': valor_pag,'lote_id': lid,'data_aplicacao': da,'carencia_ate': car,'migrado_em': mig,'saldo_liquido': round(saldo,2),'avaliado_fifo': True,'bloqueado_por_saldo': bs,'bloqueado_por_data': bd,'bloqueado_por_carencia': bc,'bloqueado_por_migracao': bm,'elegivel_fifo': eleg,'ordem_fifo': ordem,'motivo_bloqueio_fifo': 'saldo' if bs else ('data' if bd else ('carencia' if bc else ('migracao' if bm else '')) )})
     if lote_sugerido and _norm(lote_sugerido) not in {'','n/d','nd','não determinado','nao determinado'}:
-        motivo='fifo_nao_aplicavel_linha_ja_resolvida'
+        motivo='fifo_nao_aplicavel_lote_ja_determinado'
     elif b_saldo == qtd_av:
         motivo='todos_bloqueados_por_saldo'
     elif b_data == qtd_suf and qtd_suf>0:
@@ -284,7 +284,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 origem_motivo_descarte = origem_motivo_descarte or ('registrada_pipeline' if motivo else 'inferida')
 
         valor_pag_fifo = float(val or 0.0) if 'val' in locals() and val != '' else float(_round(d.get('valor_pagamento')) or 0.0)
-        cand_rows, cand_sum = _auditar_fifo_candidatos(pid, d, estado_lotes, d.get('data_pagamento'), valor_pag_fifo, pacote, lote_op)
+        lote_sugerido_original = _txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id') or central.get('lote_final_central'))
+        lote_ja_determinado = (not _eh_nd(lote_sugerido_original)) and (not _eh_nd(lote_op))
+        cand_rows, cand_sum = avaliar_candidatos_fifo_pagamento(
+            pid, d, estado_lotes, d.get('data_pagamento'), valor_pag_fifo, pacote,
+            lote_op if not lote_ja_determinado else lote_sugerido_original,
+        )
         fifo_candidatos_avaliados.extend(cand_rows)
 
         eventos.append({
@@ -314,16 +319,16 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'fifo_data_pagamento': d.get('data_pagamento'),
             'fifo_valor_pagamento': val if 'val' in locals() else '',
             'fifo_qtd_lotes_estado': len(estado_lotes),
-            'fifo_qtd_lotes_avaliados': qtd_avaliados if 'qtd_avaliados' in locals() else 0,
-            'fifo_qtd_lotes_saldo_suficiente': qtd_saldo_suf if 'qtd_saldo_suf' in locals() else 0,
-            'fifo_qtd_lotes_bloqueados_por_saldo': bloq_saldo if 'bloq_saldo' in locals() else 0,
-            'fifo_qtd_lotes_bloqueados_por_data': bloq_data if 'bloq_data' in locals() else 0,
-            'fifo_qtd_lotes_bloqueados_por_carencia': bloq_car if 'bloq_car' in locals() else 0,
-            'fifo_qtd_lotes_bloqueados_por_migracao': bloq_mig if 'bloq_mig' in locals() else 0,
-            'fifo_melhor_lote_candidato': melhor_lote,
-            'fifo_saldo_melhor_lote': melhor_saldo,
-            'fifo_data_aplicacao_melhor_lote': melhor_data,
-            'fifo_carencia_melhor_lote': melhor_car,
-            'fifo_motivo_nao_promocao': motivo_fifo if 'motivo_fifo' in locals() else '',
+            'fifo_qtd_lotes_avaliados': cand_sum.get('qtd_av', 0),
+            'fifo_qtd_lotes_saldo_suficiente': cand_sum.get('qtd_suf', 0),
+            'fifo_qtd_lotes_bloqueados_por_saldo': cand_sum.get('b_saldo', 0),
+            'fifo_qtd_lotes_bloqueados_por_data': cand_sum.get('b_data', 0),
+            'fifo_qtd_lotes_bloqueados_por_carencia': cand_sum.get('b_car', 0),
+            'fifo_qtd_lotes_bloqueados_por_migracao': cand_sum.get('b_mig', 0),
+            'fifo_melhor_lote_candidato': cand_sum.get('melhor_lote', ''),
+            'fifo_saldo_melhor_lote': cand_sum.get('melhor_saldo', ''),
+            'fifo_data_aplicacao_melhor_lote': cand_sum.get('melhor_data', ''),
+            'fifo_carencia_melhor_lote': cand_sum.get('melhor_car', ''),
+            'fifo_motivo_nao_promocao': cand_sum.get('motivo', ''),
         })
     return {"eventos": eventos, "fifo_candidatos_avaliados": fifo_candidatos_avaliados}
