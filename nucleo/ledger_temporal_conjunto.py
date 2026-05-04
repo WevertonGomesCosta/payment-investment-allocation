@@ -578,6 +578,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             conta = _txt(linha.get('descricao_pagamento'))
             restante = float(_round(linha.get('valor_pagamento')) or 0.0)
             pago_total = 0.0
+            linhas_pagamento_tmp: list[dict[str, Any]] = []
             for idx, f in enumerate(fontes, start=1):
                 if restante <= 0.0001:
                     break
@@ -589,18 +590,27 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 pago_total = round(pago_total + pago, 2)
                 if pago > 0:
                     fontes_usadas_data.add(f)
-                d2b0_plano_por_pagamento_fonte.append({
+                linhas_pagamento_tmp.append({
                     'data': dt, 'despesa_id': pid, 'conta': conta, 'valor_pagamento': float(_round(linha.get('valor_pagamento')) or 0.0),
                     'fonte_usada': f, 'ordem_fonte': idx, 'valor_pago_pela_fonte': pago, 'saldo_antes_fonte': saldo_antes,
                     'bruto_planejado': pago, 'imposto_planejado': 0.0, 'liquido_planejado': pago, 'consumo_planejado': pago,
                     'saldo_depois_fonte': saldo_depois, 'residual_fonte': max(saldo_depois, 0.0), 'residual_positivo': bool(saldo_depois > 0.20),
-                    'cobertura_integral_planejada': 'sim' if (restante <= 0.01 and data_ok) else 'não',
-                    'status_planejado': 'ok' if (restante <= 0.01 and data_ok) else 'nao_ativavel',
-                    'motivo_planejado': 'n/d' if (restante <= 0.01 and data_ok) else ('saldo_insuficiente_no_plano' if data_ok else motivo_data),
+                    'cobertura_integral_planejada': 'não',
+                    'status_planejado': 'nao_ativavel',
+                    'motivo_planejado': '',
                     'origem_planejada': 'pay_only_diario_v1_combinacao_minima',
-                    'valido_para_ativacao': bool(restante <= 0.01 and data_ok),
-                    'motivo_nao_ativavel': '' if (restante <= 0.01 and data_ok) else ('saldo_insuficiente_no_plano' if data_ok else motivo_data),
+                    'valido_para_ativacao': False,
+                    'motivo_nao_ativavel': '',
                 })
+            pagamento_valido = bool(restante <= 0.01 and data_ok)
+            motivo_pag = '' if pagamento_valido else ('saldo_insuficiente_no_plano' if data_ok else motivo_data)
+            for lp in linhas_pagamento_tmp:
+                lp['cobertura_integral_planejada'] = 'sim' if pagamento_valido else 'não'
+                lp['status_planejado'] = 'ok' if pagamento_valido else 'nao_ativavel'
+                lp['motivo_planejado'] = 'n/d' if pagamento_valido else motivo_pag
+                lp['valido_para_ativacao'] = pagamento_valido
+                lp['motivo_nao_ativavel'] = '' if pagamento_valido else motivo_pag
+                d2b0_plano_por_pagamento_fonte.append(lp)
             if restante <= 0.01 and data_ok:
                 d2b0['d2b0_pagamentos_validos_para_ativacao'] += 1
             else:
@@ -633,6 +643,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for item in d2b0_plano_por_pagamento_fonte:
         plano_d2b1_por_pagamento.setdefault(_pid_norm(item.get('despesa_id')), []).append(item)
     d2b1['d2b1_residual_pagamentos_planejados'] = len(plano_d2b1_por_pagamento.keys())
+    planned_ids_d2b1 = set(plano_d2b1_por_pagamento.keys())
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
@@ -751,7 +762,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                         elif not all(bool(x.get('valido_para_ativacao')) for x in plano_d2b1_itens):
                             d2b1['d2b1_residual_falhas_por_multifonte'] += 1
                 if not ativado_d2b1:
-                    if not plano_d2b1_itens:
+                    if (not plano_d2b1_itens) and (pid in planned_ids_d2b1):
                         d2b1['d2b1_residual_falhas_por_mapeamento_despesa_id'] += 1
                     plano = plano_por_pagamento_id.get(pid, {})
                     data_plano = str(plano.get('data') or '')
