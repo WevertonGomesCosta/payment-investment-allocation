@@ -667,6 +667,19 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         'pre_invariante_status_bloqueado_com_saldo_antes': 0,
         'pre_invariante_status_bloqueado_com_consumo_temporal': 0,
     }
+
+    sombra_div = {
+        'sombra_lote_sugerido_diferente_ledger': 0,
+        'sombra_saldo_antes_diferente_ledger': 0,
+        'sombra_bruto_diferente_ledger': 0,
+        'sombra_imposto_diferente_ledger': 0,
+        'sombra_liquido_diferente_ledger': 0,
+        'sombra_saldo_remanescente_diferente_ledger': 0,
+        'sombra_status_diferente_ledger': 0,
+        'sombra_cobertura_diferente_ledger': 0,
+        'sombra_motivo_diferente_ledger': 0,
+        'sombra_pos_switching_diferente_ledger': 0,
+    }
     lotes_exauridos = {
         _norm(str(getattr(l, 'id', '')).strip())
         for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])
@@ -909,13 +922,35 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'fifo_carencia_melhor_lote': ledger.get('fifo_carencia_melhor_lote'),
             'fifo_motivo_nao_promocao': ledger.get('fifo_motivo_nao_promocao'),
         }
+        if str(linha_saida.get('Lote sugerido') or '').strip() != str(_texto_decisao(ledger.get('lote_sugerido_operacional')) or '').strip():
+            sombra_div['sombra_lote_sugerido_diferente_ledger'] += 1
+        if str(linha_saida.get('Saldo Antes') or '').strip() != str(resumo.get('Saldo Antes') or '').strip():
+            sombra_div['sombra_saldo_antes_diferente_ledger'] += 1
+        if str(linha_saida.get('Bruto') or '').strip() != str(resumo.get('Bruto') or '').strip():
+            sombra_div['sombra_bruto_diferente_ledger'] += 1
+        if str(linha_saida.get('Imposto') or '').strip() != str(resumo.get('Imposto') or '').strip():
+            sombra_div['sombra_imposto_diferente_ledger'] += 1
+        if str(linha_saida.get('Líquido') or '').strip() != str(liquido or '').strip():
+            sombra_div['sombra_liquido_diferente_ledger'] += 1
+        if str(linha_saida.get('Saldo Remanescente') or '').strip() != str(resumo.get('Saldo Remanescente') or '').strip():
+            sombra_div['sombra_saldo_remanescente_diferente_ledger'] += 1
+        if str(linha_saida.get('Status recomendação') or '').strip() != str(_texto_decisao(ledger.get('status') or status_row_base) or '').strip():
+            sombra_div['sombra_status_diferente_ledger'] += 1
+        if str(linha_saida.get('Cobertura integral') or '').strip() != str(ledger.get('cobertura_integral') or 'não').strip():
+            sombra_div['sombra_cobertura_diferente_ledger'] += 1
+        if str(linha_saida.get('Motivo bloqueio lote') or '').strip() != str(_texto_decisao(ledger.get('motivo_bloqueio') or motivo_row_base) or '').strip():
+            sombra_div['sombra_motivo_diferente_ledger'] += 1
+        if str(linha_saida.get('Lote pós-switching') or '').strip() != str(_texto_decisao(ledger.get('lote_pos_switching_materializado')) if str(ledger.get('lote_pos_switching_materializado') or '').strip() else '').strip():
+            sombra_div['sombra_pos_switching_diferente_ledger'] += 1
+
         flags_pre = _validar_invariantes_extrato_futuro_linha_nao_mutavel(linha_saida)
         for k in pre_invariante:
             pre_invariante[k] += int(flags_pre.get(k, 0) or 0)
         linha_saida = _aplicar_invariantes_extrato_futuro_linha(linha_saida)
         linhas.append(linha_saida)
-    global _PRE_INVARIANTE_EXTRATO_FUTURO
+    global _PRE_INVARIANTE_EXTRATO_FUTURO, _SOMBRA_DIVERGENCIAS_LEDGER
     _PRE_INVARIANTE_EXTRATO_FUTURO = pre_invariante
+    _SOMBRA_DIVERGENCIAS_LEDGER = sombra_div
     return linhas
 
 
@@ -1297,6 +1332,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'fifo_candidatos_avaliados': fifo_candidatos_avaliados,
         'qtd_eventos_ledger': len(eventos_ledger),
         **(_PRE_INVARIANTE_EXTRATO_FUTURO or {}),
+        **(_SOMBRA_DIVERGENCIAS_LEDGER or {}),
     }
     return PacoteSaidaCanonica(
         versao=versao,
