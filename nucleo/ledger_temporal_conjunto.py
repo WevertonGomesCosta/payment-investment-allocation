@@ -6,8 +6,10 @@ resgates, impostos ou saldos em camada de saída.
 from __future__ import annotations
 
 from typing import Any
+from datetime import timedelta
 
 import pandas as pd
+from nucleo.calendario_financeiro import proximo_dia_util_bancario_em_ou_apos
 
 
 def _txt(v: Any) -> str:
@@ -62,14 +64,15 @@ def avaliar_candidatos_fifo_pagamento(pid: str, d: dict[str, Any], estado_lotes:
         bs = saldo + 0.01 < valor_pag
         bd = (not bs) and (da is not None and data_pag is not None and da > data_pag)
         bc = (not bs and not bd) and (car is not None and data_pag is not None and car > data_pag)
-        bm = (not bs and not bd and not bc) and (mig is not None and data_pag is not None and mig <= data_pag)
+        motivo_mig = _motivo_bloqueio_migracao(data_pag, mig, pacote)
+        bm = (not bs and not bd and not bc) and bool(motivo_mig)
         eleg = not (bs or bd or bc or bm)
         if bs: b_saldo += 1
         if bd: b_data += 1
         if bc: b_car += 1
         if bm: b_mig += 1
         if not bs: qtd_suf += 1
-        candidatos.append({'Data': d.get('data_pagamento'),'Conta': d.get('descricao_pagamento') or '','Despesa ID': pid,'Valor': valor_pag,'lote_id': lid,'data_aplicacao': da,'carencia_ate': car,'migrado_em': mig,'saldo_liquido': round(saldo,2),'avaliado_fifo': True,'bloqueado_por_saldo': bs,'bloqueado_por_data': bd,'bloqueado_por_carencia': bc,'bloqueado_por_migracao': bm,'elegivel_fifo': eleg,'ordem_fifo': ordem,'motivo_bloqueio_fifo': 'saldo' if bs else ('data' if bd else ('carencia' if bc else ('migracao' if bm else '')) )})
+        candidatos.append({'Data': d.get('data_pagamento'),'Conta': d.get('descricao_pagamento') or '','Despesa ID': pid,'Valor': valor_pag,'lote_id': lid,'data_aplicacao': da,'carencia_ate': car,'migrado_em': mig,'saldo_liquido': round(saldo,2),'avaliado_fifo': True,'bloqueado_por_saldo': bs,'bloqueado_por_data': bd,'bloqueado_por_carencia': bc,'bloqueado_por_migracao': bm,'elegivel_fifo': eleg,'ordem_fifo': ordem,'motivo_bloqueio_fifo': 'saldo' if bs else ('data' if bd else ('carencia' if bc else ('migracao' if bm else '')) ),'motivo_bloqueio_migracao_detalhe': motivo_mig if bm else ''})
     if lote_sugerido and _norm(lote_sugerido) not in {'','n/d','nd','não determinado','nao determinado'}:
         motivo='fifo_nao_aplicavel_lote_ja_determinado'
     elif b_saldo == qtd_av:
@@ -83,6 +86,19 @@ def avaliar_candidatos_fifo_pagamento(pid: str, d: dict[str, Any], estado_lotes:
     else:
         motivo='sem_promocao_fifo'
     return candidatos, {'qtd_estado':qtd_estado,'qtd_av':qtd_av,'qtd_suf':qtd_suf,'b_saldo':b_saldo,'b_data':b_data,'b_car':b_car,'b_mig':b_mig,'melhor_lote':melhor_lote,'melhor_saldo':melhor_saldo,'melhor_data':melhor_data,'melhor_car':melhor_car,'motivo':motivo}
+
+
+
+def _motivo_bloqueio_migracao(data_pag: Any, migrado_em: Any, pacote: str) -> str:
+    if migrado_em is None or data_pag is None:
+        return ''
+    if migrado_em < data_pag:
+        return 'bloqueado_por_migracao_antes_do_pagamento'
+    if migrado_em == data_pag:
+        if pacote == 'switch_then_pay':
+            return 'bloqueado_por_migracao_intradia_switch_then_pay'
+        return 'bloqueado_por_migracao_intradia_precedencia_ambigua'
+    return ''
 
 def _inferir_pacote(row: dict[str, Any]) -> str:
     pacote = _txt(row.get('pacote_dia_escolhido'))
@@ -100,6 +116,86 @@ def _inferir_pacote(row: dict[str, Any]) -> str:
             return 'pay_then_switch'
     return 'não determinado'
 
+
+
+
+def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]:
+    mapa: dict[str, dict[str, Any]] = {}
+    shadow = getattr(contexto, 'switching_economico_shadow', None) if contexto is not None else None
+    plano = getattr(shadow, 'plano_shadow', None) if shadow is not None else None
+    if isinstance(plano, pd.DataFrame) and not plano.empty:
+        plano_f = plano.copy()
+        if 'recomendado_shadow' in plano_f.columns:
+            plano_f = plano_f[plano_f['recomendado_shadow'].fillna(False)]
+        for _, row in plano_f.iterrows():
+            lote = _txt(row.get('lote_id'))
+            if not lote:
+                continue
+            lote_obj = None
+            for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or []):
+                if str(getattr(l, 'id', '')) == lote:
+                    lote_obj = l
+                    break
+            data_sw = None
+            if lote_obj is not None:
+                carteira = getattr(contexto, 'carteira_canonica', None)
+                mapa = getattr(carteira, 'mapa_produtos', {}) if carteira is not None else {}
+                meta_prod = ((mapa.get('by_key') or {}).get(getattr(lote_obj, 'produto_key', None)) or {}) if isinstance(mapa, dict) else {}
+                prazo = int(meta_prod.get('prazo_dias') or 0)
+                datas_candidatas = []
+                if prazo > 0:
+                    datas_candidatas.append(getattr(lote_obj, 'data_aplicacao', None) + timedelta(days=prazo))
+                carencia = getattr(lote_obj, 'carencia_ate', None)
+                if carencia is not None:
+                    datas_candidatas.append(carencia)
+                base = max([d for d in datas_candidatas if d is not None], default=getattr(contexto.execucao, 'data_referencia', None))
+                if base is not None:
+                    try:
+                        data_sw = proximo_dia_util_bancario_em_ou_apos(base, contexto.calendario_financeiro)
+                    except Exception:
+                        data_sw = base
+            if data_sw is None:
+                data_sw = row.get('data_horizonte') or row.get('data_referencia')
+            mapa[lote] = {
+                'lote_origem': lote,
+                'data_switching': data_sw,
+                'produto_destino': _txt(row.get('produto_destino_nome') or row.get('produto_destino_key')),
+                'valor_liquido_origem': _round(row.get('valor_liquido_resgatavel')),
+                'status_switching': 'classificado_promovido',
+                'origem_mapa_migracao': 'contexto.switching_economico_shadow.plano_shadow::data_operacional',
+                'lote_pos_switching': '',
+            }
+    return mapa
+
+
+
+def _normalizar_evento_operacional(ev: dict[str, Any]) -> dict[str, Any]:
+    lote = _norm(ev.get('lote_sugerido_operacional'))
+    status = _norm(ev.get('status'))
+    motivo = _norm(ev.get('motivo_bloqueio'))
+    cob = _norm(ev.get('cobertura_integral'))
+    bloqueios = {'sem_saldo_temporal_auditavel','sem_fonte_auditavel','switch_then_pay_sem_materializacao','fonte_pos_switching_nao_materializada'}
+    sem_lote = lote in {'','n/d','nd','não determinado','nao determinado'}
+    if sem_lote:
+        ev['lote_sugerido_operacional'] = 'não determinado'
+        ev['cobertura_integral'] = 'não'
+        ev['status'] = 'sem_fonte_auditavel'
+        if motivo in {'','n/d','nd','não determinado','nao determinado'}:
+            ev['motivo_bloqueio'] = 'sem_fonte_auditavel'
+        for k in ['saldo_antes','bruto','imposto','liquido','consumo','saldo_depois']:
+            ev[k] = ''
+    if _norm(ev.get('cobertura_integral')) == 'sim':
+        ev['status'] = 'ok'
+        if _norm(ev.get('motivo_bloqueio')) not in {'','n/d','nd','não determinado','nao determinado'}:
+            ev['motivo_bloqueio'] = 'n/d'
+    if _norm(ev.get('motivo_bloqueio')) not in {'','n/d','nd','não determinado','nao determinado'} and _norm(ev.get('status')) == 'ok':
+        ev['status'] = 'sem_saldo_temporal_auditavel'
+        ev['cobertura_integral'] = 'não'
+    if _norm(ev.get('status')) in bloqueios:
+        ev['cobertura_integral'] = 'não'
+        for k in ['saldo_antes','bruto','imposto','liquido','consumo','saldo_depois']:
+            ev[k] = ''
+    return ev
 
 def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_central: dict[str, dict[str, Any]] | None = None, contexto: Any | None = None) -> dict[str, Any]:
     if not isinstance(quadro_futuro, pd.DataFrame) or quadro_futuro.empty:
@@ -141,15 +237,134 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 'estado': 'materializado',
             }
 
+    mapa_global_sw = _mapa_global_switchings_contexto(contexto)
+    for lo, meta_sw in mapa_global_sw.items():
+        if lo in estado_lotes:
+            estado_lotes[lo]['migrado_em'] = meta_sw.get('data_switching')
+            estado_lotes[lo]['destino_switching'] = meta_sw.get('produto_destino')
+            estado_lotes[lo]['lote_pos_switching'] = meta_sw.get('lote_pos_switching')
+            estado_lotes[lo]['status_switching'] = meta_sw.get('status_switching')
+            estado_lotes[lo]['origem_mapa_migracao'] = meta_sw.get('origem_mapa_migracao')
+
     for ev in materializados.values():
         lo = str(ev.get('lote_origem') or '')
         if lo in estado_lotes:
             estado_lotes[lo]['migrado_em'] = ev.get('data_switching')
+            estado_lotes[lo]['destino_switching'] = ev.get('produto_destino')
+            estado_lotes[lo]['lote_pos_switching'] = ev.get('lote_pos_switching')
+            estado_lotes[lo]['status_switching'] = ev.get('estado')
+            estado_lotes[lo]['origem_mapa_migracao'] = 'materializacao_no_quadro_futuro'
+
+    # shadow diagnóstico pay_only_diario_v1 (sem impacto funcional)
+    shadow_por_data: list[dict[str, Any]] = []
+    shadow_counters = {
+        'pay_only_diario_shadow_datas_total': 0,
+        'pay_only_diario_shadow_datas_com_pagamento': 0,
+        'pay_only_diario_shadow_datas_resolvidas_fonte_unica': 0,
+        'pay_only_diario_shadow_datas_resolvidas_combinacao_minima': 0,
+        'pay_only_diario_shadow_datas_nao_resolvidas': 0,
+        'pay_only_diario_shadow_pagamentos_potencialmente_resolvidos': 0,
+        'pay_only_diario_shadow_pagamentos_atualmente_nao_determinados_resolvidos_shadow': 0,
+        'pay_only_diario_shadow_violacoes_residual_global': 0,
+        'pay_only_diario_shadow_conflitos_migracao': 0,
+        'pay_only_diario_shadow_consumo_pos_switching_indevido': 0,
+    }
+    estado_shadow = {k: dict(v) for k, v in estado_lotes.items()}
+    dias = {}
+    for _, row in quadro_ord.iterrows():
+        dtmp = row.to_dict()
+        if _inferir_pacote(dtmp) != 'pay_only':
+            continue
+        dt = str(dtmp.get('data_pagamento') or '')
+        dias.setdefault(dt, []).append(dtmp)
+    shadow_counters['pay_only_diario_shadow_datas_total'] = len(dias)
+    shadow_counters['pay_only_diario_shadow_datas_com_pagamento'] = len(dias)
+    for dt in sorted(dias.keys()):
+        itens = dias[dt]
+        valor_total = round(sum(float(_round(x.get('valor_pagamento')) or 0.0) for x in itens), 2)
+        elegiveis = []
+        b_saldo = b_car = b_data = b_mig = b_fut = 0
+        for lid, meta in estado_shadow.items():
+            saldo = float(meta.get('saldo_liquido') or 0.0)
+            da = meta.get('data_aplicacao'); car = meta.get('carencia_ate'); mig = meta.get('migrado_em')
+            if saldo <= 0.01:
+                b_saldo += 1; continue
+            if da is not None and str(da) > dt:
+                b_data += 1; continue
+            if car is not None and str(car) > dt:
+                b_car += 1; continue
+            if mig is not None and str(mig) <= dt:
+                b_mig += 1; continue
+            elegiveis.append((lid, saldo))
+        elegiveis = sorted(elegiveis, key=lambda x: (-x[1], x[0]))
+        escolhidas = []
+        total_coberto = 0.0
+        status_shadow = 'nao_resolvido'
+        motivo_shadow = 'sem_fontes_elegiveis'
+        if elegiveis:
+            unica = next((x for x in elegiveis if x[1] + 0.01 >= valor_total), None)
+            if unica:
+                escolhidas = [unica]
+                total_coberto = valor_total
+                status_shadow = 'resolvido_fonte_unica'
+                motivo_shadow = 'ok'
+                shadow_counters['pay_only_diario_shadow_datas_resolvidas_fonte_unica'] += 1
+            else:
+                acum = 0.0
+                for e in elegiveis:
+                    escolhidas.append(e); acum += e[1]
+                    if acum + 0.01 >= valor_total:
+                        break
+                if acum + 0.01 >= valor_total:
+                    total_coberto = valor_total
+                    restante = valor_total
+                    resid_pos = 0
+                    for _, s in escolhidas:
+                        consumo = min(s, max(restante, 0.0))
+                        residual = round(s - consumo, 2)
+                        if residual > 0.01:
+                            resid_pos += 1
+                        restante = round(restante - consumo, 2)
+                    if resid_pos > 1:
+                        shadow_counters['pay_only_diario_shadow_violacoes_residual_global'] += 1
+                    status_shadow = 'resolvido_combinacao_minima'
+                    motivo_shadow = 'ok'
+                    shadow_counters['pay_only_diario_shadow_datas_resolvidas_combinacao_minima'] += 1
+                else:
+                    total_coberto = round(acum, 2)
+                    motivo_shadow = 'saldo_total_insuficiente'
+        if status_shadow.startswith('resolvido'):
+            shadow_counters['pay_only_diario_shadow_pagamentos_potencialmente_resolvidos'] += len(itens)
+            for item in itens:
+                lote_cur = _txt(item.get('lote_recomendado_consumivel') or item.get('lote_recomendado') or item.get('lote_id_escolhido') or item.get('fonte_origem_id'))
+                if _eh_nd(lote_cur):
+                    shadow_counters['pay_only_diario_shadow_pagamentos_atualmente_nao_determinados_resolvidos_shadow'] += 1
+        else:
+            shadow_counters['pay_only_diario_shadow_datas_nao_resolvidas'] += 1
+        residual_por_fonte_shadow: dict[str, float] = {}
+        restante_shadow = valor_total
+        for lid, saldo in escolhidas:
+            consumo_shadow = min(saldo, max(restante_shadow, 0.0))
+            residual_por_fonte_shadow[lid] = round(saldo - consumo_shadow, 2)
+            restante_shadow = round(restante_shadow - consumo_shadow, 2)
+        num_residual_positivo = sum(1 for v in residual_por_fonte_shadow.values() if v > 0.01)
+        shadow_por_data.append({
+            'data': dt, 'quantidade_contas': len(itens), 'valor_total_dia': valor_total,
+            'fontes_elegiveis': [x[0] for x in elegiveis], 'fontes_escolhidas_shadow': [x[0] for x in escolhidas],
+            'total_coberto': total_coberto,
+            'residual_por_fonte': residual_por_fonte_shadow,
+            'numero_fontes_residual_positivo': num_residual_positivo,
+            'status_shadow': status_shadow, 'motivo_shadow': motivo_shadow,
+            'fontes_bloqueadas_por_saldo': b_saldo, 'fontes_bloqueadas_por_carencia': b_car,
+            'fontes_bloqueadas_por_data': b_data, 'fontes_bloqueadas_por_migracao': b_mig,
+            'fontes_futuras_ou_nao_materializadas': b_fut,
+        })
 
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         pacote=_inferir_pacote(d)
-        lote_origem=_txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id') or central.get('lote_final_central'))
+        lote_origem_pipeline=_txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id'))
+        lote_origem=_txt(lote_origem_pipeline or central.get('lote_final_central'))
         reserva=_txt(d.get('lote_reserva') or central.get('lote_reserva'))
         fonte_candidata_id = lote_origem if not _eh_nd(lote_origem) else (reserva if not _eh_nd(reserva) else '')
         tipo_fonte_candidata = 'lote' if not _eh_nd(fonte_candidata_id) else 'indeterminada'
@@ -180,6 +395,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             val=_round(d.get('valor_pagamento'))
             cobertura='sim' if (liq!='' and val!='' and liq+0.01>=val) else 'não'
             lote_op = ev_sw['lote_pos_switching'] if sw_mat and pacote=='switch_then_pay' else lote_origem
+            if pacote == 'pay_only' and status in {'sem_fonte_auditavel', 'sem_saldo_temporal_auditavel'}:
+                lote_origem = 'não determinado'
+                lote_op = 'não determinado'
+                fonte_candidata_id = reserva if not _eh_nd(reserva) else ''
+                tipo_fonte_candidata = 'lote' if fonte_candidata_id else 'indeterminada'
+                origem_fonte_candidata = 'reserva' if fonte_candidata_id else 'nao_rastreada'
             promovida_reserva=False
             qtd_avaliados = qtd_saldo_suf = bloq_saldo = bloq_data = bloq_car = bloq_mig = 0
             melhor_lote = ''
@@ -187,7 +408,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             melhor_data = ''
             melhor_car = ''
             motivo_fifo = ''
-            if _eh_nd(lote_op) and (not _eh_nd(reserva)) and liq != '' and val != '' and liq + 0.01 >= val:
+            if _eh_nd(lote_op) and (not _eh_nd(reserva)) and liq != '' and val != '' and liq + 0.01 >= val and status not in {'sem_fonte_auditavel', 'sem_saldo_temporal_auditavel'}:
                 lote_op = reserva
                 promovida_reserva=True
             elegivel_temporalmente = (not _eh_nd(fonte_candidata_id))
@@ -197,6 +418,16 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             etapa_descarte_fonte = ''
             motivo_descarte_fonte = ''
             origem_motivo_descarte = ''
+            if not _eh_nd(lote_op) and lote_op in estado_lotes:
+                motivo_migracao_lote = _motivo_bloqueio_migracao(d.get('data_pagamento'), estado_lotes.get(lote_op, {}).get('migrado_em'), pacote)
+                if motivo_migracao_lote:
+                    lote_op = 'não determinado'
+                    cobertura = 'não'
+                    status = 'sem_fonte_auditavel'
+                    motivo = motivo_migracao_lote
+                    etapa_descarte_fonte = 'selecao_fonte_operacional'
+                    motivo_descarte_fonte = motivo_migracao_lote
+                    origem_motivo_descarte = 'registrada_pipeline'
             if lote_op=='não determinado':
                 cobertura='não'
                 if status in {'','ok','não determinado'}: status='sem_fonte_auditavel'
@@ -292,7 +523,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         )
         fifo_candidatos_avaliados.extend(cand_rows)
 
-        eventos.append({
+        evento = {
             'pagamento_id': pid,'data': d.get('data_pagamento'),'conta': d.get('descricao_pagamento') or '',
             'pacote_do_dia': pacote,'necessita_switching': 'sim' if necessita_sw else 'não',
             'lote_fonte_origem': lote_origem,'lote_sugerido_operacional': lote_op,
@@ -330,5 +561,11 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'fifo_data_aplicacao_melhor_lote': cand_sum.get('melhor_data', ''),
             'fifo_carencia_melhor_lote': cand_sum.get('melhor_car', ''),
             'fifo_motivo_nao_promocao': cand_sum.get('motivo', ''),
-        })
-    return {"eventos": eventos, "fifo_candidatos_avaliados": fifo_candidatos_avaliados}
+        }
+        eventos.append(_normalizar_evento_operacional(evento))
+    return {
+        "eventos": eventos,
+        "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
+        "pay_only_diario_shadow_por_data": shadow_por_data,
+        **shadow_counters,
+    }
