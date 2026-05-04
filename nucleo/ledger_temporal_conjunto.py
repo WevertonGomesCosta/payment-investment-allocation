@@ -486,6 +486,16 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd3c_pacotes_d3_com_violacao_residual_global': 0,
     }
     d3c_fontes_saneadas: list[dict[str, Any]] = []
+    LIMIAR_RESIDUAL_OPERACIONAL = 0.20
+    d3d = {
+        'd3d_fontes_total': 0,'d3d_fontes_exauridas_operacionais': 0,'d3d_fontes_residual_marginal_acima_limiar': 0,
+        'd3d_fontes_pagamento_pay_only': 0,'d3d_fontes_switch_then_pay': 0,'d3d_fontes_pay_then_switch_residual': 0,
+        'd3d_fontes_alocacao_aporte': 0,'d3d_fontes_apenas_diagnostico': 0,'d3d_fontes_migradas_reintroduzidas': 0,
+        'd3d_fontes_exauridas_reintroduzidas': 0,'d3d_fontes_com_risco_dupla_contagem': 0,'d3d_inconsistencias_universo_pagamento': 0,
+        'd3d_inconsistencias_universo_switching': 0,'d3d_inconsistencias_universo_alocacao': 0,'d3d_pacotes_operacionalmente_factiveis': 0,
+        'd3d_pacotes_bloqueados_por_residual_global': 0,'d3d_pacotes_bloqueados_por_migracao': 0,'d3d_pacotes_bloqueados_por_dupla_contagem': 0,
+    }
+    d3d_fontes_saneadas: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -695,6 +705,22 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
+    # shadow diagnóstico pay_only_diario_v1 (sem impacto funcional)
+    shadow_por_data: list[dict[str, Any]] = []
+    shadow_counters = {
+        'pay_only_diario_shadow_datas_total': 0,
+        'pay_only_diario_shadow_datas_com_pagamento': 0,
+        'pay_only_diario_shadow_datas_resolvidas_fonte_unica': 0,
+        'pay_only_diario_shadow_datas_resolvidas_combinacao_minima': 0,
+        'pay_only_diario_shadow_datas_nao_resolvidas': 0,
+        'pay_only_diario_shadow_pagamentos_potencialmente_resolvidos': 0,
+        'pay_only_diario_shadow_pagamentos_atualmente_nao_determinados_resolvidos_shadow': 0,
+        'pay_only_diario_shadow_violacoes_residual_global': 0,
+        'pay_only_diario_shadow_conflitos_migracao': 0,
+        'pay_only_diario_shadow_consumo_pos_switching_indevido': 0,
+    }
+    estado_shadow = {k: dict(v) for k, v in estado_lotes.items()}
+    dias = {}
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         fontes_usadas: list[str] = []
@@ -1257,6 +1283,39 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     d3c['d3c_inconsistencias_universo_alocacao'] = d3b['d3b_inconsistencias_universo_alocacao']
     d3c['d3c_inconsistencias_universo_pagamento'] = sum(1 for x in d3c_fontes_saneadas if x.get('candidato_pagamento') and x.get('status_primario') in {'exaurido','bloqueado_migracao','bloqueado_carencia','futuro'})
     d3c['d3c_pacotes_d3_com_violacao_residual_global'] = d3.get('d3_violacoes_residual_global', 0)
+    # D3-0D: saneamento shadow sem ambiguidade operacional.
+    for f in d3c_fontes_saneadas:
+        saldo = float(f.get('saldo_liquido_atual') or 0.0)
+        migrada = f.get('status_primario') == 'bloqueado_migracao'
+        cand_sw = bool(f.get('candidato_switching')); cand_pag = bool(f.get('candidato_pagamento')); cand_aloc = bool(f.get('candidato_alocacao_aporte'))
+        status = 'apenas_diagnostico'; papeis = []
+        if saldo <= LIMIAR_RESIDUAL_OPERACIONAL:
+            status = 'exaurido_operacional'; d3d['d3d_fontes_exauridas_operacionais'] += 1
+        elif saldo <= LIMIAR_RESIDUAL_OPERACIONAL + 0.05:
+            status = 'residual_marginal_acima_limiar'; d3d['d3d_fontes_residual_marginal_acima_limiar'] += 1
+        elif migrada:
+            status = 'apenas_diagnostico'; d3d['d3d_pacotes_bloqueados_por_migracao'] += 1
+        elif cand_sw:
+            status = 'candidato_switch_then_pay'; d3d['d3d_fontes_switch_then_pay'] += 1; papeis.append('candidato_pay_then_switch_residual')
+            if cand_pag: d3d['d3d_fontes_com_risco_dupla_contagem'] += 1
+        elif cand_pag:
+            status = 'candidato_pagamento_pay_only'; d3d['d3d_fontes_pagamento_pay_only'] += 1
+        elif cand_aloc:
+            status = 'candidato_alocacao_aporte'; d3d['d3d_fontes_alocacao_aporte'] += 1
+        else:
+            d3d['d3d_fontes_apenas_diagnostico'] += 1
+        if migrada and status not in {'apenas_diagnostico'}:
+            d3d['d3d_fontes_migradas_reintroduzidas'] += 1
+        if status in {'candidato_pagamento_pay_only','candidato_switch_then_pay','candidato_alocacao_aporte'} and saldo <= LIMIAR_RESIDUAL_OPERACIONAL:
+            d3d['d3d_fontes_exauridas_reintroduzidas'] += 1
+        d3d_fontes_saneadas.append({**f, 'limiar_residual_operacional': LIMIAR_RESIDUAL_OPERACIONAL, 'status_primario_d3d': status, 'papeis_secundarios_d3d': papeis, 'candidato_pagamento_pay_only': status == 'candidato_pagamento_pay_only', 'candidato_switch_then_pay': status == 'candidato_switch_then_pay', 'candidato_pay_then_switch_residual': 'candidato_pay_then_switch_residual' in papeis, 'candidato_alocacao_aporte_d3d': status == 'candidato_alocacao_aporte'})
+    d3d['d3d_fontes_total'] = len(d3d_fontes_saneadas)
+    d3d['d3d_inconsistencias_universo_pagamento'] = d3d['d3d_fontes_exauridas_reintroduzidas'] + d3d['d3d_fontes_migradas_reintroduzidas']
+    d3d['d3d_inconsistencias_universo_switching'] = d3d['d3d_fontes_com_risco_dupla_contagem']
+    d3d['d3d_inconsistencias_universo_alocacao'] = sum(1 for x in d3d_fontes_saneadas if x.get('status_primario_d3d') == 'candidato_alocacao_aporte' and bool(x.get('candidato_switching')))
+    d3d['d3d_pacotes_bloqueados_por_residual_global'] = d3.get('d3_violacoes_residual_global', 0)
+    d3d['d3d_pacotes_bloqueados_por_dupla_contagem'] = d3d['d3d_fontes_com_risco_dupla_contagem']
+    d3d['d3d_pacotes_operacionalmente_factiveis'] = 0 if d3d['d3d_pacotes_bloqueados_por_residual_global'] > 0 else d3.get('d3_datas_com_pay_only_sem_switching_factivel', 0)
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1277,7 +1336,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d3_datas_residuais_detalhe": d3_datas_residuais_detalhe,
         **d3b,
         **d3c,
+        **d3d,
         "d3b_lotes_detalhe": d3b_lotes_detalhe,
         "d3c_fontes_saneadas": d3c_fontes_saneadas,
+        "d3d_fontes_saneadas": d3d_fontes_saneadas,
         **shadow_counters,
     }
