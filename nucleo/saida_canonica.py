@@ -911,7 +911,8 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             sombra_div['sombra_cobertura_diferente_ledger'] += 1
         if str(linha_saida.get('Motivo bloqueio lote') or '').strip() != str(_texto_decisao(ledger.get('motivo_bloqueio') or motivo_row_base) or '').strip():
             sombra_div['sombra_motivo_diferente_ledger'] += 1
-        if str(linha_saida.get('Lote pós-switching') or '').strip() != str(_texto_decisao(ledger.get('lote_pos_switching_materializado')) if str(ledger.get('lote_pos_switching_materializado') or '').strip() else '').strip():
+        lote_pos_switching_ledger_render = _texto_decisao(ledger.get('lote_pos_switching_materializado'))
+        if str(linha_saida.get('Lote pós-switching') or '').strip() != str(lote_pos_switching_ledger_render or '').strip():
             sombra_div['sombra_pos_switching_diferente_ledger'] += 1
 
         flags_pre = _validar_invariantes_extrato_futuro_linha_nao_mutavel(linha_saida)
