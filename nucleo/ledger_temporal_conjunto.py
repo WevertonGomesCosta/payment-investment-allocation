@@ -724,6 +724,22 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
+    # shadow diagnóstico pay_only_diario_v1 (sem impacto funcional)
+    shadow_por_data: list[dict[str, Any]] = []
+    shadow_counters = {
+        'pay_only_diario_shadow_datas_total': 0,
+        'pay_only_diario_shadow_datas_com_pagamento': 0,
+        'pay_only_diario_shadow_datas_resolvidas_fonte_unica': 0,
+        'pay_only_diario_shadow_datas_resolvidas_combinacao_minima': 0,
+        'pay_only_diario_shadow_datas_nao_resolvidas': 0,
+        'pay_only_diario_shadow_pagamentos_potencialmente_resolvidos': 0,
+        'pay_only_diario_shadow_pagamentos_atualmente_nao_determinados_resolvidos_shadow': 0,
+        'pay_only_diario_shadow_violacoes_residual_global': 0,
+        'pay_only_diario_shadow_conflitos_migracao': 0,
+        'pay_only_diario_shadow_consumo_pos_switching_indevido': 0,
+    }
+    estado_shadow = {k: dict(v) for k, v in estado_lotes.items()}
+    dias = {}
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         fontes_usadas: list[str] = []
