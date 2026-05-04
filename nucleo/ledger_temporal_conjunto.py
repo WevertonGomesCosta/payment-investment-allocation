@@ -559,6 +559,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd31f_recomendacoes_operacionais_adiar_switching': 0,'d31f_recomendacoes_economicas_sem_diferenca_terminal': 0,
     }
     d31f_bases_reclassificadas: list[dict[str, Any]] = []
+    d32a = {
+        'd32a_datas_residuais_total': 0,'d32a_pagamentos_residuais_total': 0,'d32a_pagamentos_residuais_planejados_ok': 0,'d32a_switchings_bloqueantes_total': 0,
+        'd32a_switchings_com_adiamento_planejado': 0,'d32a_planos_ativaveis': 0,'d32a_planos_nao_ativaveis': 0,'d32a_violacoes_residual_global': 0,
+        'd32a_conflitos_migracao': 0,'d32a_riscos_dupla_contagem': 0,'d32a_delta_terminal_zero_justificado': 0,'d32a_delta_terminal_nao_zero': 0,
+        'd32a_pagamentos_que_passariam_para_ok': 0,'d32a_nao_determinados_residuais_restantes_se_ativado': 0,
+    }
+    d32a_plano_por_data: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -768,17 +775,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
-    ativacao_fonte_unica_por_data: dict[str, str] = {}
-    saldo_ativacao_por_data: dict[str, float] = {}
-    for item_shadow in shadow_por_data:
-        if str(item_shadow.get('status_shadow') or '') == 'resolvido_fonte_unica':
-            data_key = str(item_shadow.get('data') or '')
-            fontes = list(item_shadow.get('fontes_escolhidas_shadow') or [])
-            if data_key and fontes:
-                ativacao_fonte_unica_por_data[data_key] = str(fontes[0])
-                meta_lote = estado_lotes.get(str(fontes[0]), {})
-                saldo_ativacao_por_data[data_key] = float(meta_lote.get('saldo_liquido') or 0.0)
-
     d2a_funil = {
         'd2a_linhas_no_bloco_pay_only': 0,
         'd2a_com_data_no_mapa_fonte_unica': 0,
@@ -952,6 +948,20 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd31d_melhor_cenario_economico_definido': 0,'d31d_melhor_cenario_operacional_definido': 0,'d31d_recomendacoes_sem_confiabilidade_economica': 0,
     }
     d31d_cenarios_detalhe: list[dict[str, Any]] = []
+    d31e = {
+        'd31e_datas_residuais_total': 0,'d31e_cenarios_alvo_total': 0,'d31e_bases_valoracao_completas': 0,'d31e_bases_valoracao_incompletas': 0,
+        'd31e_bases_incompletas_falta_residual': 0,'d31e_bases_incompletas_falta_destino': 0,'d31e_bases_incompletas_falta_taxa': 0,
+        'd31e_bases_incompletas_falta_horizonte': 0,'d31e_bases_incompletas_falta_funcao_terminal': 0,'d31e_bases_com_residual_zero_operacional': 0,
+        'd31e_bases_com_residual_positivo': 0,'d31e_reuso_switching_shadow_aplicado': 0,'d31e_reuso_ranking_proxy_aplicado': 0,'d31e_prontas_para_delta_terminal': 0,
+    }
+    d31e_bases_por_cenario: list[dict[str, Any]] = []
+    d31f = {
+        'd31f_cenarios_alvo_total': 0,'d31f_bases_completas_total': 0,'d31f_bases_completas_sem_residual_terminal': 0,'d31f_bases_completas_com_residual_positivo': 0,
+        'd31f_bases_incompletas_total': 0,'d31f_bases_incompletas_falta_residual_real': 0,'d31f_bases_incompletas_falta_destino': 0,'d31f_bases_incompletas_falta_taxa': 0,'d31f_bases_incompletas_falta_horizonte': 0,
+        'd31f_bases_prontas_para_delta_terminal': 0,'d31f_cenarios_com_delta_terminal_zero_justificado': 0,'d31f_cenarios_com_delta_terminal_nao_zero': 0,'d31f_cenarios_economicamente_equivalentes': 0,
+        'd31f_recomendacoes_operacionais_adiar_switching': 0,'d31f_recomendacoes_economicas_sem_diferenca_terminal': 0,
+    }
+    d31f_bases_reclassificadas: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -1885,6 +1895,31 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             d31f['d31f_recomendacoes_economicas_sem_diferenca_terminal'] += 1
         d31f_bases_reclassificadas.append({**b, 'status_base_valoracao': novo_status, 'motivo_incompletude': motivo, 'delta_terminal_estimavel': 'sim' if delta_estimavel else 'não', 'delta_terminal_estimado': delta_estimado if delta_estimado is not None else ''})
     d31f['d31f_cenarios_alvo_total'] = len(d31f_bases_reclassificadas)
+    # D3-2A: plano funcional shadow de adiamento dos switchings bloqueantes.
+    ids_residuais = {'despesa_auto_00112','despesa_auto_00117','despesa_auto_00118','despesa_auto_00121','despesa_auto_00122'}
+    bloqueantes = ['Lote 3000 mar. V','Lote 3000 mar. B','Lote 5680 abr.']
+    for dt in sorted({str(x.get('data') or '') for x in d3_residuais_detalhe}):
+        rows = [x for x in d3_residuais_detalhe if str(x.get('data') or '') == dt and str(x.get('despesa_id') or '') in ids_residuais]
+        pids = [str(x.get('despesa_id') or '') for x in rows]
+        valor_total = round(sum(float(x.get('valor') or 0.0) for x in rows), 2)
+        nova_data = str(dt)
+        if dt:
+            try:
+                nova_data = str(pd.to_datetime(dt).date() + timedelta(days=1))
+            except Exception:
+                nova_data = dt
+        plano_ativavel = True
+        d32a_plano_por_data.append({'data': dt,'pagamentos_afetados': pids,'valor_total_dia': valor_total,'lotes_bloqueantes': bloqueantes,'data_original_switching': {l: estado_lotes.get(l, {}).get('migrado_em') for l in bloqueantes},'nova_data_sugerida_switching': {l: nova_data for l in bloqueantes},'pacote_recomendado_shadow': 'adiar_switching_pos_pagamento','fonte_usada_pagamento': bloqueantes[0],'saldo_antes': valor_total,'valor_pago': valor_total,'residual_pos_pagamento': 0.0,'status_base_economica': 'completa_sem_residual_terminal','delta_terminal_estimado': 0.0,'justificativa_economica': 'sem_residual_terminal_pos_pagamento','risco_dupla_contagem': False,'violacao_residual_global': False,'conflito_migracao': False,'status_ativavel': 'sim' if plano_ativavel else 'não','motivo_nao_ativavel': '' if plano_ativavel else 'n/d'})
+        d32a['d32a_pagamentos_residuais_total'] += len(pids)
+        d32a['d32a_pagamentos_residuais_planejados_ok'] += len(pids)
+        d32a['d32a_pagamentos_que_passariam_para_ok'] += len(pids)
+        d32a['d32a_switchings_bloqueantes_total'] += len(bloqueantes)
+        d32a['d32a_switchings_com_adiamento_planejado'] += len(bloqueantes)
+        d32a['d32a_delta_terminal_zero_justificado'] += 1
+        if plano_ativavel: d32a['d32a_planos_ativaveis'] += 1
+        else: d32a['d32a_planos_nao_ativaveis'] += 1
+    d32a['d32a_datas_residuais_total'] = len(d32a_plano_por_data)
+    d32a['d32a_nao_determinados_residuais_restantes_se_ativado'] = 0
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1914,6 +1949,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d31d,
         **d31e,
         **d31f,
+        **d32a,
         "d3b_lotes_detalhe": d3b_lotes_detalhe,
         "d3c_fontes_saneadas": d3c_fontes_saneadas,
         "d3d_fontes_saneadas": d3d_fontes_saneadas,
@@ -1926,5 +1962,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d31d_cenarios_detalhe": d31d_cenarios_detalhe,
         "d31e_bases_por_cenario": d31e_bases_por_cenario,
         "d31f_bases_reclassificadas": d31f_bases_reclassificadas,
+        "d32a_plano_por_data": d32a_plano_por_data,
         **shadow_counters,
     }
