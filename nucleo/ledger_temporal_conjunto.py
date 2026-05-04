@@ -566,6 +566,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd32a_pagamentos_que_passariam_para_ok': 0,'d32a_nao_determinados_residuais_restantes_se_ativado': 0,
     }
     d32a_plano_por_data: list[dict[str, Any]] = []
+    saldo_temporal = {
+        'saldo_temporal_lotes_auditados': 0,'saldo_temporal_lotes_com_consumo_acima_saldo': 0,'saldo_temporal_pagamentos_auditados': 0,
+        'saldo_temporal_pagamentos_ok_antes': 0,'saldo_temporal_pagamentos_ok_depois': 0,'saldo_temporal_pagamentos_rebaixados_por_saldo': 0,
+        'saldo_temporal_lote_7500_reiniciado': 0,'saldo_temporal_lote_8500_consumo_acima_saldo': 0,'saldo_temporal_divergencias_saldo_antes': 0,
+        'saldo_temporal_divergencias_saldo_depois': 0,'saldo_temporal_invariantes_violados': 0,
+    }
+    saldo_temporal_auditoria_lotes: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -1920,6 +1927,55 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         else: d32a['d32a_planos_nao_ativaveis'] += 1
     d32a['d32a_datas_residuais_total'] = len(d32a_plano_por_data)
     d32a['d32a_nao_determinados_residuais_restantes_se_ativado'] = 0
+    # Auditoria cumulativa de saldo temporal por lote (cronológica).
+    consumo_por_lote: dict[str, dict[str, Any]] = {}
+    saldo_exec = {k: float(v.get('saldo_liquido') or 0.0) for k, v in estado_lotes.items()}
+    eventos.sort(key=lambda e: (str(e.get('data') or ''), str(e.get('pagamento_id') or '')))
+    for ev in eventos:
+        lote = str(ev.get('lote_sugerido_operacional') or '')
+        if not lote or lote == 'não determinado' or '+' in lote:
+            continue
+        if lote not in consumo_por_lote:
+            consumo_por_lote[lote] = {'total_pagamentos_planejados': 0,'total_consumo_d2a': 0.0,'total_consumo_d2b': 0.0,'total_consumo_fifo': 0.0,'total_consumo_motor': 0.0,'pagamentos_afetados': [],'primeiro_evento_que_estoura_saldo': ''}
+        rec = consumo_por_lote[lote]
+        consumo = float(ev.get('consumo') or ev.get('liquido') or 0.0)
+        rec['total_pagamentos_planejados'] += 1
+        origem = str(ev.get('origem_fonte_candidata') or '')
+        if origem == 'pay_only_diario_v1': rec['total_consumo_d2a'] += consumo
+        elif origem == 'pay_only_diario_v1_combinacao_minima': rec['total_consumo_d2b'] += consumo
+        elif origem == 'pay_only_fifo_v1': rec['total_consumo_fifo'] += consumo
+        else: rec['total_consumo_motor'] += consumo
+        saldo_antes_real = float(saldo_exec.get(lote, 0.0))
+        if str(ev.get('status') or '') == 'ok': saldo_temporal['saldo_temporal_pagamentos_ok_antes'] += 1
+        saldo_temporal['saldo_temporal_pagamentos_auditados'] += 1
+        if consumo > saldo_antes_real + 0.01:
+            ev['status'] = 'sem_saldo_temporal_auditavel'; ev['cobertura_integral'] = 'não'; ev['motivo_bloqueio'] = 'saldo_temporal_insuficiente_cumulativo'
+            for k in ['saldo_antes','bruto','imposto','liquido','consumo','saldo_depois']:
+                ev[k] = ''
+            saldo_temporal['saldo_temporal_pagamentos_rebaixados_por_saldo'] += 1
+            rec['pagamentos_afetados'].append(ev.get('pagamento_id'))
+            if not rec['primeiro_evento_que_estoura_saldo']:
+                rec['primeiro_evento_que_estoura_saldo'] = str(ev.get('pagamento_id') or '')
+        saldo_depois_real = round(saldo_antes_real - min(consumo, saldo_antes_real), 2)
+        saldo_exec[lote] = saldo_depois_real
+        if ev.get('saldo_antes') not in {'', None} and abs(float(ev.get('saldo_antes') or 0.0) - saldo_antes_real) > 0.01:
+            saldo_temporal['saldo_temporal_divergencias_saldo_antes'] += 1
+        if ev.get('saldo_depois') not in {'', None} and abs(float(ev.get('saldo_depois') or 0.0) - saldo_depois_real) > 0.01:
+            saldo_temporal['saldo_temporal_divergencias_saldo_depois'] += 1
+    for ev in eventos:
+        if str(ev.get('status') or '') == 'ok': saldo_temporal['saldo_temporal_pagamentos_ok_depois'] += 1
+    for lote, rec in consumo_por_lote.items():
+        ini = float(estado_lotes.get(lote, {}).get('saldo_liquido') or 0.0)
+        total = round(rec['total_consumo_d2a'] + rec['total_consumo_d2b'] + rec['total_consumo_fifo'] + rec['total_consumo_motor'], 2)
+        excede = bool(total > ini + 0.01)
+        if excede: saldo_temporal['saldo_temporal_lotes_com_consumo_acima_saldo'] += 1
+        if lote == 'Lote 8500 mar.' and excede: saldo_temporal['saldo_temporal_lote_8500_consumo_acima_saldo'] = 1
+        saldo_temporal_auditoria_lotes.append({'lote_id': lote,'saldo_inicial_liquido': ini,**rec,'total_consumo_geral': total,'saldo_final_temporal': round(ini-total,2),'consumo_excede_saldo': excede})
+    saldo_temporal['saldo_temporal_lotes_auditados'] = len(saldo_temporal_auditoria_lotes)
+    # detector de reinício indevido lote 7500: saldo_antes sobe após consumo anterior.
+    saldos_7500 = [float(e.get('saldo_antes') or 0.0) for e in eventos if str(e.get('lote_sugerido_operacional') or '') == 'Lote 7500 mai.' and e.get('saldo_antes') not in {'',None}]
+    if len(saldos_7500) >= 2 and any(saldos_7500[i] > saldos_7500[i-1] + 0.01 for i in range(1, len(saldos_7500))):
+        saldo_temporal['saldo_temporal_lote_7500_reiniciado'] = 1
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1950,6 +2006,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d31e,
         **d31f,
         **d32a,
+        **saldo_temporal,
         "d3b_lotes_detalhe": d3b_lotes_detalhe,
         "d3c_fontes_saneadas": d3c_fontes_saneadas,
         "d3d_fontes_saneadas": d3d_fontes_saneadas,
@@ -1963,5 +2020,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d31e_bases_por_cenario": d31e_bases_por_cenario,
         "d31f_bases_reclassificadas": d31f_bases_reclassificadas,
         "d32a_plano_por_data": d32a_plano_por_data,
+        "saldo_temporal_auditoria_lotes": saldo_temporal_auditoria_lotes,
         **shadow_counters,
     }
