@@ -6,8 +6,10 @@ resgates, impostos ou saldos em camada de saída.
 from __future__ import annotations
 
 from typing import Any
+from datetime import timedelta
 
 import pandas as pd
+from nucleo.calendario_financeiro import proximo_dia_util_bancario_em_ou_apos
 
 
 def _txt(v: Any) -> str:
@@ -129,16 +131,38 @@ def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]
             lote = _txt(row.get('lote_id'))
             if not lote:
                 continue
-            data_sw = row.get('data_referencia')
-            if 'data_referencia' in row and row.get('data_referencia') is not None:
-                data_sw = row.get('data_referencia')
+            lote_obj = None
+            for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or []):
+                if str(getattr(l, 'id', '')) == lote:
+                    lote_obj = l
+                    break
+            data_sw = None
+            if lote_obj is not None:
+                carteira = getattr(contexto, 'carteira_canonica', None)
+                mapa = getattr(carteira, 'mapa_produtos', {}) if carteira is not None else {}
+                meta_prod = ((mapa.get('by_key') or {}).get(getattr(lote_obj, 'produto_key', None)) or {}) if isinstance(mapa, dict) else {}
+                prazo = int(meta_prod.get('prazo_dias') or 0)
+                datas_candidatas = []
+                if prazo > 0:
+                    datas_candidatas.append(getattr(lote_obj, 'data_aplicacao', None) + timedelta(days=prazo))
+                carencia = getattr(lote_obj, 'carencia_ate', None)
+                if carencia is not None:
+                    datas_candidatas.append(carencia)
+                base = max([d for d in datas_candidatas if d is not None], default=getattr(contexto.execucao, 'data_referencia', None))
+                if base is not None:
+                    try:
+                        data_sw = proximo_dia_util_bancario_em_ou_apos(base, contexto.calendario_financeiro)
+                    except Exception:
+                        data_sw = base
+            if data_sw is None:
+                data_sw = row.get('data_horizonte') or row.get('data_referencia')
             mapa[lote] = {
                 'lote_origem': lote,
                 'data_switching': data_sw,
                 'produto_destino': _txt(row.get('produto_destino_nome') or row.get('produto_destino_key')),
                 'valor_liquido_origem': _round(row.get('valor_liquido_resgatavel')),
                 'status_switching': 'classificado_promovido',
-                'origem_mapa_migracao': 'contexto.switching_economico_shadow.plano_shadow',
+                'origem_mapa_migracao': 'contexto.switching_economico_shadow.plano_shadow::data_operacional',
                 'lote_pos_switching': '',
             }
     return mapa
