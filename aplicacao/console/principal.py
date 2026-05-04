@@ -43,68 +43,34 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
 
     realizados = amostras['realizados']
     print(f"- {realizados['rotulo']}:")
-    _imprimir_tabela(
-        realizados['headers'],
-        realizados['linhas'],
-        limite=realizados['limite'],
-    )
+    _imprimir_tabela(realizados['headers'], realizados['linhas'], limite=realizados['limite'])
 
-    proximos_valores_fonte = amostras['proximos_valores_fonte']
-    print(f"\n- {proximos_valores_fonte['rotulo']}:")
-    _imprimir_tabela(
-        proximos_valores_fonte['headers'],
-        proximos_valores_fonte['linhas'],
-        limite=proximos_valores_fonte['limite'],
-    )
+    proximos_decisao = amostras['proximos_switching_status']
+    print(f"\n- {proximos_decisao['rotulo']}:")
+    _imprimir_tabela(proximos_decisao['headers'], proximos_decisao['linhas'], limite=proximos_decisao['limite'])
 
-    proximos_switching_status = amostras['proximos_switching_status']
-    print(f"\n- {proximos_switching_status['rotulo']}:")
-    _imprimir_tabela(
-        proximos_switching_status['headers'],
-        proximos_switching_status['linhas'],
-        limite=proximos_switching_status['limite'],
-    )
+    proximos_valores = amostras['proximos_valores_fonte']
+    print("\n- próximos 5 pagamentos — valores:")
+    _imprimir_tabela(['Data','Conta','Saldo ant.','Bruto','IR','Liq.','Rem.'], proximos_valores['linhas'], limite=proximos_valores['limite'])
 
     relevantes = amostras['proximos_relevantes_switching_status']
-    if relevantes['linhas']:
-        relevantes_decisao = relevantes['decisao']
-        print(f"\n- {relevantes_decisao['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_decisao['headers'],
-            relevantes_decisao['linhas'],
-            limite=relevantes_decisao['limite'],
-        )
-        relevantes_auditoria = relevantes['auditoria_switching']
-        print(f"\n- {relevantes_auditoria['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_auditoria['headers'],
-            relevantes_auditoria['linhas'],
-            limite=relevantes_auditoria['limite'],
-        )
-        relevantes_consumo = relevantes['consumo_temporal']
-        print(f"\n- {relevantes_consumo['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_consumo['headers'],
-            relevantes_consumo['linhas'],
-            limite=relevantes_consumo['limite'],
-        )
-        relevantes_conciliacao = relevantes['conciliacao_janela']
-        print(f"\n- {relevantes_conciliacao['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_conciliacao['headers'],
-            relevantes_conciliacao['linhas'],
-            limite=relevantes_conciliacao['limite'],
-        )
-        relevantes_diag_pos_sw = relevantes['diagnostico_pos_switch']
-        print(f"\n- {relevantes_diag_pos_sw['rotulo']}:")
-        _imprimir_tabela(
-            relevantes_diag_pos_sw['headers'],
-            relevantes_diag_pos_sw['linhas'],
-            limite=relevantes_diag_pos_sw['limite'],
-        )
+    alertas = []
+    for row in relevantes.get('linhas', []):
+        status = str(row.get('Status') or '').strip().lower()
+        bloq = str(row.get('Bloq.') or '').strip().lower()
+        if status not in {'', 'ok', 'n/d'} or bloq not in {'', 'n/d'}:
+            alertas.append({
+                'Data': row.get('Data'),
+                'Conta': row.get('Conta'),
+                'problema': row.get('Status') if status not in {'', 'ok', 'n/d'} else row.get('Bloq.'),
+                'motivo': row.get('Bloq.') if bloq not in {'', 'n/d'} else row.get('Status'),
+            })
+    print("\n- alertas operacionais:")
+    if alertas:
+        _imprimir_tabela(['Data','Conta','problema','motivo'], alertas, limite=5)
     else:
-        print(f"\n- {relevantes['rotulo']}:")
-        print("  sem pagamentos futuros com switching/status relevante na amostra atual")
+        print('  [OK] sem alertas na amostra atual')
+
 def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> None:
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     if ranking is None:
