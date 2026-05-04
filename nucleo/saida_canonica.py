@@ -798,6 +798,16 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             motivo_row_base = 'fonte_pos_switching_nao_materializada'
             lote_pos_switch = ''
             origem_switching = 'diagnostico_nao_materializado'
+
+        if str(ledger.get('origem_fonte_candidata') or '').strip() == 'pay_only_fifo_v1':
+            lote_fifo = str(ledger.get('lote_sugerido_operacional') or '').strip()
+            if lote_fifo and _norm(lote_fifo) not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}:
+                lote_sugerido = lote_fifo
+                lote_reserva = ''
+                cobertura_txt = 'sim'
+                status_row_base = 'ok'
+                motivo_row_base = 'n/d'
+                fonte_operacional_auditavel = True
         linha_saida = {
             **({
                 'Motivo pos sw': (

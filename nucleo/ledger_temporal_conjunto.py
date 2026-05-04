@@ -190,7 +190,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             melhor_data = ''
             melhor_car = ''
             motivo_fifo = ''
-            if _eh_nd(lote_op) and (not _eh_nd(reserva)) and liq != '' and val != '' and liq + 0.01 >= val:
+            if _eh_nd(lote_op) and (not _eh_nd(reserva)) and liq != '' and val != '' and liq + 0.01 >= val and status not in {'sem_fonte_auditavel', 'sem_saldo_temporal_auditavel'}:
                 lote_op = reserva
                 promovida_reserva=True
             elegivel_temporalmente = (not _eh_nd(fonte_candidata_id))
