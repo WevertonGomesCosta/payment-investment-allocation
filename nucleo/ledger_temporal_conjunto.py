@@ -414,6 +414,20 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd2b0_consumo_pos_switching_indevido': 0,
         'd2b0_divergencias_shadow_vs_plano': 0,
     }
+    d2b1 = {
+        'd2b1_datas_ativadas': 0,
+        'd2b1_datas_bloqueadas': 0,
+        'd2b1_pagamentos_ativados': 0,
+        'd2b1_pagamentos_nao_determinados_ativados': 0,
+        'd2b1_fontes_usadas_total': 0,
+        'd2b1_fontes_com_residual_positivo_total': 0,
+        'd2b1_violacoes_residual_global': 0,
+        'd2b1_conflitos_migracao': 0,
+        'd2b1_consumo_pos_switching_indevido': 0,
+        'd2b1_divergencias_plano_vs_evento_final': 0,
+        'd2b1_divergencias_evento_vs_extrato_futuro': 0,
+        'd2b1_falhas_ativacao': 0,
+    }
     d2a2 = {
         'd2a2_datas_ativadas': 0,
         'd2a2_datas_bloqueadas': 0,
@@ -601,6 +615,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     plano_por_pagamento_id = {str(x.get('despesa_id') or ''): x for x in d2a_plano_por_pagamento}
     datas_bloqueadas_d2a2 = {str(x.get('data') or '') for x in d2a_plano_por_data if str(x.get('status_plano_data') or '') != 'materializavel'}
     datas_ativaveis_d2a2 = {str(x.get('data') or '') for x in d2a_plano_por_data if str(x.get('status_plano_data') or '') == 'materializavel'}
+    datas_ativaveis_d2b1 = {str(x.get('data') or '') for x in d2b0_plano_por_data if str(x.get('status_plano_data') or '') == 'materializavel'}
+    plano_d2b1_por_pagamento: dict[str, list[dict[str, Any]]] = {}
+    for item in d2b0_plano_por_pagamento_fonte:
+        plano_d2b1_por_pagamento.setdefault(str(item.get('despesa_id') or ''), []).append(item)
+    for pid_plano in plano_d2b1_por_pagamento:
+        plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
@@ -679,40 +699,73 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 cobertura='não'
                 if status in {'','ok','não determinado'}: status='fonte_pos_switching_nao_materializada'
                 if not motivo: motivo='fonte_pos_switching_nao_materializada'
-            if lote_op=='não determinado' and pacote == 'pay_only':
-                plano = plano_por_pagamento_id.get(pid, {})
-                data_plano = str(plano.get('data') or '')
-                if data_plano in datas_bloqueadas_d2a2:
-                    d2a2['d2a2_datas_bloqueadas'] += 1
-                ativado_d2a2 = bool(
-                    data_plano in datas_ativaveis_d2a2
-                    and bool(plano.get('valido_para_ativacao'))
-                    and str(plano.get('origem_planejada') or '') == 'pay_only_diario_v1'
-                    and str(plano.get('status_planejado') or '') == 'ok'
-                    and str(plano.get('cobertura_integral_planejada') or '') == 'sim'
-                )
-                if ativado_d2a2:
-                    lote_planejado = str(plano.get('fonte_unica_escolhida') or '')
-                    if lote_planejado:
-                        lote_op = lote_planejado
-                        fonte_candidata_id = lote_planejado
-                        origem_fonte_candidata = 'pay_only_diario_v1'
-                        tipo_fonte_candidata = 'lote_aportado'
-                        sal_ant = _round(plano.get('saldo_antes_planejado'))
-                        br = _round(plano.get('bruto_planejado'))
-                        imp = _round(plano.get('imposto_planejado'))
-                        liq = _round(plano.get('liquido_planejado'))
-                        cons = _round(plano.get('consumo_planejado'))
-                        sal_dep = _round(plano.get('saldo_depois_planejado'))
+            if pacote == 'pay_only':
+                plano_d2b1_itens = plano_d2b1_por_pagamento.get(pid, [])
+                ativado_d2b1 = False
+                if plano_d2b1_itens:
+                    dt_b1 = str(plano_d2b1_itens[0].get('data') or '')
+                    if dt_b1 in datas_ativaveis_d2b1 and all(bool(x.get('valido_para_ativacao')) for x in plano_d2b1_itens):
+                        fonte_composta = ' + '.join([str(x.get('fonte_usada') or '') for x in plano_d2b1_itens if float(x.get('valor_pago_pela_fonte') or 0.0) > 0.0])
+                        pago_total = round(sum(float(x.get('valor_pago_pela_fonte') or 0.0) for x in plano_d2b1_itens), 2)
+                        sal_ant_comp = round(sum(float(x.get('saldo_antes_fonte') or 0.0) for x in plano_d2b1_itens), 2)
+                        residuals_pos = sum(1 for x in plano_d2b1_itens if bool(x.get('residual_positivo')))
+                        if residuals_pos > 1:
+                            d2b1['d2b1_violacoes_residual_global'] += 1
+                        lote_op = fonte_composta if fonte_composta else lote_op
+                        fonte_candidata_id = fonte_composta if fonte_composta else fonte_candidata_id
+                        origem_fonte_candidata = 'pay_only_diario_v1_combinacao_minima'
+                        tipo_fonte_candidata = 'lote_combinado'
+                        sal_ant = sal_ant_comp
+                        br = pago_total
+                        imp = 0.0
+                        liq = pago_total
+                        cons = pago_total
+                        sal_dep = round(sum(float(x.get('saldo_depois_fonte') or 0.0) for x in plano_d2b1_itens), 2)
                         cobertura = 'sim'
                         status = 'ok'
                         motivo = 'n/d'
-                        promovida_para_lote_sugerido = True
-                        d2a2['d2a2_pagamentos_ativados'] += 1
+                        ativado_d2b1 = True
+                        d2b1['d2b1_pagamentos_ativados'] += 1
                         if _eh_nd(lote_origem):
-                            d2a2['d2a2_pagamentos_nao_determinados_ativados'] += 1
-                        if lote_planejado in estado_lotes and sal_dep != '':
-                            estado_lotes[lote_planejado]['saldo_liquido'] = float(sal_dep)
+                            d2b1['d2b1_pagamentos_nao_determinados_ativados'] += 1
+                        d2b1['d2b1_fontes_usadas_total'] += len([x for x in plano_d2b1_itens if float(x.get('valor_pago_pela_fonte') or 0.0) > 0.0])
+                        d2b1['d2b1_fontes_com_residual_positivo_total'] += residuals_pos
+                    else:
+                        d2b1['d2b1_falhas_ativacao'] += 1
+                if not ativado_d2b1:
+                    plano = plano_por_pagamento_id.get(pid, {})
+                    data_plano = str(plano.get('data') or '')
+                    if data_plano in datas_bloqueadas_d2a2:
+                        d2a2['d2a2_datas_bloqueadas'] += 1
+                    ativado_d2a2 = bool(
+                        data_plano in datas_ativaveis_d2a2
+                        and bool(plano.get('valido_para_ativacao'))
+                        and str(plano.get('origem_planejada') or '') == 'pay_only_diario_v1'
+                        and str(plano.get('status_planejado') or '') == 'ok'
+                        and str(plano.get('cobertura_integral_planejada') or '') == 'sim'
+                    )
+                    if ativado_d2a2:
+                        lote_planejado = str(plano.get('fonte_unica_escolhida') or '')
+                        if lote_planejado:
+                            lote_op = lote_planejado
+                            fonte_candidata_id = lote_planejado
+                            origem_fonte_candidata = 'pay_only_diario_v1'
+                            tipo_fonte_candidata = 'lote_aportado'
+                            sal_ant = _round(plano.get('saldo_antes_planejado'))
+                            br = _round(plano.get('bruto_planejado'))
+                            imp = _round(plano.get('imposto_planejado'))
+                            liq = _round(plano.get('liquido_planejado'))
+                            cons = _round(plano.get('consumo_planejado'))
+                            sal_dep = _round(plano.get('saldo_depois_planejado'))
+                            cobertura = 'sim'
+                            status = 'ok'
+                            motivo = 'n/d'
+                            promovida_para_lote_sugerido = True
+                            d2a2['d2a2_pagamentos_ativados'] += 1
+                            if _eh_nd(lote_origem):
+                                d2a2['d2a2_pagamentos_nao_determinados_ativados'] += 1
+                            if lote_planejado in estado_lotes and sal_dep != '':
+                                estado_lotes[lote_planejado]['saldo_liquido'] = float(sal_dep)
                 # D2A permanece sem combinação mínima (D2B bloqueado)
                 d2a_funil['d2a_linhas_no_bloco_pay_only'] += 1
                 valor_pag = val if val != '' else 0.0
@@ -873,6 +926,8 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             d2a_funil['d2a_promovidas_evento_final_pay_only_diario_v1'] += 1
             d2a_funil['d2a_promovidas_extrato_futuro_auditoria_fontes'] += 1
             d2a2['d2a2_datas_ativadas'] = len(datas_ativaveis_d2a2)
+        if str(evento.get('origem_fonte_candidata') or '').strip() == 'pay_only_diario_v1_combinacao_minima':
+            d2b1['d2b1_datas_ativadas'] = len(datas_ativaveis_d2b1)
         eventos.append(_normalizar_evento_operacional(evento))
     return {
         "eventos": eventos,
@@ -886,5 +941,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d2a_plano,
         **d2a2,
         **d2b0,
+        **d2b1,
         **shadow_counters,
     }
