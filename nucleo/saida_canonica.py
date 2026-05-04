@@ -1303,7 +1303,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'qtd_futuro_multifonte': sum(1 for item in extrato_futuro if '+' in str(item.get('Lote sugerido') or '')),
         'fifo_candidatos_avaliados': fifo_candidatos_avaliados,
         'qtd_eventos_ledger': len(eventos_ledger),
-        **({k: v for k, v in ledger_result.items() if (str(k).startswith('pay_only_diario_shadow_') or str(k).startswith('d2a_') or str(k).startswith('d2a2_') or str(k).startswith('d2b0_') or str(k).startswith('d2b1_') or str(k).startswith('d2c_') or str(k).startswith('d3_') or str(k).startswith('d3b_') or str(k).startswith('d3c_') or str(k).startswith('d3d_') or str(k).startswith('d3e_') or str(k).startswith('d3f_') or str(k).startswith('d31_') or str(k).startswith('d31b_')) and not isinstance(v, (list, dict, tuple, set))}),
+        **({k: v for k, v in ledger_result.items() if (str(k).startswith('pay_only_diario_shadow_') or str(k).startswith('d2a_') or str(k).startswith('d2a2_') or str(k).startswith('d2b0_') or str(k).startswith('d2b1_') or str(k).startswith('d2c_') or str(k).startswith('d3_') or str(k).startswith('d3b_') or str(k).startswith('d3c_') or str(k).startswith('d3d_') or str(k).startswith('d3e_') or str(k).startswith('d3f_') or str(k).startswith('d31_') or str(k).startswith('d31b_') or str(k).startswith('d31c_')) and not isinstance(v, (list, dict, tuple, set))}),
         'pay_only_diario_shadow_por_data': ledger_result.get('pay_only_diario_shadow_por_data', []),
         'plano_pay_only_diario_v1_por_pagamento': ledger_result.get('plano_pay_only_diario_v1_por_pagamento', []),
         'd2a_plano_por_data': ledger_result.get('d2a_plano_por_data', []),
@@ -1320,6 +1320,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'd3f_fontes_saneadas': ledger_result.get('d3f_fontes_saneadas', []),
         'd31_cenarios_por_data': ledger_result.get('d31_cenarios_por_data', []),
         'd31b_cenarios_por_data': ledger_result.get('d31b_cenarios_por_data', []),
+        'd31c_cenarios_por_data': ledger_result.get('d31c_cenarios_por_data', []),
         **(_PRE_INVARIANTE_EXTRATO_FUTURO or {}),
         **(_SOMBRA_DIVERGENCIAS_LEDGER or {}),
     }
