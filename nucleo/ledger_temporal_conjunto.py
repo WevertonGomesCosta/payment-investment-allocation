@@ -221,6 +221,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'migrado_em': None,
         }
 
+    pagamentos_planejados_encontrados: set[str] = set()
     for _, row in quadro_ord.iterrows():
         d = row.to_dict()
         lote_origem = _txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id'))
@@ -649,6 +650,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
 
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
+        fontes_usadas: list[str] = []
+        valor_pago_por_fonte: dict[str, float] = {}
+        saldo_antes_por_fonte: dict[str, float] = {}
+        consumo_por_fonte: dict[str, float] = {}
+        saldo_depois_por_fonte: dict[str, float] = {}
+        residual_por_fonte: dict[str, float] = {}
+        residual_positivo_por_fonte: dict[str, bool] = {}
         pacote=_inferir_pacote(d)
         data_pagamento_key = str(d.get('data_pagamento') or '')
         lote_origem_pipeline=_txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id'))
@@ -728,9 +736,11 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 plano_d2b1_itens = plano_d2b1_por_pagamento.get(pid, [])
                 ativado_d2b1 = False
                 if plano_d2b1_itens:
+                    pagamentos_planejados_encontrados.add(pid)
                     dt_b1 = str(plano_d2b1_itens[0].get('data') or '')
                     if dt_b1 in datas_ativaveis_d2b1 and all(bool(x.get('valido_para_ativacao')) for x in plano_d2b1_itens):
-                        fonte_composta = ' + '.join([str(x.get('fonte_usada') or '') for x in plano_d2b1_itens if float(x.get('valor_pago_pela_fonte') or 0.0) > 0.0])
+                        itens_com_pagamento = [x for x in plano_d2b1_itens if float(x.get('valor_pago_pela_fonte') or 0.0) > 0.0]
+                        fonte_composta = ' + '.join([str(x.get('fonte_usada') or '') for x in itens_com_pagamento])
                         pago_total = round(sum(float(x.get('valor_pago_pela_fonte') or 0.0) for x in plano_d2b1_itens), 2)
                         sal_ant_comp = round(sum(float(x.get('saldo_antes_fonte') or 0.0) for x in plano_d2b1_itens), 2)
                         residuals_pos = sum(1 for x in plano_d2b1_itens if bool(x.get('residual_positivo')))
@@ -739,7 +749,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                         lote_op = fonte_composta if fonte_composta else lote_op
                         fonte_candidata_id = fonte_composta if fonte_composta else fonte_candidata_id
                         origem_fonte_candidata = 'pay_only_diario_v1_combinacao_minima'
-                        tipo_fonte_candidata = 'lote_combinado'
+                        tipo_fonte_candidata = 'combinacao_minima_fontes'
                         sal_ant = sal_ant_comp
                         br = pago_total
                         imp = 0.0
@@ -750,6 +760,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                         status = 'ok'
                         motivo = 'n/d'
                         ativado_d2b1 = True
+                        fontes_usadas = [str(x.get('fonte_usada') or '') for x in itens_com_pagamento]
+                        valor_pago_por_fonte = {str(x.get('fonte_usada') or ''): round(float(x.get('valor_pago_pela_fonte') or 0.0), 2) for x in itens_com_pagamento}
+                        saldo_antes_por_fonte = {str(x.get('fonte_usada') or ''): round(float(x.get('saldo_antes_fonte') or 0.0), 2) for x in itens_com_pagamento}
+                        consumo_por_fonte = {str(x.get('fonte_usada') or ''): round(float(x.get('consumo_planejado') or x.get('valor_pago_pela_fonte') or 0.0), 2) for x in itens_com_pagamento}
+                        saldo_depois_por_fonte = {str(x.get('fonte_usada') or ''): round(float(x.get('saldo_depois_fonte') or 0.0), 2) for x in itens_com_pagamento}
+                        residual_por_fonte = {str(x.get('fonte_usada') or ''): round(float(x.get('residual_fonte') or 0.0), 2) for x in itens_com_pagamento}
+                        residual_positivo_por_fonte = {str(x.get('fonte_usada') or ''): bool(x.get('residual_positivo')) for x in itens_com_pagamento}
                         d2b1['d2b1_pagamentos_ativados'] += 1
                         if _eh_nd(lote_origem):
                             d2b1['d2b1_pagamentos_nao_determinados_ativados'] += 1
@@ -762,8 +779,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                         elif not all(bool(x.get('valido_para_ativacao')) for x in plano_d2b1_itens):
                             d2b1['d2b1_residual_falhas_por_multifonte'] += 1
                 if not ativado_d2b1:
-                    if (not plano_d2b1_itens) and (pid in planned_ids_d2b1):
-                        d2b1['d2b1_residual_falhas_por_mapeamento_despesa_id'] += 1
+                    fontes_usadas = []
+                    valor_pago_por_fonte = {}
+                    saldo_antes_por_fonte = {}
+                    consumo_por_fonte = {}
+                    saldo_depois_por_fonte = {}
+                    residual_por_fonte = {}
+                    residual_positivo_por_fonte = {}
                     plano = plano_por_pagamento_id.get(pid, {})
                     data_plano = str(plano.get('data') or '')
                     if data_plano in datas_bloqueadas_d2a2:
@@ -930,6 +952,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'fonte_candidata_id': fonte_candidata_id or 'n/d',
             'tipo_fonte_candidata': tipo_fonte_candidata,
             'origem_fonte_candidata': origem_fonte_candidata,
+            'fontes_usadas': fontes_usadas if 'fontes_usadas' in locals() else [],
+            'valor_pago_por_fonte': valor_pago_por_fonte if 'valor_pago_por_fonte' in locals() else {},
+            'saldo_antes_por_fonte': saldo_antes_por_fonte if 'saldo_antes_por_fonte' in locals() else {},
+            'consumo_por_fonte': consumo_por_fonte if 'consumo_por_fonte' in locals() else {},
+            'saldo_depois_por_fonte': saldo_depois_por_fonte if 'saldo_depois_por_fonte' in locals() else {},
+            'residual_por_fonte': residual_por_fonte if 'residual_por_fonte' in locals() else {},
+            'residual_positivo_por_fonte': residual_positivo_por_fonte if 'residual_positivo_por_fonte' in locals() else {},
             'elegivel_temporalmente': bool(elegivel_temporalmente),
             'saldo_liquido_disponivel': saldo_liquido_disponivel,
             'elegivel_liquidez_carencia': bool(elegivel_liquidez_carencia),
@@ -964,6 +993,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             d2b1['d2b1_residual_pagamentos_falhos'] += 1
             d2b1['d2b1_residual_falhas_por_evento_final'] += 1
         eventos.append(_normalizar_evento_operacional(evento))
+    d2b1['d2b1_residual_falhas_por_mapeamento_despesa_id'] = len(planned_ids_d2b1 - pagamentos_planejados_encontrados)
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
