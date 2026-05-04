@@ -255,6 +255,111 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             estado_lotes[lo]['status_switching'] = ev.get('estado')
             estado_lotes[lo]['origem_mapa_migracao'] = 'materializacao_no_quadro_futuro'
 
+    # shadow diagnóstico pay_only_diario_v1 (sem impacto funcional)
+    shadow_por_data: list[dict[str, Any]] = []
+    shadow_counters = {
+        'pay_only_diario_shadow_datas_total': 0,
+        'pay_only_diario_shadow_datas_com_pagamento': 0,
+        'pay_only_diario_shadow_datas_resolvidas_fonte_unica': 0,
+        'pay_only_diario_shadow_datas_resolvidas_combinacao_minima': 0,
+        'pay_only_diario_shadow_datas_nao_resolvidas': 0,
+        'pay_only_diario_shadow_pagamentos_potencialmente_resolvidos': 0,
+        'pay_only_diario_shadow_pagamentos_atualmente_nao_determinados_resolvidos_shadow': 0,
+        'pay_only_diario_shadow_violacoes_residual_global': 0,
+        'pay_only_diario_shadow_conflitos_migracao': 0,
+        'pay_only_diario_shadow_consumo_pos_switching_indevido': 0,
+    }
+    estado_shadow = {k: dict(v) for k, v in estado_lotes.items()}
+    dias = {}
+    for _, row in quadro_ord.iterrows():
+        dtmp = row.to_dict()
+        if _inferir_pacote(dtmp) != 'pay_only':
+            continue
+        dt = str(dtmp.get('data_pagamento') or '')
+        dias.setdefault(dt, []).append(dtmp)
+    shadow_counters['pay_only_diario_shadow_datas_total'] = len(dias)
+    shadow_counters['pay_only_diario_shadow_datas_com_pagamento'] = len(dias)
+    for dt in sorted(dias.keys()):
+        itens = dias[dt]
+        valor_total = round(sum(float(_round(x.get('valor_pagamento')) or 0.0) for x in itens), 2)
+        elegiveis = []
+        b_saldo = b_car = b_data = b_mig = b_fut = 0
+        for lid, meta in estado_shadow.items():
+            saldo = float(meta.get('saldo_liquido') or 0.0)
+            da = meta.get('data_aplicacao'); car = meta.get('carencia_ate'); mig = meta.get('migrado_em')
+            if saldo <= 0.01:
+                b_saldo += 1; continue
+            if da is not None and str(da) > dt:
+                b_data += 1; continue
+            if car is not None and str(car) > dt:
+                b_car += 1; continue
+            if mig is not None and str(mig) <= dt:
+                b_mig += 1; continue
+            elegiveis.append((lid, saldo))
+        elegiveis = sorted(elegiveis, key=lambda x: (-x[1], x[0]))
+        escolhidas = []
+        total_coberto = 0.0
+        status_shadow = 'nao_resolvido'
+        motivo_shadow = 'sem_fontes_elegiveis'
+        if elegiveis:
+            unica = next((x for x in elegiveis if x[1] + 0.01 >= valor_total), None)
+            if unica:
+                escolhidas = [unica]
+                total_coberto = valor_total
+                status_shadow = 'resolvido_fonte_unica'
+                motivo_shadow = 'ok'
+                shadow_counters['pay_only_diario_shadow_datas_resolvidas_fonte_unica'] += 1
+            else:
+                acum = 0.0
+                for e in elegiveis:
+                    escolhidas.append(e); acum += e[1]
+                    if acum + 0.01 >= valor_total:
+                        break
+                if acum + 0.01 >= valor_total:
+                    total_coberto = valor_total
+                    restante = valor_total
+                    resid_pos = 0
+                    for _, s in escolhidas:
+                        consumo = min(s, max(restante, 0.0))
+                        residual = round(s - consumo, 2)
+                        if residual > 0.01:
+                            resid_pos += 1
+                        restante = round(restante - consumo, 2)
+                    if resid_pos > 1:
+                        shadow_counters['pay_only_diario_shadow_violacoes_residual_global'] += 1
+                    status_shadow = 'resolvido_combinacao_minima'
+                    motivo_shadow = 'ok'
+                    shadow_counters['pay_only_diario_shadow_datas_resolvidas_combinacao_minima'] += 1
+                else:
+                    total_coberto = round(acum, 2)
+                    motivo_shadow = 'saldo_total_insuficiente'
+        if status_shadow.startswith('resolvido'):
+            shadow_counters['pay_only_diario_shadow_pagamentos_potencialmente_resolvidos'] += len(itens)
+            for item in itens:
+                lote_cur = _txt(item.get('lote_recomendado_consumivel') or item.get('lote_recomendado') or item.get('lote_id_escolhido') or item.get('fonte_origem_id'))
+                if _eh_nd(lote_cur):
+                    shadow_counters['pay_only_diario_shadow_pagamentos_atualmente_nao_determinados_resolvidos_shadow'] += 1
+        else:
+            shadow_counters['pay_only_diario_shadow_datas_nao_resolvidas'] += 1
+        residual_por_fonte_shadow: dict[str, float] = {}
+        restante_shadow = valor_total
+        for lid, saldo in escolhidas:
+            consumo_shadow = min(saldo, max(restante_shadow, 0.0))
+            residual_por_fonte_shadow[lid] = round(saldo - consumo_shadow, 2)
+            restante_shadow = round(restante_shadow - consumo_shadow, 2)
+        num_residual_positivo = sum(1 for v in residual_por_fonte_shadow.values() if v > 0.01)
+        shadow_por_data.append({
+            'data': dt, 'quantidade_contas': len(itens), 'valor_total_dia': valor_total,
+            'fontes_elegiveis': [x[0] for x in elegiveis], 'fontes_escolhidas_shadow': [x[0] for x in escolhidas],
+            'total_coberto': total_coberto,
+            'residual_por_fonte': residual_por_fonte_shadow,
+            'numero_fontes_residual_positivo': num_residual_positivo,
+            'status_shadow': status_shadow, 'motivo_shadow': motivo_shadow,
+            'fontes_bloqueadas_por_saldo': b_saldo, 'fontes_bloqueadas_por_carencia': b_car,
+            'fontes_bloqueadas_por_data': b_data, 'fontes_bloqueadas_por_migracao': b_mig,
+            'fontes_futuras_ou_nao_materializadas': b_fut,
+        })
+
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         pacote=_inferir_pacote(d)
@@ -458,4 +563,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'fifo_motivo_nao_promocao': cand_sum.get('motivo', ''),
         }
         eventos.append(_normalizar_evento_operacional(evento))
-    return {"eventos": eventos, "fifo_candidatos_avaliados": fifo_candidatos_avaliados}
+    return {
+        "eventos": eventos,
+        "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
+        "pay_only_diario_shadow_por_data": shadow_por_data,
+        **shadow_counters,
+    }
