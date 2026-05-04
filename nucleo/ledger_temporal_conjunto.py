@@ -451,6 +451,22 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd2c_violacoes_residual_global': 0,
     }
     d2c_residuais_detalhe: list[dict[str, Any]] = []
+    d3 = {
+        'd3_residuais_total': 0,
+        'd3_residuais_inviabilizados_por_switching': 0,
+        'd3_residuais_sem_fonte_mesmo_sem_switching': 0,
+        'd3_datas_residuais_total': 0,
+        'd3_datas_com_pay_only_sem_switching_factivel': 0,
+        'd3_datas_com_switch_then_pay_factivel': 0,
+        'd3_datas_com_pay_then_switch_factivel': 0,
+        'd3_datas_sem_pacote_factivel': 0,
+        'd3_switchings_bloqueantes_identificados': 0,
+        'd3_conflitos_pagamento_switching': 0,
+        'd3_consumo_pos_switching_indevido': 0,
+        'd3_violacoes_residual_global': 0,
+    }
+    d3_residuais_detalhe: list[dict[str, Any]] = []
+    d3_datas_residuais_detalhe: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -660,91 +676,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
-    d2a_funil = {
-        'd2a_linhas_no_bloco_pay_only': 0,
-        'd2a_com_data_no_mapa_fonte_unica': 0,
-        'd2a_com_lote_op_nao_determinado': 0,
-        'd2a_passa_filtro_status': 0,
-        'd2a_rejeitadas_por_saldo': 0,
-        'd2a_rejeitadas_por_data_carencia_migracao': 0,
-        'd2a_promovidas_internamente_pay_only_diario_v1': 0,
-        'd2a_promovidas_evento_final_pay_only_diario_v1': 0,
-        'd2a_promovidas_extrato_futuro_auditoria_fontes': 0,
-        'd2a_motivo_gap_shadow_vs_ativacao': 'rollback_d2a_parcial_sem_ganho_funcional',
-    }
-    d2a_plano_por_pagamento: list[dict[str, Any]] = []
-    d2a_plano_por_data: list[dict[str, Any]] = []
-    d2a_plano = {
-        'd2a_plano_datas_fonte_unica_total': 0,
-        'd2a_plano_datas_materializaveis': 0,
-        'd2a_plano_datas_nao_materializaveis': 0,
-        'd2a_plano_pagamentos_total': 0,
-        'd2a_plano_pagamentos_validos_para_ativacao': 0,
-        'd2a_plano_pagamentos_invalidos': 0,
-        'd2a_plano_pagamentos_hoje_nao_determinados_validos': 0,
-        'd2a_plano_conflitos_migracao': 0,
-        'd2a_plano_consumo_pos_switching_indevido': 0,
-        'd2a_plano_violacoes_residual_global': 0,
-        'd2a_plano_divergencias_shadow_vs_plano': 0,
-    }
-    d2b0_plano_por_pagamento_fonte: list[dict[str, Any]] = []
-    d2b0_plano_por_data: list[dict[str, Any]] = []
-    d2b0 = {
-        'd2b0_datas_combinacao_total': 0,
-        'd2b0_datas_materializaveis': 0,
-        'd2b0_datas_nao_materializaveis': 0,
-        'd2b0_pagamentos_total': 0,
-        'd2b0_pagamentos_validos_para_ativacao': 0,
-        'd2b0_pagamentos_invalidos': 0,
-        'd2b0_fontes_usadas_total': 0,
-        'd2b0_fontes_com_residual_positivo_total': 0,
-        'd2b0_violacoes_residual_global': 0,
-        'd2b0_conflitos_migracao': 0,
-        'd2b0_consumo_pos_switching_indevido': 0,
-        'd2b0_divergencias_shadow_vs_plano': 0,
-    }
-    d2b1 = {
-        'd2b1_datas_ativadas': 0,
-        'd2b1_datas_bloqueadas': 0,
-        'd2b1_pagamentos_ativados': 0,
-        'd2b1_pagamentos_nao_determinados_ativados': 0,
-        'd2b1_fontes_usadas_total': 0,
-        'd2b1_fontes_com_residual_positivo_total': 0,
-        'd2b1_violacoes_residual_global': 0,
-        'd2b1_conflitos_migracao': 0,
-        'd2b1_consumo_pos_switching_indevido': 0,
-        'd2b1_divergencias_plano_vs_evento_final': 0,
-        'd2b1_divergencias_evento_vs_extrato_futuro': 0,
-        'd2b1_falhas_ativacao': 0,
-        'd2b1_residual_pagamentos_planejados': 0,
-        'd2b1_residual_pagamentos_ativados': 0,
-        'd2b1_residual_pagamentos_falhos': 0,
-        'd2b1_residual_falhas_por_mapeamento_despesa_id': 0,
-        'd2b1_residual_falhas_por_multifonte': 0,
-        'd2b1_residual_falhas_por_data': 0,
-        'd2b1_residual_falhas_por_sobrescrita': 0,
-        'd2b1_residual_falhas_por_evento_final': 0,
-        'd2b1_residual_divergencias_plano_evento': 0,
-        'd2b1_residual_divergencias_evento_saida': 0,
-    }
-    def _pid_norm(v: Any) -> str:
-        s = _txt(v)
-        return s[:-2] if s.endswith('.0') else s
-    d2a2 = {
-        'd2a2_datas_ativadas': 0,
-        'd2a2_datas_bloqueadas': 0,
-        'd2a2_pagamentos_ativados': 0,
-        'd2a2_pagamentos_nao_determinados_ativados': 0,
-        'd2a2_pagamentos_fifo_substituidos': 0,
-        'd2a2_falhas_ativacao': 0,
-        'd2a2_violacoes_residual_global': 0,
-        'd2a2_conflitos_migracao': 0,
-        'd2a2_consumo_pos_switching_indevido': 0,
-        'd2a2_divergencias_plano_vs_evento_final': 0,
-        'd2a2_divergencias_evento_vs_extrato_futuro': 0,
-    }
-
-    linhas_por_data_pay_only: dict[str, list[dict[str, Any]]] = {}
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         fontes_usadas: list[str] = []
@@ -1141,6 +1072,82 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'motivo_final_d2c': classificacao,
         })
     d2c['d2c_pagamentos_residuais_total'] = len(d2c_residuais_detalhe)
+
+    # D3-0: diagnóstico shadow de comparação de pacotes para residuais D2C.
+    por_data_d3: dict[str, list[dict[str, Any]]] = {}
+    for item in d2c_residuais_detalhe:
+        pid = _pid_norm(item.get('despesa_id'))
+        valor = float(item.get('valor') or 0.0)
+        candidatos = [c for c in fifo_candidatos_avaliados if _pid_norm(c.get('Despesa ID')) == pid]
+        bloqueadas_mig = [c for c in candidatos if bool(c.get('bloqueado_por_migracao'))]
+        elegiveis = [c for c in candidatos if bool(c.get('elegivel_fifo'))]
+        sem_switching_pool = list(elegiveis) + list(bloqueadas_mig)
+        sem_sw_fonte_unica = any(float(c.get('saldo_liquido') or 0.0) + 0.01 >= valor for c in sem_switching_pool)
+        sem_sw_saldo_total = round(sum(float(c.get('saldo_liquido') or 0.0) for c in sem_switching_pool), 2)
+        sem_sw_combinacao = bool(sem_sw_saldo_total + 0.01 >= valor and len(sem_switching_pool) >= 2)
+        pay_only_sem_switching_factivel = bool(sem_sw_fonte_unica or sem_sw_combinacao)
+        switch_then_pay_factivel = bool(len(bloqueadas_mig) > 0 and pay_only_sem_switching_factivel)
+        pay_then_switch_factivel = bool(pay_only_sem_switching_factivel)
+        residuals_pos = sum(1 for c in sem_switching_pool if float(c.get('saldo_liquido') or 0.0) > 0.20)
+        residual_global_ok = bool(residuals_pos <= 1) if sem_switching_pool else False
+        if not residual_global_ok and sem_switching_pool:
+            d3['d3_violacoes_residual_global'] += 1
+        if bloqueadas_mig:
+            d3['d3_switchings_bloqueantes_identificados'] += len(bloqueadas_mig)
+            d3['d3_conflitos_pagamento_switching'] += 1
+        if pay_only_sem_switching_factivel:
+            d3['d3_residuais_inviabilizados_por_switching'] += 1
+            impacto = 'pagamento_inviabilizado_por_switching'
+        else:
+            d3['d3_residuais_sem_fonte_mesmo_sem_switching'] += 1
+            impacto = 'sem_fonte_mesmo_sem_switching'
+        d3_residuais_detalhe.append({
+            'despesa_id': pid,
+            'data': item.get('data'),
+            'conta': item.get('conta'),
+            'valor': valor,
+            'lotes_bloqueantes': [str(c.get('lote_id') or '') for c in bloqueadas_mig],
+            'data_migracao_lote_bloqueante': {str(c.get('lote_id') or ''): c.get('migrado_em') for c in bloqueadas_mig},
+            'destino_switching_lote_bloqueante': {str(c.get('lote_id') or ''): (mapa_global_sw.get(str(c.get('lote_id') or ''), {}) or {}).get('produto_destino', '') for c in bloqueadas_mig},
+            'fonte_disponivel_sem_switching': bool(sem_switching_pool),
+            'pay_only_sem_switching_pagaria_conta': pay_only_sem_switching_factivel,
+            'switch_then_pay_factivel': switch_then_pay_factivel,
+            'pay_then_switch_factivel': pay_then_switch_factivel,
+            'remover_ou_adiar_switching_torna_factivel': pay_only_sem_switching_factivel,
+            'impacto_qualitativo': impacto,
+        })
+        por_data_d3.setdefault(str(item.get('data') or ''), []).append(d3_residuais_detalhe[-1])
+    d3['d3_residuais_total'] = len(d3_residuais_detalhe)
+
+    for dt, itens in por_data_d3.items():
+        total = len(itens)
+        pendente = len(itens)
+        bloqueantes = sorted({l for it in itens for l in list(it.get('lotes_bloqueantes') or []) if l})
+        disponiveis_sem_sw = any(bool(it.get('fonte_disponivel_sem_switching')) for it in itens)
+        pay_only_ok = all(bool(it.get('pay_only_sem_switching_pagaria_conta')) for it in itens)
+        stp_ok = all(bool(it.get('switch_then_pay_factivel')) for it in itens)
+        pts_ok = all(bool(it.get('pay_then_switch_factivel')) for it in itens)
+        pacote_factivel = 'nenhum'
+        if pay_only_ok:
+            pacote_factivel = 'pay_only_sem_switching'
+            d3['d3_datas_com_pay_only_sem_switching_factivel'] += 1
+        if stp_ok:
+            d3['d3_datas_com_switch_then_pay_factivel'] += 1
+        if pts_ok:
+            d3['d3_datas_com_pay_then_switch_factivel'] += 1
+        if pacote_factivel == 'nenhum':
+            d3['d3_datas_sem_pacote_factivel'] += 1
+        d3_datas_residuais_detalhe.append({
+            'data': dt,
+            'total_contas_dia': total,
+            'total_pendente': pendente,
+            'fontes_bloqueadas_por_switching': bloqueantes,
+            'fontes_disponiveis_sem_switching': disponiveis_sem_sw,
+            'pacote_factivel_identificado': pacote_factivel,
+            'motivo_inviabilidade_por_pacote': 'sem_fonte_suficiente_mesmo_sem_switching' if pacote_factivel == 'nenhum' else 'switching_bloqueante_no_plano_atual',
+            'recomendacao_diagnostica': 'revisar_switching' if pacote_factivel != 'nenhum' else 'manter_bloqueio',
+        })
+    d3['d3_datas_residuais_total'] = len(d3_datas_residuais_detalhe)
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1155,6 +1162,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d2b0,
         **d2b1,
         **d2c,
+        **d3,
         "d2c_residuais_detalhe": d2c_residuais_detalhe,
+        "d3_residuais_detalhe": d3_residuais_detalhe,
+        "d3_datas_residuais_detalhe": d3_datas_residuais_detalhe,
         **shadow_counters,
     }
