@@ -23,14 +23,11 @@ from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_observavel import (
     construir_amostras_pagamentos_operacionais,
-    construir_amostra_alocacao_recebidos_futuros,
     COLS_LOTES_ID_CURTAS,
     COLS_LOTES_VALORES_CURTAS,
     construir_linhas_lotes_id_curta,
     construir_linhas_lotes_valores_curta,
     construir_resumo_patrimonio_total_lotes,
-    construir_amostra_lotes_sinteticos_pos_switching,
-    construir_amostra_estado_pos_switching_lotes,
 )
 
 
@@ -57,14 +54,39 @@ def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
     alertas = []
     for row in relevantes.get('linhas', []):
         status = str(row.get('Status') or '').strip().lower()
+        lote = str(row.get('Lote') or '').strip().lower()
+        cobertura = str(row.get('Cobertura') or '').strip().lower()
         bloq = str(row.get('Bloq.') or '').strip().lower()
-        if status not in {'', 'ok', 'n/d'} or bloq not in {'', 'n/d'}:
-            alertas.append({
-                'Data': row.get('Data'),
-                'Conta': row.get('Conta'),
-                'problema': row.get('Status') if status not in {'', 'ok', 'n/d'} else row.get('Bloq.'),
-                'motivo': row.get('Bloq.') if bloq not in {'', 'n/d'} else row.get('Status'),
-            })
+        pacote = str(row.get('Pacote') or '').strip().lower()
+        necessita_sw = str(row.get('Switch?') or '').strip().lower()
+
+        lote_nd = lote in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}
+        cobertura_nao_sim = cobertura not in {'sim'}
+        status_nao_ok = status not in {'ok'}
+        bloqueio_real = bloq not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}
+
+        problema = None
+        motivo = None
+        if status_nao_ok:
+            problema = row.get('Status')
+            motivo = row.get('Bloq.') if bloqueio_real else row.get('Status')
+        elif lote_nd:
+            problema = 'lote_nao_determinado'
+            motivo = row.get('Status')
+        elif cobertura_nao_sim:
+            problema = 'cobertura_nao_integral'
+            motivo = row.get('Cobertura')
+        elif bloqueio_real:
+            problema = 'motivo_bloqueio_lote'
+            motivo = row.get('Bloq.')
+
+        # Não considerar ausência de campos de switching como alerta quando pay_only + ok + lote definido + sem switching.
+        if problema and (not status_nao_ok) and (not lote_nd) and pacote == 'pay_only' and necessita_sw == 'não' and not bloqueio_real:
+            problema = None
+            motivo = None
+
+        if problema:
+            alertas.append({'Data': row.get('Data'), 'Conta': row.get('Conta'), 'problema': problema, 'motivo': motivo})
     print("\n- alertas operacionais:")
     if alertas:
         _imprimir_tabela(['Data','Conta','problema','motivo'], alertas, limite=5)
@@ -115,24 +137,21 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
     ])
 
     print('- amostra de switchings reais da janela (independente de pagamentos):')
-    _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=10)
-    sinteticos = construir_amostra_lotes_sinteticos_pos_switching(saida_canonica, limite=10)
-    print(f"\n- {sinteticos['rotulo']}:")
-    if sinteticos['linhas']:
-        _imprimir_tabela(sinteticos['headers'], sinteticos['linhas'], limite=sinteticos['limite'])
-    else:
-        print("  sem lotes sintéticos pós-switching materializáveis na amostra atual")
-    estado_pos_sw = construir_amostra_estado_pos_switching_lotes(saida_canonica, limite=10)
-    print(f"\n- {estado_pos_sw['rotulo']}:")
-    if estado_pos_sw['linhas']:
-        _imprimir_tabela(estado_pos_sw['headers'], estado_pos_sw['linhas'], limite=estado_pos_sw['limite'])
-    else:
-        print("  sem estado pós-switching dos lotes na amostra atual")
+    _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=5)
 
-    alocacao = construir_amostra_alocacao_recebidos_futuros(saida_canonica, limite=5)
-    print(f"\n- {alocacao['rotulo']}:")
-    _imprimir_tabela(alocacao['headers'], alocacao['linhas'], limite=alocacao['limite'])
+    total_sinteticos = len(getattr(saida_canonica, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
+    total_aportes = len(getattr(saida_canonica, 'recebidos_atuais', []) or [])
+    alocacao = {'linhas': list(getattr(saida_canonica, 'recebidos_futuros_console', lambda **_: [])(limite=3) or [])}
 
+    print('\n- resumo operacional curto:')
+    _imprimir_pares([
+        ('total de switchings promovidos', len(linhas)),
+        ('total de lotes sintéticos pós-switching', total_sinteticos),
+        ('total de aportes futuros', total_aportes),
+    ])
+    if alocacao['linhas']:
+        print('- próximos 3 aportes (resumo):')
+        _imprimir_tabela(['Data', 'Lote', 'Valor', 'Status'], alocacao['linhas'], limite=3)
 
 def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos) -> None:
     _imprimir_titulo('SITUAÇÃO ATUAL')
