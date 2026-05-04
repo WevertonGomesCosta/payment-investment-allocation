@@ -427,7 +427,20 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd2b1_divergencias_plano_vs_evento_final': 0,
         'd2b1_divergencias_evento_vs_extrato_futuro': 0,
         'd2b1_falhas_ativacao': 0,
+        'd2b1_residual_pagamentos_planejados': 0,
+        'd2b1_residual_pagamentos_ativados': 0,
+        'd2b1_residual_pagamentos_falhos': 0,
+        'd2b1_residual_falhas_por_mapeamento_despesa_id': 0,
+        'd2b1_residual_falhas_por_multifonte': 0,
+        'd2b1_residual_falhas_por_data': 0,
+        'd2b1_residual_falhas_por_sobrescrita': 0,
+        'd2b1_residual_falhas_por_evento_final': 0,
+        'd2b1_residual_divergencias_plano_evento': 0,
+        'd2b1_residual_divergencias_evento_saida': 0,
     }
+    def _pid_norm(v: Any) -> str:
+        s = _txt(v)
+        return s[:-2] if s.endswith('.0') else s
     d2a2 = {
         'd2a2_datas_ativadas': 0,
         'd2a2_datas_bloqueadas': 0,
@@ -561,7 +574,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 data_ok = False; motivo_data = mig_motivo; d2b0['d2b0_conflitos_migracao'] += 1
         for linha in linhas_dia:
             d2b0['d2b0_pagamentos_total'] += 1
-            pid = _txt(linha.get('pagamento_id'))
+            pid = _pid_norm(linha.get('pagamento_id'))
             conta = _txt(linha.get('descricao_pagamento'))
             restante = float(_round(linha.get('valor_pagamento')) or 0.0)
             pago_total = 0.0
@@ -618,12 +631,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     datas_ativaveis_d2b1 = {str(x.get('data') or '') for x in d2b0_plano_por_data if str(x.get('status_plano_data') or '') == 'materializavel'}
     plano_d2b1_por_pagamento: dict[str, list[dict[str, Any]]] = {}
     for item in d2b0_plano_por_pagamento_fonte:
-        plano_d2b1_por_pagamento.setdefault(str(item.get('despesa_id') or ''), []).append(item)
+        plano_d2b1_por_pagamento.setdefault(_pid_norm(item.get('despesa_id')), []).append(item)
+    d2b1['d2b1_residual_pagamentos_planejados'] = len(plano_d2b1_por_pagamento.keys())
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
     for _, row in quadro_ord.iterrows():
-        d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
+        d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         pacote=_inferir_pacote(d)
         data_pagamento_key = str(d.get('data_pagamento') or '')
         lote_origem_pipeline=_txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id'))
@@ -732,7 +746,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                         d2b1['d2b1_fontes_com_residual_positivo_total'] += residuals_pos
                     else:
                         d2b1['d2b1_falhas_ativacao'] += 1
+                        if dt_b1 not in datas_ativaveis_d2b1:
+                            d2b1['d2b1_residual_falhas_por_data'] += 1
+                        elif not all(bool(x.get('valido_para_ativacao')) for x in plano_d2b1_itens):
+                            d2b1['d2b1_residual_falhas_por_multifonte'] += 1
                 if not ativado_d2b1:
+                    if not plano_d2b1_itens:
+                        d2b1['d2b1_residual_falhas_por_mapeamento_despesa_id'] += 1
                     plano = plano_por_pagamento_id.get(pid, {})
                     data_plano = str(plano.get('data') or '')
                     if data_plano in datas_bloqueadas_d2a2:
@@ -928,6 +948,10 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             d2a2['d2a2_datas_ativadas'] = len(datas_ativaveis_d2a2)
         if str(evento.get('origem_fonte_candidata') or '').strip() == 'pay_only_diario_v1_combinacao_minima':
             d2b1['d2b1_datas_ativadas'] = len(datas_ativaveis_d2b1)
+            d2b1['d2b1_residual_pagamentos_ativados'] += 1
+        elif pid in plano_d2b1_por_pagamento:
+            d2b1['d2b1_residual_pagamentos_falhos'] += 1
+            d2b1['d2b1_residual_falhas_por_evento_final'] += 1
         eventos.append(_normalizar_evento_operacional(evento))
     return {
         "eventos": eventos,
