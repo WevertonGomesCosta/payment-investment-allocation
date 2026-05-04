@@ -660,6 +660,91 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
+    d2a_funil = {
+        'd2a_linhas_no_bloco_pay_only': 0,
+        'd2a_com_data_no_mapa_fonte_unica': 0,
+        'd2a_com_lote_op_nao_determinado': 0,
+        'd2a_passa_filtro_status': 0,
+        'd2a_rejeitadas_por_saldo': 0,
+        'd2a_rejeitadas_por_data_carencia_migracao': 0,
+        'd2a_promovidas_internamente_pay_only_diario_v1': 0,
+        'd2a_promovidas_evento_final_pay_only_diario_v1': 0,
+        'd2a_promovidas_extrato_futuro_auditoria_fontes': 0,
+        'd2a_motivo_gap_shadow_vs_ativacao': 'rollback_d2a_parcial_sem_ganho_funcional',
+    }
+    d2a_plano_por_pagamento: list[dict[str, Any]] = []
+    d2a_plano_por_data: list[dict[str, Any]] = []
+    d2a_plano = {
+        'd2a_plano_datas_fonte_unica_total': 0,
+        'd2a_plano_datas_materializaveis': 0,
+        'd2a_plano_datas_nao_materializaveis': 0,
+        'd2a_plano_pagamentos_total': 0,
+        'd2a_plano_pagamentos_validos_para_ativacao': 0,
+        'd2a_plano_pagamentos_invalidos': 0,
+        'd2a_plano_pagamentos_hoje_nao_determinados_validos': 0,
+        'd2a_plano_conflitos_migracao': 0,
+        'd2a_plano_consumo_pos_switching_indevido': 0,
+        'd2a_plano_violacoes_residual_global': 0,
+        'd2a_plano_divergencias_shadow_vs_plano': 0,
+    }
+    d2b0_plano_por_pagamento_fonte: list[dict[str, Any]] = []
+    d2b0_plano_por_data: list[dict[str, Any]] = []
+    d2b0 = {
+        'd2b0_datas_combinacao_total': 0,
+        'd2b0_datas_materializaveis': 0,
+        'd2b0_datas_nao_materializaveis': 0,
+        'd2b0_pagamentos_total': 0,
+        'd2b0_pagamentos_validos_para_ativacao': 0,
+        'd2b0_pagamentos_invalidos': 0,
+        'd2b0_fontes_usadas_total': 0,
+        'd2b0_fontes_com_residual_positivo_total': 0,
+        'd2b0_violacoes_residual_global': 0,
+        'd2b0_conflitos_migracao': 0,
+        'd2b0_consumo_pos_switching_indevido': 0,
+        'd2b0_divergencias_shadow_vs_plano': 0,
+    }
+    d2b1 = {
+        'd2b1_datas_ativadas': 0,
+        'd2b1_datas_bloqueadas': 0,
+        'd2b1_pagamentos_ativados': 0,
+        'd2b1_pagamentos_nao_determinados_ativados': 0,
+        'd2b1_fontes_usadas_total': 0,
+        'd2b1_fontes_com_residual_positivo_total': 0,
+        'd2b1_violacoes_residual_global': 0,
+        'd2b1_conflitos_migracao': 0,
+        'd2b1_consumo_pos_switching_indevido': 0,
+        'd2b1_divergencias_plano_vs_evento_final': 0,
+        'd2b1_divergencias_evento_vs_extrato_futuro': 0,
+        'd2b1_falhas_ativacao': 0,
+        'd2b1_residual_pagamentos_planejados': 0,
+        'd2b1_residual_pagamentos_ativados': 0,
+        'd2b1_residual_pagamentos_falhos': 0,
+        'd2b1_residual_falhas_por_mapeamento_despesa_id': 0,
+        'd2b1_residual_falhas_por_multifonte': 0,
+        'd2b1_residual_falhas_por_data': 0,
+        'd2b1_residual_falhas_por_sobrescrita': 0,
+        'd2b1_residual_falhas_por_evento_final': 0,
+        'd2b1_residual_divergencias_plano_evento': 0,
+        'd2b1_residual_divergencias_evento_saida': 0,
+    }
+    def _pid_norm(v: Any) -> str:
+        s = _txt(v)
+        return s[:-2] if s.endswith('.0') else s
+    d2a2 = {
+        'd2a2_datas_ativadas': 0,
+        'd2a2_datas_bloqueadas': 0,
+        'd2a2_pagamentos_ativados': 0,
+        'd2a2_pagamentos_nao_determinados_ativados': 0,
+        'd2a2_pagamentos_fifo_substituidos': 0,
+        'd2a2_falhas_ativacao': 0,
+        'd2a2_violacoes_residual_global': 0,
+        'd2a2_conflitos_migracao': 0,
+        'd2a2_consumo_pos_switching_indevido': 0,
+        'd2a2_divergencias_plano_vs_evento_final': 0,
+        'd2a2_divergencias_evento_vs_extrato_futuro': 0,
+    }
+
+    linhas_por_data_pay_only: dict[str, list[dict[str, Any]]] = {}
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         fontes_usadas: list[str] = []
