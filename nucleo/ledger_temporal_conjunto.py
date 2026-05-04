@@ -552,6 +552,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd31e_bases_com_residual_positivo': 0,'d31e_reuso_switching_shadow_aplicado': 0,'d31e_reuso_ranking_proxy_aplicado': 0,'d31e_prontas_para_delta_terminal': 0,
     }
     d31e_bases_por_cenario: list[dict[str, Any]] = []
+    d31f = {
+        'd31f_cenarios_alvo_total': 0,'d31f_bases_completas_total': 0,'d31f_bases_completas_sem_residual_terminal': 0,'d31f_bases_completas_com_residual_positivo': 0,
+        'd31f_bases_incompletas_total': 0,'d31f_bases_incompletas_falta_residual_real': 0,'d31f_bases_incompletas_falta_destino': 0,'d31f_bases_incompletas_falta_taxa': 0,'d31f_bases_incompletas_falta_horizonte': 0,
+        'd31f_bases_prontas_para_delta_terminal': 0,'d31f_cenarios_com_delta_terminal_zero_justificado': 0,'d31f_cenarios_com_delta_terminal_nao_zero': 0,'d31f_cenarios_economicamente_equivalentes': 0,
+        'd31f_recomendacoes_operacionais_adiar_switching': 0,'d31f_recomendacoes_economicas_sem_diferenca_terminal': 0,
+    }
+    d31f_bases_reclassificadas: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -1842,6 +1849,42 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         d31e_bases_por_cenario.append({'data': c.get('data'),'cenario': c.get('cenario_avaliado'),'contas_pagas': c.get('contas_residuais_dia', []),'valor_total_pago': val,'fonte_usada_pagamento': (c.get('fontes_bloqueantes') or [''])[0] if c.get('fontes_bloqueantes') else '', 'valor_liquido_disponivel_antes_pagamento': val,'valor_liquido_usado_pagamento': val,'residual_liquido_pos_pagamento': residual,'produto_original_fonte': 'produto_origem_proxy','produto_destino_migracao_residual': destino,'data_prevista_migracao_residual': c.get('data'),'horizonte_terminal_usado': horizonte,'taxa_proxy_terminal_produto_original': taxa_orig,'taxa_proxy_terminal_produto_destino': taxa_dest,'funcao_proxy_valoracao_terminal': func,'status_base_valoracao': status,'motivo_incompletude': motivo})
     d31e['d31e_cenarios_alvo_total'] = len(d31e_bases_por_cenario)
     d31e['d31e_datas_residuais_total'] = len({x.get('data') for x in d31e_bases_por_cenario})
+    # D3-1F: correção semântica residual zero vs falta de residual.
+    for b in d31e_bases_por_cenario:
+        residual = b.get('residual_liquido_pos_pagamento')
+        status = str(b.get('status_base_valoracao') or '')
+        novo_status = status
+        motivo = str(b.get('motivo_incompletude') or 'n/d')
+        delta_estimavel = False
+        delta_estimado = None
+        if residual is None:
+            novo_status = 'incompleta_falta_residual_real'; motivo = 'residual_ausente'
+            d31f['d31f_bases_incompletas_falta_residual_real'] += 1
+            d31f['d31f_bases_incompletas_total'] += 1
+        elif float(residual) <= 0.20:
+            novo_status = 'completa_sem_residual_terminal'; motivo = 'n/d'; delta_estimavel = True; delta_estimado = 0.0
+            d31f['d31f_bases_completas_total'] += 1
+            d31f['d31f_bases_completas_sem_residual_terminal'] += 1
+            d31f['d31f_bases_prontas_para_delta_terminal'] += 1
+            d31f['d31f_cenarios_com_delta_terminal_zero_justificado'] += 1
+            d31f['d31f_cenarios_economicamente_equivalentes'] += 1
+        else:
+            novo_status = 'completa_com_residual_positivo'; motivo = 'n/d'; delta_estimavel = True
+            d31f['d31f_bases_completas_total'] += 1
+            d31f['d31f_bases_completas_com_residual_positivo'] += 1
+            d31f['d31f_bases_prontas_para_delta_terminal'] += 1
+        if str(b.get('status_base_valoracao') or '').startswith('incompleta_falta_destino'):
+            d31f['d31f_bases_incompletas_falta_destino'] += 1
+        if str(b.get('status_base_valoracao') or '').startswith('incompleta_falta_taxa'):
+            d31f['d31f_bases_incompletas_falta_taxa'] += 1
+        if str(b.get('status_base_valoracao') or '').startswith('incompleta_falta_horizonte'):
+            d31f['d31f_bases_incompletas_falta_horizonte'] += 1
+        if str(b.get('cenario') or '') == 'cenario_adiar_switching_pos_pagamento':
+            d31f['d31f_recomendacoes_operacionais_adiar_switching'] += 1
+        if delta_estimado == 0.0:
+            d31f['d31f_recomendacoes_economicas_sem_diferenca_terminal'] += 1
+        d31f_bases_reclassificadas.append({**b, 'status_base_valoracao': novo_status, 'motivo_incompletude': motivo, 'delta_terminal_estimavel': 'sim' if delta_estimavel else 'não', 'delta_terminal_estimado': delta_estimado if delta_estimado is not None else ''})
+    d31f['d31f_cenarios_alvo_total'] = len(d31f_bases_reclassificadas)
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1870,6 +1913,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d31c,
         **d31d,
         **d31e,
+        **d31f,
         "d3b_lotes_detalhe": d3b_lotes_detalhe,
         "d3c_fontes_saneadas": d3c_fontes_saneadas,
         "d3d_fontes_saneadas": d3d_fontes_saneadas,
@@ -1881,5 +1925,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d31c_cenarios_por_data": d31c_cenarios_por_data,
         "d31d_cenarios_detalhe": d31d_cenarios_detalhe,
         "d31e_bases_por_cenario": d31e_bases_por_cenario,
+        "d31f_bases_reclassificadas": d31f_bases_reclassificadas,
         **shadow_counters,
     }
