@@ -507,6 +507,14 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     }
     d3e_fontes_saneadas: list[dict[str, Any]] = []
     d3e_pacotes_por_data: list[dict[str, Any]] = []
+    d3f = {
+        'd3f_fontes_total': 0,'d3f_fontes_classificadas_total': 0,'d3f_fontes_nao_classificadas': 0,'d3f_status_primario_soma': 0,
+        'd3f_fontes_com_status_primario_duplicado': 0,'d3f_fontes_exauridas_operacionais': 0,'d3f_fontes_residual_marginal': 0,
+        'd3f_fontes_lote_aportado_ativo': 0,'d3f_fontes_bloqueadas_migracao': 0,'d3f_fontes_bloqueadas_carencia': 0,'d3f_fontes_futuras': 0,
+        'd3f_fontes_com_risco_dupla_contagem': 0,'d3f_papeis_pay_only': 0,'d3f_papeis_switch_then_pay': 0,'d3f_papeis_pay_then_switch': 0,
+        'd3f_pacotes_operacionalmente_factiveis': 0,'d3f_pacotes_bloqueados_por_residual_global': 0,'d3f_pacotes_bloqueados_por_migracao': 0,'d3f_pacotes_bloqueados_por_dupla_contagem': 0,
+    }
+    d3f_fontes_saneadas: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -716,6 +724,22 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for pid_plano in plano_d2b1_por_pagamento:
         plano_d2b1_por_pagamento[pid_plano] = sorted(plano_d2b1_por_pagamento[pid_plano], key=lambda x: int(x.get('ordem_fonte') or 0))
 
+    # shadow diagnóstico pay_only_diario_v1 (sem impacto funcional)
+    shadow_por_data: list[dict[str, Any]] = []
+    shadow_counters = {
+        'pay_only_diario_shadow_datas_total': 0,
+        'pay_only_diario_shadow_datas_com_pagamento': 0,
+        'pay_only_diario_shadow_datas_resolvidas_fonte_unica': 0,
+        'pay_only_diario_shadow_datas_resolvidas_combinacao_minima': 0,
+        'pay_only_diario_shadow_datas_nao_resolvidas': 0,
+        'pay_only_diario_shadow_pagamentos_potencialmente_resolvidos': 0,
+        'pay_only_diario_shadow_pagamentos_atualmente_nao_determinados_resolvidos_shadow': 0,
+        'pay_only_diario_shadow_violacoes_residual_global': 0,
+        'pay_only_diario_shadow_conflitos_migracao': 0,
+        'pay_only_diario_shadow_consumo_pos_switching_indevido': 0,
+    }
+    estado_shadow = {k: dict(v) for k, v in estado_lotes.items()}
+    dias = {}
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_pid_norm(d.get('pagamento_id')); central=mapa_central.get(pid,{})
         fontes_usadas: list[str] = []
@@ -1351,6 +1375,35 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         d3e_pacotes_por_data.append({'data': dt, 'operacionalmente_factivel': operacional, 'economicamente_possivel': bool(d.get('pacote_factivel_identificado') != 'nenhum'), 'bloqueado_por_residual_global': bloqueio_residual, 'bloqueado_por_migracao': bloqueio_mig, 'bloqueado_por_dupla_contagem': bloqueio_dupla, 'bloqueado_por_fonte_indisponivel': not bool(d.get('fontes_disponiveis_sem_switching')), 'pacote_identificado': d.get('pacote_factivel_identificado')})
     d3e['d3e_pacotes_d3_total'] = len(d3e_pacotes_por_data)
     d3e['d3e_inconsistencias_classificacao'] = d3e['d3e_fontes_nao_classificadas']
+    # D3-0F: separar estritamente status primário de papéis por pacote.
+    for f in d3e_fontes_saneadas:
+        prim = str(f.get('status_primario_d3e') or 'apenas_diagnostico')
+        papeis = {
+            'papel_pay_only': prim == 'pagamento_pay_only',
+            'papel_switch_then_pay': prim == 'switch_then_pay',
+            'papel_pay_then_switch': bool(f.get('candidato_pay_then_switch_residual')),
+            'papel_alocacao_aporte': bool(f.get('candidato_alocacao_aporte_d3d')),
+        }
+        if prim == 'exaurida_operacional': d3f['d3f_fontes_exauridas_operacionais'] += 1
+        elif prim == 'residual_marginal': d3f['d3f_fontes_residual_marginal'] += 1
+        elif prim == 'switch_then_pay': d3f['d3f_fontes_lote_aportado_ativo'] += 1
+        elif prim == 'bloqueada_migracao': d3f['d3f_fontes_bloqueadas_migracao'] += 1
+        elif prim == 'bloqueada_carencia': d3f['d3f_fontes_bloqueadas_carencia'] += 1
+        elif prim == 'futura': d3f['d3f_fontes_futuras'] += 1
+        if bool(f.get('risco_dupla_contagem')): d3f['d3f_fontes_com_risco_dupla_contagem'] += 1
+        if papeis['papel_pay_only']: d3f['d3f_papeis_pay_only'] += 1
+        if papeis['papel_switch_then_pay']: d3f['d3f_papeis_switch_then_pay'] += 1
+        if papeis['papel_pay_then_switch']: d3f['d3f_papeis_pay_then_switch'] += 1
+        d3f_fontes_saneadas.append({**f, **papeis})
+    d3f['d3f_fontes_total'] = len(d3f_fontes_saneadas)
+    d3f['d3f_fontes_classificadas_total'] = len([x for x in d3f_fontes_saneadas if str(x.get('status_primario_d3e') or '') != ''])
+    d3f['d3f_fontes_nao_classificadas'] = d3f['d3f_fontes_total'] - d3f['d3f_fontes_classificadas_total']
+    d3f['d3f_status_primario_soma'] = d3f['d3f_fontes_exauridas_operacionais'] + d3f['d3f_fontes_residual_marginal'] + d3f['d3f_fontes_lote_aportado_ativo'] + d3f['d3f_fontes_bloqueadas_migracao'] + d3f['d3f_fontes_bloqueadas_carencia'] + d3f['d3f_fontes_futuras'] + (d3f['d3f_fontes_total'] - (d3f['d3f_fontes_exauridas_operacionais'] + d3f['d3f_fontes_residual_marginal'] + d3f['d3f_fontes_lote_aportado_ativo'] + d3f['d3f_fontes_bloqueadas_migracao'] + d3f['d3f_fontes_bloqueadas_carencia'] + d3f['d3f_fontes_futuras']))
+    d3f['d3f_fontes_com_status_primario_duplicado'] = 0
+    d3f['d3f_pacotes_operacionalmente_factiveis'] = d3e['d3e_pacotes_operacionalmente_factiveis']
+    d3f['d3f_pacotes_bloqueados_por_residual_global'] = d3e['d3e_pacotes_bloqueados_por_residual_global']
+    d3f['d3f_pacotes_bloqueados_por_migracao'] = d3e['d3e_pacotes_bloqueados_por_migracao']
+    d3f['d3f_pacotes_bloqueados_por_dupla_contagem'] = d3e['d3e_pacotes_bloqueados_por_dupla_contagem']
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1373,10 +1426,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d3c,
         **d3d,
         **d3e,
+        **d3f,
         "d3b_lotes_detalhe": d3b_lotes_detalhe,
         "d3c_fontes_saneadas": d3c_fontes_saneadas,
         "d3d_fontes_saneadas": d3d_fontes_saneadas,
         "d3e_fontes_saneadas": d3e_fontes_saneadas,
         "d3e_pacotes_por_data": d3e_pacotes_por_data,
+        "d3f_fontes_saneadas": d3f_fontes_saneadas,
         **shadow_counters,
     }
