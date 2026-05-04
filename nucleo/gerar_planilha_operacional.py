@@ -415,7 +415,7 @@ def _adicionar_aba_auditoria_fifo(wb, contexto, pacote_saida) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'auditoria_fifo'))
     headers = [
         'Data','Conta','Despesa ID','Valor','Lote sugerido','Pacote do dia',
-        'fifo_qtd_lotes_estado','fifo_qtd_lotes_avaliados','fifo_qtd_lotes_saldo_suficiente',
+        'fifo_qtd_lotes_estado','fifo_qtd_lotes_avaliados','fifo_qtd_lotes_saldo_suficiente','fifo_qtd_lotes_elegiveis',
         'fifo_qtd_lotes_bloqueados_por_saldo','fifo_qtd_lotes_bloqueados_por_data',
         'fifo_qtd_lotes_bloqueados_por_carencia','fifo_qtd_lotes_bloqueados_por_migracao',
         'fifo_melhor_lote_candidato','fifo_saldo_melhor_lote','fifo_data_aplicacao_melhor_lote',
@@ -432,26 +432,35 @@ def _adicionar_aba_auditoria_fifo(wb, contexto, pacote_saida) -> None:
         cands = cand_por_despesa.get(despesa_id, [])
         qtd_av = len(cands)
         qtd_suf = sum(1 for c in cands if not bool(c.get('bloqueado_por_saldo')))
+        qtd_eleg = sum(1 for c in cands if bool(c.get('elegivel_fifo')))
         b_saldo = sum(1 for c in cands if bool(c.get('bloqueado_por_saldo')))
         b_data = sum(1 for c in cands if bool(c.get('bloqueado_por_data')))
         b_car = sum(1 for c in cands if bool(c.get('bloqueado_por_carencia')))
         b_mig = sum(1 for c in cands if bool(c.get('bloqueado_por_migracao')))
-        melhor = cands[0] if cands else {}
+        cands_ordenados = sorted(cands, key=lambda c: (float(c.get('ordem_fifo') or 10**9), str(c.get('lote_id') or '')))
+        cands_elegiveis = [c for c in cands_ordenados if bool(c.get('elegivel_fifo'))]
+        melhor = cands_elegiveis[0] if cands_elegiveis else {}
         motivo = row.get('fifo_motivo_nao_promocao')
+        lote_sugerido_nd = str(row.get('Lote sugerido') or '').strip().lower() in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}
+        if qtd_eleg == 0 and (not str(motivo or '').strip() or str(motivo).strip() == 'fifo_nao_aplicavel_lote_ja_determinado'):
+            motivo = 'fifo_sem_candidato_elegivel'
+        if lote_sugerido_nd and str(motivo or '').strip() == 'fifo_nao_aplicavel_lote_ja_determinado':
+            motivo = 'fifo_sem_candidato_elegivel' if qtd_eleg == 0 else 'fifo_candidato_elegivel_sem_promocao'
         if (row.get('fifo_qtd_lotes_estado') or 0) > 0 and qtd_av == 0 and not str(motivo or '').strip():
             motivo = 'fifo_nao_aplicavel_sem_motivo_explicito'
         item = {h: row.get(h) for h in headers}
         item.update({
             'fifo_qtd_lotes_avaliados': qtd_av,
             'fifo_qtd_lotes_saldo_suficiente': qtd_suf,
+            'fifo_qtd_lotes_elegiveis': qtd_eleg,
             'fifo_qtd_lotes_bloqueados_por_saldo': b_saldo,
             'fifo_qtd_lotes_bloqueados_por_data': b_data,
             'fifo_qtd_lotes_bloqueados_por_carencia': b_car,
             'fifo_qtd_lotes_bloqueados_por_migracao': b_mig,
-            'fifo_melhor_lote_candidato': melhor.get('lote_id', row.get('fifo_melhor_lote_candidato')),
-            'fifo_saldo_melhor_lote': melhor.get('saldo_liquido', row.get('fifo_saldo_melhor_lote')),
-            'fifo_data_aplicacao_melhor_lote': melhor.get('data_aplicacao', row.get('fifo_data_aplicacao_melhor_lote')),
-            'fifo_carencia_melhor_lote': melhor.get('carencia_ate', row.get('fifo_carencia_melhor_lote')),
+            'fifo_melhor_lote_candidato': melhor.get('lote_id', 'n/d'),
+            'fifo_saldo_melhor_lote': melhor.get('saldo_liquido', 'n/d'),
+            'fifo_data_aplicacao_melhor_lote': melhor.get('data_aplicacao', 'n/d'),
+            'fifo_carencia_melhor_lote': melhor.get('carencia_ate', 'n/d'),
             'fifo_motivo_nao_promocao': motivo,
         })
         itens.append(item)
