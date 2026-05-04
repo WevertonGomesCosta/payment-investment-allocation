@@ -660,6 +660,12 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         'pre_invariante_cobertura_sim_status_nao_ok': 0,
         'pre_invariante_status_bloqueado_com_valores_operacionais': 0,
         'pre_invariante_motivo_bloqueante_status_ok': 0,
+        'pre_invariante_lote_nd_com_saldo_antes': 0,
+        'pre_invariante_lote_nd_com_bruto': 0,
+        'pre_invariante_lote_nd_com_liquido': 0,
+        'pre_invariante_lote_nd_com_saldo_remanescente': 0,
+        'pre_invariante_status_bloqueado_com_saldo_antes': 0,
+        'pre_invariante_status_bloqueado_com_consumo_temporal': 0,
     }
     lotes_exauridos = {
         _norm(str(getattr(l, 'id', '')).strip())
@@ -932,6 +938,12 @@ def _validar_invariantes_extrato_futuro_linha_nao_mutavel(linha: dict[str, Any])
         'pre_invariante_cobertura_sim_status_nao_ok': int(cob == 'sim' and status != 'ok'),
         'pre_invariante_status_bloqueado_com_valores_operacionais': int(status in bloqueios and tem_valores_op),
         'pre_invariante_motivo_bloqueante_status_ok': int(status == 'ok' and motivo not in {'', 'n/d', 'nd', 'não determinado', 'nao determinado'}),
+        'pre_invariante_lote_nd_com_saldo_antes': int(sem_lote and str(linha.get('Saldo Antes') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_lote_nd_com_bruto': int(sem_lote and str(linha.get('Bruto') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_lote_nd_com_liquido': int(sem_lote and str(linha.get('Líquido') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_lote_nd_com_saldo_remanescente': int(sem_lote and str(linha.get('Saldo Remanescente') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_status_bloqueado_com_saldo_antes': int(status in bloqueios and str(linha.get('Saldo Antes') or '').strip() not in {'', 'n/d'}),
+        'pre_invariante_status_bloqueado_com_consumo_temporal': int(status in bloqueios and str(linha.get('Consumo temp.') or '').strip() not in {'', 'n/d'}),
     }
 
 
@@ -971,17 +983,11 @@ def _aplicar_invariantes_extrato_futuro_linha(linha: dict[str, Any]) -> dict[str
     # status de bloqueio: manter limpeza financeira/temporal, sem mutar cobertura/status/motivo
     status = _norm(linha.get('Status recomendação'))
     if status in bloqueios:
-        for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
-            linha[k] = ''
-        for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
-            linha[k] = 'n/d'
+        pass
 
     lote_pos = _norm(linha.get('Lote pós-switching'))
     if pacote == 'switch_then_pay' and lote_pos in {'', 'n/d', 'nd'}:
-        for k in ['Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente']:
-            linha[k] = ''
-        for k in ['Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.']:
-            linha[k] = 'n/d'
+        pass
 
     # sincroniza trilha de auditoria com estado final operacional
     linha['status_ledger'] = linha.get('Status recomendação')
