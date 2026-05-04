@@ -115,6 +115,34 @@ def _inferir_pacote(row: dict[str, Any]) -> str:
     return 'não determinado'
 
 
+
+
+def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]:
+    mapa: dict[str, dict[str, Any]] = {}
+    shadow = getattr(contexto, 'switching_economico_shadow', None) if contexto is not None else None
+    plano = getattr(shadow, 'plano_shadow', None) if shadow is not None else None
+    if isinstance(plano, pd.DataFrame) and not plano.empty:
+        plano_f = plano.copy()
+        if 'recomendado_shadow' in plano_f.columns:
+            plano_f = plano_f[plano_f['recomendado_shadow'].fillna(False)]
+        for _, row in plano_f.iterrows():
+            lote = _txt(row.get('lote_id'))
+            if not lote:
+                continue
+            data_sw = row.get('data_referencia')
+            if 'data_referencia' in row and row.get('data_referencia') is not None:
+                data_sw = row.get('data_referencia')
+            mapa[lote] = {
+                'lote_origem': lote,
+                'data_switching': data_sw,
+                'produto_destino': _txt(row.get('produto_destino_nome') or row.get('produto_destino_key')),
+                'valor_liquido_origem': _round(row.get('valor_liquido_resgatavel')),
+                'status_switching': 'classificado_promovido',
+                'origem_mapa_migracao': 'contexto.switching_economico_shadow.plano_shadow',
+                'lote_pos_switching': '',
+            }
+    return mapa
+
 def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_central: dict[str, dict[str, Any]] | None = None, contexto: Any | None = None) -> dict[str, Any]:
     if not isinstance(quadro_futuro, pd.DataFrame) or quadro_futuro.empty:
         return {"eventos": [], "fifo_candidatos_avaliados": []}
@@ -155,10 +183,23 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 'estado': 'materializado',
             }
 
+    mapa_global_sw = _mapa_global_switchings_contexto(contexto)
+    for lo, meta_sw in mapa_global_sw.items():
+        if lo in estado_lotes:
+            estado_lotes[lo]['migrado_em'] = meta_sw.get('data_switching')
+            estado_lotes[lo]['destino_switching'] = meta_sw.get('produto_destino')
+            estado_lotes[lo]['lote_pos_switching'] = meta_sw.get('lote_pos_switching')
+            estado_lotes[lo]['status_switching'] = meta_sw.get('status_switching')
+            estado_lotes[lo]['origem_mapa_migracao'] = meta_sw.get('origem_mapa_migracao')
+
     for ev in materializados.values():
         lo = str(ev.get('lote_origem') or '')
         if lo in estado_lotes:
             estado_lotes[lo]['migrado_em'] = ev.get('data_switching')
+            estado_lotes[lo]['destino_switching'] = ev.get('produto_destino')
+            estado_lotes[lo]['lote_pos_switching'] = ev.get('lote_pos_switching')
+            estado_lotes[lo]['status_switching'] = ev.get('estado')
+            estado_lotes[lo]['origem_mapa_migracao'] = 'materializacao_no_quadro_futuro'
 
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
