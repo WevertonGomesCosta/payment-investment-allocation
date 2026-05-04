@@ -398,6 +398,19 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'd2a_plano_violacoes_residual_global': 0,
         'd2a_plano_divergencias_shadow_vs_plano': 0,
     }
+    d2a2 = {
+        'd2a2_datas_ativadas': 0,
+        'd2a2_datas_bloqueadas': 0,
+        'd2a2_pagamentos_ativados': 0,
+        'd2a2_pagamentos_nao_determinados_ativados': 0,
+        'd2a2_pagamentos_fifo_substituidos': 0,
+        'd2a2_falhas_ativacao': 0,
+        'd2a2_violacoes_residual_global': 0,
+        'd2a2_conflitos_migracao': 0,
+        'd2a2_consumo_pos_switching_indevido': 0,
+        'd2a2_divergencias_plano_vs_evento_final': 0,
+        'd2a2_divergencias_evento_vs_extrato_futuro': 0,
+    }
 
     linhas_por_data_pay_only: dict[str, list[dict[str, Any]]] = {}
     for _, row in quadro_ord.iterrows():
@@ -489,6 +502,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'data': dt, 'fonte_unica': fonte, 'qtd_pagamentos': len(linhas_dia),
             'status_plano_data': status_plano, 'motivo_data': motivo_data,
         })
+    plano_por_pagamento_id = {str(x.get('despesa_id') or ''): x for x in d2a_plano_por_pagamento}
+    datas_bloqueadas_d2a2 = {str(x.get('data') or '') for x in d2a_plano_por_data if str(x.get('status_plano_data') or '') != 'materializavel'}
+    datas_ativaveis_d2a2 = {str(x.get('data') or '') for x in d2a_plano_por_data if str(x.get('status_plano_data') or '') == 'materializavel'}
 
     for _, row in quadro_ord.iterrows():
         d = row.to_dict(); pid=_txt(d.get('pagamento_id')); central=mapa_central.get(pid,{})
@@ -568,6 +584,40 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 if status in {'','ok','não determinado'}: status='fonte_pos_switching_nao_materializada'
                 if not motivo: motivo='fonte_pos_switching_nao_materializada'
             if lote_op=='não determinado' and pacote == 'pay_only':
+                plano = plano_por_pagamento_id.get(pid, {})
+                data_plano = str(plano.get('data') or '')
+                if data_plano in datas_bloqueadas_d2a2:
+                    d2a2['d2a2_datas_bloqueadas'] += 1
+                ativado_d2a2 = bool(
+                    data_plano in datas_ativaveis_d2a2
+                    and bool(plano.get('valido_para_ativacao'))
+                    and str(plano.get('origem_planejada') or '') == 'pay_only_diario_v1'
+                    and str(plano.get('status_planejado') or '') == 'ok'
+                    and str(plano.get('cobertura_integral_planejada') or '') == 'sim'
+                )
+                if ativado_d2a2:
+                    lote_planejado = str(plano.get('fonte_unica_escolhida') or '')
+                    if lote_planejado:
+                        lote_op = lote_planejado
+                        fonte_candidata_id = lote_planejado
+                        origem_fonte_candidata = 'pay_only_diario_v1'
+                        tipo_fonte_candidata = 'lote_aportado'
+                        sal_ant = _round(plano.get('saldo_antes_planejado'))
+                        br = _round(plano.get('bruto_planejado'))
+                        imp = _round(plano.get('imposto_planejado'))
+                        liq = _round(plano.get('liquido_planejado'))
+                        cons = _round(plano.get('consumo_planejado'))
+                        sal_dep = _round(plano.get('saldo_depois_planejado'))
+                        cobertura = 'sim'
+                        status = 'ok'
+                        motivo = 'n/d'
+                        promovida_para_lote_sugerido = True
+                        d2a2['d2a2_pagamentos_ativados'] += 1
+                        if _eh_nd(lote_origem):
+                            d2a2['d2a2_pagamentos_nao_determinados_ativados'] += 1
+                        if lote_planejado in estado_lotes and sal_dep != '':
+                            estado_lotes[lote_planejado]['saldo_liquido'] = float(sal_dep)
+                # D2A permanece sem combinação mínima (D2B bloqueado)
                 d2a_funil['d2a_linhas_no_bloco_pay_only'] += 1
                 valor_pag = val if val != '' else 0.0
                 # D2A: ativação funcional do pay_only_diario_v1 apenas para datas
@@ -726,6 +776,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         if str(evento.get('origem_fonte_candidata') or '').strip() == 'pay_only_diario_v1':
             d2a_funil['d2a_promovidas_evento_final_pay_only_diario_v1'] += 1
             d2a_funil['d2a_promovidas_extrato_futuro_auditoria_fontes'] += 1
+            d2a2['d2a2_datas_ativadas'] = len(datas_ativaveis_d2a2)
         eventos.append(_normalizar_evento_operacional(evento))
     return {
         "eventos": eventos,
@@ -735,5 +786,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d2a_plano_por_data": d2a_plano_por_data,
         **d2a_funil,
         **d2a_plano,
+        **d2a2,
         **shadow_counters,
     }
