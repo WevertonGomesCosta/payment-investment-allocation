@@ -17,7 +17,7 @@ from nucleo.calendario_financeiro import calcular_dias_lote, proximo_dia_util_ba
 from nucleo.contexto_baseline import obter_limiar_residuo_resolvido
 from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
-from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
+from nucleo.utilitarios_neutros import normalizar_texto, normalizar_valores_situacao_atual_exaurida
 
 
 def _norm(txt: Any) -> str:
@@ -1092,7 +1092,19 @@ def _construir_switchings(contexto: Any, limite: int = 30) -> list[dict[str, Any
     shadow = getattr(contexto, 'switching_economico_shadow', None)
     plano = getattr(shadow, 'plano_shadow', None) if shadow is not None else None
     linhas: list[dict[str, Any]] = []
+    bloqueados_auditoria: list[dict[str, Any]] = []
     lotes_by_id = {str(l.id): l for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])}
+    gate_por_lote_destino: dict[tuple[str, str], dict[str, Any]] = {}
+    ranking = getattr(contexto, 'ranking_carteira', None)
+    quadro_ranking = getattr(ranking, 'quadro_destinos_switch', None) if ranking is not None else None
+    rank_por_produto_key: dict[str, int] = {}
+    rank_por_nome_normalizado: dict[str, int] = {}
+    if isinstance(quadro_ranking, pd.DataFrame) and len(quadro_ranking):
+        for _, r in quadro_ranking.iterrows():
+            rank_por_produto_key[str(r.get('produto_key') or '')] = int(r.get('rank_destino') or 999)
+            rank_por_nome_normalizado[normalizar_texto(r.get('nome'))] = int(r.get('rank_destino') or 999)
+    contas = getattr(getattr(contexto, 'dados_operacionais', None), 'contas_a_pagar', None)
+
     if isinstance(plano, pd.DataFrame) and len(plano):
         plano_f = plano.copy()
         if 'recomendado_shadow' in plano_f.columns:
@@ -1121,6 +1133,44 @@ def _construir_switchings(contexto: Any, limite: int = 30) -> list[dict[str, Any
                 'Valor líquido origem': valor_liq,
                 'Status': 'destino ranqueado elegível',
             })
+            chave_gate = (lote_id, str(destino_rank.get('nome') or ''))
+            lote_prod_key = str(getattr(lote, 'produto_key', '') or '')
+            lote_nome_norm = normalizar_texto(getattr(lote, 'investimento', '') or '')
+            lote_rank = int(rank_por_produto_key.get(lote_prod_key, rank_por_nome_normalizado.get(lote_nome_norm, 999)))
+            destino_rank_num = int(destino_rank.get('rank_destino') or 999)
+            carencia_destino = int(destino_rank.get('carencia_dias') or 0)
+            pagamentos_janela = 0.0
+            if hasattr(contas, 'to_dict') and carencia_destino > 0:
+                data_sw = pd.to_datetime(data_sug).date() if data_sug is not None else None
+                if data_sw is not None:
+                    data_lim = data_sw + timedelta(days=carencia_destino)
+                    for conta in contas.to_dict(orient='records'):
+                        data_conta = pd.to_datetime(conta.get('data')).date() if conta.get('data') is not None else None
+                        if data_conta is not None and data_sw < data_conta <= data_lim:
+                            pagamentos_janela += float(conta.get('valor') or 0.0)
+            bloqueado = bool(lote_rank == 1 and destino_rank_num > lote_rank and carencia_destino > 0 and pagamentos_janela > 0.0)
+            gate_info = {
+                'motivo_gate_switching': 'bloqueado_origem_top1_risco_liquidez' if bloqueado else '',
+                'bloqueado_pos_gate': bloqueado,
+                'pagamentos_janela_carencia': round(pagamentos_janela, 2),
+                'rank_origem': lote_rank,
+                'rank_destino_sugerido': destino_rank_num,
+                'elegivel': not bloqueado,
+            }
+            gate_por_lote_destino[chave_gate] = gate_info
+            if bloqueado:
+                bloqueados_auditoria.append({
+                    'Data sugerida': _fmt_data(data_sug),
+                    'Data': _fmt_data(data_sug),
+                    'Lote origem': lote_id,
+                    'Produto origem': getattr(lote, 'investimento', '') if lote is not None else row.get('produto_origem_nome') or '',
+                    'Produto destino switching': destino_rank.get('nome') or '',
+                    'Destino': destino_rank.get('nome') or '',
+                    'Ganho estimado': ganho,
+                    'Valor líquido origem': valor_liq,
+                    'Status': str(gate_info.get('motivo_gate_switching') or 'candidato_bloqueado_gate'),
+                })
+                linhas.pop()
             usados.add(lote_id)
             if len(linhas) >= limite:
                 break

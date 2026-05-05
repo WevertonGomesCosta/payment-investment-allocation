@@ -45,6 +45,10 @@ class AcaoSwitchingTemporalCandidata:
     atende_ticket_individual: bool = True
     motivo_bloqueio_ticket_individual: str = ''
     status_modelo: str = 'integral_multidestino_v129'
+    motivo_gate_switching: str = ''
+    bloqueado_pos_gate: bool = False
+    pagamentos_janela_carencia: float = 0.0
+    rank_origem: int = 0
 
     def para_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -177,6 +181,18 @@ def planejar_switching_temporal_v1(
             elegivel=True,
         )
     ]
+    ganho_material_minimo_top1 = 5.0
+    rank_por_produto: dict[str, int] = {}
+    for pos, destino in enumerate(destinos_brutos, start=1):
+        key = str((destino or {}).get('produto_key') or '').strip()
+        if not key:
+            continue
+        rank_por_produto[key] = int((destino or {}).get('rank_destino') or pos)
+    switching_bloqueados_carencia_pagamentos = 0
+    switching_bloqueados_origem_top1 = 0
+    switching_bloqueados_risco_liquidez = 0
+    switching_candidatos_avaliados_pos_gate = 0
+    switching_candidatos_bloqueados_pos_gate = 0
 
     lotes = estado.get('lotes_aportados') or []
     registros_candidatos: list[AcaoSwitchingTemporalCandidata] = []
@@ -268,10 +284,55 @@ def planejar_switching_temporal_v1(
                 patrimonio_terminal_destino - patrimonio_terminal_origem - penalidade_carencia,
                 2,
             )
+            rank_origem = int(rank_por_produto.get(produto_origem_key, 999))
+            rank_destino = int(produto_destino.get('rank_destino') or rank_destino)
+            liquidez_alternativa = 0.0
+            for outro in lotes:
+                outro_norm = _normalizar_lote(outro)
+                if str(outro_norm.get('id') or '') == str(lote.get('id') or ''):
+                    continue
+                saldo_outro = float(outro_norm.get('valor_liquido_resgatavel') or outro_norm.get('principal_remanescente') or 0.0)
+                if saldo_outro <= 0.0:
+                    continue
+                car_outro = _coerce_date(outro_norm.get('carencia_ate'))
+                disp_outro = max(
+                    data_acao,
+                    (car_outro or data_acao),
+                    data_acao + timedelta(days=max(int(outro_norm.get('liquidez_dias_atual') or 0), 0)),
+                )
+                if disp_outro <= data_disponibilidade_destino:
+                    liquidez_alternativa += saldo_outro
+            liquidez_alternativa += sum(
+                float(r.get('valor_disponivel') or r.get('valor') or 0.0)
+                for r in list(estado.get('recebidos_nao_aportados_disponiveis') or [])
+            )
+            risco_liquidez = bool(dias_carencia_incremental > 0 and total_pag_janela > 0.0 and liquidez_alternativa + 1e-9 < total_pag_janela)
+            motivo_gate = ''
+            bloqueado_pos_gate = False
+            risco_liquidez_top1 = bool(rank_origem == 1 and rank_destino > rank_origem and dias_carencia_incremental > 0 and total_pag_janela > 0.0)
+            if risco_liquidez:
+                motivo_gate = 'bloqueado_carencia_pagamentos'
+                bloqueado_pos_gate = True
+                switching_bloqueados_carencia_pagamentos += 1
+                switching_bloqueados_risco_liquidez += 1
+            elif rank_origem == 1 and rank_destino > rank_origem:
+                if risco_liquidez_top1:
+                    motivo_gate = 'bloqueado_origem_top1_risco_liquidez'
+                    bloqueado_pos_gate = True
+                    switching_bloqueados_origem_top1 += 1
+                    switching_bloqueados_risco_liquidez += 1
+                elif ganho_terminal_economico < ganho_material_minimo_top1:
+                    motivo_gate = 'bloqueado_origem_top1_sem_ganho_material'
+                    bloqueado_pos_gate = True
+                    switching_bloqueados_origem_top1 += 1
+            switching_candidatos_avaliados_pos_gate += 1
+            if bloqueado_pos_gate:
+                switching_candidatos_bloqueados_pos_gate += 1
             elegivel = (
                 bool(produto_destino_nome)
                 and (data_fim is None or data_acao <= data_fim)
                 and ganho_terminal_economico > 0.0
+                and not bloqueado_pos_gate
             )
             justificativa = (
                 f"Switching temporal multidestino: data={data_acao.isoformat()}, destino={produto_destino_nome}, "
@@ -308,13 +369,17 @@ def planejar_switching_temporal_v1(
                     dias_carencia_incremental=dias_carencia_incremental,
                     retorno_anual_origem_estimado=retorno_anual_origem,
                     score_ranqueamento_economico=ganho_terminal_economico,
-                    rank_destino_sugerido=int(produto_destino.get('rank_destino') or rank_destino),
+                    rank_destino_sugerido=rank_destino,
                     aplicacao_minima_destino=aplicacao_minima_destino,
                     aplicacao_maxima_destino=aplicacao_maxima_destino,
                     somente_combo_destino=somente_combo_destino,
                     atende_ticket_individual=atende_ticket_individual,
                     motivo_bloqueio_ticket_individual=motivo_ticket_individual,
                     status_modelo='integral_multidestino_v129',
+                    motivo_gate_switching=motivo_gate,
+                    bloqueado_pos_gate=bloqueado_pos_gate,
+                    pagamentos_janela_carencia=round(total_pag_janela, 2),
+                    rank_origem=rank_origem,
                 )
             )
 
@@ -455,4 +520,9 @@ def planejar_switching_temporal_v1(
         'produto_destino_padrao': produto_destino_padrao,
         'criterio_ranqueamento': 'ganho_terminal_economico_minimo_estimado',
         'escopo_fontes': 'lotes_aportados_e_nao_aportados_disponiveis',
+        'switching_bloqueados_carencia_pagamentos': int(switching_bloqueados_carencia_pagamentos),
+        'switching_bloqueados_origem_top1': int(switching_bloqueados_origem_top1),
+        'switching_bloqueados_risco_liquidez': int(switching_bloqueados_risco_liquidez),
+        'switching_candidatos_avaliados_pos_gate': int(switching_candidatos_avaliados_pos_gate),
+        'switching_candidatos_bloqueados_pos_gate': int(switching_candidatos_bloqueados_pos_gate),
     }
