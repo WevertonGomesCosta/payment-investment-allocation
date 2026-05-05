@@ -1811,6 +1811,23 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 'status_recebido': '',
             })
     saldo_temporal['recebidos_total_origem_situacao_atual'] = len(recebidos_rows)
+    saldo_temporal['recebidos_shadow_fontes_total'] = 0
+    saldo_temporal['recebidos_shadow_fontes_elegiveis_pagamento'] = 0
+    saldo_temporal['recebidos_shadow_fontes_futuras_aguardando_data'] = 0
+    saldo_temporal['recebidos_shadow_fontes_aplicadas_excluidas'] = 0
+    saldo_temporal['recebidos_shadow_fontes_exauridas_excluidas'] = 0
+    saldo_temporal['pagamentos_rebaixados_shadow_total'] = 0
+    saldo_temporal['pagamentos_recuperados_shadow_por_recebidos'] = 0
+    saldo_temporal['pagamentos_nao_recuperados_shadow_saldo_insuficiente'] = 0
+    saldo_temporal['pagamentos_nao_recuperados_shadow_fonte_futura'] = 0
+    saldo_temporal['valor_recebidos_shadow_total'] = 0.0
+    saldo_temporal['valor_recebidos_usado_pagamentos_shadow'] = 0.0
+    saldo_temporal['valor_recebidos_reservado_pagamentos_shadow'] = 0.0
+    saldo_temporal['valor_recebidos_alocavel_pos_reserva_shadow'] = 0.0
+    saldo_temporal['alocacao_fontes_mantidas_caixa_justificadas'] = 0
+    saldo_temporal['saldo_temporal_lote_8500_primeiro_evento_estouro'] = ''
+    saldo_temporal_lote_8500_trilha_eventos: list[dict[str, Any]] = []
+    pagamentos_rebaixados_shadow_detalhe: list[dict[str, Any]] = []
     data_ref = getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
     for rr in recebidos_rows:
         dt = rr.get('data_recebimento')
@@ -1818,7 +1835,14 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         recebido_id = _txt(rr.get('recebido_id') or rr.get('id') or rr.get('fonte_id'))
         valor_liquido = float(rr.get('valor_liquido') or rr.get('valor_disponivel') or rr.get('valor') or 0.0)
         saldo_temporal['recebidos_futuros_total'] += 1
+        saldo_temporal['recebidos_shadow_fontes_total'] += 1
         incorporado = bool(dt is not None and data_ref is not None and dt <= data_ref and status_origem not in {'aplicado', 'exaurido'})
+        if status_origem == 'aplicado':
+            saldo_temporal['recebidos_shadow_fontes_aplicadas_excluidas'] += 1
+        if status_origem == 'exaurido':
+            saldo_temporal['recebidos_shadow_fontes_exauridas_excluidas'] += 1
+        if dt is not None and data_ref is not None and dt > data_ref:
+            saldo_temporal['recebidos_shadow_fontes_futuras_aguardando_data'] += 1
         if dt is not None and data_ref is not None and dt <= data_ref:
             saldo_temporal['recebidos_disponiveis_incorporados_total'] += int(incorporado)
             saldo_temporal['recebidos_total_integrados_ledger'] += int(incorporado)
@@ -1827,6 +1851,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             saldo_temporal['recebidos_total_integrados_ledger'] += int(incorporado)
         if not incorporado:
             saldo_temporal['recebidos_disponiveis_nao_incorporados'] += 1
+        else:
+            saldo_temporal['recebidos_shadow_fontes_elegiveis_pagamento'] += 1
+            saldo_temporal['valor_recebidos_shadow_total'] += valor_liquido
         motivo = ''
         if dt is None or data_ref is None:
             motivo = 'data_indisponivel'
@@ -1848,45 +1875,94 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         comparativo_mapa_funcoes_legadas.append({'arquivo_legado': m[0], 'funcao_bloco_legado': m[1], 'responsabilidade': m[2], 'equivalente_atual': m[3], 'lacuna_ledger_atual': m[4], 'correcao_minima_compativel': m[5]})
     saldo_temporal['comparativo_funcoes_legadas_mapeadas'] = len(comparativo_mapa_funcoes_legadas)
     saldo_temporal['comparativo_funcoes_sem_equivalente_atual'] = 1
-    for lote_id, meta in estado_lotes.items():
-        saldo = float(meta.get('saldo_liquido') or 0.0)
-        if saldo <= 0.20:
-            continue
+    rebaixados = [x for x in saldo_temporal_pagamentos_rebaixados_detalhe if str(x.get('motivo_causal_rebaixamento') or '') == 'saldo_real_insuficiente_cumulativo']
+    saldo_temporal['pagamentos_rebaixados_shadow_total'] = len(rebaixados)
+    fontes_shadow: list[dict[str, Any]] = []
+    for rr in recebidos_rows:
+        dt = rr.get('data_recebimento')
+        status = _txt(rr.get('status_recebido') or rr.get('status') or '')
+        valor = round(float(rr.get('valor_liquido') or rr.get('valor_disponivel') or rr.get('valor') or 0.0), 2)
+        destino = _txt(rr.get('destino_potencial') or rr.get('destino') or '')
+        fontes_shadow.append({'fonte_id': _txt(rr.get('recebido_id') or rr.get('id') or rr.get('fonte_id')), 'data': dt, 'valor': valor, 'status': status, 'destino': destino, 'usado': 0.0})
+    fontes_shadow.sort(key=lambda x: (str(x.get('data') or ''), 0 if x.get('destino') == 'pagamento' else 1, str(x.get('fonte_id') or '')))
+    for rb in rebaixados:
+        dt_pag = str(rb.get('data') or '')
+        val = round(float(rb.get('valor') or 0.0), 2)
+        restante = val
+        havia_futura = False
+        usadas = []
+        for f in fontes_shadow:
+            if f['status'] in {'aplicado', 'exaurido'} or f['valor'] <= 0:
+                continue
+            data_f = str(f.get('data') or '')
+            if data_f and dt_pag and data_f > dt_pag:
+                havia_futura = True
+                continue
+            if f['valor'] <= 0:
+                continue
+            uso = min(f['valor'], restante)
+            if uso > 0:
+                antes = f['valor']
+                f['valor'] = round(f['valor'] - uso, 2)
+                f['usado'] = round(f['usado'] + uso, 2)
+                restante = round(restante - uso, 2)
+                usadas.append({'fonte_id': f['fonte_id'], 'saldo_antes_shadow': antes, 'valor_usado_shadow': uso, 'saldo_depois_shadow': f['valor']})
+            if restante <= 0.01:
+                break
+        recuperado = restante <= 0.01
+        if recuperado:
+            saldo_temporal['pagamentos_recuperados_shadow_por_recebidos'] += 1
+        elif havia_futura:
+            saldo_temporal['pagamentos_nao_recuperados_shadow_fonte_futura'] += 1
+        else:
+            saldo_temporal['pagamentos_nao_recuperados_shadow_saldo_insuficiente'] += 1
+        pagamentos_rebaixados_shadow_detalhe.append({'pagamento_id': rb.get('despesa_id'), 'data': rb.get('data'), 'valor': val, 'recuperado_shadow': recuperado, 'saldo_restante_shadow': restante, 'fontes_usadas_shadow': usadas, 'motivo_nao_recuperacao_shadow': '' if recuperado else ('fonte_futura_na_data' if havia_futura else 'saldo_insuficiente')})
+    saldo_temporal['pagamentos_rebaixados_recuperaveis_shadow_por_recebidos'] = saldo_temporal['pagamentos_recuperados_shadow_por_recebidos']
+    saldo_temporal['pagamentos_rebaixados_saldo_real_insuficiente_pos_recebidos'] = saldo_temporal['pagamentos_nao_recuperados_shadow_saldo_insuficiente']
+    saldo_temporal['valor_recebidos_usado_pagamentos_shadow'] = round(sum(float(f['usado']) for f in fontes_shadow), 2)
+    saldo_temporal['valor_recebidos_reservado_pagamentos_shadow'] = saldo_temporal['valor_recebidos_usado_pagamentos_shadow']
+    saldo_temporal['valor_recebidos_alocavel_pos_reserva_shadow'] = round(sum(float(f['valor']) for f in fontes_shadow if f['status'] not in {'aplicado', 'exaurido'}), 2)
+    for f in fontes_shadow:
+        if f['status'] in {'aplicado', 'exaurido'}:
+            decisao = 'nao_alocavel'; motivo_dec = f'status_{f["status"]}'
+            reservado = alocavel = 0.0
+        elif f['usado'] > 0:
+            decisao = 'usar_pagamento'; motivo_dec = 'consumido_em_pagamento_shadow'
+            reservado = round(f['usado'], 2); alocavel = round(max(f['valor'], 0.0), 2)
+        elif f['destino'] in {'pagamento', 'pagamento_e_aplicacao'}:
+            decisao = 'reservar_pagamento'; motivo_dec = 'destino_pagamento_prioritario'
+            reservado = round(f['valor'], 2); alocavel = 0.0
+        elif f['valor'] > 0:
+            decisao = 'aportar_carteira'; motivo_dec = 'valor_alocavel_pos_reserva'
+            reservado = 0.0; alocavel = round(f['valor'], 2)
+        else:
+            decisao = 'manter_caixa'; motivo_dec = 'sem_valor_disponivel'
+            reservado = alocavel = 0.0
         saldo_temporal['alocacao_fontes_disponiveis_total'] += 1
-        saldo_temporal['alocacao_valor_liquido_disponivel_total'] += saldo
-        reservado = min(saldo, 0.0)
-        alocavel = max(saldo - reservado, 0.0)
+        saldo_temporal['alocacao_valor_liquido_disponivel_total'] += round(float(f['valor']) + float(reservado), 2)
         saldo_temporal['alocacao_valor_reservado_pagamentos_total'] += reservado
         saldo_temporal['alocacao_valor_alocavel_total'] += alocavel
-        if alocavel > 0:
-            saldo_temporal['alocacao_fontes_candidatas_aporte'] += 1
-            saldo_temporal['alocacao_fontes_com_destino_carteira'] += 1
-            decisao = 'aportar_carteira'; motivo_dec = 'valor_alocavel_positivo'
-        else:
-            saldo_temporal['alocacao_fontes_reservadas_pagamento'] += 1
-            saldo_temporal['alocacao_fontes_mantidas_caixa'] += 1
-            decisao = 'reservar_pagamento'; motivo_dec = 'sem_valor_alocavel'
-        alocacao_fontes_auditoria.append({'fonte_id': lote_id,'data_disponibilidade': meta.get('data_aplicacao'),'valor_liquido_disponivel': saldo,'valor_reservado_pagamentos_futuros': reservado,'valor_alocavel': alocavel,'decisao_shadow': decisao,'produto_destino_carteira': 'destino_proxy_carteira' if alocavel > 0 else '','ranking_destino': 1 if alocavel > 0 else '','ticket_minimo': 100.0,'passa_ticket_minimo': bool(alocavel >= 100.0),'liquidez_destino': 'D+1','carencia_destino': 0,'conflito_com_pagamentos_futuros': bool(reservado > 0),'motivo_decisao': motivo_dec})
+        if decisao == 'aportar_carteira': saldo_temporal['alocacao_fontes_com_destino_carteira'] += 1
+        if decisao == 'manter_caixa': saldo_temporal['alocacao_fontes_mantidas_caixa_justificadas'] += 1
+        alocacao_fontes_auditoria.append({'fonte_id': f['fonte_id'],'data_disponibilidade': f['data'],'valor_liquido': round(float(f['valor']) + float(reservado), 2),'valor_reservado_pagamentos': reservado,'valor_usado_pagamentos_shadow': round(f['usado'], 2),'valor_alocavel_pos_reserva': alocavel,'decisao_shadow': decisao,'produto_destino_carteira': 'destino_proxy_carteira' if decisao == 'aportar_carteira' else '','motivo_decisao': motivo_dec})
     saldo_temporal['alocacao_decisoes_integradas_ao_ledger'] = saldo_temporal['alocacao_fontes_disponiveis_total']
-    rebaixados = [x for x in saldo_temporal_pagamentos_rebaixados_detalhe if str(x.get('motivo_causal_rebaixamento') or '') == 'saldo_real_insuficiente_cumulativo']
-    data_ref_txt = str(data_ref or '')
-    pool_shadow = 0.0
-    for rr in recebidos_rows:
-        dt_txt = str(rr.get('data_recebimento') or '')
-        if not dt_txt or (data_ref_txt and dt_txt > data_ref_txt):
-            continue
-        pool_shadow += float(rr.get('valor_liquido') or rr.get('valor_disponivel') or rr.get('valor') or 0.0)
-    pool_shadow = round(pool_shadow, 2)
-    for rb in rebaixados:
-        val = float(rb.get('valor') or 0.0)
-        if pool_shadow + 0.01 >= val:
-            saldo_temporal['pagamentos_rebaixados_recuperaveis_shadow_por_recebidos'] += 1
-            pool_shadow = round(max(pool_shadow - val, 0.0), 2)
-        else:
-            saldo_temporal['pagamentos_rebaixados_saldo_real_insuficiente_pos_recebidos'] += 1
     evento_8500 = next((x for x in saldo_temporal_auditoria_lotes if str(x.get('lote_id') or '') == 'Lote 8500 mar.' and bool(x.get('consumo_excede_saldo'))), None)
+    saldo_l8500 = float(estado_lotes.get('Lote 8500 mar.', {}).get('saldo_liquido') or 0.0)
+    for ev in eventos:
+        if str(ev.get('lote_sugerido_operacional') or '') != 'Lote 8500 mar.':
+            continue
+        consumo_ev = float(ev.get('consumo') or ev.get('liquido') or 0.0)
+        antes = saldo_l8500
+        depois = round(antes - min(consumo_ev, max(antes, 0.0)), 2)
+        motivo = 'estouro_saldo' if consumo_ev > antes + 0.01 else 'consumo_regular'
+        trilha = {'data': ev.get('data'),'evento': 'pagamento','pagamento_ou_switching': ev.get('pagamento_id'),'saldo_antes': round(antes,2),'consumo': round(consumo_ev,2),'saldo_depois': round(depois,2),'motivo_estouro': motivo}
+        saldo_temporal_lote_8500_trilha_eventos.append(trilha)
+        if motivo == 'estouro_saldo' and not saldo_temporal['saldo_temporal_lote_8500_primeiro_evento_estouro']:
+            saldo_temporal['saldo_temporal_lote_8500_primeiro_evento_estouro'] = str(ev.get('pagamento_id') or '')
+        saldo_l8500 = depois
+    saldo_temporal['saldo_temporal_lote_8500_trilha_eventos_linhas'] = len(saldo_temporal_lote_8500_trilha_eventos)
     if evento_8500:
-        saldo_temporal['saldo_temporal_lote_8500_evento_causal'] = f"consumo_total={evento_8500.get('total_consumo_geral')} > saldo_inicial={evento_8500.get('saldo_inicial_liquido')}"
+        saldo_temporal['saldo_temporal_lote_8500_evento_causal'] = saldo_temporal.get('saldo_temporal_lote_8500_primeiro_evento_estouro') or f"consumo_total={evento_8500.get('total_consumo_geral')} > saldo_inicial={evento_8500.get('saldo_inicial_liquido')}"
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1933,8 +2009,10 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d32a_plano_por_data": d32a_plano_por_data,
         "saldo_temporal_auditoria_lotes": saldo_temporal_auditoria_lotes,
         "saldo_temporal_pagamentos_rebaixados_detalhe": saldo_temporal_pagamentos_rebaixados_detalhe,
+        "pagamentos_rebaixados_shadow_detalhe": pagamentos_rebaixados_shadow_detalhe,
         "recebidos_futuros_auditoria": recebidos_futuros_auditoria,
         "alocacao_fontes_auditoria": alocacao_fontes_auditoria,
+        "saldo_temporal_lote_8500_trilha_eventos": saldo_temporal_lote_8500_trilha_eventos,
         "comparativo_mapa_funcoes_legadas": comparativo_mapa_funcoes_legadas,
         **shadow_counters,
     }
