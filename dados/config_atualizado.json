@@ -216,6 +216,15 @@
       "permite_combo": [
         "permite_combo",
         "Permite_Combo"
+      ],
+      "regra_iof": [
+        "Regra_IOF",
+        "Regra IOF"
+      ],
+      "semantica_taxa_base": [
+        "Semantica_Taxa_Base",
+        "Semântica_Taxa_Base",
+        "Semantica Taxa Base"
       ]
     },
     "lotes": {
@@ -792,7 +801,9 @@
         "Max_Usos",
         "Camada",
         "Status_Confirmação",
-        "Campos_Pendentes"
+        "Campos_Pendentes",
+        "Regra_IOF",
+        "Semantica_Taxa_Base"
       ],
       "derived_columns_present_in_sheet": [
         "Elegível_SAOF",
