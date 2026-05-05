@@ -189,6 +189,71 @@ def _score_shadow(
     return float(ganho_liquido + materialidade + (score_triagem * 0.10) + risco_bonus - risco_pen - carencia_pen - prazo_pen)
 
 
+def _mapas_rank_candidatos(candidatos: pd.DataFrame) -> tuple[dict[str, int], dict[str, int]]:
+    if len(candidatos) == 0 or 'produto_key' not in candidatos.columns:
+        return {}, {}
+    ordenado = candidatos.sort_values(['score_final', 'nome'], ascending=[False, True], kind='stable').reset_index(drop=True)
+    rank_por_produto = {limpar_texto(row.get('produto_key')): int(idx + 1) for idx, (_, row) in enumerate(ordenado.iterrows())}
+    rank_por_nome_normalizado = {normalizar_texto(row.get('nome')): int(idx + 1) for idx, (_, row) in enumerate(ordenado.iterrows())}
+    return rank_por_produto, rank_por_nome_normalizado
+
+
+def _mapas_rank_oficial(ranking_carteira: Any | None) -> tuple[dict[str, int], dict[str, int]]:
+    destinos = getattr(ranking_carteira, 'quadro_destinos_switch', None) if ranking_carteira is not None else None
+    if not isinstance(destinos, pd.DataFrame) or len(destinos) == 0:
+        return {}, {}
+    rank_por_produto: dict[str, int] = {}
+    rank_por_nome_normalizado: dict[str, int] = {}
+    for _, row in destinos.iterrows():
+        rank = int(para_int(row.get('rank_destino'), 999) or 999)
+        key = limpar_texto(row.get('produto_key'))
+        nome_norm = normalizar_texto(row.get('nome'))
+        if key and key not in rank_por_produto:
+            rank_por_produto[key] = rank
+        if nome_norm and nome_norm not in rank_por_nome_normalizado:
+            rank_por_nome_normalizado[nome_norm] = rank
+    return rank_por_produto, rank_por_nome_normalizado
+
+
+def _resolver_rank_origem(
+    lote: Lote,
+    *,
+    produto_origem_nome: str,
+    produto_origem_meta: Mapping[str, Any],
+    rank_por_produto: Mapping[str, int],
+    rank_por_nome_normalizado: Mapping[str, int],
+) -> int:
+    # 1) produto_key do lote
+    rank = int(rank_por_produto.get(limpar_texto(getattr(lote, 'produto_key', '')), 0) or 0)
+    if rank > 0:
+        return rank
+    # 2) nome normalizado do produto de origem
+    rank = int(rank_por_nome_normalizado.get(normalizar_texto(produto_origem_nome), 0) or 0)
+    if rank > 0:
+        return rank
+    # 3) metadado por key da carteira
+    nome_meta = limpar_texto(produto_origem_meta.get('nome'))
+    rank = int(rank_por_nome_normalizado.get(normalizar_texto(nome_meta), 0) or 0)
+    if rank > 0:
+        return rank
+    # 4) nome/investimento normalizado do lote
+    nome_lote = limpar_texto(getattr(lote, 'investimento', ''))
+    rank = int(rank_por_nome_normalizado.get(normalizar_texto(nome_lote), 0) or 0)
+    return rank if rank > 0 else 999
+
+
+def _soma_pagamentos_na_janela(dados_operacionais: PacoteDadosOperacionaisCanonicos, inicio: date, fim: date) -> float:
+    gastos = dados_operacionais.gastos_canonicos.copy()
+    if len(gastos) == 0 or 'data' not in gastos.columns:
+        return 0.0
+    datas = pd.to_datetime(gastos['data'], errors='coerce').dt.date
+    mask = datas.notna() & (datas > inicio) & (datas <= fim)
+    if 'futuro_ou_pendente_na_data_referencia' in gastos.columns:
+        mask &= gastos['futuro_ou_pendente_na_data_referencia'].fillna(False)
+    valores = pd.to_numeric(gastos.loc[mask, 'valor'], errors='coerce').fillna(0.0) if 'valor' in gastos.columns else pd.Series(dtype=float)
+    return float(valores.sum()) if len(valores) > 0 else 0.0
+
+
 def carregar_switching_economico_shadow(
     dados_operacionais: PacoteDadosOperacionaisCanonicos,
     carteira_canonica: PacoteCarteiraCanonica,
@@ -196,6 +261,7 @@ def carregar_switching_economico_shadow(
     replay_passado: PacoteReplayPassadoControlado | None,
     calendario_financeiro: PacoteCalendarioFinanceiro,
     config: Mapping[str, Any],
+    ranking_carteira: Any | None = None,
     *,
     data_referencia: date,
     tabela_iof: list[float],
@@ -209,6 +275,11 @@ def carregar_switching_economico_shadow(
 
     lotes = _lotes_ativos_switching(replay_passado)
     candidatos = _selecionar_produtos_candidatos(carteira_canonica, triagem_motor)
+    rank_por_produto_oficial, rank_por_nome_normalizado_oficial = _mapas_rank_oficial(ranking_carteira)
+    rank_por_produto_candidatos, rank_por_nome_normalizado_candidatos = _mapas_rank_candidatos(candidatos)
+    rank_por_produto = rank_por_produto_oficial or rank_por_produto_candidatos
+    rank_por_nome_normalizado = rank_por_nome_normalizado_oficial or rank_por_nome_normalizado_candidatos
+    saldo_disponivel = float(getattr(dados_operacionais, 'saldo_disponivel_geral', 0.0) or 0.0)
     quadro_linhas: list[dict[str, Any]] = []
 
     for lote in lotes:
@@ -229,6 +300,13 @@ def carregar_switching_economico_shadow(
             )
             produto_destino_key = limpar_texto(produto_row.get('produto_key'))
             produto_destino_nome = limpar_texto(produto_row.get('nome'))
+            rank_origem = _resolver_rank_origem(
+                lote,
+                produto_origem_nome=produto_origem_nome,
+                produto_origem_meta=produto_origem_meta,
+                rank_por_produto=rank_por_produto,
+                rank_por_nome_normalizado=rank_por_nome_normalizado,
+            )
             linha = {
                 'lote_id': lote.id,
                 'produto_origem_key': lote.produto_key,
@@ -255,6 +333,13 @@ def carregar_switching_economico_shadow(
                 'score_switch_shadow': None,
                 'ranking_lote': None,
                 'recomendado_shadow': False,
+                'rank_origem': int(rank_origem),
+                'rank_destino': int(rank_por_produto.get(produto_destino_key, 999)),
+                'dias_carencia_incremental': 0,
+                'pagamentos_na_janela_carencia': 0.0,
+                'fontes_alternativas_suficientes': True,
+                'bloqueado_pos_gate': False,
+                'motivo_gate_switching': '',
             }
             if elegivel:
                 lote_destino = _criar_lote_destino_shadow(produto_row, valor_liquido_resgatavel, data_referencia)
@@ -273,6 +358,15 @@ def carregar_switching_economico_shadow(
                 linha['riqueza_switch_horizonte'] = arredondar_monetario(riqueza_switch)
                 linha['ganho_liquido_estimado'] = arredondar_monetario(ganho)
                 linha['score_switch_shadow'] = round(float(score), 4)
+                carencia_destino = int(linha['carencia_dias_destino'] or 0)
+                carencia_origem = int(getattr(lote, 'carencia_dias', 0) or 0)
+                carencia_incremental = max(carencia_destino - carencia_origem, 0)
+                linha['dias_carencia_incremental'] = carencia_incremental
+                data_limite = data_referencia + timedelta(days=carencia_incremental) if carencia_incremental > 0 else data_referencia
+                pagamentos_janela = _soma_pagamentos_na_janela(dados_operacionais, data_referencia, data_limite) if carencia_incremental > 0 else 0.0
+                linha['pagamentos_na_janela_carencia'] = arredondar_monetario(pagamentos_janela)
+                fontes_alt = max(saldo_disponivel - valor_liquido_resgatavel, 0.0)
+                linha['fontes_alternativas_suficientes'] = bool(fontes_alt + 1e-9 >= pagamentos_janela)
             quadro_linhas.append(linha)
 
     quadro = pd.DataFrame(quadro_linhas)
@@ -297,8 +391,42 @@ def carregar_switching_economico_shadow(
         elegiveis = elegiveis.sort_values(['lote_id', 'score_switch_shadow', 'ganho_liquido_estimado', 'produto_destino_nome'], ascending=[True, False, False, True], kind='stable')
         elegiveis['ranking_lote'] = elegiveis.groupby('lote_id').cumcount() + 1
         elegiveis['recomendado_shadow'] = (elegiveis['ranking_lote'] == 1) & (elegiveis['ganho_liquido_estimado'].fillna(0.0) >= ganho_minimo)
+        elegiveis['recomendado_shadow_antes_gate'] = elegiveis['recomendado_shadow']
+        ganho_excepcional = ganho_minimo * 3.0
+        risco_liquidez = (
+            (elegiveis['pagamentos_na_janela_carencia'].fillna(0.0) > 0.0)
+            | (~elegiveis['fontes_alternativas_suficientes'].fillna(True).astype(bool))
+        )
+        gate_dominancia = (
+            (elegiveis['rank_origem'].fillna(999).astype(int) < elegiveis['rank_destino'].fillna(999).astype(int))
+            & (
+                (elegiveis['dias_carencia_incremental'].fillna(0).astype(int) > 0)
+                | risco_liquidez
+            )
+            & (elegiveis['ganho_liquido_estimado'].fillna(0.0) < ganho_excepcional)
+        )
+        gate_top1_risco = (
+            (elegiveis['rank_origem'].fillna(999).astype(int) == 1)
+            & (elegiveis['rank_destino'].fillna(999).astype(int) > elegiveis['rank_origem'].fillna(999).astype(int))
+            & (
+                (elegiveis['dias_carencia_incremental'].fillna(0).astype(int) > 0)
+                | risco_liquidez
+                | (elegiveis['ganho_liquido_estimado'].fillna(0.0) < ganho_excepcional)
+            )
+        )
+        gate_aplicado = gate_dominancia | gate_top1_risco
+        elegiveis.loc[gate_dominancia, 'motivo_gate_switching'] = 'bloqueado_dominancia_ranking_liquidez'
+        elegiveis.loc[gate_top1_risco, 'bloqueado_pos_gate'] = True
+        elegiveis.loc[gate_top1_risco, 'motivo_gate_switching'] = 'bloqueado_origem_top1_destino_pior_carencia_incremental'
+        elegiveis.loc[gate_aplicado, 'bloqueado_pos_gate'] = True
+        elegiveis.loc[gate_aplicado, 'recomendado_shadow'] = False
+        elegiveis['recomendado_shadow_depois_gate'] = elegiveis['recomendado_shadow']
         quadro.loc[elegiveis.index, 'ranking_lote'] = elegiveis['ranking_lote']
         quadro.loc[elegiveis.index, 'recomendado_shadow'] = elegiveis['recomendado_shadow']
+        quadro.loc[elegiveis.index, 'recomendado_shadow_antes_gate'] = elegiveis['recomendado_shadow_antes_gate']
+        quadro.loc[elegiveis.index, 'recomendado_shadow_depois_gate'] = elegiveis['recomendado_shadow_depois_gate']
+        quadro.loc[elegiveis.index, 'bloqueado_pos_gate'] = elegiveis['bloqueado_pos_gate']
+        quadro.loc[elegiveis.index, 'motivo_gate_switching'] = elegiveis['motivo_gate_switching']
 
     melhores = quadro[quadro['ranking_lote'] == 1].copy() if 'ranking_lote' in quadro.columns else pd.DataFrame([])
     melhores = melhores.sort_values(['recomendado_shadow', 'ganho_liquido_estimado', 'score_switch_shadow', 'lote_id'], ascending=[False, False, False, True], kind='stable') if len(melhores) > 0 else melhores
