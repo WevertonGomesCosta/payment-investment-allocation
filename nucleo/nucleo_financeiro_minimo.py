@@ -35,7 +35,7 @@ from nucleo.calendario_financeiro import (
 )
 from nucleo.carteira_canonica import PacoteCarteiraCanonica
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
-from nucleo.utilitarios_neutros import arredondar_monetario, limpar_texto, para_bool, para_float_monetario, para_int
+from nucleo.utilitarios_neutros import arredondar_monetario, limpar_texto, normalizar_texto, para_bool, para_float_monetario, para_int
 
 
 @dataclass(slots=True)
@@ -89,7 +89,7 @@ class Lote:
         self.carencia_ate = carencia_ate
         self.nao_disponivel_para_aporte = bool(nao_disponivel_para_aporte)
         self.situacao_investimento = str(situacao_investimento or '').strip()
-        self.regra_iof = limpar_texto(regra_iof) or 'a_confirmar'
+        self.regra_iof = _modo_regra_iof(regra_iof)
 
     def get_taxa_dia(self, data_atual: date, pacote_calendario: Optional[PacoteCalendarioFinanceiro] = None) -> float:
         idade = (data_atual - self.data_base_fiscal).days
@@ -337,6 +337,17 @@ def _taxa_iof(dias: int, *, tabela_iof: Optional[list[float]] = None) -> float:
     return float(tabela[idx])
 
 
+def _modo_regra_iof(regra_iof: Any) -> str:
+    regra = normalizar_texto(regra_iof)
+    if regra in {'nao incide', 'sem iof', 'isento iof'}:
+        return 'nao_incide'
+    if regra in {'regressiva 30d', 'regressiva', 'tabela regressiva'}:
+        return 'regressiva_30d'
+    if regra in {'nao_incide', 'regressiva_30d', 'a_confirmar'}:
+        return regra
+    return 'a_confirmar'
+
+
 def _fator_liquido(
     fator_acumulado: float,
     dias_vida: int,
@@ -348,7 +359,7 @@ def _fator_liquido(
 ) -> float:
     if fator_acumulado <= 1.0:
         return 1.0
-    regra = limpar_texto(regra_iof).lower()
+    regra = _modo_regra_iof(regra_iof)
     if regra == 'nao_incide':
         iof = 0.0
     else:
@@ -457,10 +468,25 @@ def executar_saque_lote(
     }
 
 
-def _obter_meta_produto(produto_key: Optional[str], carteira_canonica: Optional[PacoteCarteiraCanonica]) -> dict[str, Any]:
-    if not produto_key or carteira_canonica is None:
+def _obter_meta_produto(
+    produto_key: Optional[str],
+    carteira_canonica: Optional[PacoteCarteiraCanonica],
+    *,
+    nome_produto: str = '',
+) -> dict[str, Any]:
+    if carteira_canonica is None:
         return {}
-    return dict((carteira_canonica.mapa_produtos.get('by_key', {}) or {}).get(produto_key) or {})
+    by_key = (carteira_canonica.mapa_produtos.get('by_key', {}) or {})
+    if produto_key:
+        meta = dict(by_key.get(produto_key) or {})
+        if meta:
+            return meta
+    nome_norm = normalizar_texto(nome_produto)
+    by_nome_norm = (carteira_canonica.mapa_produtos.get('by_nome_norm', {}) or {})
+    key_por_nome = by_nome_norm.get(nome_norm)
+    if key_por_nome:
+        return dict(by_key.get(key_por_nome) or {})
+    return {}
 
 
 def carregar_nucleo_financeiro_minimo(
@@ -500,8 +526,8 @@ def carregar_nucleo_financeiro_minimo(
             continue
 
         produto_key = row.get('produto_key') if bool(row.get('produto_encontrado', False)) else None
-        meta_produto = _obter_meta_produto(produto_key, carteira_canonica)
         investimento = limpar_texto(row.get('produto_nome_canonico') or row.get('investimento_bruto') or row.get('produto_informado'))
+        meta_produto = _obter_meta_produto(produto_key, carteira_canonica, nome_produto=investimento)
         nao_disponivel = bool(row.get('recebido_futuro_nao_disponivel', False))
         taxa_base = float(meta_produto.get('taxa_base_cdi', _cfg_get(config, 'defaults_lote', 'taxa_base_cdi', padrao=1.0)) or 1.0)
         taxa_bonus = float(meta_produto.get('taxa_bonus_cdi', _cfg_get(config, 'defaults_lote', 'taxa_bonus_cdi', padrao=0.0)) or 0.0)
