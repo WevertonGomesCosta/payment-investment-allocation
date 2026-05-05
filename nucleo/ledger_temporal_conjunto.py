@@ -34,6 +34,43 @@ def _eh_nd(v: Any) -> bool:
 
 
 
+
+def _normalizar_data_comparavel(v: Any) -> Any:
+    if v is None:
+        return None
+    try:
+        if pd.isna(v):
+            return None
+    except Exception:
+        pass
+    if hasattr(v, 'date') and not isinstance(v, str):
+        try:
+            if hasattr(v, 'hour'):
+                return v.date()
+        except Exception:
+            pass
+    if isinstance(v, str):
+        txt = v.strip()
+        if _norm(txt) in {'', 'n/d', 'nd', 'não determinado', 'nao determinado', 'none'}:
+            return None
+        for dayfirst in (False, True):
+            try:
+                dt = pd.to_datetime(txt, errors='raise', dayfirst=dayfirst)
+                if pd.isna(dt):
+                    continue
+                return dt.date()
+            except Exception:
+                continue
+        return None
+    try:
+        dt = pd.to_datetime(v, errors='raise')
+        if pd.isna(dt):
+            return None
+        return dt.date()
+    except Exception:
+        return None
+
+
 def avaliar_candidatos_fifo_pagamento(pid: str, d: dict[str, Any], estado_lotes: dict[str, dict[str, Any]], data_pag: Any, valor_pag: float, pacote: str, lote_sugerido: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     candidatos=[]
     qtd_estado=len(estado_lotes)
@@ -61,9 +98,12 @@ def avaliar_candidatos_fifo_pagamento(pid: str, d: dict[str, Any], estado_lotes:
         da=meta.get('data_aplicacao'); car=meta.get('carencia_ate'); mig=meta.get('migrado_em')
         if melhor_lote == '' or (da or '', -saldo, lid) < (melhor_data or '', -(float(melhor_saldo or 0) if melhor_saldo!='' else 0.0), melhor_lote):
             melhor_lote=lid; melhor_saldo=round(saldo,2); melhor_data=da; melhor_car=car
+        data_pag_cmp = _normalizar_data_comparavel(data_pag)
+        da_cmp = _normalizar_data_comparavel(da)
+        car_cmp = _normalizar_data_comparavel(car)
         bs = saldo + 0.01 < valor_pag
-        bd = (not bs) and (da is not None and data_pag is not None and da > data_pag)
-        bc = (not bs and not bd) and (car is not None and data_pag is not None and car > data_pag)
+        bd = (not bs) and (da_cmp is not None and data_pag_cmp is not None and da_cmp > data_pag_cmp)
+        bc = (not bs and not bd) and (car_cmp is not None and data_pag_cmp is not None and car_cmp > data_pag_cmp)
         motivo_mig = _motivo_bloqueio_migracao(data_pag, mig, pacote)
         bm = (not bs and not bd and not bc) and bool(motivo_mig)
         eleg = not (bs or bd or bc or bm)
@@ -90,11 +130,13 @@ def avaliar_candidatos_fifo_pagamento(pid: str, d: dict[str, Any], estado_lotes:
 
 
 def _motivo_bloqueio_migracao(data_pag: Any, migrado_em: Any, pacote: str) -> str:
-    if migrado_em is None or data_pag is None:
+    data_pag_cmp = _normalizar_data_comparavel(data_pag)
+    migrado_em_cmp = _normalizar_data_comparavel(migrado_em)
+    if migrado_em_cmp is None or data_pag_cmp is None:
         return ''
-    if migrado_em < data_pag:
+    if migrado_em_cmp < data_pag_cmp:
         return 'bloqueado_por_migracao_antes_do_pagamento'
-    if migrado_em == data_pag:
+    if migrado_em_cmp == data_pag_cmp:
         if pacote == 'switch_then_pay':
             return 'bloqueado_por_migracao_intradia_switch_then_pay'
         return 'bloqueado_por_migracao_intradia_precedencia_ambigua'
@@ -989,8 +1031,8 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                     mig_em = meta_diario.get('migrado_em')
                     motivo_mig = _motivo_bloqueio_migracao(d.get('data_pagamento'), mig_em, pacote)
                     bloqueado_temporal = bool(
-                        (data_apl is not None and d.get('data_pagamento') is not None and data_apl > d.get('data_pagamento'))
-                        or (car_ate is not None and d.get('data_pagamento') is not None and car_ate > d.get('data_pagamento'))
+                        (_normalizar_data_comparavel(data_apl) is not None and _normalizar_data_comparavel(d.get('data_pagamento')) is not None and _normalizar_data_comparavel(data_apl) > _normalizar_data_comparavel(d.get('data_pagamento')))
+                        or (_normalizar_data_comparavel(car_ate) is not None and _normalizar_data_comparavel(d.get('data_pagamento')) is not None and _normalizar_data_comparavel(car_ate) > _normalizar_data_comparavel(d.get('data_pagamento')))
                         or bool(motivo_mig)
                     )
                     if bloqueado_temporal:
@@ -1023,13 +1065,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                             bloq_saldo += 1
                             continue
                         qtd_saldo_suf += 1
-                        if da is not None and data_pag is not None and da > data_pag:
+                        if _normalizar_data_comparavel(da) is not None and _normalizar_data_comparavel(data_pag) is not None and _normalizar_data_comparavel(da) > _normalizar_data_comparavel(data_pag):
                             bloq_data += 1
                             continue
-                        if car is not None and data_pag is not None and car > data_pag:
+                        if _normalizar_data_comparavel(car) is not None and _normalizar_data_comparavel(data_pag) is not None and _normalizar_data_comparavel(car) > _normalizar_data_comparavel(data_pag):
                             bloq_car += 1
                             continue
-                        if mig is not None and data_pag is not None and mig <= data_pag:
+                        if _normalizar_data_comparavel(mig) is not None and _normalizar_data_comparavel(data_pag) is not None and _normalizar_data_comparavel(mig) <= _normalizar_data_comparavel(data_pag):
                             bloq_mig += 1
                             continue
                         elegiveis.append((da, -saldo, lid, saldo))
