@@ -1326,6 +1326,9 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'd31f_bases_reclassificadas': ledger_result.get('d31f_bases_reclassificadas', []),
         'd32a_plano_por_data': ledger_result.get('d32a_plano_por_data', []),
         'saldo_temporal_auditoria_lotes': ledger_result.get('saldo_temporal_auditoria_lotes', []),
+        'saldo_temporal_pagamentos_rebaixados_detalhe': ledger_result.get('saldo_temporal_pagamentos_rebaixados_detalhe', []),
+        'recebidos_futuros_auditoria': ledger_result.get('recebidos_futuros_auditoria', []),
+        'alocacao_fontes_auditoria': ledger_result.get('alocacao_fontes_auditoria', []),
         **(_PRE_INVARIANTE_EXTRATO_FUTURO or {}),
         **(_SOMBRA_DIVERGENCIAS_LEDGER or {}),
     }

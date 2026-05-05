@@ -571,12 +571,15 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'saldo_temporal_pagamentos_ok_antes': 0,'saldo_temporal_pagamentos_ok_depois': 0,'saldo_temporal_pagamentos_rebaixados_por_saldo': 0,
         'saldo_temporal_lote_7500_reiniciado': 0,'saldo_temporal_lote_8500_consumo_acima_saldo': 0,'saldo_temporal_divergencias_saldo_antes': 0,
         'saldo_temporal_divergencias_saldo_depois': 0,'saldo_temporal_invariantes_violados': 0,
-        'recebidos_futuros_incorporados_total': 0,'recebidos_disponiveis_nao_incorporados': 0,'pagamentos_rebaixados_por_fonte_nao_incorporada': 0,'pagamentos_rebaixados_por_saldo_real_insuficiente': 0,
+        'recebidos_futuros_total': 0,'recebidos_futuros_incorporados_total': 0,'recebidos_disponiveis_nao_incorporados': 0,'pagamentos_rebaixados_por_fonte_nao_incorporada': 0,'pagamentos_rebaixados_por_recebido_nao_incorporado': 0,'pagamentos_rebaixados_por_saldo_real_insuficiente': 0,
         'alocacao_fontes_disponiveis_total': 0,'alocacao_valor_liquido_disponivel_total': 0.0,'alocacao_valor_reservado_pagamentos_total': 0.0,'alocacao_valor_alocavel_total': 0.0,
         'alocacao_fontes_candidatas_aporte': 0,'alocacao_fontes_reservadas_pagamento': 0,'alocacao_fontes_mantidas_caixa': 0,'alocacao_fontes_com_destino_carteira': 0,'alocacao_fontes_sem_destino_carteira': 0,
         'alocacao_inconsistencias_classificacao': 0,'alocacao_decisoes_integradas_ao_ledger': 0,
     }
     saldo_temporal_auditoria_lotes: list[dict[str, Any]] = []
+    saldo_temporal_pagamentos_rebaixados_detalhe: list[dict[str, Any]] = []
+    recebidos_futuros_auditoria: list[dict[str, Any]] = []
+    alocacao_fontes_auditoria: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -1754,6 +1757,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 ev[k] = ''
             saldo_temporal['saldo_temporal_pagamentos_rebaixados_por_saldo'] += 1
             saldo_temporal['pagamentos_rebaixados_por_saldo_real_insuficiente'] += 1
+            saldo_temporal_pagamentos_rebaixados_detalhe.append({
+                'despesa_id': ev.get('pagamento_id'),'data': ev.get('data'),'conta': ev.get('conta'),'valor': consumo,
+                'fonte_sugerida_original': lote,'saldo_disponivel_cumulativo_fonte': saldo_antes_real,'motivo_causal_rebaixamento': 'saldo_real_insuficiente_cumulativo',
+                'havia_outra_fonte_disponivel_inicio_dia': any(v > 0.20 for k,v in saldo_exec.items() if k != lote),
+                'havia_recebido_futuro_disponivel_na_data': False,'havia_fonte_nao_incorporada_ao_estado': False,
+            })
             rec['pagamentos_afetados'].append(ev.get('pagamento_id'))
             if not rec['primeiro_evento_que_estoura_saldo']:
                 rec['primeiro_evento_que_estoura_saldo'] = str(ev.get('pagamento_id') or '')
@@ -1786,8 +1795,13 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     data_ref = getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
     for r in recebidos:
         dt = getattr(r, 'data_recebimento', None)
+        saldo_temporal['recebidos_futuros_total'] += 1
+        incorporado = bool(dt is not None and data_ref is not None and dt <= data_ref)
         if dt is not None and data_ref is not None and dt <= data_ref:
             saldo_temporal['recebidos_futuros_incorporados_total'] += 1
+        else:
+            saldo_temporal['recebidos_disponiveis_nao_incorporados'] += 1
+        recebidos_futuros_auditoria.append({'fonte_id': str(getattr(r, 'id', '')),'data_disponibilidade': dt,'valor_liquido': float(getattr(r, 'valor_liquido', 0.0) or 0.0),'status_inventario': 'incorporado' if incorporado else 'futuro_nao_incorporado','entrou_no_estado_temporal': incorporado,'data_entrada_estado': dt if incorporado else None,'usado_para_pagamento': False,'reservado_para_pagamento_futuro': incorporado,'candidato_aporte': incorporado,'motivo_nao_incorporado': '' if incorporado else 'data_futura_apos_referencia'})
     for lote_id, meta in estado_lotes.items():
         saldo = float(meta.get('saldo_liquido') or 0.0)
         if saldo <= 0.20:
@@ -1801,9 +1815,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         if alocavel > 0:
             saldo_temporal['alocacao_fontes_candidatas_aporte'] += 1
             saldo_temporal['alocacao_fontes_com_destino_carteira'] += 1
+            decisao = 'aportar_carteira'; motivo_dec = 'valor_alocavel_positivo'
         else:
             saldo_temporal['alocacao_fontes_reservadas_pagamento'] += 1
             saldo_temporal['alocacao_fontes_mantidas_caixa'] += 1
+            decisao = 'reservar_pagamento'; motivo_dec = 'sem_valor_alocavel'
+        alocacao_fontes_auditoria.append({'fonte_id': lote_id,'data_disponibilidade': meta.get('data_aplicacao'),'valor_liquido_disponivel': saldo,'valor_reservado_pagamentos_futuros': reservado,'valor_alocavel': alocavel,'decisao_shadow': decisao,'produto_destino_carteira': 'destino_proxy_carteira' if alocavel > 0 else '','ranking_destino': 1 if alocavel > 0 else '','ticket_minimo': 100.0,'passa_ticket_minimo': bool(alocavel >= 100.0),'liquidez_destino': 'D+1','carencia_destino': 0,'conflito_com_pagamentos_futuros': bool(reservado > 0),'motivo_decisao': motivo_dec})
     saldo_temporal['alocacao_decisoes_integradas_ao_ledger'] = saldo_temporal['alocacao_fontes_disponiveis_total']
     return {
         "eventos": eventos,
@@ -1850,5 +1867,8 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "d31f_bases_reclassificadas": d31f_bases_reclassificadas,
         "d32a_plano_por_data": d32a_plano_por_data,
         "saldo_temporal_auditoria_lotes": saldo_temporal_auditoria_lotes,
+        "saldo_temporal_pagamentos_rebaixados_detalhe": saldo_temporal_pagamentos_rebaixados_detalhe,
+        "recebidos_futuros_auditoria": recebidos_futuros_auditoria,
+        "alocacao_fontes_auditoria": alocacao_fontes_auditoria,
         **shadow_counters,
     }
