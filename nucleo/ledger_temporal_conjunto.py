@@ -587,6 +587,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     saldo_temporal_pagamentos_rebaixados_detalhe: list[dict[str, Any]] = []
     recebidos_futuros_auditoria: list[dict[str, Any]] = []
     alocacao_fontes_auditoria: list[dict[str, Any]] = []
+    shadow_pagamentos_recuperados_nominal: list[dict[str, Any]] = []
     comparativo_mapa_funcoes_legadas: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
@@ -1754,6 +1755,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     saldo_temporal['pagamentos_funcionais_nao_recuperados_por_saldo'] = 0
     saldo_temporal['pagamentos_funcionais_recuperados_invalidos'] = 0
     saldo_temporal['recebidos_funcionais_fontes_com_saldo_negativo'] = 0
+    saldo_temporal['recebidos_funcionais_candidatos_shadow_match'] = 0
+    saldo_temporal['recebidos_funcionais_entraram_bloco_promocao'] = 0
+    saldo_temporal['recebidos_funcionais_passaram_filtro_data'] = 0
+    saldo_temporal['recebidos_funcionais_passaram_filtro_saldo'] = 0
+    saldo_temporal['recebidos_funcionais_promovidos_evento'] = 0
+    saldo_temporal['recebidos_funcionais_sobrescritos_apos_promocao'] = 0
     for rr in recebidos_func_rows:
         status = _txt(rr.get('status_recebido') or rr.get('status') or '')
         dt = rr.get('data_recebimento')
@@ -1772,16 +1779,28 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         saldo_temporal['recebidos_funcionais_fontes_ativadas'] += 1
         saldo_temporal['recebidos_funcionais_valor_total_disponivel'] += valor
     fontes_funcionais.sort(key=lambda x: (str(x.get('data') or ''), str(x.get('fonte_id') or '')))
+    saldo_temporal['recebidos_funcionais_candidatos_shadow_match'] = int(saldo_temporal.get('saldo_temporal_pagamentos_rebaixados_por_saldo') or 0)
+    promovidos_ids: set[str] = set()
     for ev in eventos:
-        if str(ev.get('status') or '') != 'sem_saldo_temporal_auditavel':
+        pid_ev = str(ev.get('pagamento_id') or '')
+        status_ev = str(ev.get('status') or '')
+        eh_candidato = (status_ev != 'ok')
+        if not eh_candidato:
             continue
+        saldo_temporal['recebidos_funcionais_entraram_bloco_promocao'] += 1
         data_ev = str(ev.get('data') or '')
-        val = round(float(ev.get('valor') or 0.0), 2)
+        val = round(float(ev.get('valor') or ev.get('valor_pagamento') or ev.get('liquido') or ev.get('consumo') or 0.0), 2)
+        if val <= 0:
+            continue
         restante = val
         usadas = []
         for f in fontes_funcionais:
-            if str(f.get('data') or '') > data_ev or float(f.get('saldo') or 0.0) <= 0:
+            if str(f.get('data') or '') > data_ev:
                 continue
+            saldo_temporal['recebidos_funcionais_passaram_filtro_data'] += 1
+            if float(f.get('saldo') or 0.0) <= 0:
+                continue
+            saldo_temporal['recebidos_funcionais_passaram_filtro_saldo'] += 1
             uso = min(float(f['saldo']), restante)
             if uso <= 0:
                 continue
@@ -1794,15 +1813,23 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         if restante <= 0.01 and usadas:
             fonte_id = '+'.join(u[0] for u in usadas)
             ev['lote_sugerido_operacional'] = fonte_id
+            ev['origem_fonte_candidata'] = 'recebidos_funcionais_v1'
             ev['status'] = 'ok'
             ev['cobertura_integral'] = 'sim'
             ev['motivo_bloqueio'] = 'n/d'
+            ev['saldo_antes'] = round(usadas[0][1], 2)
             ev['consumo'] = val
             ev['liquido'] = val
+            ev['saldo_depois'] = round(usadas[-1][3], 2)
             saldo_temporal['pagamentos_funcionais_recuperados_por_recebidos'] += 1
             saldo_temporal['recebidos_funcionais_valor_usado_pagamentos'] += val
+            saldo_temporal['recebidos_funcionais_promovidos_evento'] += 1
+            if pid_ev:
+                promovidos_ids.add(pid_ev)
         else:
             saldo_temporal['pagamentos_funcionais_nao_recuperados_por_saldo'] += 1
+    # Diagnóstico: candidatos recuperáveis no shadow não promovidos no funcional.
+    saldo_temporal['recebidos_funcionais_sobrescritos_apos_promocao'] = len([pid for pid in promovidos_ids if any(str(e.get('pagamento_id') or '') == pid and str(e.get('status') or '') != 'ok' for e in eventos)])
     saldo_temporal['recebidos_funcionais_valor_alocavel_pos_pagamento'] = round(sum(float(f.get('saldo') or 0.0) for f in fontes_funcionais), 2)
     for f in fontes_funcionais:
         if float(f.get('saldo') or 0.0) < -0.01:
@@ -1899,7 +1926,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     saldo_temporal_lote_8500_trilha_eventos: list[dict[str, Any]] = []
     pagamentos_rebaixados_shadow_detalhe: list[dict[str, Any]] = []
     shadow_recebidos_resumo_fontes: list[dict[str, Any]] = []
-    shadow_pagamentos_recuperados_nominal: list[dict[str, Any]] = []
     data_ref = getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
     for rr in recebidos_rows:
         dt = rr.get('data_recebimento')
