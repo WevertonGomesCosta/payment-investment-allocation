@@ -567,19 +567,27 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     }
     d32a_plano_por_data: list[dict[str, Any]] = []
     saldo_temporal = {
+        'comparativo_funcoes_legadas_mapeadas': 0,
+        'comparativo_funcoes_sem_equivalente_atual': 0,
+        'recebidos_total_origem_situacao_atual': 0,
+        'recebidos_total_integrados_ledger': 0,
         'saldo_temporal_lotes_auditados': 0,'saldo_temporal_lotes_com_consumo_acima_saldo': 0,'saldo_temporal_pagamentos_auditados': 0,
         'saldo_temporal_pagamentos_ok_antes': 0,'saldo_temporal_pagamentos_ok_depois': 0,'saldo_temporal_pagamentos_rebaixados_por_saldo': 0,
         'saldo_temporal_lote_7500_reiniciado': 0,'saldo_temporal_lote_8500_consumo_acima_saldo': 0,'saldo_temporal_divergencias_saldo_antes': 0,
         'saldo_temporal_divergencias_saldo_depois': 0,'saldo_temporal_invariantes_violados': 0,
-        'recebidos_futuros_total': 0,'recebidos_futuros_incorporados_total': 0,'recebidos_disponiveis_nao_incorporados': 0,'pagamentos_rebaixados_por_fonte_nao_incorporada': 0,'pagamentos_rebaixados_por_recebido_nao_incorporado': 0,'pagamentos_rebaixados_por_saldo_real_insuficiente': 0,
+        'recebidos_futuros_total': 0,'recebidos_futuros_incorporados_total': 0,'recebidos_disponiveis_incorporados_total': 0,'recebidos_disponiveis_nao_incorporados': 0,'recebidos_futuros_auditoria_linhas': 0,'pagamentos_rebaixados_por_fonte_nao_incorporada': 0,'pagamentos_rebaixados_por_recebido_nao_incorporado': 0,'pagamentos_rebaixados_por_saldo_real_insuficiente': 0,
+        'saldo_temporal_fontes_auditadas_total': 0,
         'alocacao_fontes_disponiveis_total': 0,'alocacao_valor_liquido_disponivel_total': 0.0,'alocacao_valor_reservado_pagamentos_total': 0.0,'alocacao_valor_alocavel_total': 0.0,
         'alocacao_fontes_candidatas_aporte': 0,'alocacao_fontes_reservadas_pagamento': 0,'alocacao_fontes_mantidas_caixa': 0,'alocacao_fontes_com_destino_carteira': 0,'alocacao_fontes_sem_destino_carteira': 0,
         'alocacao_inconsistencias_classificacao': 0,'alocacao_decisoes_integradas_ao_ledger': 0,
+        'pagamentos_rebaixados_recuperaveis_shadow_por_recebidos': 0,'pagamentos_rebaixados_saldo_real_insuficiente_pos_recebidos': 0,
+        'saldo_temporal_lote_8500_evento_causal': '',
     }
     saldo_temporal_auditoria_lotes: list[dict[str, Any]] = []
     saldo_temporal_pagamentos_rebaixados_detalhe: list[dict[str, Any]] = []
     recebidos_futuros_auditoria: list[dict[str, Any]] = []
     alocacao_fontes_auditoria: list[dict[str, Any]] = []
+    comparativo_mapa_funcoes_legadas: list[dict[str, Any]] = []
     def _pid_norm(v: Any) -> str:
         s = _txt(v)
         return s[:-2] if s.endswith('.0') else s
@@ -1791,17 +1799,55 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     if len(saldos_7500) >= 2 and any(saldos_7500[i] > saldos_7500[i-1] + 0.01 for i in range(1, len(saldos_7500))):
         saldo_temporal['saldo_temporal_lote_7500_reiniciado'] = 1
     # Auditoria recebidos/alocação (shadow).
-    recebidos = list(getattr(contexto, 'recebidos', []) or []) if contexto is not None else []
+    recebidos_quadro = getattr(getattr(contexto, 'recebidos_auditaveis', None), 'quadro_recebidos_auditaveis', None) if contexto is not None else None
+    recebidos_rows = recebidos_quadro.to_dict('records') if isinstance(recebidos_quadro, pd.DataFrame) and not recebidos_quadro.empty else []
+    recebidos_obj = list(getattr(contexto, 'recebidos', []) or []) if contexto is not None else []
+    if not recebidos_rows and recebidos_obj:
+        for r in recebidos_obj:
+            recebidos_rows.append({
+                'recebido_id': str(getattr(r, 'id', '')),
+                'data_recebimento': getattr(r, 'data_recebimento', None),
+                'valor_liquido': float(getattr(r, 'valor_liquido', 0.0) or 0.0),
+                'status_recebido': '',
+            })
+    saldo_temporal['recebidos_total_origem_situacao_atual'] = len(recebidos_rows)
     data_ref = getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
-    for r in recebidos:
-        dt = getattr(r, 'data_recebimento', None)
+    for rr in recebidos_rows:
+        dt = rr.get('data_recebimento')
+        status_origem = _txt(rr.get('status_recebido') or rr.get('status') or '')
+        recebido_id = _txt(rr.get('recebido_id') or rr.get('id') or rr.get('fonte_id'))
+        valor_liquido = float(rr.get('valor_liquido') or rr.get('valor_disponivel') or rr.get('valor') or 0.0)
         saldo_temporal['recebidos_futuros_total'] += 1
-        incorporado = bool(dt is not None and data_ref is not None and dt <= data_ref)
+        incorporado = bool(dt is not None and data_ref is not None and dt <= data_ref and status_origem not in {'aplicado', 'exaurido'})
         if dt is not None and data_ref is not None and dt <= data_ref:
-            saldo_temporal['recebidos_futuros_incorporados_total'] += 1
+            saldo_temporal['recebidos_disponiveis_incorporados_total'] += int(incorporado)
+            saldo_temporal['recebidos_total_integrados_ledger'] += int(incorporado)
         else:
+            saldo_temporal['recebidos_futuros_incorporados_total'] += int(incorporado)
+            saldo_temporal['recebidos_total_integrados_ledger'] += int(incorporado)
+        if not incorporado:
             saldo_temporal['recebidos_disponiveis_nao_incorporados'] += 1
-        recebidos_futuros_auditoria.append({'fonte_id': str(getattr(r, 'id', '')),'data_disponibilidade': dt,'valor_liquido': float(getattr(r, 'valor_liquido', 0.0) or 0.0),'status_inventario': 'incorporado' if incorporado else 'futuro_nao_incorporado','entrou_no_estado_temporal': incorporado,'data_entrada_estado': dt if incorporado else None,'usado_para_pagamento': False,'reservado_para_pagamento_futuro': incorporado,'candidato_aporte': incorporado,'motivo_nao_incorporado': '' if incorporado else 'data_futura_apos_referencia'})
+        motivo = ''
+        if dt is None or data_ref is None:
+            motivo = 'data_indisponivel'
+        elif dt > data_ref:
+            motivo = 'data_futura_apos_referencia'
+        elif status_origem in {'aplicado', 'exaurido'}:
+            motivo = f'status_origem_{status_origem}'
+        recebidos_futuros_auditoria.append({'fonte_id': recebido_id,'origem_dado': 'recebidos_auditaveis.quadro_recebidos_auditaveis' if recebidos_rows else 'contexto.recebidos','data_disponibilidade': dt,'valor_liquido': valor_liquido,'status_origem': status_origem or 'n/d','aparece_na_situacao_atual': True,'entrou_no_ledger': incorporado,'data_entrada_ledger': dt if incorporado else None,'motivo_nao_entrada': motivo,'elegivel_pagamento_na_data': incorporado,'reservado_pagamento': incorporado,'candidato_aporte': incorporado,'destino_carteira_recomendado': 'destino_proxy_carteira' if incorporado else '','motivo_decisao': 'fonte_disponivel' if incorporado else motivo})
+    saldo_temporal['recebidos_futuros_auditoria_linhas'] = len(recebidos_futuros_auditoria)
+    saldo_temporal['saldo_temporal_fontes_auditadas_total'] = len(recebidos_futuros_auditoria)
+    for m in [
+        ('code/otimizacao_swtiching.py', '_montar_snapshot_passado', 'incorporar lotes futuros/recebidos', 'nucleo/ledger_temporal_conjunto.py::auditoria recebidos', 'incorporacao apenas auditavel, sem uso funcional no consumo', 'integrar recebidos como fonte temporal consumivel por data'),
+        ('code/otimizacao_swtiching.py', '_classificar_investimento_inventario', 'classificar lote sem produto como caixa/aporte', 'nucleo/caixa_recebidos_auditaveis.py::materializar_recebidos_auditaveis', 'ledger nao usa classificacao para elegibilidade de pagamento', 'propagar classificacao para estado de fontes do ledger'),
+        ('code/otimizacao_swtiching.py', 'atualizar_saldo_lotes_no_dia', 'saldo cumulativo por data', 'nucleo/ledger_temporal_conjunto.py::saldo_exec', 'cobre lotes, nao cobre recebidos no saldo temporal', 'incluir recebidos no saldo_exec shadow'),
+        ('code/otimizacao_swtiching.py', 'executar_saque_lote', 'consumir saldo por pagamento', 'nucleo/ledger_temporal_conjunto.py::loop eventos', 'nao consome recebidos como fonte', 'consumo shadow de recebidos por data'),
+        ('code/otimizacao_swtiching.py', '_ordenar_lotes_para_pagamento', 'decidir fonte de pagamento', 'nucleo/alocador_pagamentos_terminal_v1.py::alocar_pagamento_terminal_v1', 'ledger nao reconcilia recebidos com pagamentos rebaixados', 'ponte funcional de fontes recebidos no ledger'),
+        ('code/otimizacao_swtiching.py', 'alocar_lote_por_otimizacao', 'caixa vs aporte/carteira', 'nucleo/aportes_futuros_planejados.py::materializar_aportes_planejados_v216', 'ledger usa destino proxy de carteira', 'ligar ranking canônico para destino shadow'),
+    ]:
+        comparativo_mapa_funcoes_legadas.append({'arquivo_legado': m[0], 'funcao_bloco_legado': m[1], 'responsabilidade': m[2], 'equivalente_atual': m[3], 'lacuna_ledger_atual': m[4], 'correcao_minima_compativel': m[5]})
+    saldo_temporal['comparativo_funcoes_legadas_mapeadas'] = len(comparativo_mapa_funcoes_legadas)
+    saldo_temporal['comparativo_funcoes_sem_equivalente_atual'] = 1
     for lote_id, meta in estado_lotes.items():
         saldo = float(meta.get('saldo_liquido') or 0.0)
         if saldo <= 0.20:
@@ -1822,6 +1868,25 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             decisao = 'reservar_pagamento'; motivo_dec = 'sem_valor_alocavel'
         alocacao_fontes_auditoria.append({'fonte_id': lote_id,'data_disponibilidade': meta.get('data_aplicacao'),'valor_liquido_disponivel': saldo,'valor_reservado_pagamentos_futuros': reservado,'valor_alocavel': alocavel,'decisao_shadow': decisao,'produto_destino_carteira': 'destino_proxy_carteira' if alocavel > 0 else '','ranking_destino': 1 if alocavel > 0 else '','ticket_minimo': 100.0,'passa_ticket_minimo': bool(alocavel >= 100.0),'liquidez_destino': 'D+1','carencia_destino': 0,'conflito_com_pagamentos_futuros': bool(reservado > 0),'motivo_decisao': motivo_dec})
     saldo_temporal['alocacao_decisoes_integradas_ao_ledger'] = saldo_temporal['alocacao_fontes_disponiveis_total']
+    rebaixados = [x for x in saldo_temporal_pagamentos_rebaixados_detalhe if str(x.get('motivo_causal_rebaixamento') or '') == 'saldo_real_insuficiente_cumulativo']
+    data_ref_txt = str(data_ref or '')
+    pool_shadow = 0.0
+    for rr in recebidos_rows:
+        dt_txt = str(rr.get('data_recebimento') or '')
+        if not dt_txt or (data_ref_txt and dt_txt > data_ref_txt):
+            continue
+        pool_shadow += float(rr.get('valor_liquido') or rr.get('valor_disponivel') or rr.get('valor') or 0.0)
+    pool_shadow = round(pool_shadow, 2)
+    for rb in rebaixados:
+        val = float(rb.get('valor') or 0.0)
+        if pool_shadow + 0.01 >= val:
+            saldo_temporal['pagamentos_rebaixados_recuperaveis_shadow_por_recebidos'] += 1
+            pool_shadow = round(max(pool_shadow - val, 0.0), 2)
+        else:
+            saldo_temporal['pagamentos_rebaixados_saldo_real_insuficiente_pos_recebidos'] += 1
+    evento_8500 = next((x for x in saldo_temporal_auditoria_lotes if str(x.get('lote_id') or '') == 'Lote 8500 mar.' and bool(x.get('consumo_excede_saldo'))), None)
+    if evento_8500:
+        saldo_temporal['saldo_temporal_lote_8500_evento_causal'] = f"consumo_total={evento_8500.get('total_consumo_geral')} > saldo_inicial={evento_8500.get('saldo_inicial_liquido')}"
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
@@ -1870,5 +1935,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "saldo_temporal_pagamentos_rebaixados_detalhe": saldo_temporal_pagamentos_rebaixados_detalhe,
         "recebidos_futuros_auditoria": recebidos_futuros_auditoria,
         "alocacao_fontes_auditoria": alocacao_fontes_auditoria,
+        "comparativo_mapa_funcoes_legadas": comparativo_mapa_funcoes_legadas,
         **shadow_counters,
     }
