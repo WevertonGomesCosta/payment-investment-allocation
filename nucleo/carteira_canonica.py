@@ -128,6 +128,50 @@ def _fonte_campo_estruturado(valor_original: Any) -> str:
     return 'planilha' if texto else 'derivado'
 
 
+def _normalizar_regra_iof(valor: Any) -> str:
+    txt = normalizar_texto(valor)
+    if not txt:
+        return 'a_confirmar'
+    if txt in {'nao incide', 'nao_incide', 'sem iof', 'isento iof'}:
+        return 'nao_incide'
+    if txt in {'regressiva 30d', 'regressiva_30d', 'regressivo 30d', 'tabela regressiva'}:
+        return 'regressiva_30d'
+    if txt in {'a confirmar', 'a_confirmar'}:
+        return 'a_confirmar'
+    return ''
+
+
+def _normalizar_semantica_taxa_base(valor: Any) -> str:
+    txt = normalizar_texto(valor)
+    mapa = {
+        'percentual cdi': 'percentual_cdi',
+        'percentual_cdi': 'percentual_cdi',
+        'percentual cdi escalonado': 'percentual_cdi_escalonado',
+        'percentual_cdi_escalonado': 'percentual_cdi_escalonado',
+        'percentual selic': 'percentual_selic',
+        'percentual_selic': 'percentual_selic',
+        'spread selic aa': 'spread_selic_aa',
+        'spread_selic_aa': 'spread_selic_aa',
+        'spread ipca aa': 'spread_ipca_aa',
+        'spread_ipca_aa': 'spread_ipca_aa',
+        'taxa prefixada aa': 'taxa_prefixada_aa',
+        'taxa_prefixada_aa': 'taxa_prefixada_aa',
+        'comparativo cdi historico': 'comparativo_cdi_historico',
+        'comparativo_cdi_historico': 'comparativo_cdi_historico',
+        'benchmark cdi fundo': 'benchmark_cdi_fundo',
+        'benchmark_cdi_fundo': 'benchmark_cdi_fundo',
+        'proxy variavel': 'proxy_variavel',
+        'proxy_variavel': 'proxy_variavel',
+        'hibrido cdi prefixado': 'hibrido_cdi_prefixado',
+        'hibrido_cdi_prefixado': 'hibrido_cdi_prefixado',
+        'a confirmar': 'a_confirmar',
+        'a_confirmar': 'a_confirmar',
+    }
+    if not txt:
+        return 'a_confirmar'
+    return mapa.get(txt, '')
+
+
 def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, Any]) -> tuple[pd.DataFrame, dict[str, Any]]:
     campos = {
         'produto_id': resolver_coluna(df_carteira, config, 'carteira', 'produto_id', obrigatoria=False),
@@ -168,6 +212,8 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         'elegivel_aporte_novo': resolver_coluna(df_carteira, config, 'carteira', 'elegivel_aporte_novo', obrigatoria=False),
         'elegivel_switch_in': resolver_coluna(df_carteira, config, 'carteira', 'elegivel_switch_in', obrigatoria=False),
         'elegivel_reconciliacao_historica': resolver_coluna(df_carteira, config, 'carteira', 'elegivel_reconciliacao_historica', obrigatoria=False),
+        'regra_iof': resolver_coluna(df_carteira, config, 'carteira', 'regra_iof', obrigatoria=False),
+        'semantica_taxa_base': resolver_coluna(df_carteira, config, 'carteira', 'semantica_taxa_base', obrigatoria=False),
     }
 
     limite = para_float_monetario((((config.get('politicas_taxa') or {}).get('limite_percentual_vs_multiplicador')) if isinstance(config, Mapping) else None), 10.0)
@@ -191,6 +237,10 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         'observacao_metadados_derivados': 'Campos derivados em código funcionam como ponte transitória até maior estruturação da aba Carteira.',
         'campos_estruturais_recomendados': list(metadados_transitorios),
         'campos_estruturais_sem_coluna_resolvida': [campo for campo in metadados_transitorios if not campos.get(campo)],
+        'regra_iof_vazios': 0,
+        'regra_iof_invalidos': 0,
+        'semantica_taxa_base_vazios': 0,
+        'semantica_taxa_base_invalidos': 0,
     }
     registros: list[dict[str, Any]] = []
 
@@ -229,6 +279,20 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         status_confirmacao = limpar_texto(row[campos['status_confirmacao']]) if campos['status_confirmacao'] else ''
         campos_pendentes = limpar_texto(row[campos['campos_pendentes']]) if campos['campos_pendentes'] else ''
         score_banco = limpar_texto(row[campos['score_banco']]) if campos['score_banco'] else ''
+        regra_iof_raw = row[campos['regra_iof']] if campos['regra_iof'] else None
+        semantica_taxa_base_raw = row[campos['semantica_taxa_base']] if campos['semantica_taxa_base'] else None
+        regra_iof = _normalizar_regra_iof(regra_iof_raw)
+        semantica_taxa_base = _normalizar_semantica_taxa_base(semantica_taxa_base_raw)
+        if not limpar_texto(regra_iof_raw):
+            auditoria['regra_iof_vazios'] += 1
+        if not limpar_texto(semantica_taxa_base_raw):
+            auditoria['semantica_taxa_base_vazios'] += 1
+        if not regra_iof:
+            regra_iof = 'a_confirmar'
+            auditoria['regra_iof_invalidos'] += 1
+        if not semantica_taxa_base:
+            semantica_taxa_base = 'a_confirmar'
+            auditoria['semantica_taxa_base_invalidos'] += 1
 
         elegivel_motor = para_bool(row[campos['elegivel_motor']], ativo) if campos['elegivel_motor'] else bool(ativo)
         elegivel_aporte_novo = para_bool(row[campos['elegivel_aporte_novo']], ativo) if campos['elegivel_aporte_novo'] else bool(ativo)
@@ -281,6 +345,8 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
             'elegivel_aporte_novo': elegivel_aporte_novo,
             'elegivel_switch_in': elegivel_switch_in,
             'elegivel_reconciliacao_historica': elegivel_reconciliacao_historica,
+            'regra_iof': regra_iof,
+            'semantica_taxa_base': semantica_taxa_base,
         })
 
     quadro_canonico = pd.DataFrame(registros)
@@ -289,6 +355,8 @@ def normalizar_carteira_bruta(df_carteira: pd.DataFrame, config: Mapping[str, An
         auditoria['resumo_familia_produto'] = {str(ch): int(v) for ch, v in quadro_canonico['familia_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
         auditoria['resumo_regime_taxa'] = {str(ch): int(v) for ch, v in quadro_canonico['regime_taxa'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
         auditoria['resumo_papel_produto'] = {str(ch): int(v) for ch, v in quadro_canonico['papel_produto'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
+        auditoria['distribuicao_regra_iof'] = {str(ch): int(v) for ch, v in quadro_canonico['regra_iof'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
+        auditoria['distribuicao_semantica_taxa_base'] = {str(ch): int(v) for ch, v in quadro_canonico['semantica_taxa_base'].fillna('vazio').value_counts(dropna=False).to_dict().items()}
     return quadro_canonico, auditoria
 
 
