@@ -138,6 +138,10 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
 
     print('- amostra de switchings reais da janela (independente de pagamentos):')
     _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=5)
+    bloqueados = list(getattr(contexto_baseline, '_switchings_bloqueados_gate_auditoria', []) or [])[:10]
+    if bloqueados:
+        print('- candidatos bloqueados por gate (auditoria):')
+        _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino', 'Status'], bloqueados, limite=5)
 
     total_sinteticos = len(getattr(saida_canonica, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
     total_aportes = len(getattr(saida_canonica, 'recebidos_atuais', []) or [])
