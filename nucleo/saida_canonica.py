@@ -1328,6 +1328,8 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'saldo_temporal_auditoria_lotes': ledger_result.get('saldo_temporal_auditoria_lotes', []),
         'saldo_temporal_pagamentos_rebaixados_detalhe': ledger_result.get('saldo_temporal_pagamentos_rebaixados_detalhe', []),
         'pagamentos_rebaixados_shadow_detalhe': ledger_result.get('pagamentos_rebaixados_shadow_detalhe', []),
+        'shadow_recebidos_resumo_fontes': ledger_result.get('shadow_recebidos_resumo_fontes', []),
+        'shadow_pagamentos_recuperados_nominal': ledger_result.get('shadow_pagamentos_recuperados_nominal', []),
         'recebidos_futuros_auditoria': ledger_result.get('recebidos_futuros_auditoria', []),
         'alocacao_fontes_auditoria': ledger_result.get('alocacao_fontes_auditoria', []),
         'saldo_temporal_lote_8500_trilha_eventos': ledger_result.get('saldo_temporal_lote_8500_trilha_eventos', []),
