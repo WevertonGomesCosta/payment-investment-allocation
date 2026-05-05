@@ -71,6 +71,7 @@ def _clonar_lote(lote: Lote) -> Lote:
             'dias_bonus': lote.dias_bonus,
             'principal_remanescente': lote.principal_remanescente,
             'produto_isento_ir': lote.produto_isento_ir,
+            'regra_iof': lote.regra_iof,
             'carencia_ate': lote.carencia_ate,
             'nao_disponivel_para_aporte': lote.nao_disponivel_para_aporte,
             'situacao_investimento': lote.situacao_investimento,
@@ -125,6 +126,7 @@ def _serializar_estado_lote(lote: Lote) -> dict[str, Any]:
         'Investimento': str(getattr(lote, 'investimento', '') or ''),
         'Nao Disponivel para Aporte': bool(getattr(lote, 'nao_disponivel_para_aporte', False)),
         'Situacao Investimento': str(getattr(lote, 'situacao_investimento', '') or ''),
+        'Regra IOF': str(getattr(lote, 'regra_iof', '') or ''),
     }
 
 
