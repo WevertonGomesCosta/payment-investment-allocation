@@ -82,7 +82,9 @@ def _penalidade_prazo(horizonte: Any, parametros: Mapping[str, Any]) -> float:
 def _validar_colunas(df: pd.DataFrame, contrato: Mapping[str, Any]) -> dict[str, Any]:
     obrigatorias = list(contrato.get('input_columns', [])) + list(contrato.get('derived_columns_present_in_sheet', []))
     faltantes = [col for col in obrigatorias if col not in df.columns]
-    return {'ok': not faltantes, 'colunas_faltantes': faltantes, 'colunas_presentes': list(df.columns)}
+    toleradas = {'Regra_IOF', 'Semantica_Taxa_Base'}
+    faltantes_bloqueantes = [col for col in faltantes if col not in toleradas]
+    return {'ok': not faltantes_bloqueantes, 'colunas_faltantes': faltantes, 'colunas_presentes': list(df.columns)}
 
 
 def _enriquecer_com_chaves(df: pd.DataFrame, carteira_canonica: PacoteCarteiraCanonica) -> pd.DataFrame:
@@ -92,7 +94,7 @@ def _enriquecer_com_chaves(df: pd.DataFrame, carteira_canonica: PacoteCarteiraCa
     out['nome_norm'] = out['Nome'].map(normalizar_nome_produto)
     out['produto_key'] = out['nome_norm'].map(mapa)
     if len(canonico):
-        merge_cols = ['produto_key', 'liquidez_dias', 'carencia_dias', 'taxa_base_cdi', 'taxa_bonus_cdi', 'elegivel_switch_in', 'elegivel_motor']
+        merge_cols = ['produto_key', 'liquidez_dias', 'carencia_dias', 'taxa_base_cdi', 'taxa_bonus_cdi', 'elegivel_switch_in', 'elegivel_motor', 'regra_iof', 'semantica_taxa_base']
         canonico_merge = canonico[[c for c in merge_cols if c in canonico.columns]].drop_duplicates(subset=['produto_key'])
         out = out.merge(canonico_merge, on='produto_key', how='left')
     return out
@@ -117,6 +119,10 @@ def carregar_ranking_carteira_estabilizado(
         raise KeyError(f"Contrato da Carteira não atendido. Faltantes: {validacao_colunas['colunas_faltantes']}")
 
     df = _enriquecer_com_chaves(df, carteira_canonica)
+    if 'Regra_IOF' not in df.columns:
+        df['Regra_IOF'] = df.get('regra_iof', pd.Series(dtype=object))
+    if 'Semantica_Taxa_Base' not in df.columns:
+        df['Semantica_Taxa_Base'] = df.get('semantica_taxa_base', pd.Series(dtype=object))
 
     numeric_cols = [
         'Horizonte_Efetivo_Dias', 'SAOF_Final', 'Rank_Consolidado_Final_Ativos', 'Rank_Bucket_Final_Ativos',
@@ -168,6 +174,9 @@ def carregar_ranking_carteira_estabilizado(
     top30 = df.loc[mask_ativos].copy()
     top30 = top30.sort_values(['Rank_Consolidado_Prazo_Ativos', 'Nome'], kind='stable').head(30).copy()
     top30['Score Final Prazo'] = _to_num(top30['SAOF_Final_Prazo']).round(1)
+    for col in ('Regra_IOF', 'Semantica_Taxa_Base', 'regra_iof', 'semantica_taxa_base'):
+        if col not in top30.columns:
+            top30[col] = pd.NA
 
     destinos = df.loc[mask_ativos].copy()
     if 'elegivel_switch_in' in destinos.columns:
@@ -187,10 +196,13 @@ def carregar_ranking_carteira_estabilizado(
     destinos['produto_bonus'] = destinos.get('Produto_Bonus', pd.Series(dtype=object)).fillna('').astype(str)
     destinos['ratio_base'] = _to_num(destinos.get('Ratio_Base', pd.Series(dtype=float))).fillna(0.0)
     destinos['ratio_bonus'] = _to_num(destinos.get('Ratio_Bonus', pd.Series(dtype=float))).fillna(0.0)
+    destinos['regra_iof'] = destinos.get('regra_iof', destinos.get('Regra_IOF', pd.Series(dtype=object))).fillna('').astype(str)
+    destinos['semantica_taxa_base'] = destinos.get('semantica_taxa_base', destinos.get('Semantica_Taxa_Base', pd.Series(dtype=object))).fillna('').astype(str)
     destinos = destinos[[
         'rank_destino', 'produto_key', 'Nome', 'score_final', 'proxy_terminal_destino', 'retorno_anual_proxy',
         'liquidez_dias', 'carencia_dias', 'aplicacao_minima', 'aplicacao_maxima', 'somente_combo',
         'tipo_produto', 'produto_base', 'produto_bonus', 'ratio_base', 'ratio_bonus',
+        'regra_iof', 'semantica_taxa_base',
         'taxa_base_cdi', 'taxa_bonus_cdi', 'Bucket_SAOF', 'SAOF_Final_Prazo',
         'Rank_Consolidado_Final_Ativos', 'Status_Confirmação', 'Campos_Pendentes'
     ]].rename(columns={'Nome': 'nome'})
@@ -210,6 +222,11 @@ def carregar_ranking_carteira_estabilizado(
         'destino_top1': None if len(destinos) == 0 else str(destinos.iloc[0]['nome']),
         'contract_file': origem_config['contract_source'],
         'fixed_parameters_file': origem_config['fixed_parameters_source'],
+        'usa_regra_iof': True,
+        'usa_semantica_taxa_base': True,
+        'distribuicao_regra_iof': {str(k): int(v) for k, v in df.get('Regra_IOF', pd.Series(dtype=object)).fillna('vazio').astype(str).value_counts(dropna=False).to_dict().items()},
+        'distribuicao_semantica_taxa_base': {str(k): int(v) for k, v in df.get('Semantica_Taxa_Base', pd.Series(dtype=object)).fillna('vazio').astype(str).value_counts(dropna=False).to_dict().items()},
+        'alerta_semantica_taxa_base_nao_percentual_cdi': int(df.get('Semantica_Taxa_Base', pd.Series(dtype=object)).fillna('').astype(str).str.strip().str.lower().ne('percentual_cdi').sum()),
     }
     validacao = {
         'colunas': validacao_colunas,

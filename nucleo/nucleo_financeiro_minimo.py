@@ -35,7 +35,7 @@ from nucleo.calendario_financeiro import (
 )
 from nucleo.carteira_canonica import PacoteCarteiraCanonica
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
-from nucleo.utilitarios_neutros import arredondar_monetario, limpar_texto, para_bool, para_float_monetario, para_int
+from nucleo.utilitarios_neutros import arredondar_monetario, limpar_texto, normalizar_texto, para_bool, para_float_monetario, para_int
 
 
 @dataclass(slots=True)
@@ -65,6 +65,7 @@ class Lote:
         carencia_ate: Optional[date] = None,
         nao_disponivel_para_aporte: bool = False,
         situacao_investimento: str = '',
+        regra_iof: str = 'a_confirmar',
     ):
         self.id = str(id_lote).strip()
         self.data_aplicacao = data_aplicacao
@@ -88,6 +89,7 @@ class Lote:
         self.carencia_ate = carencia_ate
         self.nao_disponivel_para_aporte = bool(nao_disponivel_para_aporte)
         self.situacao_investimento = str(situacao_investimento or '').strip()
+        self.regra_iof = _modo_regra_iof(regra_iof)
 
     def get_taxa_dia(self, data_atual: date, pacote_calendario: Optional[PacoteCalendarioFinanceiro] = None) -> float:
         idade = (data_atual - self.data_base_fiscal).days
@@ -144,7 +146,7 @@ class Lote:
         dias_vida = (data_resgate - self.data_base_fiscal).days
         if dias_vida < 0:
             return 0.0
-        return _fator_liquido(self.fator_acumulado, dias_vida, self.produto_isento_ir, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
+        return _fator_liquido(self.fator_acumulado, dias_vida, self.produto_isento_ir, tabela_iof=tabela_iof, faixas_ir=faixas_ir, regra_iof=self.regra_iof)
 
     def valor_liquido_hoje(self, data_hoje: date, *, tabela_iof: Optional[list[float]] = None, faixas_ir: Optional[list[dict[str, Any]]] = None) -> float:
         return arredondar_monetario(self.saldo_bruto * self.get_fator_liquido(data_hoje, tabela_iof=tabela_iof, faixas_ir=faixas_ir))
@@ -241,7 +243,7 @@ class Lote:
         if data_alvo <= self.data_aplicacao:
             return arredondar_monetario(saldo)
         dias_vida = max((data_alvo - self.data_base_fiscal).days, 0)
-        fator_liquido = _fator_liquido(fator, dias_vida, self.produto_isento_ir, tabela_iof=tabela_iof, faixas_ir=faixas_ir)
+        fator_liquido = _fator_liquido(fator, dias_vida, self.produto_isento_ir, tabela_iof=tabela_iof, faixas_ir=faixas_ir, regra_iof=self.regra_iof)
         return arredondar_monetario(saldo * fator_liquido)
 
     def sacar(self, valor_bruto: float, *, tolerancia_monetaria: float = 0.01) -> float:
@@ -335,6 +337,17 @@ def _taxa_iof(dias: int, *, tabela_iof: Optional[list[float]] = None) -> float:
     return float(tabela[idx])
 
 
+def _modo_regra_iof(regra_iof: Any) -> str:
+    regra = normalizar_texto(regra_iof)
+    if regra in {'nao incide', 'sem iof', 'isento iof'}:
+        return 'nao_incide'
+    if regra in {'regressiva 30d', 'regressiva', 'tabela regressiva'}:
+        return 'regressiva_30d'
+    if regra in {'nao_incide', 'regressiva_30d', 'a_confirmar'}:
+        return regra
+    return 'a_confirmar'
+
+
 def _fator_liquido(
     fator_acumulado: float,
     dias_vida: int,
@@ -342,10 +355,15 @@ def _fator_liquido(
     *,
     tabela_iof: Optional[list[float]] = None,
     faixas_ir: Optional[list[dict[str, Any]]] = None,
+    regra_iof: str = 'a_confirmar',
 ) -> float:
     if fator_acumulado <= 1.0:
         return 1.0
-    iof = _taxa_iof(dias_vida, tabela_iof=tabela_iof)
+    regra = _modo_regra_iof(regra_iof)
+    if regra == 'nao_incide':
+        iof = 0.0
+    else:
+        iof = _taxa_iof(dias_vida, tabela_iof=tabela_iof)
     ir = _taxa_ir(dias_vida, isento=isento, faixas_ir=faixas_ir)
     ratio_lucro = 1.0 - (1.0 / float(fator_acumulado))
     taxa_efetiva = iof + (1.0 - iof) * ir
@@ -371,6 +389,7 @@ def criar_lote_de_aporte(dt: date, val: float, id_l: str, meta: Optional[Mapping
         carencia_ate=meta.get('carencia_ate'),
         nao_disponivel_para_aporte=bool(meta.get('nao_disponivel_para_aporte', False)),
         situacao_investimento=limpar_texto(meta.get('situacao_investimento')),
+        regra_iof=limpar_texto(meta.get('regra_iof')) or 'a_confirmar',
     )
 
 
@@ -449,10 +468,25 @@ def executar_saque_lote(
     }
 
 
-def _obter_meta_produto(produto_key: Optional[str], carteira_canonica: Optional[PacoteCarteiraCanonica]) -> dict[str, Any]:
-    if not produto_key or carteira_canonica is None:
+def _obter_meta_produto(
+    produto_key: Optional[str],
+    carteira_canonica: Optional[PacoteCarteiraCanonica],
+    *,
+    nome_produto: str = '',
+) -> dict[str, Any]:
+    if carteira_canonica is None:
         return {}
-    return dict((carteira_canonica.mapa_produtos.get('by_key', {}) or {}).get(produto_key) or {})
+    by_key = (carteira_canonica.mapa_produtos.get('by_key', {}) or {})
+    if produto_key:
+        meta = dict(by_key.get(produto_key) or {})
+        if meta:
+            return meta
+    nome_norm = normalizar_texto(nome_produto)
+    by_nome_norm = (carteira_canonica.mapa_produtos.get('by_nome_norm', {}) or {})
+    key_por_nome = by_nome_norm.get(nome_norm)
+    if key_por_nome:
+        return dict(by_key.get(key_por_nome) or {})
+    return {}
 
 
 def carregar_nucleo_financeiro_minimo(
@@ -477,6 +511,7 @@ def carregar_nucleo_financeiro_minimo(
     qtd_lotes_sem_produto = 0
     qtd_lotes_com_carencia = 0
     qtd_lotes_produto_mapeado = 0
+    qtd_lotes_regra_iof_fallback = 0
 
     for _, row in registros.iterrows():
         lote_id = limpar_texto(row.get('lote_id'))
@@ -491,8 +526,8 @@ def carregar_nucleo_financeiro_minimo(
             continue
 
         produto_key = row.get('produto_key') if bool(row.get('produto_encontrado', False)) else None
-        meta_produto = _obter_meta_produto(produto_key, carteira_canonica)
         investimento = limpar_texto(row.get('produto_nome_canonico') or row.get('investimento_bruto') or row.get('produto_informado'))
+        meta_produto = _obter_meta_produto(produto_key, carteira_canonica, nome_produto=investimento)
         nao_disponivel = bool(row.get('recebido_futuro_nao_disponivel', False))
         taxa_base = float(meta_produto.get('taxa_base_cdi', _cfg_get(config, 'defaults_lote', 'taxa_base_cdi', padrao=1.0)) or 1.0)
         taxa_bonus = float(meta_produto.get('taxa_bonus_cdi', _cfg_get(config, 'defaults_lote', 'taxa_bonus_cdi', padrao=0.0)) or 0.0)
@@ -528,7 +563,10 @@ def carregar_nucleo_financeiro_minimo(
             'carencia_ate': carencia_ate,
             'nao_disponivel_para_aporte': nao_disponivel,
             'situacao_investimento': situacao,
+            'regra_iof': limpar_texto(meta_produto.get('regra_iof')) or 'a_confirmar',
         }
+        if meta['regra_iof'] not in {'nao_incide', 'regressiva_30d'}:
+            qtd_lotes_regra_iof_fallback += 1
         lote = criar_lote_de_aporte(data_aplicacao, valor_original, lote_id, meta)
         lotes_financeiros.append(lote)
         # preview mutável independente para auditoria sem contaminar o lote base
@@ -577,6 +615,7 @@ def carregar_nucleo_financeiro_minimo(
         'qtd_lotes_sem_produto': qtd_lotes_sem_produto,
         'qtd_lotes_com_taxa_default': qtd_lotes_com_taxa_default,
         'qtd_lotes_com_carencia': qtd_lotes_com_carencia,
+        'qtd_lotes_regra_iof_fallback': int(qtd_lotes_regra_iof_fallback),
         'qtd_lotes_ignorados_exauridos': int(sum(1 for x in linhas_ignoradas if x.get('motivo') == 'lote_exaurido')),
         'qtd_linhas_ignoradas': len(linhas_ignoradas),
         'saldo_bruto_total_referencia_sem_replay': arredondar_monetario(saldo_bruto_total_referencia),
