@@ -160,6 +160,7 @@ def carregar_contexto_baseline(
         replay_passado,
         calendario_financeiro,
         pacote_config.conteudo,
+        ranking_carteira=ranking_carteira,
         data_referencia=contexto_execucao.data_referencia,
         tabela_iof=construir_tabela_iof(pacote_config.conteudo),
         faixas_ir=construir_faixas_ir(pacote_config.conteudo),
