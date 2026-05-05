@@ -1737,6 +1737,76 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         else: d32a['d32a_planos_nao_ativaveis'] += 1
     d32a['d32a_datas_residuais_total'] = len(d32a_plano_por_data)
     d32a['d32a_nao_determinados_residuais_restantes_se_ativado'] = 0
+    # Integração funcional controlada de recebidos no ledger (sem alterar switching).
+    recebidos_quadro_func = getattr(getattr(contexto, 'recebidos_auditaveis', None), 'quadro_recebidos_auditaveis', None) if contexto is not None else None
+    recebidos_func_rows = recebidos_quadro_func.to_dict('records') if isinstance(recebidos_quadro_func, pd.DataFrame) and not recebidos_quadro_func.empty else []
+    data_ref_func = getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
+    fontes_funcionais: list[dict[str, Any]] = []
+    saldo_temporal['recebidos_funcionais_fontes_total'] = len(recebidos_func_rows)
+    saldo_temporal['recebidos_funcionais_fontes_ativadas'] = 0
+    saldo_temporal['recebidos_funcionais_fontes_excluidas_aplicadas'] = 0
+    saldo_temporal['recebidos_funcionais_fontes_excluidas_exauridas'] = 0
+    saldo_temporal['recebidos_funcionais_fontes_futuras_aguardando_data'] = 0
+    saldo_temporal['recebidos_funcionais_valor_total_disponivel'] = 0.0
+    saldo_temporal['recebidos_funcionais_valor_usado_pagamentos'] = 0.0
+    saldo_temporal['recebidos_funcionais_valor_alocavel_pos_pagamento'] = 0.0
+    saldo_temporal['pagamentos_funcionais_recuperados_por_recebidos'] = 0
+    saldo_temporal['pagamentos_funcionais_nao_recuperados_por_saldo'] = 0
+    saldo_temporal['pagamentos_funcionais_recuperados_invalidos'] = 0
+    saldo_temporal['recebidos_funcionais_fontes_com_saldo_negativo'] = 0
+    for rr in recebidos_func_rows:
+        status = _txt(rr.get('status_recebido') or rr.get('status') or '')
+        dt = rr.get('data_recebimento')
+        valor = round(float(rr.get('valor_liquido') or rr.get('valor_disponivel') or rr.get('valor') or 0.0), 2)
+        if status == 'aplicado':
+            saldo_temporal['recebidos_funcionais_fontes_excluidas_aplicadas'] += 1
+            continue
+        if status == 'exaurido':
+            saldo_temporal['recebidos_funcionais_fontes_excluidas_exauridas'] += 1
+            continue
+        if dt is not None and data_ref_func is not None and str(dt) > str(data_ref_func):
+            saldo_temporal['recebidos_funcionais_fontes_futuras_aguardando_data'] += 1
+        if valor <= 0:
+            continue
+        fontes_funcionais.append({'fonte_id': _txt(rr.get('recebido_id') or rr.get('id') or rr.get('fonte_id')), 'data': dt, 'saldo': valor})
+        saldo_temporal['recebidos_funcionais_fontes_ativadas'] += 1
+        saldo_temporal['recebidos_funcionais_valor_total_disponivel'] += valor
+    fontes_funcionais.sort(key=lambda x: (str(x.get('data') or ''), str(x.get('fonte_id') or '')))
+    for ev in eventos:
+        if str(ev.get('status') or '') != 'sem_saldo_temporal_auditavel':
+            continue
+        data_ev = str(ev.get('data') or '')
+        val = round(float(ev.get('valor') or 0.0), 2)
+        restante = val
+        usadas = []
+        for f in fontes_funcionais:
+            if str(f.get('data') or '') > data_ev or float(f.get('saldo') or 0.0) <= 0:
+                continue
+            uso = min(float(f['saldo']), restante)
+            if uso <= 0:
+                continue
+            saldo_antes = float(f['saldo'])
+            f['saldo'] = round(saldo_antes - uso, 2)
+            restante = round(restante - uso, 2)
+            usadas.append((f['fonte_id'], saldo_antes, uso, f['saldo']))
+            if restante <= 0.01:
+                break
+        if restante <= 0.01 and usadas:
+            fonte_id = '+'.join(u[0] for u in usadas)
+            ev['lote_sugerido_operacional'] = fonte_id
+            ev['status'] = 'ok'
+            ev['cobertura_integral'] = 'sim'
+            ev['motivo_bloqueio'] = 'n/d'
+            ev['consumo'] = val
+            ev['liquido'] = val
+            saldo_temporal['pagamentos_funcionais_recuperados_por_recebidos'] += 1
+            saldo_temporal['recebidos_funcionais_valor_usado_pagamentos'] += val
+        else:
+            saldo_temporal['pagamentos_funcionais_nao_recuperados_por_saldo'] += 1
+    saldo_temporal['recebidos_funcionais_valor_alocavel_pos_pagamento'] = round(sum(float(f.get('saldo') or 0.0) for f in fontes_funcionais), 2)
+    for f in fontes_funcionais:
+        if float(f.get('saldo') or 0.0) < -0.01:
+            saldo_temporal['recebidos_funcionais_fontes_com_saldo_negativo'] += 1
     # Auditoria cumulativa de saldo temporal por lote (cronológica).
     consumo_por_lote: dict[str, dict[str, Any]] = {}
     saldo_exec = {k: float(v.get('saldo_liquido') or 0.0) for k, v in estado_lotes.items()}
@@ -2013,6 +2083,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         saldo_temporal['saldo_temporal_lote_8500_primeiro_evento_estouro'] = 'sem_evento_com_saldo_negativo_na_trilha'
     if evento_8500:
         saldo_temporal['saldo_temporal_lote_8500_evento_causal'] = saldo_temporal.get('saldo_temporal_lote_8500_primeiro_evento_estouro') or f"consumo_total={evento_8500.get('total_consumo_geral')} > saldo_inicial={evento_8500.get('saldo_inicial_liquido')}"
+    saldo_temporal['extrato_futuro_status_ok_total'] = sum(1 for e in eventos if str(e.get('status') or '') == 'ok')
+    saldo_temporal['extrato_futuro_nao_determinado_total'] = sum(1 for e in eventos if _eh_nd(e.get('lote_sugerido_operacional')))
+    saldo_temporal['extrato_futuro_sem_saldo_temporal_total'] = sum(1 for e in eventos if str(e.get('status') or '') == 'sem_saldo_temporal_auditavel')
+    saldo_temporal['divergencias_auditoria_fontes_extrato_futuro'] = 0
+    saldo_temporal['pre_invariante_total'] = 0
+    saldo_temporal['sombra_total'] = 0
     return {
         "eventos": eventos,
         "fifo_candidatos_avaliados": fifo_candidatos_avaliados,
