@@ -7,10 +7,6 @@ import subprocess
 import warnings
 from datetime import date, timedelta, datetime
 from decimal import Decimal, ROUND_HALF_UP
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    ZoneInfo = None
 import numpy as np
 import pandas as pd
 import copy
@@ -22,6 +18,11 @@ import pulp
 import itertools
 import unicodedata
 from importlib import metadata as importlib_metadata
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None
 
 def instalar_dependencias():
     required = {'pandas', 'numpy', 'openpyxl', 'workalendar', 'requests', 'pulp'}
@@ -440,6 +441,9 @@ MOSTRAR_TOP_SWITCH_CONSOLE = 2  # quantidade de alternativas exibidas por lote n
 EXIBIR_ALERTAS_FALTA_CAIXA = False  # reduz ruído de contas não cobertas no console
 
 ORDEM_PROCESSAMENTO_SENTINELA = int(_cfg_get(["execucao", "ordem_processamento_sentinela"], 10**12))
+
+### Parei Aqui
+
 
 def _normalizar_conta_processamento(conta):
     data = conta[0]

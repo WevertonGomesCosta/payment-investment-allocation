@@ -455,6 +455,9 @@ TOLERANCIA_MONETARIA = float(_cfg_get_required(["replay", "tolerancia_monetaria"
 VALOR_MINIMO_LOTE_ATIVO = float(_cfg_get_required(["replay", "valor_minimo_lote_ativo"]))
 VALOR_MINIMO_RESGATE_BRUTO = float(_cfg_get_required(["pagamento", "valor_minimo_resgate_bruto"]))
 
+### Parei Aqui
+
+
 TREINAMENTO_PERFIS = _cfg_get_required(["treinamento", "perfis"])
 
 TREINAMENTO_TEMPO_ALVO_MINIMO_ABSOLUTO = int(_cfg_get_required(["treinamento", "modo_auto", "tempo_alvo_minimo_absoluto"]))
