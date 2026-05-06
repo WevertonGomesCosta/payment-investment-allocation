@@ -49,6 +49,19 @@ class PacoteSwitchingEconomicoShadow:
 
 
 
+
+
+def _obter_limiar_residuo_resolvido(config: Mapping[str, Any]) -> float:
+    auditoria_cfg = obter_config(config, 'auditoria', padrao={}) or {}
+    replay_cfg = obter_config(config, 'replay', padrao={}) or {}
+    valor = auditoria_cfg.get('limiar_residuo_resolvido')
+    if valor is None:
+        valor = replay_cfg.get('valor_minimo_lote_ativo', 0.01)
+    try:
+        return round(float(valor), 2)
+    except Exception:
+        return 0.01
+
 def _produto_meta_por_key(carteira_canonica: PacoteCarteiraCanonica, produto_key: Any) -> dict[str, Any]:
     return dict((carteira_canonica.mapa_produtos.get('by_key', {}) or {}).get(produto_key) or {})
 
@@ -85,29 +98,17 @@ def _lotes_ativos_switching(
     replay_passado: PacoteReplayPassadoControlado | None,
     *,
     limiar_valor_ativo: float = 0.2,
-    data_referencia: date | None = None,
-    calendario_financeiro: PacoteCalendarioFinanceiro | None = None,
+    lotes_exauridos_operacionais: set[str] | None = None,
 ) -> list[Lote]:
     if replay_passado is None:
         return []
     lotes: list[Lote] = []
     for lote in replay_passado.lotes_apos_replay:
+        if lotes_exauridos_operacionais and str(lote.id) in lotes_exauridos_operacionais:
+            continue
         if lote.esgotado:
             continue
         saldo_bruto_operacional = float(getattr(lote, 'saldo_bruto', 0.0) or 0.0)
-        if data_referencia is not None and calendario_financeiro is not None:
-            try:
-                saldo_bruto_operacional = float(
-                    lote.valor_bruto_em_data(
-                        data_referencia,
-                        calendario_financeiro,
-                        serie_cdi=None,
-                        data_base_referencia=data_referencia,
-                    )
-                    or 0.0
-                )
-            except Exception:
-                saldo_bruto_operacional = float(getattr(lote, 'saldo_bruto', 0.0) or 0.0)
         if saldo_bruto_operacional <= float(limiar_valor_ativo):
             continue
         if limpar_texto(getattr(lote, 'situacao_investimento', '')) != 'aportado':
@@ -307,13 +308,52 @@ def carregar_switching_economico_shadow(
             semantica_por_key[k] = limpar_texto(rk.get('semantica_taxa_base'))
             indexador_por_key[k] = limpar_texto(rk.get('tipo_produto'))
 
-    limiar_cfg = float(obter_config(config, 'replay', 'valor_minimo_lote_ativo', padrao=0.2) or 0.2)
-    limiar_ativo = max(limiar_cfg, 0.2)
+    limiar_ativo = float(_obter_limiar_residuo_resolvido(config))
+    lotes_exauridos_operacionais: set[str] = set()
+    if replay_passado is not None:
+
+        log_passado = getattr(replay_passado, 'log_passado', None)
+        if isinstance(log_passado, pd.DataFrame) and len(log_passado) > 0 and 'Lote' in log_passado.columns and 'Saldo Remanescente' in log_passado.columns:
+            for lote_id, sub in log_passado.groupby(log_passado['Lote'].fillna('').astype(str)):
+                if not lote_id:
+                    continue
+                saldo_final = float(para_float_monetario(sub['Saldo Remanescente'].iloc[-1], 0.0) or 0.0)
+                if saldo_final <= limiar_ativo:
+                    lotes_exauridos_operacionais.add(str(lote_id))
+        for lote in replay_passado.lotes_apos_replay:
+            try:
+                bruto = float(
+                    lote.valor_bruto_em_data(
+                        data_referencia,
+                        calendario_financeiro,
+                        serie_cdi=None,
+                        data_base_referencia=data_referencia,
+                    )
+                    or 0.0
+                )
+            except Exception:
+                bruto = float(getattr(lote, 'saldo_bruto', 0.0) or 0.0)
+            try:
+                liquido = float(
+                    lote.valor_liquido_em_data(
+                        data_referencia,
+                        calendario_financeiro,
+                        tabela_iof=tabela_iof,
+                        faixas_ir=faixas_ir,
+                        serie_cdi=None,
+                        data_base_referencia=data_referencia,
+                    )
+                    or 0.0
+                )
+            except Exception:
+                liquido = float(lote.valor_liquido_hoje(data_referencia, tabela_iof=tabela_iof, faixas_ir=faixas_ir) or 0.0)
+            principal = float(getattr(lote, 'principal_remanescente', 0.0) or 0.0)
+            if bool(getattr(lote, 'esgotado', False)) or bruto <= limiar_ativo or liquido <= limiar_ativo or principal <= limiar_ativo:
+                lotes_exauridos_operacionais.add(str(lote.id))
     lotes = _lotes_ativos_switching(
         replay_passado,
         limiar_valor_ativo=limiar_ativo,
-        data_referencia=data_referencia,
-        calendario_financeiro=calendario_financeiro,
+        lotes_exauridos_operacionais=lotes_exauridos_operacionais,
     )
     candidatos = _selecionar_produtos_candidatos(carteira_canonica, triagem_motor)
     rank_por_produto_oficial, rank_por_nome_normalizado_oficial = _mapas_rank_oficial(ranking_carteira)
