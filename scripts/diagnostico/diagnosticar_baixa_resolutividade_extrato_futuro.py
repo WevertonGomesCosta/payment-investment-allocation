@@ -192,9 +192,12 @@ def main()->int:
     # Transição causal: fonte promovida -> sem saldo temporal auditável
     trans_cols = ['Data','Conta','Despesa ID','Valor','Lote sugerido','Lote reserva','Saldo temp. ant.','Bruto','Líquido','Saldo Remanescente','Status recomendação','Motivo bloqueio lote','_sem_cobertura_integral']
     trans = extrato[[c for c in trans_cols if c in extrato.columns]].copy()
-    if len(aud_fontes):
+    if len(aud_fontes) and 'Despesa ID' in aud_fontes.columns and 'Despesa ID' in trans.columns:
         af_cols = ['Despesa ID','fonte_candidata_id','origem_fonte_candidata','saldo_liquido_disponivel','promovida_para_lote_sugerido','status_ledger','motivo_bloqueio_ledger']
-        trans = trans.merge(aud_fontes[[c for c in af_cols if c in aud_fontes.columns]], on='Despesa ID', how='left', suffixes=('_extrato','_aud'))
+        cols_merge = ['Despesa ID'] + [c for c in af_cols if c != 'Despesa ID' and c in aud_fontes.columns]
+        trans = trans.merge(aud_fontes[cols_merge], on='Despesa ID', how='left', suffixes=('_extrato','_aud'))
+    elif len(aud_fontes) and 'Despesa ID' not in aud_fontes.columns:
+        print('auditoria_fontes_sem_chave_despesa_id=true')
     trans = trans.rename(columns={
         'Data':'data','Conta':'conta','Despesa ID':'despesa_id','Valor':'valor','Lote sugerido':'lote_sugerido','Lote reserva':'lote_reserva',
         'saldo_liquido_disponivel':'saldo_liquido_disponivel_auditoria','Saldo temp. ant.':'saldo_temporal_antes_extrato','Bruto':'bruto_extrato','Líquido':'liquido_extrato',
