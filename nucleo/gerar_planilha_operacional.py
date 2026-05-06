@@ -108,6 +108,8 @@ def _cabecalhos_operacionais(contexto, chave: str) -> list[str]:
         return default_headers
 
     headers_cfg = [str(item).strip() for item in valor if str(item).strip()]
+    if not headers_cfg:
+        return default_headers
     if chave != 'extrato_futuro':
         return headers_cfg
 
