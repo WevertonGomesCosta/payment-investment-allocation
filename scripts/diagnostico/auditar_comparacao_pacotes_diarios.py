@@ -99,7 +99,20 @@ for d in dias:
             else:
                 motivo_na='ausente_no_motor'
 
-        if vencedor in ('misto','indeterminado_por_saida'):
+        # factibilidade conceitual independe de evidência runtime (aval)
+        if not has_pay:
+            factivel = pacote in ('no_action','switch_only')
+        else:
+            if pacote in ('no_action','switch_only'):
+                factivel = False
+            elif pacote == 'pay_only':
+                factivel = True
+            else:
+                factivel = bool(cand_sw)
+
+        if not has_pay and pacote=='no_action' and vencedor=='no_action':
+            promov=True
+        elif vencedor in ('misto','indeterminado_por_saida'):
             promov=False
         else:
             promov = bool(aval and pacote==vencedor and status_ok and cob_ok)
@@ -107,6 +120,8 @@ for d in dias:
         status='ok' if status_ok else 'n/d'
         motivo_ledger='n/d' if status_ok else (motivo_na if not aval else 'nao_materializado')
         obs='inferido_por_saida_operacional_nao_por_solver_canonico'
+        if not has_pay and pacote=='no_action' and vencedor=='no_action':
+            obs += ';vencedor_conceitual_sem_evento_runtime'
         if vencedor=='misto':
             obs += ';pacotes_materializados_multiplos'
 
@@ -115,7 +130,7 @@ for d in dias:
             'recebidos_disponiveis_no_dia':receb_disp,'lotes_ativos_inicio_dia':lotes_ini,
             'lotes_vencidos_normalizados_no_dia':'n/d','fontes_disponiveis_inicio_dia':fontes_ini,
             'destinos_ranking_elegiveis':destinos_ranking_elegiveis_runtime,'pacote':pacote,
-            'pacote_foi_avaliado':aval,'pacote_foi_factivel':bool(aval and ((pacote in ('pay_only','switch_then_pay','pay_then_switch') and has_pay) or (pacote in ('no_action','switch_only') and not has_pay))),
+            'pacote_foi_avaliado':aval,'pacote_foi_factivel':factivel,
             'pacote_foi_promovido':promov,'pacote_vencedor_do_dia':vencedor,
             'motivo_nao_avaliado':motivo_na,'motivo_infactibilidade':'n/d' if aval else motivo_na,'motivo_descarte':'n/d' if promov else (motivo_na if not aval else 'nao_materializado'),
             'valor_objetivo_ou_proxy_terminal':'n/d','delta_vs_no_action':'n/d','delta_vs_pay_only':'n/d',
