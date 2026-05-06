@@ -60,8 +60,9 @@ for d in dias:
 
     materializadas = dia[(dia['_status_norm']=='ok') & (dia['_cob_norm'].isin(['sim','true','1']))]
     packs_mat=sorted(set(materializadas['_pacote_norm'].tolist()))
+    switch_only_materializado = 'switch_only' in packs_mat
     if not has_pay:
-        vencedor='no_action'
+        vencedor='switch_only' if switch_only_materializado else 'no_action'
     elif len(packs_mat)==1:
         vencedor=packs_mat[0]
     elif len(packs_mat)>1:
@@ -94,14 +95,19 @@ for d in dias:
                 motivo_na='nao_aplicavel_por_haver_pagamento_no_dia'
             elif (not has_pay) and pacote in ('pay_only','switch_then_pay','pay_then_switch'):
                 motivo_na='sem_pagamento_no_dia'
-            elif pacote in ('switch_only','switch_then_pay','pay_then_switch') and not cand_sw:
+            elif pacote in ('switch_only','switch_then_pay','pay_then_switch') and not (cand_sw or switch_only_materializado):
                 motivo_na='sem_candidato_ou_bloqueado_sem_distincao'
             else:
                 motivo_na='ausente_no_motor'
 
         # factibilidade conceitual independe de evidência runtime (aval)
         if not has_pay:
-            factivel = pacote in ('no_action','switch_only')
+            if pacote == 'no_action':
+                factivel = True
+            elif pacote == 'switch_only':
+                factivel = bool(cand_sw or switch_only_materializado)
+            else:
+                factivel = False
         else:
             if pacote in ('no_action','switch_only'):
                 factivel = False
@@ -110,8 +116,10 @@ for d in dias:
             else:
                 factivel = bool(cand_sw)
 
-        if not has_pay and pacote=='no_action' and vencedor=='no_action':
+        if not has_pay and pacote=='no_action' and vencedor=='no_action' and not switch_only_materializado:
             promov=True
+        elif not has_pay and pacote=='switch_only' and vencedor=='switch_only':
+            promov=bool(aval and status_ok and cob_ok)
         elif vencedor in ('misto','indeterminado_por_saida'):
             promov=False
         else:
@@ -120,8 +128,10 @@ for d in dias:
         status='ok' if status_ok else 'n/d'
         motivo_ledger='n/d' if status_ok else (motivo_na if not aval else 'nao_materializado')
         obs='inferido_por_saida_operacional_nao_por_solver_canonico'
-        if not has_pay and pacote=='no_action' and vencedor=='no_action':
+        if not has_pay and pacote=='no_action' and vencedor=='no_action' and not switch_only_materializado:
             obs += ';vencedor_conceitual_sem_evento_runtime'
+        if not has_pay and pacote=='switch_only' and not (cand_sw or switch_only_materializado):
+            obs += ';limite_inferencia_sem_candidato_ou_gate'
         if vencedor=='misto':
             obs += ';pacotes_materializados_multiplos'
 
