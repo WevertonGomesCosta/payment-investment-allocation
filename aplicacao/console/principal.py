@@ -121,10 +121,16 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
     linhas = list(getattr(saida_canonica, 'switchings', []) or [])[:10]
+    shadow = getattr(contexto_baseline, 'switching_economico_shadow', None)
+    auditoria_shadow = getattr(shadow, 'auditoria', {}) if shadow is not None else {}
+    resumo_shadow = dict(auditoria_shadow.get('resumo', {}) or {})
+    lotes_avaliados = resumo_shadow.get('qtd_lotes_ativos_avaliados', len(linhas))
+    candidatos_avaliados = resumo_shadow.get('qtd_linhas_analise', len(linhas))
 
     _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
     _imprimir_pares([
-        ('lotes avaliados para switching', len(linhas)),
+        ('lotes avaliados para switching', lotes_avaliados),
+        ('candidatos avaliados para switching', candidatos_avaliados),
         (
             'destinos elegíveis de switching',
             len(ranking.quadro_destinos_switch)
