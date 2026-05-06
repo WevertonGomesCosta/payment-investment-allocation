@@ -210,6 +210,71 @@ def _score_shadow(
     return float(ganho_liquido + materialidade + (score_triagem * 0.10) + risco_bonus - risco_pen - carencia_pen - prazo_pen)
 
 
+def _mapas_rank_candidatos(candidatos: pd.DataFrame) -> tuple[dict[str, int], dict[str, int]]:
+    if len(candidatos) == 0 or 'produto_key' not in candidatos.columns:
+        return {}, {}
+    ordenado = candidatos.sort_values(['score_final', 'nome'], ascending=[False, True], kind='stable').reset_index(drop=True)
+    rank_por_produto = {limpar_texto(row.get('produto_key')): int(idx + 1) for idx, (_, row) in enumerate(ordenado.iterrows())}
+    rank_por_nome_normalizado = {normalizar_texto(row.get('nome')): int(idx + 1) for idx, (_, row) in enumerate(ordenado.iterrows())}
+    return rank_por_produto, rank_por_nome_normalizado
+
+
+def _mapas_rank_oficial(ranking_carteira: Any | None) -> tuple[dict[str, int], dict[str, int]]:
+    destinos = getattr(ranking_carteira, 'quadro_destinos_switch', None) if ranking_carteira is not None else None
+    if not isinstance(destinos, pd.DataFrame) or len(destinos) == 0:
+        return {}, {}
+    rank_por_produto: dict[str, int] = {}
+    rank_por_nome_normalizado: dict[str, int] = {}
+    for _, row in destinos.iterrows():
+        rank = int(para_int(row.get('rank_destino'), 999) or 999)
+        key = limpar_texto(row.get('produto_key'))
+        nome_norm = normalizar_texto(row.get('nome'))
+        if key and key not in rank_por_produto:
+            rank_por_produto[key] = rank
+        if nome_norm and nome_norm not in rank_por_nome_normalizado:
+            rank_por_nome_normalizado[nome_norm] = rank
+    return rank_por_produto, rank_por_nome_normalizado
+
+
+def _resolver_rank_origem(
+    lote: Lote,
+    *,
+    produto_origem_nome: str,
+    produto_origem_meta: Mapping[str, Any],
+    rank_por_produto: Mapping[str, int],
+    rank_por_nome_normalizado: Mapping[str, int],
+) -> int:
+    # 1) produto_key do lote
+    rank = int(rank_por_produto.get(limpar_texto(getattr(lote, 'produto_key', '')), 0) or 0)
+    if rank > 0:
+        return rank
+    # 2) nome normalizado do produto de origem
+    rank = int(rank_por_nome_normalizado.get(normalizar_texto(produto_origem_nome), 0) or 0)
+    if rank > 0:
+        return rank
+    # 3) metadado por key da carteira
+    nome_meta = limpar_texto(produto_origem_meta.get('nome'))
+    rank = int(rank_por_nome_normalizado.get(normalizar_texto(nome_meta), 0) or 0)
+    if rank > 0:
+        return rank
+    # 4) nome/investimento normalizado do lote
+    nome_lote = limpar_texto(getattr(lote, 'investimento', ''))
+    rank = int(rank_por_nome_normalizado.get(normalizar_texto(nome_lote), 0) or 0)
+    return rank if rank > 0 else 999
+
+
+def _soma_pagamentos_na_janela(dados_operacionais: PacoteDadosOperacionaisCanonicos, inicio: date, fim: date) -> float:
+    gastos = dados_operacionais.gastos_canonicos.copy()
+    if len(gastos) == 0 or 'data' not in gastos.columns:
+        return 0.0
+    datas = pd.to_datetime(gastos['data'], errors='coerce').dt.date
+    mask = datas.notna() & (datas > inicio) & (datas <= fim)
+    if 'futuro_ou_pendente_na_data_referencia' in gastos.columns:
+        mask &= gastos['futuro_ou_pendente_na_data_referencia'].fillna(False)
+    valores = pd.to_numeric(gastos.loc[mask, 'valor'], errors='coerce').fillna(0.0) if 'valor' in gastos.columns else pd.Series(dtype=float)
+    return float(valores.sum()) if len(valores) > 0 else 0.0
+
+
 def carregar_switching_economico_shadow(
     dados_operacionais: PacoteDadosOperacionaisCanonicos,
     carteira_canonica: PacoteCarteiraCanonica,
@@ -291,6 +356,11 @@ def carregar_switching_economico_shadow(
         lotes_exauridos_operacionais=lotes_exauridos_operacionais,
     )
     candidatos = _selecionar_produtos_candidatos(carteira_canonica, triagem_motor)
+    rank_por_produto_oficial, rank_por_nome_normalizado_oficial = _mapas_rank_oficial(ranking_carteira)
+    rank_por_produto_candidatos, rank_por_nome_normalizado_candidatos = _mapas_rank_candidatos(candidatos)
+    rank_por_produto = rank_por_produto_oficial or rank_por_produto_candidatos
+    rank_por_nome_normalizado = rank_por_nome_normalizado_oficial or rank_por_nome_normalizado_candidatos
+    saldo_disponivel = float(getattr(dados_operacionais, 'saldo_disponivel_geral', 0.0) or 0.0)
     quadro_linhas: list[dict[str, Any]] = []
 
     for lote in lotes:
@@ -311,6 +381,13 @@ def carregar_switching_economico_shadow(
             )
             produto_destino_key = limpar_texto(produto_row.get('produto_key'))
             produto_destino_nome = limpar_texto(produto_row.get('nome'))
+            rank_origem = _resolver_rank_origem(
+                lote,
+                produto_origem_nome=produto_origem_nome,
+                produto_origem_meta=produto_origem_meta,
+                rank_por_produto=rank_por_produto,
+                rank_por_nome_normalizado=rank_por_nome_normalizado,
+            )
             linha = {
                 'lote_id': lote.id,
                 'produto_origem_key': lote.produto_key,
@@ -363,6 +440,15 @@ def carregar_switching_economico_shadow(
                 linha['riqueza_switch_horizonte'] = arredondar_monetario(riqueza_switch)
                 linha['ganho_liquido_estimado'] = arredondar_monetario(ganho)
                 linha['score_switch_shadow'] = round(float(score), 4)
+                carencia_destino = int(linha['carencia_dias_destino'] or 0)
+                carencia_origem = int(getattr(lote, 'carencia_dias', 0) or 0)
+                carencia_incremental = max(carencia_destino - carencia_origem, 0)
+                linha['dias_carencia_incremental'] = carencia_incremental
+                data_limite = data_referencia + timedelta(days=carencia_incremental) if carencia_incremental > 0 else data_referencia
+                pagamentos_janela = _soma_pagamentos_na_janela(dados_operacionais, data_referencia, data_limite) if carencia_incremental > 0 else 0.0
+                linha['pagamentos_na_janela_carencia'] = arredondar_monetario(pagamentos_janela)
+                fontes_alt = max(saldo_disponivel - valor_liquido_resgatavel, 0.0)
+                linha['fontes_alternativas_suficientes'] = bool(fontes_alt + 1e-9 >= pagamentos_janela)
             quadro_linhas.append(linha)
 
     quadro = pd.DataFrame(quadro_linhas)
