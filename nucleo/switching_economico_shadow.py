@@ -263,7 +263,6 @@ def carregar_switching_economico_shadow(
     config: Mapping[str, Any],
     ranking_carteira: Any | None = None,
     *,
-    ranking_carteira: Any | None = None,
     data_referencia: date,
     tabela_iof: list[float],
     faixas_ir: list[dict[str, Any]],
