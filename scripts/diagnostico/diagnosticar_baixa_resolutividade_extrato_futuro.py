@@ -24,6 +24,22 @@ def is_cobertura_integral(v) -> bool:
         return False
     return False
 
+def parse_bool_explicit(v) -> bool:
+    if v is True:
+        return True
+    if v is False or v is None or pd.isna(v):
+        return False
+    if isinstance(v, (int, float)):
+        return float(v) == 1.0
+    tok = norm(v)
+    true_vals = {'1', 'true', 'verdadeiro', 'sim', 's', 'yes', 'y'}
+    false_vals = {'0', 'false', 'falso', 'não', 'nao', 'n', '', 'n/d', 'nd', 'nan', 'none'}
+    if tok in true_vals:
+        return True
+    if tok in false_vals:
+        return False
+    return False
+
 def _inferir_causa(row):
     status = norm(row.get('Status recomendação')); motivo = norm(row.get('Motivo bloqueio lote'))
     reserva = row.get('_reserva_preenchida', False)
@@ -170,7 +186,7 @@ def main()->int:
             diverg_pacote = int((m['Pacote do dia'].fillna('').astype(str) != m.get('pacote_do_dia_ledger', pd.Series(['']*len(m))).fillna('').astype(str)).sum())
             lote_col = 'Lote sugerido' if 'Lote sugerido' in m.columns else ('Lote sugerido_ef' if 'Lote sugerido_ef' in m.columns else None)
             lote_nd = m[lote_col].fillna('').astype(str).str.lower().isin(['','n/d','nd','não determinado','nao determinado']) if lote_col else pd.Series([False]*len(m))
-            promovida = m.get('promovida_para_lote_sugerido', pd.Series([False]*len(m))).fillna(False).astype(bool)
+            promovida = m.get('promovida_para_lote_sugerido', pd.Series([False]*len(m))).apply(parse_bool_explicit)
             promovida_invalida = int((lote_nd & promovida).sum())
             sem_motivo_estruturado = int((lote_nd & m.get('etapa_descarte_fonte', pd.Series(['']*len(m))).fillna('').astype(str).str.strip().eq('')).sum())
 
@@ -205,7 +221,7 @@ def main()->int:
         'status_ledger_aud':'status_ledger','motivo_bloqueio_ledger':'motivo_ledger'
     })
     def _causa_transicao(r):
-        st = norm(r.get('status_ledger')); mt = norm(r.get('motivo_ledger')); prom = bool(r.get('promovida_para_lote_sugerido'))
+        st = norm(r.get('status_ledger')); mt = norm(r.get('motivo_ledger')); prom = parse_bool_explicit(r.get('promovida_para_lote_sugerido'))
         if prom and st == 'sem_saldo_temporal_auditavel' and mt == 'saldo_temporal_insuficiente_cumulativo':
             return 'rebaixamento_por_saldo_temporal_cumulativo'
         if prom and st == 'ok':
@@ -231,7 +247,7 @@ def main()->int:
     trans.to_csv(OUT_DIR/'auditoria_transicao_fonte_promovida_para_sem_saldo.csv', index=False)
     sem_cobertura = trans[_col(trans, '_sem_cobertura_integral', False).fillna(False).astype(bool)].copy()
     print(f"transicao_linhas_total={len(trans)} | transicao_linhas_sem_cobertura={len(sem_cobertura)}")
-    promovida_col = _col(sem_cobertura, 'promovida_para_lote_sugerido', False).fillna(False).astype(bool)
+    promovida_col = _col(sem_cobertura, 'promovida_para_lote_sugerido', False).apply(parse_bool_explicit)
     status_ledger_col = _col(sem_cobertura, 'status_ledger', '').astype(str)
     total_promovida_true_e_sem_saldo = int((promovida_col & status_ledger_col.eq('sem_saldo_temporal_auditavel')).sum())
     total_promovida_false_e_sem_saldo = int(((~promovida_col) & status_ledger_col.eq('sem_saldo_temporal_auditavel')).sum())
