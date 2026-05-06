@@ -28,5 +28,11 @@ if len(p)==0:
         if c not in bloqueados.columns:
             bloqueados[c]=''
     bloqueados=bloqueados[cols]
-    bloqueados.to_csv(RAIZ/'saidas/diagnostico/auditoria_switchings_bloqueados.csv',index=False)
+    out_b=RAIZ/'saidas/diagnostico/auditoria_switchings_bloqueados.csv'
+    bloqueados.to_csv(out_b,index=False)
+    motivos=(bloqueados['motivo_gate_switching'].fillna('').astype(str).replace('', 'sem_motivo').value_counts().head(5).to_dict())
+    print(f'arquivo_bloqueados={out_b}')
+    lotes_distintos = bloqueados['lote_id'].nunique()
+    destinos_distintos = bloqueados['produto_destino_key'].nunique()
+    print(f'bloqueados_linhas={len(bloqueados)} lotes_distintos={lotes_distintos} destinos_distintos={destinos_distintos} top_motivos={motivos}')
 print(f'plano_shadow_linhas={len(p)}'); print(f'saida_switchings_linhas={len(saida.switchings)}'); print(f'arquivo={out}')
