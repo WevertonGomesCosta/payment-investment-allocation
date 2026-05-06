@@ -81,14 +81,14 @@ def _selecionar_produtos_candidatos(carteira_canonica: PacoteCarteiraCanonica, t
     return df
 
 
-def _lotes_ativos_switching(replay_passado: PacoteReplayPassadoControlado | None) -> list[Lote]:
+def _lotes_ativos_switching(replay_passado: PacoteReplayPassadoControlado | None, *, limiar_valor_ativo: float = 0.2) -> list[Lote]:
     if replay_passado is None:
         return []
     lotes: list[Lote] = []
     for lote in replay_passado.lotes_apos_replay:
         if lote.esgotado:
             continue
-        if float(getattr(lote, 'saldo_bruto', 0.0) or 0.0) <= 0.01:
+        if float(getattr(lote, 'saldo_bruto', 0.0) or 0.0) <= float(limiar_valor_ativo):
             continue
         if limpar_texto(getattr(lote, 'situacao_investimento', '')) != 'aportado':
             continue
@@ -196,6 +196,7 @@ def carregar_switching_economico_shadow(
     replay_passado: PacoteReplayPassadoControlado | None,
     calendario_financeiro: PacoteCalendarioFinanceiro,
     config: Mapping[str, Any],
+    ranking_carteira: Any | None = None,
     *,
     data_referencia: date,
     tabela_iof: list[float],
@@ -206,8 +207,24 @@ def carregar_switching_economico_shadow(
     taxa_proj = float(calendario_financeiro.taxa_dia_base)
     data_horizonte = data_referencia + timedelta(days=horizonte_dias)
     primeira_despesa_futura = _data_primeira_despesa_futura(dados_operacionais, data_referencia)
+    destinos_oficiais = getattr(ranking_carteira, 'quadro_destinos_switch', None) if ranking_carteira is not None else None
+    rank_oficial_por_key: dict[str, int] = {}
+    score_oficial_por_key: dict[str, float] = {}
+    semantica_por_key: dict[str, str] = {}
+    indexador_por_key: dict[str, str] = {}
+    if isinstance(destinos_oficiais, pd.DataFrame) and len(destinos_oficiais):
+        for _, rk in destinos_oficiais.iterrows():
+            k = limpar_texto(rk.get('produto_key'))
+            if not k:
+                continue
+            rank_oficial_por_key[k] = int(para_int(rk.get('rank_destino'), 999) or 999)
+            score_oficial_por_key[k] = float(rk.get('score_final', 0.0) or 0.0)
+            semantica_por_key[k] = limpar_texto(rk.get('semantica_taxa_base'))
+            indexador_por_key[k] = limpar_texto(rk.get('tipo_produto'))
 
-    lotes = _lotes_ativos_switching(replay_passado)
+    limiar_cfg = float(obter_config(config, 'replay', 'valor_minimo_lote_ativo', padrao=0.2) or 0.2)
+    limiar_ativo = max(limiar_cfg, 0.2)
+    lotes = _lotes_ativos_switching(replay_passado, limiar_valor_ativo=limiar_ativo)
     candidatos = _selecionar_produtos_candidatos(carteira_canonica, triagem_motor)
     quadro_linhas: list[dict[str, Any]] = []
 
@@ -255,6 +272,14 @@ def carregar_switching_economico_shadow(
                 'score_switch_shadow': None,
                 'ranking_lote': None,
                 'recomendado_shadow': False,
+                'rank_origem': int(rank_oficial_por_key.get(limpar_texto(lote.produto_key), 999)),
+                'rank_destino': int(rank_oficial_por_key.get(produto_destino_key, 999)),
+                'score_destino_oficial': float(score_oficial_por_key.get(produto_destino_key, 0.0)),
+                'semantica_taxa_base_destino': semantica_por_key.get(produto_destino_key, limpar_texto(produto_row.get('semantica_taxa_base'))),
+                'tipo_produto_destino': indexador_por_key.get(produto_destino_key, limpar_texto(produto_row.get('tipo_produto'))),
+                'bloqueado_pos_gate': False,
+                'motivo_gate_switching': '',
+                'candidato_promovivel_pos_gate': False,
             }
             if elegivel:
                 lote_destino = _criar_lote_destino_shadow(produto_row, valor_liquido_resgatavel, data_referencia)
@@ -296,9 +321,33 @@ def carregar_switching_economico_shadow(
     if len(elegiveis) > 0:
         elegiveis = elegiveis.sort_values(['lote_id', 'score_switch_shadow', 'ganho_liquido_estimado', 'produto_destino_nome'], ascending=[True, False, False, True], kind='stable')
         elegiveis['ranking_lote'] = elegiveis.groupby('lote_id').cumcount() + 1
-        elegiveis['recomendado_shadow'] = (elegiveis['ranking_lote'] == 1) & (elegiveis['ganho_liquido_estimado'].fillna(0.0) >= ganho_minimo)
+        elegiveis['recomendado_shadow_antes_gate'] = (elegiveis['ranking_lote'] == 1) & (elegiveis['ganho_liquido_estimado'].fillna(0.0) >= ganho_minimo)
+        ganho_rel = elegiveis['ganho_liquido_estimado'].fillna(0.0) / elegiveis['valor_liquido_resgatavel'].replace(0.0, 1.0)
+        rank_dest = elegiveis['rank_destino'].fillna(999).astype(int)
+        rank_ori = elegiveis['rank_origem'].fillna(999).astype(int)
+        delta_rank = rank_dest - rank_ori
+        limiar_rank_baixo = 0.80
+        gate_rank_baixo = (rank_dest >= 20) & (ganho_rel < limiar_rank_baixo)
+        gate_rank_pior = (delta_rank > 0) & (ganho_rel < 0.60)
+        semantica = elegiveis['semantica_taxa_base_destino'].fillna('').astype(str).str.lower().str.strip()
+        gate_semantica = semantica.ne('percentual_cdi')
+        gate = gate_rank_baixo | gate_rank_pior | gate_semantica
+        elegiveis.loc[gate_rank_baixo, 'motivo_gate_switching'] = 'bloqueado_rank_muito_inferior_sem_ganho_robusto'
+        elegiveis.loc[gate_rank_pior, 'motivo_gate_switching'] = 'bloqueado_rank_pior_sem_ganho_excepcional'
+        elegiveis.loc[gate_semantica, 'motivo_gate_switching'] = 'bloqueado_semantica_taxa_nao_suportada_shadow'
+        elegiveis.loc[gate, 'bloqueado_pos_gate'] = True
+        elegiveis['candidato_promovivel_pos_gate'] = (~elegiveis['bloqueado_pos_gate']) & (elegiveis['ganho_liquido_estimado'].fillna(0.0) >= ganho_minimo)
+        elegiveis['recomendado_shadow'] = False
+        idx = elegiveis[elegiveis['candidato_promovivel_pos_gate']].groupby('lote_id', as_index=False).head(1).index
+        elegiveis.loc[idx, 'recomendado_shadow'] = True
+        elegiveis['recomendado_shadow_depois_gate'] = elegiveis['recomendado_shadow']
         quadro.loc[elegiveis.index, 'ranking_lote'] = elegiveis['ranking_lote']
         quadro.loc[elegiveis.index, 'recomendado_shadow'] = elegiveis['recomendado_shadow']
+        quadro.loc[elegiveis.index, 'recomendado_shadow_antes_gate'] = elegiveis['recomendado_shadow_antes_gate']
+        quadro.loc[elegiveis.index, 'recomendado_shadow_depois_gate'] = elegiveis['recomendado_shadow_depois_gate']
+        quadro.loc[elegiveis.index, 'bloqueado_pos_gate'] = elegiveis['bloqueado_pos_gate']
+        quadro.loc[elegiveis.index, 'motivo_gate_switching'] = elegiveis['motivo_gate_switching']
+        quadro.loc[elegiveis.index, 'candidato_promovivel_pos_gate'] = elegiveis['candidato_promovivel_pos_gate']
 
     melhores = quadro[quadro['ranking_lote'] == 1].copy() if 'ranking_lote' in quadro.columns else pd.DataFrame([])
     melhores = melhores.sort_values(['recomendado_shadow', 'ganho_liquido_estimado', 'score_switch_shadow', 'lote_id'], ascending=[False, False, False, True], kind='stable') if len(melhores) > 0 else melhores
