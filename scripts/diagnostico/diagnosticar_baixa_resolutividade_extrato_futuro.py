@@ -86,12 +86,14 @@ def main()->int:
             extrato = extrato.merge(estruturado, how='left', on='_join_despesa_id')
 
     extrato['_lote_nd']=extrato['Lote sugerido'].apply(is_nd)
+    col_cobertura = 'Cobertura integral' if 'Cobertura integral' in extrato.columns else ('Cobertura Integral?' if 'Cobertura Integral?' in extrato.columns else None)
+    extrato['_sem_cobertura_integral'] = extrato[col_cobertura].astype(str).str.strip().str.lower().eq('não') if col_cobertura else extrato['_lote_nd']
     extrato['_reserva_preenchida']=~extrato['Lote reserva'].apply(is_nd)
     extrato['_reserva_futura_sinal']=extrato['Lote reserva'].astype(str).str.contains(r'mai\.|jun\.|jul\.|ago\.|set\.|out\.|nov\.|dez\.', case=False, na=False)
     extrato['_reserva_prazo_sinal']=extrato['Lote reserva'].astype(str).str.contains('cdb|lc[ai]|tesouro|prazo|carência|carencia', case=False, na=False)
     extrato['_consumiu_lote_pos_sw']=~extrato.get('Lote pós-switching', pd.Series(['']*len(extrato))).apply(is_nd)
 
-    sem_lote=extrato[extrato['_lote_nd']].copy()
+    sem_lote=extrato[extrato['_sem_cobertura_integral']].copy()
     if len(sem_lote):
         causas=sem_lote.apply(_inferir_causa, axis=1, result_type='expand')
         sem_lote[['causa_raiz','etapa_descarte_fonte','tipo_causa']]=causas
@@ -160,7 +162,7 @@ def main()->int:
 
     resumo=pd.DataFrame([{
         'xlsx_escolhido':str(xlsx),'xlsx_mtime_utc':mtime,'abas_disponiveis':' | '.join(abas),
-        'total_pagamentos_futuros':len(extrato),'total_lote_sugerido_determinado':int((~extrato['_lote_nd']).sum()),'total_lote_sugerido_nao_determinado':int(extrato['_lote_nd'].sum()),
+        'total_pagamentos_futuros':len(extrato),'total_lote_sugerido_determinado':int((~extrato['_lote_nd']).sum()),'total_lote_sugerido_nao_determinado':int(extrato['_lote_nd'].sum()),'total_sem_cobertura_integral':int(extrato['_sem_cobertura_integral'].sum()),
         'total_reserva_preenchida':int(extrato['_reserva_preenchida'].sum()),'total_reserva_preenchida_e_lote_nd':int((extrato['_reserva_preenchida'] & extrato['_lote_nd']).sum()),
         'total_lotes_pos_switching_materializados':len(sw_df),'total_pagamentos_que_consumiram_lote_pos_switching':int(extrato['_consumiu_lote_pos_sw'].sum()),
         'divergencias_status_extrato_vs_auditoria': diverg_status,
