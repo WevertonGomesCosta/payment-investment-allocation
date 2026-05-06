@@ -2,7 +2,8 @@ from __future__ import annotations
 import pandas as pd
 from pathlib import Path
 
-INI='2026-05-06'; FIM='2026-06-15'
+RECORTE_INI=None
+RECORTE_FIM=None
 PACOTES=['no_action','switch_only','pay_only','switch_then_pay','pay_then_switch']
 
 def contar_fontes_lote_sugerido(valor) -> int:
@@ -26,13 +27,31 @@ ext=pd.read_excel(p,sheet_name='Extrato Futuro')
 aud=pd.read_excel(p,sheet_name='Auditoria Fontes') if 'Auditoria Fontes' in xf.sheet_names else pd.DataFrame()
 
 ext['Data']=pd.to_datetime(ext['Data'],errors='coerce').dt.date
+ext=ext[ext['Data'].notna()].copy()
+if len(ext)==0:
+    raise SystemExit('ERRO: Extrato Futuro vazio ou sem datas válidas no xlsx oficial.')
 ext['_pacote_norm']=ext.get('Pacote do dia',pd.Series('',index=ext.index)).fillna('').astype(str).str.strip().str.lower()
 ext['_status_norm']=ext.get('Status recomendação',pd.Series('',index=ext.index)).fillna('').astype(str).str.strip().str.lower()
 ext['_cob_norm']=ext.get('Cobertura integral',pd.Series('',index=ext.index)).fillna('').astype(str).str.strip().str.lower()
 if len(aud):
     aud['Data']=pd.to_datetime(aud['Data'],errors='coerce').dt.date
 
-dias=[d.date() for d in pd.date_range(INI,FIM,freq='D')]
+ini_data=min(ext['Data']); fim_data=max(ext['Data'])
+if RECORTE_INI is not None:
+    ini_data=max(ini_data, pd.to_datetime(RECORTE_INI).date())
+if RECORTE_FIM is not None:
+    fim_data=min(fim_data, pd.to_datetime(RECORTE_FIM).date())
+if ini_data>fim_data:
+    raise SystemExit('ERRO: recorte inválido após aplicar RECORTE_INI/RECORTE_FIM.')
+dias=[d.date() for d in pd.date_range(ini_data,fim_data,freq='D')]
+
+carteira=pd.read_excel(p,sheet_name='Carteira') if 'Carteira' in xf.sheet_names else pd.DataFrame()
+destinos_ranking_elegiveis_runtime=0
+if len(carteira):
+    if 'Rank' in carteira.columns:
+        destinos_ranking_elegiveis_runtime=int(pd.to_numeric(carteira['Rank'],errors='coerce').notna().sum())
+    elif 'Produto' in carteira.columns:
+        destinos_ranking_elegiveis_runtime=int(carteira['Produto'].fillna('').astype(str).str.strip().ne('').sum())
 rows=[]
 for d in dias:
     dia=ext[ext['Data']==d].copy()
@@ -95,7 +114,7 @@ for d in dias:
             'data':d.isoformat(),'pagamentos_do_dia':int(len(dia)),'valor_total_pagamentos_dia':round(total_val,2),
             'recebidos_disponiveis_no_dia':receb_disp,'lotes_ativos_inicio_dia':lotes_ini,
             'lotes_vencidos_normalizados_no_dia':'n/d','fontes_disponiveis_inicio_dia':fontes_ini,
-            'destinos_ranking_elegiveis':78,'pacote':pacote,
+            'destinos_ranking_elegiveis':destinos_ranking_elegiveis_runtime,'pacote':pacote,
             'pacote_foi_avaliado':aval,'pacote_foi_factivel':bool(aval and ((pacote in ('pay_only','switch_then_pay','pay_then_switch') and has_pay) or (pacote in ('no_action','switch_only') and not has_pay))),
             'pacote_foi_promovido':promov,'pacote_vencedor_do_dia':vencedor,
             'motivo_nao_avaliado':motivo_na,'motivo_infactibilidade':'n/d' if aval else motivo_na,'motivo_descarte':'n/d' if promov else (motivo_na if not aval else 'nao_materializado'),
@@ -113,12 +132,16 @@ out.to_csv(out_path,index=False)
 
 print(f'xlsx_escolhido={p}')
 print(f'xlsx_mtime_utc={mtime_utc}')
-print(f'janela_auditada={INI}..{FIM}')
+print(f'janela_auditada_inicio={ini_data}')
+print(f'janela_auditada_fim={fim_data}')
 print(f'total_dias_janela={len(dias)}')
 print(f'total_linhas_csv={len(out)}')
 print(f'total_pacotes_conceituais_esperados={len(dias)*len(PACOTES)}')
 print(f'total_pacotes_efetivamente_avaliados={int(out["pacote_foi_avaliado"].sum())}')
-print(f'pacotes_ausentes_por_tipo={out[out["pacote_foi_avaliado"]==False]["pacote".strip()].value_counts().to_dict()}')
+print(f'pacotes_ausentes_por_tipo={out[out["pacote_foi_avaliado"]==False]["pacote"].value_counts().to_dict()}')
+print(f'total_datas_com_pagamento={int((out.groupby("data")["pagamentos_do_dia"].max()>0).sum())}')
+print(f'total_datas_sem_pagamento={int((out.groupby("data")["pagamentos_do_dia"].max()==0).sum())}')
+print(f'destinos_ranking_elegiveis_runtime={destinos_ranking_elegiveis_runtime}')
 print('primeira_quebra_2026_06_10=')
 print(out[out['data'].eq('2026-06-10')][['data','pacote','pacote_foi_avaliado','pacote_vencedor_do_dia','status_ledger_resultante','motivo_nao_avaliado']].to_string(index=False))
 print(f'csv={out_path}')
