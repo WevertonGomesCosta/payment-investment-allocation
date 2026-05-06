@@ -174,6 +174,35 @@ def main()->int:
     resumo.to_csv(OUT_DIR/'diagnostico_baixa_resolutividade_resumo.csv',index=False)
     pd.DataFrame(aba_shapes).to_csv(OUT_DIR/'diagnostico_baixa_resolutividade_abas_shapes.csv', index=False)
 
+
+    # Transição causal: fonte promovida -> sem saldo temporal auditável
+    trans_cols = ['Data','Conta','Despesa ID','Valor','Lote sugerido','Lote reserva','Saldo temp. ant.','Bruto','Líquido','Saldo Remanescente','Status recomendação','Motivo bloqueio lote']
+    trans = extrato[[c for c in trans_cols if c in extrato.columns]].copy()
+    if len(aud_fontes):
+        af_cols = ['Despesa ID','fonte_candidata_id','saldo_liquido_disponivel','promovida_para_lote_sugerido','status_ledger','motivo_bloqueio_ledger']
+        trans = trans.merge(aud_fontes[[c for c in af_cols if c in aud_fontes.columns]], on='Despesa ID', how='left', suffixes=('_extrato','_aud'))
+    trans = trans.rename(columns={
+        'Data':'data','Conta':'conta','Despesa ID':'despesa_id','Valor':'valor','Lote sugerido':'lote_sugerido','Lote reserva':'lote_reserva',
+        'saldo_liquido_disponivel':'saldo_liquido_disponivel_auditoria','Saldo temp. ant.':'saldo_temporal_antes_extrato','Bruto':'bruto_extrato','Líquido':'liquido_extrato',
+        'Saldo Remanescente':'saldo_remanescente_extrato','Status recomendação':'status_extrato','Motivo bloqueio lote':'motivo_extrato',
+        'status_ledger_aud':'status_ledger','motivo_bloqueio_ledger':'motivo_ledger'
+    })
+    def _causa_transicao(r):
+        st = norm(r.get('status_ledger')); mt = norm(r.get('motivo_ledger')); prom = bool(r.get('promovida_para_lote_sugerido'))
+        if prom and st == 'sem_saldo_temporal_auditavel' and mt == 'saldo_temporal_insuficiente_cumulativo':
+            return 'rebaixamento_por_saldo_temporal_cumulativo'
+        if prom and st == 'ok':
+            return 'sem_transicao_bloqueante'
+        return 'outro'
+    trans['causa_transicao'] = trans.apply(_causa_transicao, axis=1)
+    trans['interpretacao'] = trans['causa_transicao'].map({
+        'rebaixamento_por_saldo_temporal_cumulativo':'saldo_liquido_disponivel_auditoria representa elegibilidade local/promocao; ledger valida saldo cumulativo cronologico e rebaixa quando insuficiente',
+        'sem_transicao_bloqueante':'evento permaneceu ok apos validacao cumulativa'
+    }).fillna('transicao fora do padrao principal')
+    trans.to_csv(OUT_DIR/'auditoria_transicao_fonte_promovida_para_sem_saldo.csv', index=False)
+    primeira_quebra = trans[trans['causa_transicao'].eq('rebaixamento_por_saldo_temporal_cumulativo')].sort_values(['data','despesa_id']).head(1)
+    primeira_quebra.to_csv(OUT_DIR/'primeira_quebra_causal.csv', index=False)
+
     print('shapes_lidos:')
     print(pd.DataFrame(aba_shapes).to_string(index=False))
     print(resumo.to_string(index=False))
