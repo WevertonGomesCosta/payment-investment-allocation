@@ -27,12 +27,31 @@ if len(p)==0:
     for c in cols:
         if c not in bloqueados.columns:
             bloqueados[c]=''
-    bloqueados=bloqueados[cols]
+    bloqueados=bloqueados[cols].copy()
+    bloqueados['status_final_shadow']='candidato_elegivel_nao_bloqueado_nao_promovido'
+    bloqueados.loc[bloqueados['bloqueado_pos_gate'].fillna(False)==True,'status_final_shadow']='descartado_nao_promovivel_pos_gate'
+    bloqueados.loc[bloqueados['motivo_gate_switching'].fillna('').astype(str).str.strip()!='','status_final_shadow']=bloqueados['motivo_gate_switching']
+    bloqueados.loc[(bloqueados['motivo_gate_switching'].fillna('').astype(str).str.strip()=='') & (bloqueados['elegivel_shadow'].fillna(False)==False),'status_final_shadow']='descartado_ganho_abaixo_minimo'
+    bloqueados['etapa_descarte_shadow']='promocao_final'
+    bloqueados.loc[bloqueados['motivo_bloqueio_shadow'].fillna('').astype(str).str.strip()!='','etapa_descarte_shadow']='filtro_inicial'
+    bloqueados['motivo_descarte_shadow']=bloqueados['motivo_gate_switching'].fillna('')
+    bloqueados.loc[bloqueados['motivo_descarte_shadow'].astype(str).str.strip()=='','motivo_descarte_shadow']=bloqueados['motivo_bloqueio_shadow'].fillna('')
+    bloqueados.loc[bloqueados['motivo_descarte_shadow'].astype(str).str.strip()=='','motivo_descarte_shadow']='descartado_nao_top_por_score_shadow'
     out_b=RAIZ/'saidas/diagnostico/auditoria_switchings_bloqueados.csv'
     bloqueados.to_csv(out_b,index=False)
-    motivos=(bloqueados['motivo_gate_switching'].fillna('').astype(str).replace('', 'sem_motivo').value_counts().head(5).to_dict())
+    motivos=(bloqueados['motivo_descarte_shadow'].fillna('').astype(str).replace('', 'sem_motivo').value_counts().head(5).to_dict())
+    status_final=(bloqueados['status_final_shadow'].value_counts().head(5).to_dict())
+    etapas=(bloqueados['etapa_descarte_shadow'].value_counts().head(5).to_dict())
     print(f'arquivo_bloqueados={out_b}')
     lotes_distintos = bloqueados['lote_id'].nunique()
     destinos_distintos = bloqueados['produto_destino_key'].nunique()
+    lotes_shadow=sorted(set(bloqueados['lote_id'].astype(str)))
+    lotes_ativos=sorted(set(str(x.get('Lote') or '') for x in getattr(saida,'lotes_ativos',[]) if str(x.get('Lote') or '').strip()))
+    diff_shadow_ativos=sorted(set(lotes_shadow)-set(lotes_ativos))
     print(f'bloqueados_linhas={len(bloqueados)} lotes_distintos={lotes_distintos} destinos_distintos={destinos_distintos} top_motivos={motivos}')
+    print(f'top_status_final_shadow={status_final}')
+    print(f'top_etapa_descarte_shadow={etapas}')
+    print(f'lotes_shadow={lotes_shadow}')
+    print(f'lotes_ativos_situacao_atual={lotes_ativos}')
+    print(f'diferenca_shadow_menos_ativos={diff_shadow_ativos}')
 print(f'plano_shadow_linhas={len(p)}'); print(f'saida_switchings_linhas={len(saida.switchings)}'); print(f'arquivo={out}')
