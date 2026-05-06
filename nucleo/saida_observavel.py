@@ -163,6 +163,7 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, A
     )
 
     valor_original_total = round(sum(para_float(item.get('Orig.')) for item in linhas), 2)
+    valor_total_investido_em_carteira = round(sum(para_float(item.get('Orig.')) for item in construir_linhas_lotes_consolidados(contexto, saida, tipo='ativos')), 2)
     valor_total_bruto_sacado = round(sum(para_float(item.get('Bruto sac.')) for item in linhas), 2)
     valor_total_liquido_sacado = round(sum(para_float(item.get('Líq. sac.')) for item in linhas), 2)
     valor_bruto_atual = round(sum(para_float(item.get('Bruto atual')) for item in linhas), 2)
@@ -172,6 +173,7 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, A
 
     return [
         {'Métrica': 'Valor original total', 'Valor': valor_original_total},
+        {'Métrica': 'Valor total investido em carteira', 'Valor': valor_total_investido_em_carteira},
         {'Métrica': 'Valor total bruto sacado', 'Valor': valor_total_bruto_sacado},
         {'Métrica': 'Valor total líquido sacado', 'Valor': valor_total_liquido_sacado},
         {'Métrica': 'Valor bruto atual', 'Valor': valor_bruto_atual},
