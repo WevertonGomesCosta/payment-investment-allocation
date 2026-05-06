@@ -3,6 +3,7 @@ import glob
 from pathlib import Path
 from datetime import datetime, timezone
 import pandas as pd
+from openpyxl import load_workbook
 
 OUT_DIR = Path('saidas/diagnostico')
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -59,6 +60,13 @@ def main()->int:
         if nome in abas:
             df=pd.read_excel(xl, sheet_name=nome)
             df=df[~df.apply(lambda r: all(is_nd(v) for v in r), axis=1)].copy()
+            if nome == 'Switching' and len(df.columns) == 0:
+                wb = load_workbook(filename=xlsx, read_only=True, data_only=True)
+                ws = wb[nome]
+                headers = [c for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=True)) if c not in (None, '')]
+                wb.close()
+                if headers:
+                    df = pd.DataFrame(columns=list(headers))
             aba_shapes.append({'aba':nome,'linhas':len(df),'colunas':len(df.columns)})
             return df
         return pd.DataFrame()
@@ -79,13 +87,18 @@ def main()->int:
 
     extrato['_lote_nd']=extrato['Lote sugerido'].apply(is_nd)
     extrato['_reserva_preenchida']=~extrato['Lote reserva'].apply(is_nd)
-    extrato['_reserva_futura_sinal']=extrato['Lote reserva'].astype(str).str.contains('mai\.|jun\.|jul\.|ago\.|set\.|out\.|nov\.|dez\.', case=False, na=False)
+    extrato['_reserva_futura_sinal']=extrato['Lote reserva'].astype(str).str.contains(r'mai\.|jun\.|jul\.|ago\.|set\.|out\.|nov\.|dez\.', case=False, na=False)
     extrato['_reserva_prazo_sinal']=extrato['Lote reserva'].astype(str).str.contains('cdb|lc[ai]|tesouro|prazo|carência|carencia', case=False, na=False)
     extrato['_consumiu_lote_pos_sw']=~extrato.get('Lote pós-switching', pd.Series(['']*len(extrato))).apply(is_nd)
 
     sem_lote=extrato[extrato['_lote_nd']].copy()
-    causas=sem_lote.apply(_inferir_causa, axis=1, result_type='expand')
-    sem_lote[['causa_raiz','etapa_descarte_fonte','tipo_causa']]=causas
+    if len(sem_lote):
+        causas=sem_lote.apply(_inferir_causa, axis=1, result_type='expand')
+        sem_lote[['causa_raiz','etapa_descarte_fonte','tipo_causa']]=causas
+    else:
+        sem_lote['causa_raiz'] = pd.Series(dtype=str)
+        sem_lote['etapa_descarte_fonte'] = pd.Series(dtype=str)
+        sem_lote['tipo_causa'] = pd.Series(dtype=str)
     sem_lote['fontes_candidatas_motor']=sem_lote.get('fonte_candidata_id', sem_lote['Lote reserva']).fillna('n/d')
     sem_lote['saldo_liquido_reserva_data']=sem_lote.get('saldo_liquido_disponivel', sem_lote['Saldo Antes']).fillna('n/d')
     sem_lote['elegibilidade_temporal_reserva']=sem_lote['_reserva_futura_sinal'].map({True:'ineligivel_data_inferido',False:'sem_evidencia_ineligibilidade_data'})
