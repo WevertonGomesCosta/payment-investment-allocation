@@ -190,7 +190,7 @@ def main()->int:
 
 
     # Transição causal: fonte promovida -> sem saldo temporal auditável
-    trans_cols = ['Data','Conta','Despesa ID','Valor','Lote sugerido','Lote reserva','Saldo temp. ant.','Bruto','Líquido','Saldo Remanescente','Status recomendação','Motivo bloqueio lote']
+    trans_cols = ['Data','Conta','Despesa ID','Valor','Lote sugerido','Lote reserva','Saldo temp. ant.','Bruto','Líquido','Saldo Remanescente','Status recomendação','Motivo bloqueio lote','_sem_cobertura_integral']
     trans = extrato[[c for c in trans_cols if c in extrato.columns]].copy()
     if len(aud_fontes):
         af_cols = ['Despesa ID','fonte_candidata_id','origem_fonte_candidata','saldo_liquido_disponivel','promovida_para_lote_sugerido','status_ledger','motivo_bloqueio_ledger']
@@ -209,9 +209,9 @@ def main()->int:
             return 'sem_transicao_bloqueante'
         return 'outro'
     trans['causa_transicao'] = trans.apply(_causa_transicao, axis=1)
-    trans['saldo_temporal_real_antes'] = trans['saldo_temporal_antes_extrato']
+    trans['saldo_temporal_real_antes'] = _col(trans, 'saldo_temporal_antes_extrato', pd.NA)
     trans['consumo_evento'] = trans['valor']
-    trans['saldo_temporal_real_depois'] = trans['saldo_remanescente_extrato']
+    trans['saldo_temporal_real_depois'] = _col(trans, 'saldo_remanescente_extrato', pd.NA)
     trans['saldo_local_ou_valor_promovido'] = _col(trans, 'saldo_liquido_disponivel_auditoria', pd.NA)
     saldo_local_num = pd.to_numeric(trans['saldo_local_ou_valor_promovido'], errors='coerce')
     saldo_temporal_num = pd.to_numeric(trans['saldo_temporal_real_antes'], errors='coerce')
@@ -226,7 +226,8 @@ def main()->int:
         'sem_transicao_bloqueante':'evento permaneceu ok apos validacao cumulativa'
     }).fillna('transicao fora do padrao principal')
     trans.to_csv(OUT_DIR/'auditoria_transicao_fonte_promovida_para_sem_saldo.csv', index=False)
-    sem_cobertura = trans[extrato['_sem_cobertura_integral'].values].copy()
+    sem_cobertura = trans[_col(trans, '_sem_cobertura_integral', False).fillna(False).astype(bool)].copy()
+    print(f"transicao_linhas_total={len(trans)} | transicao_linhas_sem_cobertura={len(sem_cobertura)}")
     promovida_col = _col(sem_cobertura, 'promovida_para_lote_sugerido', False).fillna(False).astype(bool)
     status_ledger_col = _col(sem_cobertura, 'status_ledger', '').astype(str)
     total_promovida_true_e_sem_saldo = int((promovida_col & status_ledger_col.eq('sem_saldo_temporal_auditavel')).sum())
