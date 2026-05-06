@@ -44,6 +44,11 @@ def _non_empty(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     mask=df[c].apply(lambda r: any(not is_nd(v) for v in r), axis=1)
     return df[mask].copy()
 
+def _col(df: pd.DataFrame, nome: str, default='') -> pd.Series:
+    if nome in df.columns:
+        return df[nome]
+    return pd.Series([default] * len(df), index=df.index)
+
 def main()->int:
     candidates=sorted(glob.glob('saidas/oficial/*.xlsx'), key=lambda p: Path(p).stat().st_mtime)
     if not candidates:
@@ -207,7 +212,7 @@ def main()->int:
     trans['saldo_temporal_real_antes'] = trans['saldo_temporal_antes_extrato']
     trans['consumo_evento'] = trans['valor']
     trans['saldo_temporal_real_depois'] = trans['saldo_remanescente_extrato']
-    trans['saldo_local_ou_valor_promovido'] = trans.get('saldo_liquido_disponivel_auditoria', pd.Series([pd.NA] * len(trans)))
+    trans['saldo_local_ou_valor_promovido'] = _col(trans, 'saldo_liquido_disponivel_auditoria', pd.NA)
     saldo_local_num = pd.to_numeric(trans['saldo_local_ou_valor_promovido'], errors='coerce')
     saldo_temporal_num = pd.to_numeric(trans['saldo_temporal_real_antes'], errors='coerce')
     trans['diferenca_saldo_local_vs_temporal'] = (saldo_local_num - saldo_temporal_num).round(2)
@@ -222,14 +227,22 @@ def main()->int:
     }).fillna('transicao fora do padrao principal')
     trans.to_csv(OUT_DIR/'auditoria_transicao_fonte_promovida_para_sem_saldo.csv', index=False)
     sem_cobertura = trans[extrato['_sem_cobertura_integral'].values].copy()
-    total_promovida_true_e_sem_saldo = int((sem_cobertura.get('promovida_para_lote_sugerido', pd.Series([False]*len(sem_cobertura))).fillna(False).astype(bool) & sem_cobertura['status_ledger'].astype(str).eq('sem_saldo_temporal_auditavel')).sum())
-    total_promovida_false_e_sem_saldo = int(((~sem_cobertura.get('promovida_para_lote_sugerido', pd.Series([False]*len(sem_cobertura))).fillna(False).astype(bool)) & sem_cobertura['status_ledger'].astype(str).eq('sem_saldo_temporal_auditavel')).sum())
+    promovida_col = _col(sem_cobertura, 'promovida_para_lote_sugerido', False).fillna(False).astype(bool)
+    status_ledger_col = _col(sem_cobertura, 'status_ledger', '').astype(str)
+    total_promovida_true_e_sem_saldo = int((promovida_col & status_ledger_col.eq('sem_saldo_temporal_auditavel')).sum())
+    total_promovida_false_e_sem_saldo = int(((~promovida_col) & status_ledger_col.eq('sem_saldo_temporal_auditavel')).sum())
     print(f"transicao_total_sem_cobertura_integral={len(sem_cobertura)}")
     print(f"transicao_total_promovida_true_e_sem_saldo={total_promovida_true_e_sem_saldo}")
     print(f"transicao_total_promovida_false_e_sem_saldo={total_promovida_false_e_sem_saldo}")
     if 'origem_fonte_candidata' in sem_cobertura.columns:
         print('transicao_total_por_origem_fonte_candidata:')
-        print(sem_cobertura['origem_fonte_candidata'].fillna('n/d').astype(str).value_counts().to_string())
+        print(_col(sem_cobertura, 'origem_fonte_candidata', 'n/d').fillna('n/d').astype(str).value_counts().to_string())
+    else:
+        print('transicao_total_por_origem_fonte_candidata:')
+        print('n/d')
+    # diagnóstico defensivo para cenário sem Auditoria Fontes
+    if len(aud_fontes) == 0:
+        print('diagnostico_defensivo_sem_auditoria_fontes=ativo')
     print('transicao_total_por_lote_sugerido:')
     print(sem_cobertura['lote_sugerido'].fillna('n/d').astype(str).value_counts().to_string())
     print('transicao_total_por_causa_transicao:')
