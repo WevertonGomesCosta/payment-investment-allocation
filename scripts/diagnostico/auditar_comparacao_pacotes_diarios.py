@@ -5,10 +5,20 @@ from pathlib import Path
 INI='2026-05-06'; FIM='2026-06-15'
 PACOTES=['no_action','switch_only','pay_only','switch_then_pay','pay_then_switch']
 
-p=Path('saidas/oficial/relatorio_operacional_v225.xlsx')
-if not p.exists():
-    raise SystemExit('ERRO: execute python aplicacao/principal.py antes')
+
+def contar_fontes_lote_sugerido(valor) -> int:
+    txt=str(valor or '').strip()
+    if txt.lower() in {'','n/d','nd','nan','none','-'}:
+        return 0
+    partes=[x.strip() for x in txt.split('+') if str(x).strip()]
+    return len(partes) if partes else 0
+
+oficiais=sorted(Path('saidas/oficial').glob('*.xlsx'), key=lambda x: x.stat().st_mtime, reverse=True)
+if not oficiais:
+    raise SystemExit('ERRO: nenhum xlsx encontrado em saidas/oficial; execute python aplicacao/principal.py antes.')
+p=oficiais[0]
 xf=pd.ExcelFile(p)
+mtime_utc=pd.Timestamp.utcfromtimestamp(p.stat().st_mtime).isoformat()+'Z'
 ext=pd.read_excel(p,sheet_name='Extrato Futuro')
 aud=pd.read_excel(p,sheet_name='Auditoria Fontes') if 'Auditoria Fontes' in xf.sheet_names else pd.DataFrame()
 
@@ -56,8 +66,14 @@ for d in dias:
         cob = bool((dia.get('Cobertura integral',pd.Series([],dtype=str)).fillna('').astype(str).str.lower()=='sim').any())
         promov = aval and pacote==winner and cob
 
-        qtd_fontes = int(dia.get('Lote sugerido',pd.Series([],dtype=str)).fillna('').astype(str).str.contains(r'\+').sum()) if has_pay else 0
-        usa_multifonte = qtd_fontes>0
+        if has_pay:
+            fontes_por_pagamento = dia.get('Lote sugerido', pd.Series([],dtype=object)).apply(contar_fontes_lote_sugerido)
+            qtd_fontes = int(fontes_por_pagamento.sum())
+            qtd_pagamentos_multifonte = int((fontes_por_pagamento > 1).sum())
+        else:
+            qtd_fontes = 0
+            qtd_pagamentos_multifonte = 0
+        usa_multifonte = qtd_pagamentos_multifonte > 0
 
         rows.append({
             'data':d.isoformat(),'pagamentos_do_dia':int(len(dia)),'valor_total_pagamentos_dia':round(total_val,2),
@@ -69,7 +85,7 @@ for d in dias:
             'motivo_descarte':'n/d' if promov else (motivo_na or 'nao_materializado'),'valor_objetivo_ou_proxy_terminal':'n/d',
             'delta_vs_no_action':'n/d','delta_vs_pay_only':'n/d','exige_switching':pacote in ('switch_only','switch_then_pay','pay_then_switch'),
             'aplica_switching_antes_pagamento':pacote=='switch_then_pay','aplica_switching_depois_pagamento':pacote=='pay_then_switch',
-            'usa_multifonte':usa_multifonte,'qtd_fontes_pagamento':qtd_fontes,
+            'usa_multifonte':usa_multifonte,'qtd_fontes_pagamento':qtd_fontes,'qtd_pagamentos_multifonte':qtd_pagamentos_multifonte,
             'status_ledger_resultante':status,'motivo_ledger_resultante':mot_ledger or 'n/d',
             'observacao_auditoria':'inferido_por_saida_operacional_nao_por_solver_canonico'
         })
@@ -89,6 +105,8 @@ dias_sw_app=int(((out['pacote']=='switch_only') & (out['motivo_nao_avaliado'].is
 causa='diagnostico_ainda_insuficiente'
 if out['observacao_auditoria'].str.contains('inferido',na=False).all():
     causa='ausencia_observavel_de_avaliacao_materializacao_de_pacotes_switching'
+print(f'xlsx_escolhido={p}')
+print(f'xlsx_mtime_utc={mtime_utc}')
 print(f'janela_auditada={INI}..{FIM}')
 print(f'total_dias_janela={len(dias)}')
 print(f'total_linhas_csv={len(out)}')
