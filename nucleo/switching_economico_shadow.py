@@ -160,6 +160,15 @@ def _avaliar_bloqueio_candidato(
     if maximo > 0.0 and valor_liquido_resgatavel - 1e-9 > maximo:
         return False, 'acima_da_aplicacao_maxima'
 
+    semantica = normalizar_texto(produto_row.get('semantica_taxa_base') or produto_row.get('Semantica_Taxa_Base'))
+    indexador = normalizar_texto(produto_row.get('indexador'))
+    tipo_produto = normalizar_texto(produto_row.get('tipo_produto') or produto_row.get('tipo'))
+    regime_taxa = normalizar_texto(produto_row.get('regime_taxa'))
+    if semantica and semantica != 'percentual_cdi':
+        return False, 'bloqueado_semantica_taxa_nao_suportada_shadow'
+    if 'cdi' not in indexador and regime_taxa not in {'cdi', 'pos'} and 'cdb' not in tipo_produto:
+        return False, 'bloqueado_indexador_nao_cdi_sem_modelo_shadow'
+
     carencia_dias = int(para_int(produto_row.get('carencia_dias'), 0) or 0)
     carencia_ate = data_referencia + timedelta(days=carencia_dias) if carencia_dias > 0 else None
     if carencia_ate is not None and carencia_ate > data_horizonte:
