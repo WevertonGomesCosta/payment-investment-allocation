@@ -14,6 +14,15 @@ BLOCK_STATUS = {
 
 def norm(v): return str(v or '').strip().lower()
 def is_nd(v): return norm(v) in {'', 'n/d', 'nd', 'não determinado', 'nao determinado', 'nan', 'none'}
+def is_cobertura_integral(v) -> bool:
+    tok = norm(v)
+    coberto = {'sim', 's', 'true', 'verdadeiro', '1', 'yes'}
+    sem_cobertura = {'não', 'nao', 'n', 'false', 'falso', '0', '', 'n/d', 'nd', 'nan', 'none', 'ausente', 'não determinado', 'nao determinado'}
+    if tok in coberto:
+        return True
+    if tok in sem_cobertura:
+        return False
+    return False
 
 def _inferir_causa(row):
     status = norm(row.get('Status recomendação')); motivo = norm(row.get('Motivo bloqueio lote'))
@@ -87,7 +96,7 @@ def main()->int:
 
     extrato['_lote_nd']=extrato['Lote sugerido'].apply(is_nd)
     col_cobertura = 'Cobertura integral' if 'Cobertura integral' in extrato.columns else ('Cobertura Integral?' if 'Cobertura Integral?' in extrato.columns else None)
-    extrato['_sem_cobertura_integral'] = extrato[col_cobertura].astype(str).str.strip().str.lower().eq('não') if col_cobertura else extrato['_lote_nd']
+    extrato['_sem_cobertura_integral'] = (~extrato[col_cobertura].apply(is_cobertura_integral)) if col_cobertura else extrato['_lote_nd']
     extrato['_reserva_preenchida']=~extrato['Lote reserva'].apply(is_nd)
     extrato['_reserva_futura_sinal']=extrato['Lote reserva'].astype(str).str.contains(r'mai\.|jun\.|jul\.|ago\.|set\.|out\.|nov\.|dez\.', case=False, na=False)
     extrato['_reserva_prazo_sinal']=extrato['Lote reserva'].astype(str).str.contains('cdb|lc[ai]|tesouro|prazo|carência|carencia', case=False, na=False)
@@ -179,7 +188,7 @@ def main()->int:
     trans_cols = ['Data','Conta','Despesa ID','Valor','Lote sugerido','Lote reserva','Saldo temp. ant.','Bruto','Líquido','Saldo Remanescente','Status recomendação','Motivo bloqueio lote']
     trans = extrato[[c for c in trans_cols if c in extrato.columns]].copy()
     if len(aud_fontes):
-        af_cols = ['Despesa ID','fonte_candidata_id','saldo_liquido_disponivel','promovida_para_lote_sugerido','status_ledger','motivo_bloqueio_ledger']
+        af_cols = ['Despesa ID','fonte_candidata_id','origem_fonte_candidata','saldo_liquido_disponivel','promovida_para_lote_sugerido','status_ledger','motivo_bloqueio_ledger']
         trans = trans.merge(aud_fontes[[c for c in af_cols if c in aud_fontes.columns]], on='Despesa ID', how='left', suffixes=('_extrato','_aud'))
     trans = trans.rename(columns={
         'Data':'data','Conta':'conta','Despesa ID':'despesa_id','Valor':'valor','Lote sugerido':'lote_sugerido','Lote reserva':'lote_reserva',
@@ -195,12 +204,37 @@ def main()->int:
             return 'sem_transicao_bloqueante'
         return 'outro'
     trans['causa_transicao'] = trans.apply(_causa_transicao, axis=1)
+    trans['saldo_temporal_real_antes'] = trans['saldo_temporal_antes_extrato']
+    trans['consumo_evento'] = trans['valor']
+    trans['saldo_temporal_real_depois'] = trans['saldo_remanescente_extrato']
+    trans['saldo_local_ou_valor_promovido'] = trans.get('saldo_liquido_disponivel_auditoria', pd.Series([pd.NA] * len(trans)))
+    saldo_local_num = pd.to_numeric(trans['saldo_local_ou_valor_promovido'], errors='coerce')
+    saldo_temporal_num = pd.to_numeric(trans['saldo_temporal_real_antes'], errors='coerce')
+    trans['diferenca_saldo_local_vs_temporal'] = (saldo_local_num - saldo_temporal_num).round(2)
+    trans['interpretacao_saldo_liquido_disponivel'] = trans.apply(
+        lambda r: 'saldo_liquido_disponivel aparenta valor local/promovido e não saldo cumulativo real'
+        if norm(r.get('status_ledger')) == 'sem_saldo_temporal_auditavel' else 'n/d',
+        axis=1,
+    )
     trans['interpretacao'] = trans['causa_transicao'].map({
         'rebaixamento_por_saldo_temporal_cumulativo':'saldo_liquido_disponivel_auditoria representa elegibilidade local/promocao; ledger valida saldo cumulativo cronologico e rebaixa quando insuficiente',
         'sem_transicao_bloqueante':'evento permaneceu ok apos validacao cumulativa'
     }).fillna('transicao fora do padrao principal')
     trans.to_csv(OUT_DIR/'auditoria_transicao_fonte_promovida_para_sem_saldo.csv', index=False)
-    primeira_quebra = trans[trans['causa_transicao'].eq('rebaixamento_por_saldo_temporal_cumulativo')].sort_values(['data','despesa_id']).head(1)
+    sem_cobertura = trans[extrato['_sem_cobertura_integral'].values].copy()
+    total_promovida_true_e_sem_saldo = int((sem_cobertura.get('promovida_para_lote_sugerido', pd.Series([False]*len(sem_cobertura))).fillna(False).astype(bool) & sem_cobertura['status_ledger'].astype(str).eq('sem_saldo_temporal_auditavel')).sum())
+    total_promovida_false_e_sem_saldo = int(((~sem_cobertura.get('promovida_para_lote_sugerido', pd.Series([False]*len(sem_cobertura))).fillna(False).astype(bool)) & sem_cobertura['status_ledger'].astype(str).eq('sem_saldo_temporal_auditavel')).sum())
+    print(f"transicao_total_sem_cobertura_integral={len(sem_cobertura)}")
+    print(f"transicao_total_promovida_true_e_sem_saldo={total_promovida_true_e_sem_saldo}")
+    print(f"transicao_total_promovida_false_e_sem_saldo={total_promovida_false_e_sem_saldo}")
+    if 'origem_fonte_candidata' in sem_cobertura.columns:
+        print('transicao_total_por_origem_fonte_candidata:')
+        print(sem_cobertura['origem_fonte_candidata'].fillna('n/d').astype(str).value_counts().to_string())
+    print('transicao_total_por_lote_sugerido:')
+    print(sem_cobertura['lote_sugerido'].fillna('n/d').astype(str).value_counts().to_string())
+    print('transicao_total_por_causa_transicao:')
+    print(sem_cobertura['causa_transicao'].fillna('n/d').astype(str).value_counts().to_string())
+    primeira_quebra = sem_cobertura[sem_cobertura['causa_transicao'].eq('rebaixamento_por_saldo_temporal_cumulativo')].sort_values(['data','despesa_id']).head(1)
     primeira_quebra.to_csv(OUT_DIR/'primeira_quebra_causal.csv', index=False)
 
     print('shapes_lidos:')
