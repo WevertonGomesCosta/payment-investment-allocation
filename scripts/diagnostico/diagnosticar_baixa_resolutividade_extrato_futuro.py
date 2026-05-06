@@ -84,8 +84,13 @@ def main()->int:
     extrato['_consumiu_lote_pos_sw']=~extrato.get('Lote pós-switching', pd.Series(['']*len(extrato))).apply(is_nd)
 
     sem_lote=extrato[extrato['_lote_nd']].copy()
-    causas=sem_lote.apply(_inferir_causa, axis=1, result_type='expand')
-    sem_lote[['causa_raiz','etapa_descarte_fonte','tipo_causa']]=causas
+    if len(sem_lote):
+        causas=sem_lote.apply(_inferir_causa, axis=1, result_type='expand')
+        sem_lote[['causa_raiz','etapa_descarte_fonte','tipo_causa']]=causas
+    else:
+        sem_lote['causa_raiz'] = pd.Series(dtype=str)
+        sem_lote['etapa_descarte_fonte'] = pd.Series(dtype=str)
+        sem_lote['tipo_causa'] = pd.Series(dtype=str)
     sem_lote['fontes_candidatas_motor']=sem_lote.get('fonte_candidata_id', sem_lote['Lote reserva']).fillna('n/d')
     sem_lote['saldo_liquido_reserva_data']=sem_lote.get('saldo_liquido_disponivel', sem_lote['Saldo Antes']).fillna('n/d')
     sem_lote['elegibilidade_temporal_reserva']=sem_lote['_reserva_futura_sinal'].map({True:'ineligivel_data_inferido',False:'sem_evidencia_ineligibilidade_data'})
