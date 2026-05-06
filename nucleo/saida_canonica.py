@@ -1115,6 +1115,9 @@ def _construir_switchings(contexto: Any, limite: int = 30) -> list[dict[str, Any
             if lote is None:
                 continue
             destino_rank = _ranking_destino_para_lote(contexto, lote) or {}
+            destino_row_nome = str(row.get('produto_destino_nome') or '').strip()
+            destino_row_key = str(row.get('produto_destino_key') or '').strip()
+            destino_nome = destino_row_nome or str(destino_rank.get('nome') or '')
             data_sug = _data_sugerida_switching_lote(contexto, lote)
             ganho = _round_monetario(row.get('ganho_liquido_estimado'), _round_monetario(destino_rank.get('proxy_terminal_destino'), 0.0))
             valor_liq = _round_monetario(lote.valor_liquido_hoje(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir), 0.0)
@@ -1123,14 +1126,14 @@ def _construir_switchings(contexto: Any, limite: int = 30) -> list[dict[str, Any
                 'Data': _fmt_data(data_sug),
                 'Lote origem': lote_id,
                 'Produto origem': getattr(lote, 'investimento', '') if lote is not None else row.get('produto_origem_nome') or '',
-                'Produto destino switching': destino_rank.get('nome') or '',
-                'Destino': destino_rank.get('nome') or '',
+                'Produto destino switching': destino_nome,
+                'Destino': destino_nome,
                 'Ganho estimado': ganho,
                 'Valor líquido origem': valor_liq,
                 'Status': 'destino_ranqueado',
             }
             rank_origem = int(row.get('rank_origem') or rank_por_produto_key.get(str(getattr(lote, 'produto_key', '') or ''), 999))
-            rank_destino = int(row.get('rank_destino_sugerido') or destino_rank.get('rank_destino') or 999)
+            rank_destino = int(row.get('rank_destino_sugerido') or row.get('rank_destino') or destino_rank.get('rank_destino') or 999)
             carencia_incremental = int(row.get('dias_carencia_incremental') or row.get('carencia_dias') or destino_rank.get('carencia_dias') or 0)
             pagamentos_janela = _round_monetario(row.get('pagamentos_na_janela_carencia') or row.get('pagamentos_janela_carencia'), 0.0)
             motivo_gate = str(row.get('motivo_gate_switching') or '').strip()

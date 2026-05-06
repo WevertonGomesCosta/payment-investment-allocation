@@ -391,21 +391,40 @@ def carregar_switching_economico_shadow(
         elegiveis = elegiveis.sort_values(['lote_id', 'score_switch_shadow', 'ganho_liquido_estimado', 'produto_destino_nome'], ascending=[True, False, False, True], kind='stable')
         elegiveis['ranking_lote'] = elegiveis.groupby('lote_id').cumcount() + 1
         elegiveis['recomendado_shadow'] = (elegiveis['ranking_lote'] == 1) & (elegiveis['ganho_liquido_estimado'].fillna(0.0) >= ganho_minimo)
+        elegiveis['recomendado_shadow_antes_gate'] = elegiveis['recomendado_shadow']
+        ganho_excepcional = ganho_minimo * 3.0
+        risco_liquidez = (
+            (elegiveis['pagamentos_na_janela_carencia'].fillna(0.0) > 0.0)
+            | (~elegiveis['fontes_alternativas_suficientes'].fillna(True).astype(bool))
+        )
+        gate_dominancia = (
+            (elegiveis['rank_origem'].fillna(999).astype(int) < elegiveis['rank_destino'].fillna(999).astype(int))
+            & (
+                (elegiveis['dias_carencia_incremental'].fillna(0).astype(int) > 0)
+                | risco_liquidez
+            )
+            & (elegiveis['ganho_liquido_estimado'].fillna(0.0) < ganho_excepcional)
+        )
         gate_top1_risco = (
             (elegiveis['rank_origem'].fillna(999).astype(int) == 1)
             & (elegiveis['rank_destino'].fillna(999).astype(int) > elegiveis['rank_origem'].fillna(999).astype(int))
-            & (elegiveis['dias_carencia_incremental'].fillna(0).astype(int) > 0)
             & (
-                (elegiveis['pagamentos_na_janela_carencia'].fillna(0.0) > 0.0)
-                | (~elegiveis['fontes_alternativas_suficientes'].fillna(True).astype(bool))
-                | (elegiveis['ganho_liquido_estimado'].fillna(0.0) < ganho_minimo)
+                (elegiveis['dias_carencia_incremental'].fillna(0).astype(int) > 0)
+                | risco_liquidez
+                | (elegiveis['ganho_liquido_estimado'].fillna(0.0) < ganho_excepcional)
             )
         )
+        gate_aplicado = gate_dominancia | gate_top1_risco
+        elegiveis.loc[gate_dominancia, 'motivo_gate_switching'] = 'bloqueado_dominancia_ranking_liquidez'
         elegiveis.loc[gate_top1_risco, 'bloqueado_pos_gate'] = True
-        elegiveis.loc[gate_top1_risco, 'motivo_gate_switching'] = 'bloqueado_origem_top1_risco_liquidez'
-        elegiveis.loc[gate_top1_risco, 'recomendado_shadow'] = False
+        elegiveis.loc[gate_top1_risco, 'motivo_gate_switching'] = 'bloqueado_origem_top1_destino_pior_carencia_incremental'
+        elegiveis.loc[gate_aplicado, 'bloqueado_pos_gate'] = True
+        elegiveis.loc[gate_aplicado, 'recomendado_shadow'] = False
+        elegiveis['recomendado_shadow_depois_gate'] = elegiveis['recomendado_shadow']
         quadro.loc[elegiveis.index, 'ranking_lote'] = elegiveis['ranking_lote']
         quadro.loc[elegiveis.index, 'recomendado_shadow'] = elegiveis['recomendado_shadow']
+        quadro.loc[elegiveis.index, 'recomendado_shadow_antes_gate'] = elegiveis['recomendado_shadow_antes_gate']
+        quadro.loc[elegiveis.index, 'recomendado_shadow_depois_gate'] = elegiveis['recomendado_shadow_depois_gate']
         quadro.loc[elegiveis.index, 'bloqueado_pos_gate'] = elegiveis['bloqueado_pos_gate']
         quadro.loc[elegiveis.index, 'motivo_gate_switching'] = elegiveis['motivo_gate_switching']
 
