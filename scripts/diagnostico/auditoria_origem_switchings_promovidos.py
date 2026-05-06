@@ -47,11 +47,34 @@ if len(p)==0:
     destinos_distintos = bloqueados['produto_destino_key'].nunique()
     lotes_shadow=sorted(set(bloqueados['lote_id'].astype(str)))
     lotes_ativos=sorted(set(str(x.get('Lote') or '') for x in getattr(saida,'lotes_ativos',[]) if str(x.get('Lote') or '').strip()))
+    lotes_exauridos=sorted(set(str(x.get('Lote') or '') for x in getattr(saida,'lotes_exauridos',[]) if str(x.get('Lote') or '').strip()))
     diff_shadow_ativos=sorted(set(lotes_shadow)-set(lotes_ativos))
+    diff_shadow_exauridos=sorted(set(lotes_shadow).intersection(set(lotes_exauridos)))
+    diag_lotes=[]
+    for lote_id in diff_shadow_ativos:
+        lote_rep=next((l for l in getattr(getattr(ctx,'replay_passado',None),'lotes_apos_replay',[]) if str(getattr(l,'id',''))==lote_id),None)
+        diag_lotes.append({
+            'lote_id': lote_id,
+            'investimento': getattr(lote_rep,'investimento','') if lote_rep else '',
+            'produto_key': getattr(lote_rep,'produto_key','') if lote_rep else '',
+            'esgotado': getattr(lote_rep,'esgotado','') if lote_rep else '',
+            'saldo_bruto': getattr(lote_rep,'saldo_bruto','') if lote_rep else '',
+            'saldo_liquido': getattr(lote_rep,'saldo_liquido','') if lote_rep else '',
+            'principal_remanescente': getattr(lote_rep,'principal_remanescente','') if lote_rep else '',
+            'situacao_investimento': getattr(lote_rep,'situacao_investimento','') if lote_rep else '',
+            'aparece_em_lotes_ativos': lote_id in lotes_ativos,
+            'aparece_em_lotes_exauridos': lote_id in lotes_exauridos,
+            'motivo_inclusao_shadow': 'esgotado=False, saldo_bruto>limiar_ativo, situacao_investimento=aportado, produto_key_preenchido' if lote_rep else 'nao_encontrado_no_replay',
+        })
+    out_diag=RAIZ/'saidas/diagnostico/diagnostico_lotes_shadow_vs_situacao.csv'
+    pd.DataFrame(diag_lotes).to_csv(out_diag,index=False)
     print(f'bloqueados_linhas={len(bloqueados)} lotes_distintos={lotes_distintos} destinos_distintos={destinos_distintos} top_motivos={motivos}')
     print(f'top_status_final_shadow={status_final}')
     print(f'top_etapa_descarte_shadow={etapas}')
     print(f'lotes_shadow={lotes_shadow}')
     print(f'lotes_ativos_situacao_atual={lotes_ativos}')
+    print(f'lotes_exauridos_situacao_atual={lotes_exauridos}')
     print(f'diferenca_shadow_menos_ativos={diff_shadow_ativos}')
+    print(f'diferenca_shadow_intersec_exauridos={diff_shadow_exauridos}')
+    print(f'arquivo_diagnostico_lotes={out_diag}')
 print(f'plano_shadow_linhas={len(p)}'); print(f'saida_switchings_linhas={len(saida.switchings)}'); print(f'arquivo={out}')

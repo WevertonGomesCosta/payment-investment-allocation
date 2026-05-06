@@ -81,14 +81,14 @@ def _selecionar_produtos_candidatos(carteira_canonica: PacoteCarteiraCanonica, t
     return df
 
 
-def _lotes_ativos_switching(replay_passado: PacoteReplayPassadoControlado | None) -> list[Lote]:
+def _lotes_ativos_switching(replay_passado: PacoteReplayPassadoControlado | None, *, limiar_valor_ativo: float = 0.2) -> list[Lote]:
     if replay_passado is None:
         return []
     lotes: list[Lote] = []
     for lote in replay_passado.lotes_apos_replay:
         if lote.esgotado:
             continue
-        if float(getattr(lote, 'saldo_bruto', 0.0) or 0.0) <= 0.01:
+        if float(getattr(lote, 'saldo_bruto', 0.0) or 0.0) <= float(limiar_valor_ativo):
             continue
         if limpar_texto(getattr(lote, 'situacao_investimento', '')) != 'aportado':
             continue
@@ -287,7 +287,9 @@ def carregar_switching_economico_shadow(
             semantica_por_key[k] = limpar_texto(rk.get('semantica_taxa_base'))
             indexador_por_key[k] = limpar_texto(rk.get('tipo_produto'))
 
-    lotes = _lotes_ativos_switching(replay_passado)
+    limiar_cfg = float(obter_config(config, 'replay', 'valor_minimo_lote_ativo', padrao=0.2) or 0.2)
+    limiar_ativo = max(limiar_cfg, 0.2)
+    lotes = _lotes_ativos_switching(replay_passado, limiar_valor_ativo=limiar_ativo)
     candidatos = _selecionar_produtos_candidatos(carteira_canonica, triagem_motor)
     rank_por_produto_oficial, rank_por_nome_normalizado_oficial = _mapas_rank_oficial(ranking_carteira)
     rank_por_produto_candidatos, rank_por_nome_normalizado_candidatos = _mapas_rank_candidatos(candidatos)
