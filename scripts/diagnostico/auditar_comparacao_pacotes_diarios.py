@@ -91,7 +91,9 @@ for d in dias:
 
         motivo_na='n/d'
         if not aval:
-            if has_pay and pacote in ('no_action','switch_only'):
+            if (not has_pay) and pacote == 'no_action' and vencedor == 'no_action':
+                motivo_na='vencedor_conceitual_sem_evento_runtime'
+            elif has_pay and pacote in ('no_action','switch_only'):
                 motivo_na='nao_aplicavel_por_haver_pagamento_no_dia'
             elif (not has_pay) and pacote in ('pay_only','switch_then_pay','pay_then_switch'):
                 motivo_na='sem_pagamento_no_dia'
@@ -127,6 +129,16 @@ for d in dias:
 
         status='ok' if status_ok else 'n/d'
         motivo_ledger='n/d' if status_ok else (motivo_na if not aval else 'nao_materializado')
+
+        if promov:
+            motivo_descarte = 'n/d'
+        elif not factivel:
+            motivo_descarte = motivo_na
+        elif not aval:
+            motivo_descarte = 'nao_avaliado_runtime'
+        else:
+            motivo_descarte = 'nao_materializado'
+
         obs='inferido_por_saida_operacional_nao_por_solver_canonico'
         if not has_pay and pacote=='no_action' and vencedor=='no_action' and not switch_only_materializado:
             obs += ';vencedor_conceitual_sem_evento_runtime'
@@ -142,7 +154,7 @@ for d in dias:
             'destinos_ranking_elegiveis':destinos_ranking_elegiveis_runtime,'pacote':pacote,
             'pacote_foi_avaliado':aval,'pacote_foi_factivel':factivel,
             'pacote_foi_promovido':promov,'pacote_vencedor_do_dia':vencedor,
-            'motivo_nao_avaliado':motivo_na,'motivo_infactibilidade':'n/d' if aval else motivo_na,'motivo_descarte':'n/d' if promov else (motivo_na if not aval else 'nao_materializado'),
+            'motivo_nao_avaliado':motivo_na,'motivo_infactibilidade':'n/d' if factivel else motivo_na,'motivo_descarte':motivo_descarte,
             'valor_objetivo_ou_proxy_terminal':'n/d','delta_vs_no_action':'n/d','delta_vs_pay_only':'n/d',
             'exige_switching':pacote in ('switch_only','switch_then_pay','pay_then_switch'),
             'aplica_switching_antes_pagamento':pacote=='switch_then_pay','aplica_switching_depois_pagamento':pacote=='pay_then_switch',
