@@ -156,6 +156,8 @@ def construir_matriz_pacotes_diarios(contexto, saida_canonica, modo_observaciona
                     motivo_nao_mat = "sem_candidato_switching"
                 elif cand_sw_bloq > 0 and cand_sw_prom == 0:
                     motivo_nao_mat = motivo_gate_top if motivo_gate_top != "n/d" else "bloqueado_por_gate"
+                    if str(motivo_nao_mat).strip().lower() in {"", "nan", "none"}:
+                        motivo_nao_mat = "bloqueado_por_gate"
                 else:
                     motivo_nao_mat = "candidato_switching_promovivel_nao_materializado"
             else:
