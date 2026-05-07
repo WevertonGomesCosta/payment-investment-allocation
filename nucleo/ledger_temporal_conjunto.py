@@ -239,6 +239,165 @@ def _normalizar_evento_operacional(ev: dict[str, Any]) -> dict[str, Any]:
             ev[k] = ''
     return ev
 
+
+def _float_recebido_funcional(v: Any) -> float:
+    try:
+        if v is None:
+            return 0.0
+        if pd.isna(v):
+            return 0.0
+    except Exception:
+        pass
+    try:
+        return float(v)
+    except Exception:
+        return 0.0
+
+
+def _bool_recebido_funcional(v: Any) -> bool:
+    return _norm(v) in {'true', '1', 'sim', 'yes', 'elegivel'}
+
+
+def _coluna_recebido_funcional(df: pd.DataFrame, candidatos: list[str]) -> str:
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return ''
+    mapa = {str(c).strip().lower(): c for c in df.columns}
+    for c in candidatos:
+        if c.lower() in mapa:
+            return str(mapa[c.lower()])
+    for c in df.columns:
+        cn = str(c).strip().lower()
+        if any(k.lower() in cn for k in candidatos):
+            return str(c)
+    return ''
+
+
+def _mapa_recebidos_funcionais_por_pagamento(contexto: Any) -> dict[str, list[dict[str, Any]]]:
+    """V16-D: consumo funcional contido de recebido_disponivel já escolhido.
+
+    Prepara fontes recebidas elegíveis por pagamento. Esta função não muda a
+    decisão, não altera prioridade e não promove switching. O uso funcional é
+    restrito ao evento cuja decisão já escolheu recebido_disponivel.
+    """
+    pacote = getattr(contexto, 'fontes_elegiveis_pagamento', None) if contexto is not None else None
+    quadro = getattr(pacote, 'quadro_fontes_elegiveis', None) if pacote is not None else None
+
+    if not isinstance(quadro, pd.DataFrame) or quadro.empty:
+        return {}
+
+    col_pid = _coluna_recebido_funcional(quadro, ['pagamento_id', 'Despesa ID', 'despesa_id'])
+    col_tipo = _coluna_recebido_funcional(quadro, ['tipo_fonte', 'tipo_fonte_candidata'])
+    col_eleg = _coluna_recebido_funcional(quadro, ['elegivel_na_data_pagamento', 'elegivel'])
+    col_liq = _coluna_recebido_funcional(quadro, ['valor_liquido_disponivel', 'valor_liquido'])
+    col_bruto = _coluna_recebido_funcional(quadro, ['valor_bruto_disponivel', 'valor_bruto'])
+    col_fonte = _coluna_recebido_funcional(quadro, ['fonte_id', 'fonte_pagamento_id', 'fonte_candidata_id'])
+    col_recebido = _coluna_recebido_funcional(quadro, ['recebido_id'])
+    col_lote = _coluna_recebido_funcional(quadro, ['lote_id'])
+    col_data = _coluna_recebido_funcional(quadro, ['data_evento', 'data_pagamento'])
+
+    if not col_pid or not col_tipo:
+        return {}
+
+    fontes_por_id: dict[str, dict[str, Any]] = {}
+    mapa: dict[str, list[dict[str, Any]]] = {}
+
+    for _, row in quadro.iterrows():
+        pid = _txt(row.get(col_pid))
+        if not pid:
+            continue
+
+        if _norm(row.get(col_tipo)) != 'recebido_disponivel':
+            continue
+
+        if col_eleg and not _bool_recebido_funcional(row.get(col_eleg)):
+            continue
+
+        valor_liq = _float_recebido_funcional(row.get(col_liq)) if col_liq else 0.0
+        valor_bruto = _float_recebido_funcional(row.get(col_bruto)) if col_bruto else valor_liq
+        saldo_inicial = valor_liq if valor_liq > 0.0 else valor_bruto
+
+        if saldo_inicial <= 0.01:
+            continue
+
+        fonte_id = _txt(row.get(col_fonte)) if col_fonte else ''
+        recebido_id = _txt(row.get(col_recebido)) if col_recebido else ''
+        lote_id = _txt(row.get(col_lote)) if col_lote else ''
+        fonte_key = fonte_id or recebido_id or lote_id or f'recebido_disponivel::{pid}::{len(fontes_por_id)}'
+
+        if fonte_key not in fontes_por_id:
+            fontes_por_id[fonte_key] = {
+                'fonte_key': fonte_key,
+                'fonte_id': fonte_id or fonte_key,
+                'recebido_id': recebido_id,
+                'lote_id': lote_id,
+                'data_evento': row.get(col_data) if col_data else '',
+                'saldo_inicial': round(saldo_inicial, 2),
+                'saldo': round(saldo_inicial, 2),
+                'valor_bruto': round(valor_bruto, 2),
+            }
+        else:
+            fontes_por_id[fonte_key]['saldo_inicial'] = max(
+                _float_recebido_funcional(fontes_por_id[fonte_key].get('saldo_inicial')),
+                round(saldo_inicial, 2),
+            )
+            fontes_por_id[fonte_key]['saldo'] = max(
+                _float_recebido_funcional(fontes_por_id[fonte_key].get('saldo')),
+                round(saldo_inicial, 2),
+            )
+
+        mapa.setdefault(pid, []).append(fontes_por_id[fonte_key])
+
+    for pid, fontes in mapa.items():
+        mapa[pid] = sorted(
+            fontes,
+            key=lambda f: (-_float_recebido_funcional(f.get('saldo')), _txt(f.get('fonte_key'))),
+        )
+
+    return mapa
+
+
+def _pagamentos_decisao_recebido_disponivel(contexto: Any) -> set[str]:
+    """V16-H: decisão real exclusiva do quadro local."""
+    decisao = getattr(contexto, 'decisao_local_v1', None) if contexto is not None else None
+    quadro = getattr(decisao, 'quadro_decisao_local_v1', None) if decisao is not None else None
+
+    if not isinstance(quadro, pd.DataFrame) or quadro.empty:
+        return set()
+
+    if 'pagamento_id' not in quadro.columns:
+        return set()
+
+    if 'tipo_fonte_escolhida' not in quadro.columns:
+        return set()
+
+    permitidos: set[str] = set()
+
+    for _, row in quadro.iterrows():
+        if _norm(row.get('tipo_fonte_escolhida')) != 'recebido_disponivel':
+            continue
+
+        pagamento_id = _txt(row.get('pagamento_id'))
+        if pagamento_id:
+            permitidos.add(pagamento_id)
+
+    return permitidos
+
+
+def _selecionar_recebido_funcional(
+    pagamento_id: str,
+    valor_pagamento: float,
+    mapa_recebidos: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any] | None:
+    fontes = list(mapa_recebidos.get(_txt(pagamento_id), []) or [])
+    fontes = sorted(
+        fontes,
+        key=lambda f: (-_float_recebido_funcional(f.get('saldo')), _txt(f.get('fonte_key'))),
+    )
+    for fonte in fontes:
+        if _float_recebido_funcional(fonte.get('saldo')) + 0.01 >= valor_pagamento:
+            return fonte
+    return None
+
 def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_central: dict[str, dict[str, Any]] | None = None, contexto: Any | None = None) -> dict[str, Any]:
     if not isinstance(quadro_futuro, pd.DataFrame) or quadro_futuro.empty:
         return {"eventos": [], "fifo_candidatos_avaliados": []}
@@ -1879,6 +2038,14 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     # Auditoria cumulativa de saldo temporal por lote (cronológica).
     consumo_por_lote: dict[str, dict[str, Any]] = {}
     saldo_exec = {k: float(v.get('saldo_liquido') or 0.0) for k, v in estado_lotes.items()}
+    recebidos_funcionais_por_pagamento = _mapa_recebidos_funcionais_por_pagamento(contexto)
+    pagamentos_decisao_recebido = _pagamentos_decisao_recebido_disponivel(contexto)
+    saldo_temporal['recebidos_funcionais_mapa_pagamentos_v16d'] = len(recebidos_funcionais_por_pagamento)
+    saldo_temporal['recebidos_funcionais_decisoes_recebido_disponivel_v16d'] = len(pagamentos_decisao_recebido)
+    saldo_temporal['recebidos_funcionais_consumidos_ledger_v16d'] = 0
+    saldo_temporal['valor_recebidos_funcionais_consumidos_ledger_v16d'] = 0.0
+    saldo_temporal['recebidos_funcionais_casos_sem_fonte_suficiente_v16d'] = 0
+    saldo_temporal['recebidos_funcionais_contencao_saldo_lote_preservada_v16d'] = 0
     eventos.sort(key=lambda e: (str(e.get('data') or ''), str(e.get('pagamento_id') or '')))
     for ev in eventos:
         lote = str(ev.get('lote_sugerido_operacional') or '')
@@ -1888,6 +2055,24 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             consumo_por_lote[lote] = {'total_pagamentos_planejados': 0,'total_consumo_d2a': 0.0,'total_consumo_d2b': 0.0,'total_consumo_fifo': 0.0,'total_consumo_motor': 0.0,'pagamentos_afetados': [],'primeiro_evento_que_estoura_saldo': ''}
         rec = consumo_por_lote[lote]
         consumo = float(ev.get('consumo') or ev.get('liquido') or 0.0)
+
+        # V16-D: prepara consumo funcional contido de recebido_disponivel.
+        pagamento_id_evento = _txt(ev.get('pagamento_id'))
+        # V16-G: consumo funcional recebido_disponivel exige decisão real.
+        # Não aceitar gatilho por campos do evento, pois tipo_fonte_candidata,
+        # tipo_fonte_recomendada ou tipo_fonte_final podem refletir fallback
+        # auditável e reclassificar casos A com decisão lote_resgatavel.
+        decisao_recebido_disponivel = pagamento_id_evento in pagamentos_decisao_recebido
+        fonte_recebida_funcional = (
+            _selecionar_recebido_funcional(
+                pagamento_id_evento,
+                consumo,
+                recebidos_funcionais_por_pagamento,
+            )
+            if decisao_recebido_disponivel and consumo > 0.0
+            else None
+        )
+        saldo_depois_recebido_v16d = None
         rec['total_pagamentos_planejados'] += 1
         origem = str(ev.get('origem_fonte_candidata') or '')
         if origem == 'pay_only_diario_v1': rec['total_consumo_d2a'] += consumo
@@ -1898,7 +2083,42 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         ev['saldo_antes'] = round(saldo_antes_real, 2)
         if str(ev.get('status') or '') == 'ok': saldo_temporal['saldo_temporal_pagamentos_ok_antes'] += 1
         saldo_temporal['saldo_temporal_pagamentos_auditados'] += 1
-        if consumo > saldo_antes_real + 0.01:
+        if decisao_recebido_disponivel and consumo > 0.0 and fonte_recebida_funcional is None:
+            saldo_temporal['recebidos_funcionais_casos_sem_fonte_suficiente_v16d'] += 1
+
+        if consumo > saldo_antes_real + 0.01 and fonte_recebida_funcional is not None:
+            saldo_antes_recebido = round(_float_recebido_funcional(fonte_recebida_funcional.get('saldo')), 2)
+            saldo_depois_recebido_v16d = round(saldo_antes_recebido - consumo, 2)
+            fonte_recebida_funcional['saldo'] = saldo_depois_recebido_v16d
+
+            ev['status'] = 'ok'
+            ev['cobertura_integral'] = 'sim'
+            ev['motivo_bloqueio'] = 'n/d'
+            ev['saldo_antes'] = saldo_antes_recebido
+            ev['bruto'] = consumo
+            ev['imposto'] = 0.0
+            ev['liquido'] = consumo
+            ev['consumo'] = consumo
+            ev['fonte_temporal_consumida'] = 'recebido_disponivel'
+            ev['tipo_fonte_candidata'] = 'recebido_disponivel'
+            ev['fonte_candidata_id'] = fonte_recebida_funcional.get('fonte_id') or fonte_recebida_funcional.get('fonte_key')
+            ev['origem_fonte_candidata'] = (
+                'ledger_temporal_conjunto.v16d.recebido_disponivel_funcional_contido'
+                f"|recebido_id={fonte_recebida_funcional.get('recebido_id') or ''}"
+                f"|lote_id={fonte_recebida_funcional.get('lote_id') or ''}"
+            )
+            ev['recebido_id_funcional'] = fonte_recebida_funcional.get('recebido_id') or ''
+            ev['lote_id_recebido_funcional'] = fonte_recebida_funcional.get('lote_id') or ''
+            ev['data_recebido_funcional'] = fonte_recebida_funcional.get('data_evento') or ''
+
+            saldo_temporal['recebidos_funcionais_consumidos_ledger_v16d'] += 1
+            saldo_temporal['valor_recebidos_funcionais_consumidos_ledger_v16d'] = round(
+                float(saldo_temporal.get('valor_recebidos_funcionais_consumidos_ledger_v16d') or 0.0) + consumo,
+                2,
+            )
+            saldo_temporal['recebidos_funcionais_contencao_saldo_lote_preservada_v16d'] += 1
+
+        elif consumo > saldo_antes_real + 0.01:
             ev['status'] = 'sem_saldo_temporal_auditavel'; ev['cobertura_integral'] = 'não'; ev['motivo_bloqueio'] = 'saldo_temporal_insuficiente_cumulativo'
             for k in ['saldo_antes','bruto','imposto','liquido','consumo','saldo_depois']:
                 ev[k] = ''
@@ -1919,6 +2139,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             ev['saldo_depois'] = round(saldo_depois_real, 2)
         else:
             ev['saldo_depois'] = ''
+
+        if saldo_depois_recebido_v16d is not None:
+            ev['saldo_depois'] = saldo_depois_recebido_v16d
         if ev.get('saldo_antes') not in {'', None} and abs(float(ev.get('saldo_antes') or 0.0) - saldo_antes_real) > 0.01:
             saldo_temporal['saldo_temporal_divergencias_saldo_antes'] += 1
         if ev.get('saldo_depois') not in {'', None} and abs(float(ev.get('saldo_depois') or 0.0) - saldo_depois_real) > 0.01:

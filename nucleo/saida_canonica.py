@@ -467,6 +467,55 @@ def _bool_auditavel(valor: Any) -> bool:
     return _norm(valor) in {"true", "1", "sim", "yes", "elegivel"}
 
 
+
+def _pagamentos_decisao_recebido_disponivel_fallback_auditavel(contexto: Any) -> set[str]:
+    """V16-F: restringe fallback auditável de recebido_disponivel à decisão recebida.
+
+    O fallback de fontes recebidas na saída canônica só pode ser usado para
+    pagamentos cuja decisão já escolheu recebido_disponivel. Esta contenção
+    impede que pagamentos com decisão lote_resgatavel sejam reclassificados na
+    auditoria/saída apenas porque existe recebido elegível no contexto.
+    """
+    quadros: list[pd.DataFrame] = []
+
+    decisao = getattr(contexto, "decisao_local_v1", None) if contexto is not None else None
+    if decisao is not None:
+        for attr in ["quadro_decisao_local_v1", "quadro_decisoes", "quadro_recomendacoes"]:
+            q = getattr(decisao, attr, None)
+            if isinstance(q, pd.DataFrame) and len(q):
+                quadros.append(q)
+
+    motor = getattr(contexto, "motor_recomendacao_pagamentos_switching_v1", None) if contexto is not None else None
+    if motor is not None:
+        for attr in ["quadro_recomendacoes", "quadro_decisao"]:
+            q = getattr(motor, attr, None)
+            if isinstance(q, pd.DataFrame) and len(q):
+                quadros.append(q)
+
+    permitidos: set[str] = set()
+
+    for quadro in quadros:
+        col_pid = None
+        col_tipo = None
+
+        for c in quadro.columns:
+            cn = str(c).strip().lower()
+            if col_pid is None and cn in {"pagamento_id", "despesa id", "despesa_id"}:
+                col_pid = c
+            if col_tipo is None and cn in {"tipo_fonte_escolhida", "tipo_fonte_candidata", "tipo_fonte"}:
+                col_tipo = c
+
+        if col_pid is None or col_tipo is None:
+            continue
+
+        for _, row in quadro.iterrows():
+            if _norm(row.get(col_tipo)) == "recebido_disponivel":
+                pid = str(row.get(col_pid) or "").strip()
+                if pid:
+                    permitidos.add(pid)
+
+    return permitidos
+
 def _mapa_fontes_elegiveis_auditaveis_por_pagamento(contexto: Any) -> dict[str, dict[str, Any]]:
     """V13: fallback auditavel de fontes elegiveis do contexto.
 
@@ -487,7 +536,16 @@ def _mapa_fontes_elegiveis_auditaveis_por_pagamento(contexto: Any) -> dict[str, 
 
     q = quadro.copy()
 
+    pagamentos_recebido_permitidos_v16f = _pagamentos_decisao_recebido_disponivel_fallback_auditavel(contexto)
+    if not pagamentos_recebido_permitidos_v16f:
+        return {}
+
     q["_pagamento_id_auditavel"] = q["pagamento_id"].map(lambda x: str(x or "").strip())
+    q = q[q["_pagamento_id_auditavel"].isin(pagamentos_recebido_permitidos_v16f)].copy()
+
+    if len(q) == 0:
+        return {}
+
     q["_tipo_fonte_norm"] = q["tipo_fonte"].map(_norm)
 
     if "elegivel_na_data_pagamento" in q.columns:
