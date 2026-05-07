@@ -31,7 +31,9 @@ CLASSES = {'decisao_local', 'materializacao_recebidos', 'saldo_temporal_cumulati
 
 
 def _n(v):
-    return str(v or '').strip().lower()
+    if v is None or (isinstance(v, float) and pd.isna(v)) or pd.isna(v):
+        return ''
+    return str(v).strip().lower()
 
 
 def _bool(v):
@@ -53,6 +55,17 @@ def _commit_v16h_ok():
 def _to_float_or_none(v):
     num = pd.to_numeric(pd.Series([v]), errors='coerce').iloc[0]
     return None if pd.isna(num) else float(num)
+
+
+def _is_missing(v) -> bool:
+    return v is None or pd.isna(v)
+
+
+def _first_present(*values):
+    for v in values:
+        if not _is_missing(v):
+            return v
+    return None
 
 
 def _ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
@@ -133,14 +146,14 @@ def main() -> int:
         data_rec = rec_row['data_recebimento'].iloc[0] if len(rec_row) else ''
         data_apl = rec_row['data_aplicacao'].iloc[0] if len(rec_row) else ''
 
-        motivo_ledger = _n(r.get('motivo_bloqueio_ledger_aud') or r.get('motivo_bloqueio_ledger'))
-        cob_temporal = _n(r.get('pagamento_totalmente_coberto_temporal_aud') or r.get('pagamento_totalmente_coberto_temporal'))
+        motivo_ledger = _n(_first_present(r.get('motivo_bloqueio_ledger_aud'), r.get('motivo_bloqueio_ledger')))
+        cob_temporal = _n(_first_present(r.get('pagamento_totalmente_coberto_temporal_aud'), r.get('pagamento_totalmente_coberto_temporal')))
         requer_reescolha_temporal = _bool(r.get('requer_reescolha_dinamica_aud'))
         if not requer_reescolha_temporal:
             requer_reescolha_temporal = _bool(r.get('requer_reescolha_dinamica_temporal'))
-        saldo_ant_temporal = _to_float_or_none(r.get('saldo_antes_temporal_aud') or r.get('saldo_antes_temporal'))
-        saldo_dep_temporal = _to_float_or_none(r.get('saldo_remanescente_temporal_aud') or r.get('saldo_remanescente_temporal'))
-        consumo_temporal = _to_float_or_none(r.get('liquido_temporal_aud') or r.get('Consumo temp.'))
+        saldo_ant_temporal = _to_float_or_none(_first_present(r.get('saldo_antes_temporal_aud'), r.get('saldo_antes_temporal')))
+        saldo_dep_temporal = _to_float_or_none(_first_present(r.get('saldo_remanescente_temporal_aud'), r.get('saldo_remanescente_temporal')))
+        consumo_temporal = _to_float_or_none(_first_present(r.get('liquido_temporal_aud'), r.get('Consumo temp.')))
 
         gatilho_motivo_ledger_saldo_insuficiente = motivo_ledger == 'saldo_temporal_insuficiente_cumulativo'
         gatilho_cob_temporal_false = cob_temporal in {'não', 'nao', 'n', 'false', '0'}
