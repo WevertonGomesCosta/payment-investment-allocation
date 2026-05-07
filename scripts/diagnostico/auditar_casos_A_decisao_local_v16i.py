@@ -107,13 +107,29 @@ def main() -> int:
         data_rec = rec_row['data_recebimento'].iloc[0] if len(rec_row) else ''
         data_apl = rec_row['data_aplicacao'].iloc[0] if len(rec_row) else ''
 
+        status_temporal = _n(r.get('status_temporal'))
         status_ledger = _n(r.get('status_ledger'))
         motivo_ledger = _n(r.get('motivo_bloqueio_ledger'))
-        lote_sem_saldo = (
-            _n(r.get('Status recomendação')) == 'sem_saldo_temporal_auditavel'
-            or status_ledger == 'sem_saldo_temporal_auditavel'
-            or motivo_ledger == 'saldo_temporal_insuficiente_cumulativo'
-        )
+        cob_temporal = _n(r.get('pagamento_totalmente_coberto_temporal'))
+        requer_reescolha_temporal = _bool(r.get('requer_reescolha_dinamica_temporal'))
+        saldo_ant_temporal = _to_float_or_none(r.get('saldo_antes_temporal'))
+        saldo_dep_temporal = _to_float_or_none(r.get('saldo_remanescente_temporal'))
+        consumo_temporal = _to_float_or_none(r.get('Consumo temp.'))
+        lote_sem_saldo = any([
+            status_temporal == 'sem_saldo_temporal_auditavel',
+            status_ledger == 'sem_saldo_temporal_auditavel',
+            motivo_ledger == 'saldo_temporal_insuficiente_cumulativo',
+            cob_temporal in {'não', 'nao', 'n', 'false', '0'},
+            requer_reescolha_temporal,
+            (saldo_ant_temporal is not None and vp > 0 and saldo_ant_temporal + 0.01 < vp),
+            (consumo_temporal is not None and vp > 0 and consumo_temporal + 0.01 < vp),
+            (
+                saldo_ant_temporal is not None
+                and saldo_dep_temporal is not None
+                and saldo_ant_temporal >= 0
+                and saldo_dep_temporal < -0.01
+            ),
+        ])
 
         proxy_lote = _to_float_or_none(r.get('custo_economico_proxy'))
         if proxy_lote is None:
@@ -135,10 +151,23 @@ def main() -> int:
         elif not existe_eleg and len(receb_all) > 0:
             causa = 'recebido_disponivel_bloqueado_temporalmente'; classe = 'materializacao_recebidos'; motivo = 'recebidos_existem_mas_ineligiveis_na_data'
         elif not existe_eleg and len(receb_all) == 0:
-            if len(q_rec) > 0:
-                causa = 'fonte_recebido_nao_materializada_para_pagamento'; classe = 'materializacao_recebidos'; motivo = 'recebiveis_auditaveis_nao_aparecem_nas_fontes_do_pagamento'
+            rec_comp = q_rec.copy()
+            data_pg = r.get('data_pagamento') or r.get('Data')
+            data_pg_ts = pd.to_datetime(data_pg, errors='coerce')
+            rec_comp['data_recebimento_ts'] = pd.to_datetime(rec_comp.get('data_recebimento'), errors='coerce')
+            rec_comp['data_aplicacao_ts'] = pd.to_datetime(rec_comp.get('data_aplicacao'), errors='coerce')
+            rec_comp['valor_liquido_num'] = pd.to_numeric(rec_comp.get('valor_liquido'), errors='coerce')
+            rec_comp['pagamento_vinculado_id_norm'] = rec_comp.get('pagamento_vinculado_id', '').astype(str)
+            comp_pagto_id = rec_comp['pagamento_vinculado_id_norm'].eq(pid)
+            comp_data = rec_comp['data_recebimento_ts'].notna() & data_pg_ts.notna() & rec_comp['data_recebimento_ts'].le(data_pg_ts)
+            comp_valor = rec_comp['valor_liquido_num'].notna() & rec_comp['valor_liquido_num'].ge(max(vp - 0.01, 0.0))
+            rec_compativel = rec_comp[comp_pagto_id | (comp_data & comp_valor)]
+            if len(rec_compativel) > 0:
+                causa = 'fonte_recebido_nao_materializada_para_pagamento'; classe = 'materializacao_recebidos'; motivo = 'recebido_compativel_no_auditavel_sem_materializacao_nas_fontes'
+            elif len(q_rec) == 0:
+                causa = 'sem_recebido_disponivel_elegivel'; classe = 'contrato_atual_sem_correcao'; motivo = 'sem_recebidos_auditaveis_no_contexto'
             else:
-                causa = 'sem_recebido_disponivel_elegivel'; classe = 'contrato_atual_sem_correcao'; motivo = 'sem_fontes_recebido_no_pagamento'
+                causa = 'inconclusivo_exige_inspecao_manual'; classe = 'inspecao_manual'; motivo = 'nao_ha_vinculo_auditavel_do_recebido_ao_pagamento'
         elif existe_eleg and not cobre:
             causa = 'recebido_disponivel_insuficiente'; classe = 'contrato_atual_sem_correcao'; motivo = 'maior_recebido_nao_cobre_pagamento'
         elif existe_eleg and cobre and proxy_rec is not None and proxy_lote <= proxy_rec:
