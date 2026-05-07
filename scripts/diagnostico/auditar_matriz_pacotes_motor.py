@@ -79,6 +79,28 @@ def _classificar_causa_principal_switching_zero(df: pd.DataFrame) -> str:
     return "candidato_switching_promovivel_nao_materializado"
 
 
+def _max_col(df: pd.DataFrame, col: str) -> int:
+    if col not in df.columns:
+        return 0
+    s = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    return int(s.max()) if len(s) else 0
+
+
+def _sum_col(df: pd.DataFrame, col: str) -> int:
+    if col not in df.columns:
+        return 0
+    s = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    return int(s.sum()) if len(s) else 0
+
+
+def _sum_max_por_data(df: pd.DataFrame, col: str) -> int:
+    if col not in df.columns or "data" not in df.columns:
+        return 0
+    tmp = df[["data", col]].copy()
+    tmp[col] = pd.to_numeric(tmp[col], errors="coerce").fillna(0)
+    return int(tmp.groupby("data")[col].max().sum()) if len(tmp) else 0
+
+
 def main() -> int:
 
     ctx = carregar_contexto_baseline(
@@ -127,9 +149,13 @@ def main() -> int:
         "total_pay_then_switch_construidos": int(
             df[df["pacote"].eq("pay_then_switch")]["pacote_construido_no_motor"].sum()
         ),
-        "total_candidatos_switching_disponiveis": int(df["candidatos_switching_disponiveis"].sum()),
-        "total_candidatos_switching_bloqueados_gate": int(df["candidatos_switching_bloqueados_gate"].sum()),
-        "total_candidatos_switching_promoviveis": int(df["candidatos_switching_promoviveis"].sum()),
+        "candidatos_shadow_total_unicos": _max_col(df, "candidatos_shadow_total"),
+        "candidatos_shadow_mapeaveis_unicos": _sum_max_por_data(df, "candidatos_shadow_mapeaveis_no_dia"),
+        "candidatos_shadow_bloqueados_unicos_por_data": _sum_max_por_data(df, "candidatos_switching_bloqueados_gate"),
+        "candidatos_shadow_promoviveis_unicos_por_data": _sum_max_por_data(df, "candidatos_switching_promoviveis"),
+        "candidatos_switching_disponiveis_linha_pacote": _sum_col(df, "candidatos_switching_disponiveis"),
+        "candidatos_switching_bloqueados_linha_pacote": _sum_col(df, "candidatos_switching_bloqueados_gate"),
+        "candidatos_switching_promoviveis_linha_pacote": _sum_col(df, "candidatos_switching_promoviveis"),
         "total_pacotes_switching_materializados": int(
             df[df["pacote"].isin(list(PACOTES_SWITCHING))]["pacote_materializado_no_fluxo_atual"].sum()
         ),
