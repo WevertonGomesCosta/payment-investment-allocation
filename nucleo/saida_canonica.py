@@ -445,6 +445,125 @@ def _quadro_futuro_preferencial(contexto: Any) -> pd.DataFrame | None:
     return None
 
 
+
+def _valor_auditavel_preenchido(valor: Any) -> bool:
+    """Retorna True apenas para valores úteis na auditoria canônica."""
+    if valor is None:
+        return False
+    if isinstance(valor, str) and valor.strip() == "":
+        return False
+    return not _eh_indeterminado(valor)
+
+
+def _primeiro_valor_auditavel(*valores: Any, padrao: Any = "n/d") -> Any:
+    """Escolhe o primeiro valor auditável, tratando n/d como ausência."""
+    for valor in valores:
+        if _valor_auditavel_preenchido(valor):
+            return valor
+    return padrao
+
+
+def _bool_auditavel(valor: Any) -> bool:
+    return _norm(valor) in {"true", "1", "sim", "yes", "elegivel"}
+
+
+def _mapa_fontes_elegiveis_auditaveis_por_pagamento(contexto: Any) -> dict[str, dict[str, Any]]:
+    """V13: fallback auditavel de fontes elegiveis do contexto.
+
+    Esta função não decide pagamento, não sugere lote, não promove switching e
+    não altera saldo. Ela apenas prepara uma fonte candidata já existente em
+    contexto.fontes_elegiveis_pagamento.quadro_fontes_elegiveis para uso
+    auditável quando o ledger da saída vier sem fonte útil.
+    """
+    pacote = getattr(contexto, "fontes_elegiveis_pagamento", None)
+    quadro = getattr(pacote, "quadro_fontes_elegiveis", None) if pacote is not None else None
+
+    if not isinstance(quadro, pd.DataFrame) or len(quadro) == 0:
+        return {}
+
+    cols_obrigatorias = {"pagamento_id", "tipo_fonte"}
+    if not cols_obrigatorias.issubset(set(quadro.columns)):
+        return {}
+
+    q = quadro.copy()
+
+    q["_pagamento_id_auditavel"] = q["pagamento_id"].map(lambda x: str(x or "").strip())
+    q["_tipo_fonte_norm"] = q["tipo_fonte"].map(_norm)
+
+    if "elegivel_na_data_pagamento" in q.columns:
+        q["_elegivel_bool"] = q["elegivel_na_data_pagamento"].map(_bool_auditavel)
+    else:
+        q["_elegivel_bool"] = False
+
+    if "valor_liquido_disponivel" in q.columns:
+        q["_valor_liq_ord"] = pd.to_numeric(q["valor_liquido_disponivel"], errors="coerce").fillna(0.0)
+    elif "valor_bruto_disponivel" in q.columns:
+        q["_valor_liq_ord"] = pd.to_numeric(q["valor_bruto_disponivel"], errors="coerce").fillna(0.0)
+    else:
+        q["_valor_liq_ord"] = 0.0
+
+    q = q[
+        q["_pagamento_id_auditavel"].ne("")
+        & q["_tipo_fonte_norm"].eq("recebido_disponivel")
+        & q["_elegivel_bool"]
+    ].copy()
+
+    if len(q) == 0:
+        return {}
+
+    q["_prioridade_tipo"] = 0
+    q["_prioridade_valor"] = -q["_valor_liq_ord"]
+
+    q = q.sort_values(
+        ["_pagamento_id_auditavel", "_prioridade_tipo", "_prioridade_valor"],
+        kind="stable",
+    )
+
+    mapa: dict[str, dict[str, Any]] = {}
+
+    for _, row in q.iterrows():
+        pagamento_id = str(row.get("_pagamento_id_auditavel") or "").strip()
+        if not pagamento_id or pagamento_id in mapa:
+            continue
+
+        recebido_id = row.get("recebido_id")
+        lote_id = row.get("lote_id")
+        fonte_id = (
+            row.get("fonte_id")
+            or row.get("fonte_pagamento_id")
+            or recebido_id
+            or lote_id
+            or "recebido_disponivel"
+        )
+
+        origem = "contexto.fontes_elegiveis_pagamento.quadro_fontes_elegiveis"
+        if _valor_auditavel_preenchido(recebido_id):
+            origem = f"{origem}|recebido_id={recebido_id}"
+        if _valor_auditavel_preenchido(lote_id):
+            origem = f"{origem}|lote_id={lote_id}"
+
+        mapa[pagamento_id] = {
+            "fonte_candidata_id": fonte_id,
+            "tipo_fonte_candidata": row.get("tipo_fonte") or "recebido_disponivel",
+            "origem_fonte_candidata": origem,
+            "status": "fonte_elegivel_auditavel",
+            "motivo_bloqueio": "",
+            "motivo_descarte_fonte": "",
+            "saldo_liquido_disponivel": (
+                row.get("valor_liquido_disponivel")
+                if _valor_auditavel_preenchido(row.get("valor_liquido_disponivel"))
+                else row.get("valor_bruto_disponivel")
+            ),
+            "saldo_bruto_disponivel": row.get("valor_bruto_disponivel"),
+            "recebido_id": recebido_id,
+            "lote_id": lote_id,
+            "data_evento": row.get("data_evento"),
+            "data_recebimento_origem": row.get("data_recebimento_origem"),
+            "data_aplicacao_origem": row.get("data_aplicacao_origem"),
+        }
+
+    return mapa
+
 def _mapa_resumos_futuros(contexto: Any, quadro_futuro: pd.DataFrame | None) -> dict[str, dict[str, Any]]:
     if not isinstance(quadro_futuro, pd.DataFrame) or len(quadro_futuro) == 0:
         return {}
@@ -688,6 +807,8 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
     quadro = _quadro_futuro_preferencial(contexto)
     if not isinstance(quadro, pd.DataFrame) or len(quadro) == 0:
         return []
+
+    mapa_fontes_elegiveis_auditaveis = _mapa_fontes_elegiveis_auditaveis_por_pagamento(contexto)
     mapa_central = _mapa_pagamentos_central(contexto)
     ledger_result = construir_ledger_temporal_conjunto(quadro, mapa_central, contexto) or {}
     eventos_ledger = list(ledger_result.get('eventos', []))
@@ -850,6 +971,89 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             lote_pos_switch = ''
             origem_switching = 'diagnostico_nao_materializado'
 
+        fonte_auditavel_contexto = mapa_fontes_elegiveis_auditaveis.get(str(pagamento_id or '').strip(), {})
+        ledger_aud = ledger if isinstance(ledger, dict) else {}
+
+        fonte_candidata_id_aud = _primeiro_valor_auditavel(
+            ledger_aud.get('fonte_candidata_id'),
+            fonte_auditavel_contexto.get('fonte_candidata_id'),
+            padrao='n/d',
+        )
+        tipo_fonte_candidata_aud = _primeiro_valor_auditavel(
+            ledger_aud.get('tipo_fonte_candidata'),
+            fonte_auditavel_contexto.get('tipo_fonte_candidata'),
+            padrao='n/d',
+        )
+        origem_fonte_candidata_aud = _primeiro_valor_auditavel(
+            ledger_aud.get('origem_fonte_candidata'),
+            fonte_auditavel_contexto.get('origem_fonte_candidata'),
+            padrao='n/d',
+        )
+        motivo_descarte_fonte_aud = _primeiro_valor_auditavel(
+            ledger_aud.get('motivo_descarte_fonte'),
+            fonte_auditavel_contexto.get('motivo_descarte_fonte'),
+            padrao='',
+        )
+        status_ledger_aud = _primeiro_valor_auditavel(
+            ledger_aud.get('status'),
+            fonte_auditavel_contexto.get('status'),
+            padrao='',
+        )
+        motivo_bloqueio_ledger_aud = _primeiro_valor_auditavel(
+            ledger_aud.get('motivo_bloqueio'),
+            fonte_auditavel_contexto.get('motivo_bloqueio'),
+            padrao='',
+        )
+        saldo_liquido_disponivel_aud = _primeiro_valor_auditavel(
+            ledger_aud.get('saldo_liquido_disponivel'),
+            ledger_aud.get('saldo_liquido'),
+            fonte_auditavel_contexto.get('saldo_liquido_disponivel'),
+            padrao='',
+        )
+
+        # V13-C: prioridade de sobrescrita auditavel para recebido_disponivel.
+        usar_fonte_contexto_recebido_sem_saldo = bool(
+            sem_saldo_temporal_auditavel
+            and _norm(fonte_auditavel_contexto.get('tipo_fonte_candidata')) == 'recebido_disponivel'
+        )
+
+        if usar_fonte_contexto_recebido_sem_saldo:
+            fonte_candidata_id_aud = _primeiro_valor_auditavel(
+                fonte_auditavel_contexto.get('fonte_candidata_id'),
+                fonte_candidata_id_aud,
+                padrao='n/d',
+            )
+            tipo_fonte_candidata_aud = _primeiro_valor_auditavel(
+                fonte_auditavel_contexto.get('tipo_fonte_candidata'),
+                tipo_fonte_candidata_aud,
+                padrao='n/d',
+            )
+            origem_fonte_candidata_aud = _primeiro_valor_auditavel(
+                fonte_auditavel_contexto.get('origem_fonte_candidata'),
+                origem_fonte_candidata_aud,
+                padrao='n/d',
+            )
+            status_ledger_aud = _primeiro_valor_auditavel(
+                fonte_auditavel_contexto.get('status'),
+                status_ledger_aud,
+                padrao='',
+            )
+            motivo_bloqueio_ledger_aud = _primeiro_valor_auditavel(
+                fonte_auditavel_contexto.get('motivo_bloqueio'),
+                motivo_bloqueio_ledger_aud,
+                padrao='',
+            )
+            motivo_descarte_fonte_aud = _primeiro_valor_auditavel(
+                fonte_auditavel_contexto.get('motivo_descarte_fonte'),
+                motivo_descarte_fonte_aud,
+                padrao='',
+            )
+            saldo_liquido_disponivel_aud = _primeiro_valor_auditavel(
+                fonte_auditavel_contexto.get('saldo_liquido_disponivel'),
+                saldo_liquido_disponivel_aud,
+                padrao='',
+            )
+
         linha_saida = {
             **({
                 'Motivo pos sw': (
@@ -906,21 +1110,21 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Líq. pos': _round_monetario(row_dict.get('saldo_pos_sw_liquido_candidato'), 'n/d'),
             'Data saldo pos': _fmt_data(row_dict.get('data_base_saldo_pos_sw')) if row_dict.get('data_base_saldo_pos_sw') not in (None, '') else 'n/d',
             'Motivo saldo pos': _texto_decisao(row_dict.get('motivo_saldo_pos_sw')) if str(row_dict.get('motivo_saldo_pos_sw') or '').strip() else 'n/d',
-            'fonte_candidata_id': ledger.get('fonte_candidata_id') or 'n/d',
-            'tipo_fonte_candidata': ledger.get('tipo_fonte_candidata') or 'n/d',
-            'origem_fonte_candidata': ledger.get('origem_fonte_candidata') or 'n/d',
+            'fonte_candidata_id': fonte_candidata_id_aud,
+            'tipo_fonte_candidata': tipo_fonte_candidata_aud,
+            'origem_fonte_candidata': origem_fonte_candidata_aud,
             'elegivel_temporalmente': ledger.get('elegivel_temporalmente'),
-            'saldo_liquido_disponivel': ledger.get('saldo_liquido_disponivel'),
+            'saldo_liquido_disponivel': saldo_liquido_disponivel_aud,
             'elegivel_liquidez_carencia': ledger.get('elegivel_liquidez_carencia'),
             'promovida_para_lote_sugerido': ledger.get('promovida_para_lote_sugerido'),
             'etapa_descarte_fonte': ledger.get('etapa_descarte_fonte') or '',
-            'motivo_descarte_fonte': ledger.get('motivo_descarte_fonte') or '',
+            'motivo_descarte_fonte': motivo_descarte_fonte_aud,
             'origem_motivo_descarte': ledger.get('origem_motivo_descarte') or '',
             'evento_switching_id': ledger.get('evento_switching_id') or '',
             'lote_pos_switching_materializado': ledger.get('lote_pos_switching_materializado') or '',
             'pacote_do_dia_ledger': ledger.get('pacote_do_dia') or '',
-            'status_ledger': ledger.get('status') or '',
-            'motivo_bloqueio_ledger': ledger.get('motivo_bloqueio') or '',
+            'status_ledger': status_ledger_aud,
+            'motivo_bloqueio_ledger': motivo_bloqueio_ledger_aud,
             'fifo_pagamento_id': ledger.get('fifo_pagamento_id'),
             'fifo_data_pagamento': ledger.get('fifo_data_pagamento'),
             'fifo_valor_pagamento': ledger.get('fifo_valor_pagamento'),
