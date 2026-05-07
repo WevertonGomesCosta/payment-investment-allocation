@@ -27,6 +27,50 @@ def _eh_indeterminado(valor: Any) -> bool:
     return _norm(valor) in {"", "não determinado", "nao determinado", "n/d", "nd", "none"}
 
 
+def _linha_extrato_futuro_sem_saldo_temporal(linha: dict[str, Any]) -> bool:
+    status = _norm(
+        linha.get("Status recomenda\u00e7\u00e3o")
+        or linha.get("Status recomendacao")
+        or ""
+    )
+    motivo = _norm(linha.get("Motivo bloqueio lote") or "")
+    return (
+        status == "sem_saldo_temporal_auditavel"
+        or motivo == "saldo_temporal_insuficiente_cumulativo"
+    )
+
+
+def _normalizar_sem_fonte_valida_extrato_futuro(linha: dict[str, Any]) -> dict[str, Any]:
+    """Remove fonte operacional invalida em linhas futuras sem saldo temporal auditavel.
+
+    Esta funcao nao muda a decisao economica, nao cria switching e nao altera ledger.
+    Ela apenas impede que a camada observavel preserve um lote exaurido como
+    "Lote sugerido" quando a propria linha ja declara ausencia de saldo auditavel.
+    """
+    if not isinstance(linha, dict):
+        return linha
+
+    if not _linha_extrato_futuro_sem_saldo_temporal(linha):
+        return linha
+
+    linha = dict(linha)
+    linha["Lote sugerido"] = ""
+    linha["Origem switching"] = "n\u00e3o determinado"
+
+    for col in [
+        "Saldo Antes",
+        "Bruto",
+        "Imposto",
+        "L\u00edquido",
+        "Saldo Remanescente",
+    ]:
+        if col in linha:
+            linha[col] = ""
+
+    return linha
+
+
+
 @dataclass(frozen=True)
 class PacoteSaidaCanonica:
     versao: str
@@ -1016,7 +1060,7 @@ def _aplicar_invariantes_extrato_futuro_linha(linha: dict[str, Any]) -> dict[str
         elif str(linha.get('origem_motivo_descarte') or '').strip() == '':
             linha['origem_motivo_descarte'] = 'registrada_pipeline'
 
-    return linha
+    return _normalizar_sem_fonte_valida_extrato_futuro(linha)
 
 def _texto_decisao(valor: Any) -> str:
     txt = str(valor or '').strip()
@@ -1314,6 +1358,10 @@ def _linhas_resumo_recebidos(contexto: Any) -> list[dict[str, Any]]:
 def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSaidaCanonica:
     extrato_passado = _construir_extrato_passado(contexto)
     extrato_futuro = _construir_extrato_futuro(contexto)
+    extrato_futuro = [
+        _normalizar_sem_fonte_valida_extrato_futuro(item)
+        for item in extrato_futuro
+    ]
     switchings = _construir_switchings(contexto)
     ranking_amostra = _construir_ranking_amostra(contexto)
     lotes_ativos, lotes_exauridos = _construir_lotes_situacao(contexto)
