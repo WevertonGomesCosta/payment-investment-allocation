@@ -179,7 +179,7 @@ def construir_matriz_pacotes_diarios(contexto, saida_canonica, modo_observaciona
                 "status_ledger_resultante": status_ledger, "motivo_ledger_resultante": motivo_ledger,
                 "usa_multifonte": usa_multifonte, "qtd_fontes_pagamento": qtd_fontes_pagamento, "qtd_pagamentos_multifonte": qtd_pagamentos_multifonte,
                 "observacao_auditoria": "construido_dry_run_nao_decisorio" if constru else "n/d", "pacote_candidato_nao_decisorio": int(constru),
-                "dry_run_sem_materializacao": int(p in PACOTES_SWITCHING),
+                "dry_run_sem_materializacao": int(p in PACOTES_SWITCHING and not mat),
             })
 
     return pd.DataFrame(rows)

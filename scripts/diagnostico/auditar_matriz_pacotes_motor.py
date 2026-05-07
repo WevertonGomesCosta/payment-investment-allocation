@@ -15,6 +15,70 @@ from nucleo.matriz_pacotes_diarios import construir_matriz_pacotes_diarios, PACO
 
 
 
+def _num(row: pd.Series, col: str) -> int:
+    try:
+        return int(row.get(col, 0) or 0)
+    except Exception:
+        return 0
+
+
+def _classificar_causa_divergencia_ponte(row: pd.Series) -> str:
+    total = _num(row, "candidatos_shadow_total")
+    por_data = _num(row, "candidatos_shadow_por_data")
+    promoviveis = _num(row, "candidatos_shadow_promoviveis")
+
+    if total <= 0:
+        return "sem_candidato_shadow"
+
+    if por_data <= 0:
+        return "shadow_por_lote_sem_mapeamento_diario"
+
+    if promoviveis <= 0:
+        return "candidatos_shadow_existentes_mas_sem_promoviveis"
+
+    return "candidatos_shadow_promoviveis_nao_materializados"
+
+
+def _acao_recomendada_ponte(causa: str) -> str:
+    mapa = {
+        "sem_candidato_shadow": "verificar_geracao_shadow",
+        "shadow_por_lote_sem_mapeamento_diario": "nao_inflar_contagem_diaria_sem_data",
+        "candidatos_shadow_existentes_mas_sem_promoviveis": "usar_motivo_shadow_dominante",
+        "candidatos_shadow_promoviveis_nao_materializados": "avaliar_materializacao_nao_decisoria",
+    }
+    return mapa.get(str(causa), "revisar_diagnostico_ponte")
+
+
+def _classificar_causa_principal_switching_zero(df: pd.DataFrame) -> str:
+    sw = df[df["pacote"].isin(list(PACOTES_SWITCHING))].copy()
+
+    if len(sw) == 0:
+        return "diagnostico_ainda_insuficiente"
+
+    total_materializado = int(sw["pacote_materializado_no_fluxo_atual"].sum())
+    if total_materializado > 0:
+        return "switching_materializado_observado"
+
+    total_construido = int(sw["pacote_construido_no_motor"].sum())
+    if total_construido == 0:
+        return "pacote_switching_nao_implementado"
+
+    shadow_total = int(sw.get("candidatos_shadow_total", pd.Series([0])).max())
+    shadow_mapeavel = int(sw.get("candidatos_shadow_mapeaveis_no_dia", pd.Series([0])).sum())
+    shadow_promovivel = int(sw.get("candidatos_switching_promoviveis", pd.Series([0])).sum())
+
+    if shadow_total <= 0:
+        return "sem_candidato_shadow"
+
+    if shadow_mapeavel <= 0:
+        return "shadow_sem_mapeamento_diario"
+
+    if shadow_promovivel <= 0:
+        return "candidatos_shadow_existentes_mas_sem_promoviveis"
+
+    return "candidato_switching_promovivel_nao_materializado"
+
+
 def main() -> int:
 
     ctx = carregar_contexto_baseline(
@@ -40,11 +104,11 @@ def main() -> int:
     ponte["candidatos_shadow_bloqueados"] = ponte["candidatos_switching_bloqueados_gate"]
     ponte["candidatos_shadow_promoviveis"] = ponte["candidatos_switching_promoviveis"]
     ponte["top_motivos_shadow"] = ponte["motivo_nao_materializado"]
-    ponte["origem_matriz_atual"] = "alocacao_fontes_auditoria.evento_switching_id"
+    ponte["origem_matriz_atual"] = "ctx.switching_economico_shadow.quadro_oportunidades"
     ponte["origem_shadow_real"] = "ctx.switching_economico_shadow.quadro_oportunidades"
     ponte["divergencia"] = (ponte["candidatos_shadow_total"] > 0) & (ponte["candidatos_shadow_por_data"] == 0)
-    ponte["causa_divergencia"] = ponte["divergencia"].map({True: "shadow_por_lote_sem_mapeamento_diario", False: "candidatos_shadow_existentes_mas_sem_promoviveis"})
-    ponte["acao_recomendada"] = ponte["divergencia"].map({True: "nao_inflar_contagem_diaria_sem_data", False: "usar_motivo_shadow_dominante"})
+    ponte["causa_divergencia"] = ponte.apply(_classificar_causa_divergencia_ponte, axis=1)
+    ponte["acao_recomendada"] = ponte["causa_divergencia"].map(_acao_recomendada_ponte)
     ponte_cols = ["data","pacote","candidatos_matriz","candidatos_shadow_total","candidatos_shadow_por_data","candidatos_shadow_por_lote_ativo","candidatos_shadow_bloqueados","candidatos_shadow_promoviveis","top_motivos_shadow","origem_matriz_atual","origem_shadow_real","divergencia","causa_divergencia","acao_recomendada"]
     out_ponte = RAIZ / "saidas/diagnostico/auditoria_ponte_matriz_vs_shadow.csv"
     ponte[ponte_cols].to_csv(out_ponte, index=False)
@@ -69,12 +133,7 @@ def main() -> int:
         "total_pacotes_switching_materializados": int(
             df[df["pacote"].isin(list(PACOTES_SWITCHING))]["pacote_materializado_no_fluxo_atual"].sum()
         ),
-        "causa_principal_switching_zero": (
-            "shadow_sem_mapeamento_diario"
-            if int(df.get("candidatos_shadow_total", pd.Series([0])).max()) > 0
-            and int(df.get("candidatos_shadow_mapeaveis_no_dia", pd.Series([0])).sum()) == 0
-            else ("switching_nao_materializado_na_etapa" if int(df[df["pacote"].isin(list(PACOTES_SWITCHING))]["pacote_construido_no_motor"].sum()) > 0 else "pacote_switching_nao_implementado")
-        ),
+        "causa_principal_switching_zero": _classificar_causa_principal_switching_zero(df),
     }
 
     print(out)
