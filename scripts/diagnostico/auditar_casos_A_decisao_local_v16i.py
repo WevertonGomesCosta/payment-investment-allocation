@@ -83,9 +83,21 @@ def main() -> int:
     q_extrato['Status recomendação'] = q_extrato['Status recomendação'].astype(str).str.lower()
     casos_a = q_extrato[q_extrato['Status recomendação'].eq('sem_saldo_temporal_auditavel')].copy()
     casos_a = casos_a.merge(q_local, left_on='Despesa ID', right_on='pagamento_id', how='left', suffixes=('_ext', '_local'))
+    q_aud_merge = q_aud.add_suffix('_aud')
+    casos_a = casos_a.merge(q_aud_merge, left_on='Despesa ID', right_on='pagamento_id_aud', how='left')
     casos_a = casos_a[casos_a['tipo_fonte_escolhida'].astype(str).str.lower().eq('lote_resgatavel')].copy()
 
     rows = []
+    schema_cols = [
+        'pagamento_id','data_pagamento','descricao_pagamento','valor_pagamento',
+        'tipo_fonte_escolhida_decisao_local','fonte_escolhida_id','lote_id_escolhido',
+        'saldo_antes_temporal_lote','valor_disponivel_escolhido_local','custo_economico_proxy_lote',
+        'existe_recebido_disponivel_elegivel','qtd_recebidos_disponiveis_elegiveis','maior_valor_liquido_recebido_disponivel',
+        'recebido_cobre_pagamento','melhor_recebido_id','status_recebido','destino_potencial_recebido',
+        'data_recebimento','data_aplicacao','motivo_recebido_nao_escolhido','diagnostico_causa_provavel','classe_correcao_futura',
+        'gatilho_motivo_ledger_saldo_insuficiente','gatilho_cob_temporal_false','gatilho_requer_reescolha_temporal',
+        'gatilho_saldo_antes_menor_pagamento','gatilho_consumo_menor_pagamento','gatilho_saldo_remanescente_negativo',
+    ]
     for _, r in casos_a.iterrows():
         pid = str(r['Despesa ID'])
         vp = float(r.get('valor_pagamento') or r.get('Valor') or 0.0)
@@ -107,24 +119,30 @@ def main() -> int:
         data_rec = rec_row['data_recebimento'].iloc[0] if len(rec_row) else ''
         data_apl = rec_row['data_aplicacao'].iloc[0] if len(rec_row) else ''
 
-        motivo_ledger = _n(r.get('motivo_bloqueio_ledger'))
-        cob_temporal = _n(r.get('pagamento_totalmente_coberto_temporal'))
-        requer_reescolha_temporal = _bool(r.get('requer_reescolha_dinamica_temporal'))
-        saldo_ant_temporal = _to_float_or_none(r.get('saldo_antes_temporal'))
-        saldo_dep_temporal = _to_float_or_none(r.get('saldo_remanescente_temporal'))
-        consumo_temporal = _to_float_or_none(r.get('Consumo temp.'))
+        motivo_ledger = _n(r.get('motivo_bloqueio_ledger_aud') or r.get('motivo_bloqueio_ledger'))
+        cob_temporal = _n(r.get('pagamento_totalmente_coberto_temporal_aud') or r.get('pagamento_totalmente_coberto_temporal'))
+        requer_reescolha_temporal = _bool(r.get('requer_reescolha_dinamica_aud'))
+        if not requer_reescolha_temporal:
+            requer_reescolha_temporal = _bool(r.get('requer_reescolha_dinamica_temporal'))
+        saldo_ant_temporal = _to_float_or_none(r.get('saldo_antes_temporal_aud') or r.get('saldo_antes_temporal'))
+        saldo_dep_temporal = _to_float_or_none(r.get('saldo_remanescente_temporal_aud') or r.get('saldo_remanescente_temporal'))
+        consumo_temporal = _to_float_or_none(r.get('liquido_temporal_aud') or r.get('Consumo temp.'))
+
+        gatilho_motivo_ledger_saldo_insuficiente = motivo_ledger == 'saldo_temporal_insuficiente_cumulativo'
+        gatilho_cob_temporal_false = cob_temporal in {'não', 'nao', 'n', 'false', '0'}
+        gatilho_requer_reescolha_temporal = requer_reescolha_temporal
+        gatilho_saldo_antes_menor_pagamento = (saldo_ant_temporal is not None and vp > 0 and saldo_ant_temporal + 0.01 < vp)
+        gatilho_consumo_menor_pagamento = (consumo_temporal is not None and vp > 0 and consumo_temporal + 0.01 < vp)
+        gatilho_saldo_remanescente_negativo = (
+            saldo_ant_temporal is not None and saldo_dep_temporal is not None and saldo_ant_temporal >= 0 and saldo_dep_temporal < -0.01
+        )
         lote_sem_saldo = any([
-            motivo_ledger == 'saldo_temporal_insuficiente_cumulativo',
-            cob_temporal in {'não', 'nao', 'n', 'false', '0'},
-            requer_reescolha_temporal,
-            (saldo_ant_temporal is not None and vp > 0 and saldo_ant_temporal + 0.01 < vp),
-            (consumo_temporal is not None and vp > 0 and consumo_temporal + 0.01 < vp),
-            (
-                saldo_ant_temporal is not None
-                and saldo_dep_temporal is not None
-                and saldo_ant_temporal >= 0
-                and saldo_dep_temporal < -0.01
-            ),
+            gatilho_motivo_ledger_saldo_insuficiente,
+            gatilho_cob_temporal_false,
+            gatilho_requer_reescolha_temporal,
+            gatilho_saldo_antes_menor_pagamento,
+            gatilho_consumo_menor_pagamento,
+            gatilho_saldo_remanescente_negativo,
         ])
 
         proxy_lote = _to_float_or_none(r.get('custo_economico_proxy'))
@@ -196,9 +214,15 @@ def main() -> int:
             'motivo_recebido_nao_escolhido': motivo,
             'diagnostico_causa_provavel': causa if causa in CAUSAS else 'inconclusivo_exige_inspecao_manual',
             'classe_correcao_futura': classe if classe in CLASSES else 'inspecao_manual',
+            'gatilho_motivo_ledger_saldo_insuficiente': gatilho_motivo_ledger_saldo_insuficiente,
+            'gatilho_cob_temporal_false': gatilho_cob_temporal_false,
+            'gatilho_requer_reescolha_temporal': gatilho_requer_reescolha_temporal,
+            'gatilho_saldo_antes_menor_pagamento': gatilho_saldo_antes_menor_pagamento,
+            'gatilho_consumo_menor_pagamento': gatilho_consumo_menor_pagamento,
+            'gatilho_saldo_remanescente_negativo': gatilho_saldo_remanescente_negativo,
         })
 
-    out = pd.DataFrame(rows)
+    out = pd.DataFrame(rows, columns=schema_cols)
     out.to_csv(CSV_PRINCIPAL, index=False)
 
     resumo = {
@@ -233,6 +257,12 @@ def main() -> int:
     print(f"qtd_com_recebido_disponivel_suficiente={int(out['recebido_cobre_pagamento'].sum()) if len(out) else 0}")
     print(f"qtd_sem_recebido_disponivel_elegivel={int((~out['existe_recebido_disponivel_elegivel']).sum()) if len(out) else 0}")
     print(f"qtd_lote_escolhido_sem_saldo_temporal_cumulativo={resumo['lote_sem_saldo_temporal_cumulativo']}")
+    print(f"gatilho_motivo_ledger_saldo_insuficiente={int(out['gatilho_motivo_ledger_saldo_insuficiente'].sum()) if len(out) else 0}")
+    print(f"gatilho_cob_temporal_false={int(out['gatilho_cob_temporal_false'].sum()) if len(out) else 0}")
+    print(f"gatilho_requer_reescolha_temporal={int(out['gatilho_requer_reescolha_temporal'].sum()) if len(out) else 0}")
+    print(f"gatilho_saldo_antes_menor_pagamento={int(out['gatilho_saldo_antes_menor_pagamento'].sum()) if len(out) else 0}")
+    print(f"gatilho_consumo_menor_pagamento={int(out['gatilho_consumo_menor_pagamento'].sum()) if len(out) else 0}")
+    print(f"gatilho_saldo_remanescente_negativo={int(out['gatilho_saldo_remanescente_negativo'].sum()) if len(out) else 0}")
     print(f'caminho_csv_principal={CSV_PRINCIPAL}')
     print(f'caminho_csv_resumo={CSV_RESUMO}')
     print('confirmacao_contrato_modelo_lidos_e_nao_alterados=true')
