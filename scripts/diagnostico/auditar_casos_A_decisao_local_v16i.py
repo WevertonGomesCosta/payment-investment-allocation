@@ -157,9 +157,7 @@ def main() -> int:
             gatilho_consumo_menor_pagamento,
             gatilho_saldo_remanescente_negativo,
         ])
-        lote_sem_saldo = gatilho_temporal_independente or (
-            gatilho_motivo_ledger_saldo_insuficiente and gatilho_temporal_independente
-        )
+        lote_sem_saldo = gatilho_temporal_independente
 
         proxy_lote = _to_float_or_none(r.get('custo_economico_proxy'))
         if proxy_lote is None:
