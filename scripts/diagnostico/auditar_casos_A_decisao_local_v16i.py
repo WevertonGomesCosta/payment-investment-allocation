@@ -50,6 +50,11 @@ def _commit_v16h_ok():
         return False
 
 
+def _to_float_or_none(v):
+    num = pd.to_numeric(pd.Series([v]), errors='coerce').iloc[0]
+    return None if pd.isna(num) else float(num)
+
+
 def main() -> int:
     head_inicial = _head()
     commit_ok = _commit_v16h_ok()
@@ -102,9 +107,28 @@ def main() -> int:
         data_rec = rec_row['data_recebimento'].iloc[0] if len(rec_row) else ''
         data_apl = rec_row['data_aplicacao'].iloc[0] if len(rec_row) else ''
 
-        lote_sem_saldo = True
-        proxy_lote = float(r.get('custo_economico_proxy_local') or 0.0)
-        proxy_rec = float(pd.to_numeric(receb_eleg['metodo_valor_disponivel'].astype(str).str.extract(r'([\-\d\.]+)')[0], errors='coerce').min()) if existe_eleg else None
+        status_ledger = _n(r.get('status_ledger'))
+        motivo_ledger = _n(r.get('motivo_bloqueio_ledger'))
+        lote_sem_saldo = (
+            _n(r.get('Status recomendação')) == 'sem_saldo_temporal_auditavel'
+            or status_ledger == 'sem_saldo_temporal_auditavel'
+            or motivo_ledger == 'saldo_temporal_insuficiente_cumulativo'
+        )
+
+        proxy_lote = _to_float_or_none(r.get('custo_economico_proxy'))
+        if proxy_lote is None:
+            proxy_lote = _to_float_or_none(r.get('custo_economico_proxy_local'))
+        if proxy_lote is None:
+            proxy_lote = 0.0
+
+        proxy_rec = None
+        if existe_eleg and len(melhor):
+            if 'custo_economico_proxy' in melhor.columns:
+                proxy_rec = _to_float_or_none(melhor['custo_economico_proxy'].iloc[0])
+            if proxy_rec is None and 'metodo_valor_disponivel' in melhor.columns:
+                metodo = str(melhor['metodo_valor_disponivel'].iloc[0] or '')
+                extraido = pd.to_numeric(pd.Series([metodo]).astype(str).str.extract(r'([\-\d\.]+)')[0], errors='coerce').iloc[0]
+                proxy_rec = None if pd.isna(extraido) else float(extraido)
 
         if lote_sem_saldo:
             causa = 'lote_escolhido_sem_saldo_temporal_cumulativo'; classe = 'saldo_temporal_cumulativo'; motivo = 'auditoria_temporal_indica_sem_saldo'
@@ -171,7 +195,7 @@ def main() -> int:
         {'tipo_resumo': 'lote_sem_saldo_temporal_cumulativo', 'chave': 'total', 'qtd': resumo['lote_sem_saldo_temporal_cumulativo']}
     ]).to_csv(CSV_RESUMO, index=False)
 
-    print('versao_alvo=V16-I')
+    print('versao_alvo=V16-I.1')
     print('numero_de_versoes_usadas=1')
     print(f'head_inicial={head_inicial}')
     print(f'commit_v16h_confirmado={commit_ok}')
