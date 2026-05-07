@@ -975,3 +975,27 @@ Qualquer divergência observada na saída deve ser tratada como falha do estado 
 ## 23. Definição final consolidada
 
 > Em cada dia \(t\), o modelo verifica se existem contas com vencimento em \(t\), constrói um estado temporal conjunto, incorpora recebidos disponíveis, normaliza lotes vencidos, deriva fontes elegíveis para pagamento e switching e compara os pacotes factíveis como trajetórias completas de transição de estado. Se não houver contas, compara `no_action` e `switch_only`. Se houver contas, compara `pay_only`, `switch_then_pay` e `pay_then_switch`. No pacote `switch_then_pay`, o pagamento consome o estado pós-switching materializado. No pacote `pay_then_switch`, o switching consome o estado pós-pagamento materializado. O motor produz um ledger canônico de eventos para o pacote escolhido, e as saídas operacionais são apenas renderizações desse ledger. Campos operacionais só podem conter fontes, lotes, switchings e saldos materializados. A escolha ótima maximiza o patrimônio líquido terminal líquido, considerando custo de oportunidade, fiscalidade, liquidez, carência, vencimento, regras dos produtos, conservação de valor e auditabilidade.
+
+## Tratamento matematico-financeiro de titulos publicos e produtos dependentes de curva
+
+Titulos publicos e produtos dependentes de curva de mercado devem ser tratados como classe especial de ativos no modelo matematico-estatistico-financeiro. Essa classe inclui, no minimo, Tesouro IPCA, Tesouro Educa, Tesouro Prefixado, Tesouro Selic e produtos cuja avaliacao dependa de preco de mercado, indexador de inflacao, taxa prefixada, curva de juros ou marcacao a mercado.
+
+Para essa classe, o valor economico em uma data de decisao nao deve ser inferido apenas pela taxa contratada ou pela rentabilidade ate o vencimento. Quando houver possibilidade de resgate antes do vencimento, o valor relevante e o valor liquido de venda ou resgate na data operacional necessaria.
+
+Formalmente, para um titulo ou produto dependente de curva, a comparacao economica so e admissivel quando for possivel obter ou estimar de forma auditavel:
+
+- valor bruto de mercado na data de resgate;
+- rendimento bruto em relacao ao principal alocado;
+- imposto incidente conforme prazo efetivo;
+- IOF, quando aplicavel;
+- custos, taxas e eventuais penalizacoes;
+- valor liquido disponivel;
+- ganho liquido incremental em relacao a permanencia na origem no mesmo horizonte.
+
+A funcao objetivo do projeto nao deve aceitar ganho estimado de Tesouro/IPCA ou produto dependente de curva como ganho operacional valido se a estimativa depender de retorno ate vencimento, mas a necessidade de liquidez ocorrer antes do vencimento. Nesses casos, a alternativa deve ser classificada como oportunidade nao auditavel ou oportunidade futura de modelagem, permanecendo fora da promocao operacional.
+
+A comparacao contra CDI ou contra produto de liquidez diaria deve usar o mesmo capital, a mesma data inicial, a mesma data terminal, a mesma regra tributaria e a mesma necessidade de liquidez. Comparacoes entre retorno longo de titulo publico e liquidez curta de CDI devem ser penalizadas ou bloqueadas ate que exista uma camada formal de marcacao a mercado e resgate antecipado.
+
+Enquanto essa camada nao existir, o modelo deve preservar o bloqueio semantico desses produtos e impedir que sejam transformados em recomendacao operacional de switching.
+
+Enquanto essa camada nao existir, esses produtos nao devem ser promovidos como recomendacao operacional de switching.

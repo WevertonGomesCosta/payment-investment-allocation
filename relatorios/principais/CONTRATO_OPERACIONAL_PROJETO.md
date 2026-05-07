@@ -931,3 +931,23 @@ A leitura correta é:
 Este contrato representa a referência principal para a continuidade contratual, metodológica e operacional do projeto.
 
 Qualquer evolução funcional deve permanecer compatível com a fonte única de verdade temporal, o ledger canônico de eventos e a vedação de decisão em camadas de saída.
+
+## Regra operacional para titulos publicos Tesouro/IPCA e produtos dependentes de curva
+
+Produtos do tipo Tesouro Direto, Tesouro IPCA, Tesouro Educa, Tesouro Prefixado, Tesouro Selic e demais titulos publicos ou produtos cuja valorizacao dependa de curva de mercado, indexador de inflacao, marcacao a mercado ou preco de venda em data futura nao devem ser promovidos como recomendacao operacional de switching enquanto nao existir uma camada auditavel especifica para esse tipo de ativo.
+
+A existencia de ganho estimado em analise shadow ou diagnostica nao e suficiente para liberar a promocao operacional desses produtos. Enquanto a camada especifica nao estiver implementada, esses casos devem permanecer registrados apenas como oportunidade futura de modelagem.
+
+A promocao operacional desses produtos somente pode ocorrer quando o projeto suportar, de forma auditavel:
+
+- preco unitario de compra e venda por data;
+- curva de mercado aplicavel ao titulo;
+- indexador observado e, quando necessario, premissas explicitas para indexador projetado;
+- calendario e regras de negociacao/liquidez;
+- tratamento de resgate antes do vencimento;
+- calculo de valor bruto, imposto, custos e valor liquido;
+- comparacao liquida contra a origem no mesmo horizonte, com mesmo capital, mesmas datas, mesma necessidade de liquidez e mesma regra tributaria.
+
+Se houver pagamento previsto antes do vencimento do titulo, a comparacao deve usar preco de venda ou valor de mercado auditavel na data de resgate. Nao se deve usar retorno ate vencimento para justificar pagamento anterior ao vencimento.
+
+Na ausencia desses elementos, o gate semantico deve bloquear a promocao operacional e a saida deve preservar o motivo como limitacao de modelagem, sem converter o candidato em switching recomendado.
