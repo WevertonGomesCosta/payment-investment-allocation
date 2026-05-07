@@ -55,6 +55,14 @@ def _to_float_or_none(v):
     return None if pd.isna(num) else float(num)
 
 
+def _ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    out = df.copy()
+    for c in cols:
+        if c not in out.columns:
+            out[c] = pd.Series(dtype='object')
+    return out
+
+
 def main() -> int:
     head_inicial = _head()
     commit_ok = _commit_v16h_ok()
@@ -67,12 +75,18 @@ def main() -> int:
         incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
     )
 
-    q_local = ctx.decisao_local_v1.quadro_decisao_local_v1.copy()
-    q_fontes = ctx.fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy()
-    q_rec = ctx.recebidos_auditaveis.quadro_recebidos_auditaveis.copy()
-    q_aud = ctx.auditoria_temporal_decisao_local.quadro_auditoria_temporal.copy()
+    q_local = _ensure_columns(ctx.decisao_local_v1.quadro_decisao_local_v1.copy(), ['pagamento_id', 'tipo_fonte_escolhida'])
+    q_fontes = _ensure_columns(
+        ctx.fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy(),
+        ['pagamento_id', 'tipo_fonte', 'elegivel_na_data_pagamento', 'valor_liquido_disponivel', 'recebido_id'],
+    )
+    q_rec = _ensure_columns(
+        ctx.recebidos_auditaveis.quadro_recebidos_auditaveis.copy(),
+        ['recebido_id', 'status_recebido', 'destino_potencial', 'data_recebimento', 'data_aplicacao', 'pagamento_vinculado_id', 'valor_liquido'],
+    )
+    q_aud = _ensure_columns(ctx.auditoria_temporal_decisao_local.quadro_auditoria_temporal.copy(), ['pagamento_id'])
     saida = construir_saida_canonica(ctx)
-    q_extrato = pd.DataFrame(saida.extrato_futuro)
+    q_extrato = _ensure_columns(pd.DataFrame(saida.extrato_futuro), ['Despesa ID', 'Status recomendação', 'Valor', 'Consumo temp.'])
 
     q_local['pagamento_id'] = q_local['pagamento_id'].astype(str)
     q_fontes['pagamento_id'] = q_fontes['pagamento_id'].astype(str)
