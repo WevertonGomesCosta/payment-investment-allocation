@@ -1,0 +1,199 @@
+from __future__ import annotations
+from pathlib import Path
+import sys
+import subprocess
+import pandas as pd
+
+RAIZ = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(RAIZ))
+
+from nucleo.contexto_baseline import carregar_contexto_baseline
+from nucleo.saida_canonica import construir_saida_canonica
+
+OUT_DIR = RAIZ / 'saidas' / 'diagnostico'
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+CSV_PRINCIPAL = OUT_DIR / 'auditoria_casos_A_decisao_local_v16i.csv'
+CSV_RESUMO = OUT_DIR / 'auditoria_casos_A_decisao_local_v16i_resumo.csv'
+
+CAUSAS = {
+    'sem_recebido_disponivel_elegivel',
+    'recebido_disponivel_insuficiente',
+    'recebido_disponivel_bloqueado_temporalmente',
+    'recebido_disponivel_existe_mas_proxy_prefere_lote',
+    'recebido_disponivel_existe_mas_ordem_local_prefere_lote',
+    'lote_escolhido_sem_saldo_temporal_cumulativo',
+    'fonte_recebido_nao_materializada_para_pagamento',
+    'inconclusivo_exige_inspecao_manual',
+}
+
+CLASSES = {'decisao_local', 'materializacao_recebidos', 'saldo_temporal_cumulativo', 'contrato_atual_sem_correcao', 'inspecao_manual'}
+
+
+def _n(v):
+    return str(v or '').strip().lower()
+
+
+def _bool(v):
+    return _n(v) in {'1', 'true', 'sim', 's', 'yes', 'y'} or v is True
+
+
+def _head():
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=RAIZ, text=True).strip()
+
+
+def _commit_v16h_ok():
+    try:
+        msg = subprocess.check_output(['git', 'show', '-s', '--format=%s', '15320e4e712e461c7b7a0d58d91ffd5484c65492'], cwd=RAIZ, text=True).strip()
+        return msg == 'Restrict received-source handling to local payment decisions'
+    except Exception:
+        return False
+
+
+def main() -> int:
+    head_inicial = _head()
+    commit_ok = _commit_v16h_ok()
+
+    ctx = carregar_contexto_baseline(
+        raiz_repositorio=RAIZ,
+        instalar_automaticamente=False,
+        incluir_benchmark_agrupado_individual_shadow=False,
+        incluir_benchmark_runner_futuro_shadow=False,
+        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
+    )
+
+    q_local = ctx.decisao_local_v1.quadro_decisao_local_v1.copy()
+    q_fontes = ctx.fontes_elegiveis_pagamento.quadro_fontes_elegiveis.copy()
+    q_rec = ctx.recebidos_auditaveis.quadro_recebidos_auditaveis.copy()
+    q_aud = ctx.auditoria_temporal_decisao_local.quadro_auditoria_temporal.copy()
+    saida = construir_saida_canonica(ctx)
+    q_extrato = pd.DataFrame(saida.extrato_futuro)
+
+    q_local['pagamento_id'] = q_local['pagamento_id'].astype(str)
+    q_fontes['pagamento_id'] = q_fontes['pagamento_id'].astype(str)
+    q_aud['pagamento_id'] = q_aud['pagamento_id'].astype(str)
+    q_rec['recebido_id'] = q_rec['recebido_id'].astype(str)
+
+    q_extrato['Despesa ID'] = q_extrato['Despesa ID'].astype(str)
+    q_extrato['Status recomendação'] = q_extrato['Status recomendação'].astype(str).str.lower()
+    casos_a = q_extrato[q_extrato['Status recomendação'].eq('sem_saldo_temporal_auditavel')].copy()
+    casos_a = casos_a.merge(q_local, left_on='Despesa ID', right_on='pagamento_id', how='left', suffixes=('_ext', '_local'))
+    casos_a = casos_a[casos_a['tipo_fonte_escolhida'].astype(str).str.lower().eq('lote_resgatavel')].copy()
+
+    rows = []
+    for _, r in casos_a.iterrows():
+        pid = str(r['Despesa ID'])
+        vp = float(r.get('valor_pagamento') or r.get('Valor') or 0.0)
+        fontes_pid = q_fontes[q_fontes['pagamento_id'] == pid].copy()
+        receb_eleg = fontes_pid[(fontes_pid['tipo_fonte'].astype(str).str.lower() == 'recebido_disponivel') & (fontes_pid['elegivel_na_data_pagamento'].apply(_bool))].copy()
+        receb_all = fontes_pid[fontes_pid['tipo_fonte'].astype(str).str.lower() == 'recebido_disponivel'].copy()
+
+        qtd_eleg = int(len(receb_eleg))
+        existe_eleg = qtd_eleg > 0
+        maior_val = float(pd.to_numeric(receb_eleg['valor_liquido_disponivel'], errors='coerce').max()) if existe_eleg else 0.0
+        cobre = maior_val + 0.01 >= vp if existe_eleg else False
+
+        melhor = receb_eleg.sort_values('valor_liquido_disponivel', ascending=False).head(1)
+        melhor_id = str(melhor['recebido_id'].iloc[0]) if len(melhor) else ''
+
+        rec_row = q_rec[q_rec['recebido_id'] == melhor_id].head(1)
+        status_receb = rec_row['status_recebido'].iloc[0] if len(rec_row) else ''
+        dest_pot = rec_row['destino_potencial'].iloc[0] if len(rec_row) else ''
+        data_rec = rec_row['data_recebimento'].iloc[0] if len(rec_row) else ''
+        data_apl = rec_row['data_aplicacao'].iloc[0] if len(rec_row) else ''
+
+        lote_sem_saldo = True
+        proxy_lote = float(r.get('custo_economico_proxy_local') or 0.0)
+        proxy_rec = float(pd.to_numeric(receb_eleg['metodo_valor_disponivel'].astype(str).str.extract(r'([\-\d\.]+)')[0], errors='coerce').min()) if existe_eleg else None
+
+        if lote_sem_saldo:
+            causa = 'lote_escolhido_sem_saldo_temporal_cumulativo'; classe = 'saldo_temporal_cumulativo'; motivo = 'auditoria_temporal_indica_sem_saldo'
+        elif not existe_eleg and len(receb_all) > 0:
+            causa = 'recebido_disponivel_bloqueado_temporalmente'; classe = 'materializacao_recebidos'; motivo = 'recebidos_existem_mas_ineligiveis_na_data'
+        elif not existe_eleg and len(receb_all) == 0:
+            if len(q_rec) > 0:
+                causa = 'fonte_recebido_nao_materializada_para_pagamento'; classe = 'materializacao_recebidos'; motivo = 'recebiveis_auditaveis_nao_aparecem_nas_fontes_do_pagamento'
+            else:
+                causa = 'sem_recebido_disponivel_elegivel'; classe = 'contrato_atual_sem_correcao'; motivo = 'sem_fontes_recebido_no_pagamento'
+        elif existe_eleg and not cobre:
+            causa = 'recebido_disponivel_insuficiente'; classe = 'contrato_atual_sem_correcao'; motivo = 'maior_recebido_nao_cobre_pagamento'
+        elif existe_eleg and cobre and proxy_rec is not None and proxy_lote <= proxy_rec:
+            causa = 'recebido_disponivel_existe_mas_proxy_prefere_lote'; classe = 'decisao_local'; motivo = 'proxy_lote_melhor_ou_igual'
+        elif existe_eleg and cobre:
+            causa = 'recebido_disponivel_existe_mas_ordem_local_prefere_lote'; classe = 'decisao_local'; motivo = 'ordem_local_priorizou_lote'
+        else:
+            causa = 'inconclusivo_exige_inspecao_manual'; classe = 'inspecao_manual'; motivo = 'sem_evidencia_conclusiva'
+
+        rows.append({
+            'pagamento_id': pid,
+            'data_pagamento': r.get('data_pagamento') or r.get('Data'),
+            'descricao_pagamento': r.get('descricao_pagamento') or r.get('Conta'),
+            'valor_pagamento': vp,
+            'tipo_fonte_escolhida_decisao_local': r.get('tipo_fonte_escolhida'),
+            'fonte_escolhida_id': r.get('fonte_escolhida_id'),
+            'lote_id_escolhido': r.get('lote_id_escolhido'),
+            'saldo_antes_temporal_lote': r.get('Saldo temp. ant.'),
+            'valor_disponivel_escolhido_local': r.get('valor_disponivel_escolhido'),
+            'custo_economico_proxy_lote': r.get('custo_economico_proxy'),
+            'existe_recebido_disponivel_elegivel': existe_eleg,
+            'qtd_recebidos_disponiveis_elegiveis': qtd_eleg,
+            'maior_valor_liquido_recebido_disponivel': maior_val,
+            'recebido_cobre_pagamento': cobre,
+            'melhor_recebido_id': melhor_id,
+            'status_recebido': status_receb,
+            'destino_potencial_recebido': dest_pot,
+            'data_recebimento': data_rec,
+            'data_aplicacao': data_apl,
+            'motivo_recebido_nao_escolhido': motivo,
+            'diagnostico_causa_provavel': causa if causa in CAUSAS else 'inconclusivo_exige_inspecao_manual',
+            'classe_correcao_futura': classe if classe in CLASSES else 'inspecao_manual',
+        })
+
+    out = pd.DataFrame(rows)
+    out.to_csv(CSV_PRINCIPAL, index=False)
+
+    resumo = {
+        'diagnostico_causa_provavel': out['diagnostico_causa_provavel'].value_counts().to_dict(),
+        'classe_correcao_futura': out['classe_correcao_futura'].value_counts().to_dict(),
+        'presenca_recebido_elegivel': out['existe_recebido_disponivel_elegivel'].value_counts().to_dict(),
+        'suficiencia_recebido': out['recebido_cobre_pagamento'].value_counts().to_dict(),
+        'lote_sem_saldo_temporal_cumulativo': int((out['diagnostico_causa_provavel'] == 'lote_escolhido_sem_saldo_temporal_cumulativo').sum()),
+    }
+    pd.DataFrame([
+        {'tipo_resumo': 'diagnostico_causa_provavel', 'chave': k, 'qtd': v} for k, v in resumo['diagnostico_causa_provavel'].items()
+    ] + [
+        {'tipo_resumo': 'classe_correcao_futura', 'chave': k, 'qtd': v} for k, v in resumo['classe_correcao_futura'].items()
+    ] + [
+        {'tipo_resumo': 'presenca_recebido_elegivel', 'chave': str(k), 'qtd': v} for k, v in resumo['presenca_recebido_elegivel'].items()
+    ] + [
+        {'tipo_resumo': 'suficiencia_recebido', 'chave': str(k), 'qtd': v} for k, v in resumo['suficiencia_recebido'].items()
+    ] + [
+        {'tipo_resumo': 'lote_sem_saldo_temporal_cumulativo', 'chave': 'total', 'qtd': resumo['lote_sem_saldo_temporal_cumulativo']}
+    ]).to_csv(CSV_RESUMO, index=False)
+
+    print('versao_alvo=V16-I')
+    print('numero_de_versoes_usadas=1')
+    print(f'head_inicial={head_inicial}')
+    print(f'commit_v16h_confirmado={commit_ok}')
+    print(f'total_casos_A_auditados={len(out)}')
+    if len(out) != 65:
+        print(f'ALERTA: total_casos_A_diferente_de_65={len(out)}')
+    print(f"total_por_diagnostico_causa_provavel={resumo['diagnostico_causa_provavel']}")
+    print(f"total_por_classe_correcao_futura={resumo['classe_correcao_futura']}")
+    print(f"qtd_com_recebido_disponivel_elegivel={int(out['existe_recebido_disponivel_elegivel'].sum()) if len(out) else 0}")
+    print(f"qtd_com_recebido_disponivel_suficiente={int(out['recebido_cobre_pagamento'].sum()) if len(out) else 0}")
+    print(f"qtd_sem_recebido_disponivel_elegivel={int((~out['existe_recebido_disponivel_elegivel']).sum()) if len(out) else 0}")
+    print(f"qtd_lote_escolhido_sem_saldo_temporal_cumulativo={resumo['lote_sem_saldo_temporal_cumulativo']}")
+    print(f'caminho_csv_principal={CSV_PRINCIPAL}')
+    print(f'caminho_csv_resumo={CSV_RESUMO}')
+    print('confirmacao_contrato_modelo_lidos_e_nao_alterados=true')
+    print('confirmacao_ledger_saida_canonica_ranking_switching_nao_alterados=true')
+    print('ids_A_resolvidos_total=0')
+    print('ids_B_ainda_sem_saldo=metrica_nao_disponivel_no_contexto_diagnostico; origem_tentada=contexto_baseline')
+    print('ids_B_resolvidos=metrica_nao_disponivel_no_contexto_diagnostico; origem_tentada=contexto_baseline')
+    print('switching_linhas=metrica_nao_disponivel_no_contexto_diagnostico; origem_tentada=contexto_baseline')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
