@@ -136,14 +136,16 @@ def main() -> int:
         gatilho_saldo_remanescente_negativo = (
             saldo_ant_temporal is not None and saldo_dep_temporal is not None and saldo_ant_temporal >= 0 and saldo_dep_temporal < -0.01
         )
-        lote_sem_saldo = any([
-            gatilho_motivo_ledger_saldo_insuficiente,
+        gatilho_temporal_independente = any([
             gatilho_cob_temporal_false,
             gatilho_requer_reescolha_temporal,
             gatilho_saldo_antes_menor_pagamento,
             gatilho_consumo_menor_pagamento,
             gatilho_saldo_remanescente_negativo,
         ])
+        lote_sem_saldo = gatilho_temporal_independente or (
+            gatilho_motivo_ledger_saldo_insuficiente and gatilho_temporal_independente
+        )
 
         proxy_lote = _to_float_or_none(r.get('custo_economico_proxy'))
         if proxy_lote is None:
