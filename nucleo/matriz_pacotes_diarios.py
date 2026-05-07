@@ -67,6 +67,11 @@ def construir_matriz_pacotes_diarios(contexto, saida_canonica, modo_observaciona
     ranking_carteira = getattr(contexto, "ranking_carteira", None)
     quadro_destinos = getattr(ranking_carteira, "quadro_destinos_switch", pd.DataFrame())
     destinos_ranking_elegiveis = int(len(quadro_destinos)) if isinstance(quadro_destinos, pd.DataFrame) else 0
+    shadow = getattr(contexto, "switching_economico_shadow", None)
+    quadro_shadow = getattr(shadow, "quadro_oportunidades", pd.DataFrame())
+    if not isinstance(quadro_shadow, pd.DataFrame):
+        quadro_shadow = pd.DataFrame()
+    total_shadow = int(len(quadro_shadow))
 
     snapshots = []
     for i, d in enumerate(sorted(extrato["data"].unique()), start=1):
@@ -80,9 +85,20 @@ def construir_matriz_pacotes_diarios(contexto, saida_canonica, modo_observaciona
         has_pay = pagamentos > 0
         total_pag = float(pd.to_numeric(_serie(s.dia, "Valor", default=0.0, dtype=float), errors="coerce").fillna(0).sum())
 
-        cand_sw_disp = int(_serie(s.ad, "evento_switching_id", default="", dtype=object).fillna("").astype(str).str.strip().ne("").sum()) if len(s.ad) else 0
-        cand_sw_bloq = int(_serie(s.ad, "motivo_descarte_fonte", default="", dtype=object).fillna("").astype(str).str.contains("gate", case=False, na=False).sum()) if len(s.ad) else 0
-        cand_sw_prom = max(cand_sw_disp - cand_sw_bloq, 0)
+        # fonte oficial de candidatos: switching_economico_shadow.quadro_oportunidades
+        shadow_data = pd.DataFrame()
+        if total_shadow:
+            shadow_data = quadro_shadow.copy()
+            shadow_data["data_ref_shadow"] = pd.to_datetime(_serie(shadow_data, "data_referencia", default="", dtype=object), errors="coerce").dt.date
+            shadow_data = shadow_data[shadow_data["data_ref_shadow"].eq(s.data)].copy()
+        cand_sw_disp = int(len(shadow_data))
+        cand_sw_bloq = int(_serie(shadow_data, "bloqueado_pos_gate", default=False, dtype=bool).fillna(False).astype(bool).sum()) if len(shadow_data) else 0
+        cand_sw_prom = int(_serie(shadow_data, "candidato_promovivel_pos_gate", default=False, dtype=bool).fillna(False).astype(bool).sum()) if len(shadow_data) else 0
+        motivo_gate_top = (
+            str(_serie(shadow_data, "motivo_gate_switching", default="", dtype=object).fillna("").astype(str).value_counts().index[0])
+            if len(shadow_data) and _serie(shadow_data, "motivo_gate_switching", default="", dtype=object).fillna("").astype(str).str.strip().ne("").any()
+            else "n/d"
+        )
 
         pacotes_materializados = sorted({p for p in _serie(s.dia, "Pacote do dia", default="", dtype=object).fillna("").astype(str).map(_pacote_normalizado) if p})
         mat_set = set(pacotes_materializados)
@@ -118,6 +134,8 @@ def construir_matriz_pacotes_diarios(contexto, saida_canonica, modo_observaciona
                 if not gate_temporal:
                     fact = 0
                     motivo_infact = "sem_pagamento_no_dia" if exige_pay else "pagamento_obrigatorio_no_dia"
+                elif total_shadow > 0 and cand_sw_disp == 0:
+                    fact = 0; motivo_infact = "shadow_sem_mapeamento_diario"
                 elif cand_sw_disp == 0:
                     fact = 0; motivo_infact = "sem_candidato_switching"
                 elif cand_sw_bloq > 0 and cand_sw_prom == 0:
@@ -132,10 +150,12 @@ def construir_matriz_pacotes_diarios(contexto, saida_canonica, modo_observaciona
             if mat:
                 motivo_nao_mat = "n/d"
             elif p in PACOTES_SWITCHING and gate_temporal:
-                if cand_sw_disp == 0:
+                if total_shadow > 0 and cand_sw_disp == 0:
+                    motivo_nao_mat = "shadow_sem_mapeamento_diario"
+                elif cand_sw_disp == 0:
                     motivo_nao_mat = "sem_candidato_switching"
                 elif cand_sw_bloq > 0 and cand_sw_prom == 0:
-                    motivo_nao_mat = "bloqueado_por_gate"
+                    motivo_nao_mat = motivo_gate_top if motivo_gate_top != "n/d" else "bloqueado_por_gate"
                 else:
                     motivo_nao_mat = "candidato_switching_promovivel_nao_materializado"
             else:
@@ -149,6 +169,7 @@ def construir_matriz_pacotes_diarios(contexto, saida_canonica, modo_observaciona
                 "lotes_vencidos_normalizados_no_dia": 0, "lotes_exauridos_inicio_dia": 0, "fontes_disponiveis_inicio_dia": fontes_disponiveis_inicio_dia,
                 "destinos_ranking_elegiveis": s.destinos_ranking_elegiveis, "candidatos_switching_disponiveis": cand_sw_disp,
                 "candidatos_switching_bloqueados_gate": cand_sw_bloq, "candidatos_switching_promoviveis": cand_sw_prom,
+                "candidatos_shadow_total": total_shadow, "candidatos_shadow_mapeaveis_no_dia": cand_sw_disp,
                 "pacote_construido_no_motor": int(constru), "pacote_avaliado_no_motor": int(aval), "pacote_factivel_no_estado": int(fact),
                 "pacote_materializado_no_fluxo_atual": mat, "pacote_vencedor_observado": pacote_vencedor,
                 "pacotes_materializados_observados": " | ".join(pacotes_materializados) if pacotes_materializados else "",
@@ -158,7 +179,7 @@ def construir_matriz_pacotes_diarios(contexto, saida_canonica, modo_observaciona
                 "status_ledger_resultante": status_ledger, "motivo_ledger_resultante": motivo_ledger,
                 "usa_multifonte": usa_multifonte, "qtd_fontes_pagamento": qtd_fontes_pagamento, "qtd_pagamentos_multifonte": qtd_pagamentos_multifonte,
                 "observacao_auditoria": "construido_dry_run_nao_decisorio" if constru else "n/d", "pacote_candidato_nao_decisorio": int(constru),
-                "dry_run_sem_materializacao": int(p in PACOTES_SWITCHING and not mat),
+                "dry_run_sem_materializacao": int(p in PACOTES_SWITCHING),
             })
 
     return pd.DataFrame(rows)
