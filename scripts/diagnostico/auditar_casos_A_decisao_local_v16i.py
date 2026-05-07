@@ -107,8 +107,6 @@ def main() -> int:
         data_rec = rec_row['data_recebimento'].iloc[0] if len(rec_row) else ''
         data_apl = rec_row['data_aplicacao'].iloc[0] if len(rec_row) else ''
 
-        status_temporal = _n(r.get('status_temporal'))
-        status_ledger = _n(r.get('status_ledger'))
         motivo_ledger = _n(r.get('motivo_bloqueio_ledger'))
         cob_temporal = _n(r.get('pagamento_totalmente_coberto_temporal'))
         requer_reescolha_temporal = _bool(r.get('requer_reescolha_dinamica_temporal'))
@@ -116,8 +114,6 @@ def main() -> int:
         saldo_dep_temporal = _to_float_or_none(r.get('saldo_remanescente_temporal'))
         consumo_temporal = _to_float_or_none(r.get('Consumo temp.'))
         lote_sem_saldo = any([
-            status_temporal == 'sem_saldo_temporal_auditavel',
-            status_ledger == 'sem_saldo_temporal_auditavel',
             motivo_ledger == 'saldo_temporal_insuficiente_cumulativo',
             cob_temporal in {'não', 'nao', 'n', 'false', '0'},
             requer_reescolha_temporal,
