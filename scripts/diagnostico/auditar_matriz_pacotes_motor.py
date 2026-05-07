@@ -15,6 +15,49 @@ from nucleo.matriz_pacotes_diarios import construir_matriz_pacotes_diarios, PACO
 
 
 
+def _classificar_causa_principal_switching_zero(df: pd.DataFrame) -> str:
+    sw = df[df["pacote"].isin(list(PACOTES_SWITCHING))].copy()
+
+    if len(sw) == 0:
+        return "diagnostico_ainda_insuficiente"
+
+    total_construido = int(sw["pacote_construido_no_motor"].sum())
+    total_materializado = int(sw["pacote_materializado_no_fluxo_atual"].sum())
+
+    if total_materializado > 0:
+        return "switching_materializado_observado"
+
+    if total_construido == 0:
+        return "pacote_switching_nao_implementado"
+
+    motivos = (
+        sw["motivo_nao_materializado"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .replace({"": "n/d"})
+    )
+
+    contagens = motivos.value_counts()
+
+    prioridade = [
+        "sem_candidato_switching",
+        "bloqueado_por_gate",
+        "candidato_switching_promovivel_nao_materializado",
+        "pacote_nao_materializado_por_restricao_da_etapa",
+        "comparador_de_pacotes_ainda_nao_decisorio",
+        "ledger_nao_materializa_pacote",
+    ]
+
+    for motivo in prioridade:
+        if motivo in contagens.index:
+            if motivo == "candidato_switching_promovivel_nao_materializado":
+                return "switching_nao_materializado_na_etapa"
+            return motivo
+
+    return str(contagens.index[0]) if len(contagens) else "diagnostico_ainda_insuficiente"
+
+
 def main() -> int:
 
     ctx = carregar_contexto_baseline(
@@ -53,7 +96,7 @@ def main() -> int:
         "total_pacotes_switching_materializados": int(
             df[df["pacote"].isin(list(PACOTES_SWITCHING))]["pacote_materializado_no_fluxo_atual"].sum()
         ),
-        "causa_principal_switching_zero": "switching_nao_materializado_na_etapa" if int(df[df["pacote"].isin(list(PACOTES_SWITCHING))]["pacote_construido_no_motor"].sum()) > 0 else "pacote_switching_nao_implementado",
+        "causa_principal_switching_zero": _classificar_causa_principal_switching_zero(df),
     }
 
     print(out)
