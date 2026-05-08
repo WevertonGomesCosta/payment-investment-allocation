@@ -412,6 +412,126 @@ Uma fonte só pode ser tratada como elegível se passar por:
 
 ---
 
+---
+
+## 10-A. Contrato de dados de entrada operacional
+
+### 10-A.1. Abas operacionais mínimas
+
+A planilha operacional do projeto deve conter, no mínimo, as seguintes abas de entrada:
+
+- `Carteira`;
+- `Todos os Gastos`;
+- `Inventário de Lotes`;
+- `Salários`;
+- `Switching`.
+
+A aba de switching pode ser encontrada na base com variações de grafia. Para fins de leitura operacional, o motor deve aceitar, no mínimo, os seguintes aliases:
+
+- `Switching`;
+- `Switiching`;
+- `Swtiching`.
+
+Independentemente da grafia da aba, a entidade interna canônica deve ser tratada como `switching`.
+
+### 10-A.2. Superação da regra de três abas
+
+A regra operacional anterior segundo a qual as únicas abas de entrada eram `Carteira`, `Todos os Gastos` e `Inventário de Lotes` fica superada para a reconstrução V17 e para versões futuras compatíveis com este contrato.
+
+Essas três abas continuam obrigatórias, mas não esgotam mais o contrato de dados do projeto.
+
+### 10-A.3. Função da aba `Salários`
+
+A aba `Salários` representa entradas externas de renda ou caixa.
+
+Na versão atual da base, os campos mínimos observados são:
+
+- `Nome`;
+- `Data Recebimento`;
+- `Origem`;
+- `Valor`.
+
+O valor registrado em `Salários` não deve ser interpretado automaticamente como integralmente disponível para investimento ou pagamento de contas.
+
+O motor deve permitir distinguir, de forma explícita ou parametrizada:
+
+- salário ou renda recebida;
+- valor usado para pagamento de contas explícitas;
+- valor usado para aporte/investimento externo;
+- reserva mínima mantida em conta;
+- margem para gastos pequenos não contabilizados individualmente;
+- saldo livre remanescente.
+
+### 10-A.4. Regra negativa para salários
+
+É vedado assumir que todo salário recebido deve ser obrigatoriamente alocado em contas explícitas, aportes ou investimentos.
+
+Parte do salário pode permanecer como saldo operacional, reserva mínima em conta ou margem para gastos não contabilizados, desde que isso seja representado de forma auditável no estado temporal.
+
+### 10-A.5. Função da aba `Switching`
+
+A aba `Switching`, incluindo seus aliases aceitos, representa eventos de transição entre lote/produto de origem e lote/produto de destino.
+
+Na versão atual da base, a aba foi encontrada com a grafia `Switiching` e com os campos mínimos observados:
+
+- `Lote (ID) Antes`;
+- `Lote (ID) Depois`;
+- `Data Recebimento`;
+- `Data Aplicação`;
+- `Valor Original`;
+- `Investimento`.
+
+Esses campos devem ser interpretados como evidência de transição de estado financeiro, e não como gasto comum ou aporte externo independente.
+
+### 10-A.6. Regra negativa para switching
+
+Resgates decorrentes de switching não devem ser tratados como gastos na aba `Todos os Gastos`.
+
+Aportes decorrentes de switching não devem ser tratados como novos investimentos externos independentes na aba `Inventário de Lotes` sem vínculo com a origem.
+
+O switching materializado deve ser tratado como evento de transição de estado no ledger canônico, preservando o vínculo entre:
+
+- lote/fonte de origem;
+- valor bruto ou original;
+- imposto, quando aplicável;
+- valor líquido migrado;
+- produto ou investimento de destino;
+- lote/fonte de destino;
+- data de recebimento;
+- data de aplicação;
+- estado operacional do switching.
+
+### 10-A.7. Consequência para o motor temporal
+
+O motor temporal central deve diferenciar obrigatoriamente:
+
+- renda externa;
+- pagamento de conta;
+- aporte externo;
+- reserva operacional;
+- gasto não contabilizado individualmente;
+- resgate por switching;
+- aporte por switching;
+- switching candidato;
+- switching promovido;
+- switching materializado.
+
+Nenhuma camada de saída pode corrigir localmente confusão entre essas categorias.
+
+Qualquer inconsistência entre salário, gasto, aporte e switching deve ser tratada como falha de modelagem ou de estado temporal, não como ajuste visual de saída.
+
+### 10-A.8. Relação com o ledger canônico
+
+Eventos derivados das abas `Salários` e `Switching` devem ser materializados no ledger canônico quando forem economicamente efetivos.
+
+A aba `Salários` deve alimentar eventos de entrada externa de caixa.
+
+A aba `Switching` deve alimentar eventos de transição entre fontes/lotes/produtos.
+
+Console, planilha final, markdown, JSON e demais saídas devem apenas renderizar esses eventos materializados, preservando a distinção entre entrada externa, pagamento, aporte e switching.
+
+---
+
 ## 11. Regra de pós-vencimento
 
 ### 11.1. Regra principal
