@@ -42,10 +42,11 @@ def _base_ref_disponivel_para_diff(base_ref: str) -> bool:
     tree_ok = _git_ok(['git', 'cat-file', '-e', f'{base_ref}^{{tree}}'])
     print(f'base_ref_{base_ref}_commit_disponivel={str(commit_ok).lower()}')
     print(f'base_ref_{base_ref}_tree_disponivel={str(tree_ok).lower()}')
+    anc = False
     if commit_ok and tree_ok:
         anc = _git_ok(['git', 'merge-base', '--is-ancestor', base_ref, 'HEAD'])
         print(f'base_ref_{base_ref}_is_ancestor_head={str(anc).lower()}')
-    return commit_ok and tree_ok
+    return commit_ok and tree_ok and anc
 
 def main() -> int:
     print('versao_alvo=V16-J.0-R')
@@ -120,7 +121,12 @@ def main() -> int:
         print(sorted(list(ids4))[:20])
 
     base_ref = '01cd2fa'
-    if _base_ref_disponivel_para_diff(base_ref):
+    base_ref_ok_para_diff = _base_ref_disponivel_para_diff(base_ref)
+    commit_ok = _git_ok(['git', 'cat-file', '-e', f'{base_ref}^{{commit}}'])
+    tree_ok = _git_ok(['git', 'cat-file', '-e', f'{base_ref}^{{tree}}'])
+    anc = _git_ok(['git', 'merge-base', '--is-ancestor', base_ref, 'HEAD']) if commit_ok and tree_ok else False
+
+    if base_ref_ok_para_diff:
         diff_script = _git(['git', 'diff', '--name-status', base_ref, 'HEAD', '--', 'scripts/diagnostico/auditar_casos_A_decisao_local_v16i.py'])
         diff_nucleo = _git(['git', 'diff', '--name-status', base_ref, 'HEAD', '--', 'nucleo/'])
         print('comparacao_script_v16i_entre_01cd2fa_e_head:')
@@ -130,11 +136,17 @@ def main() -> int:
         print(f'sem_alteracao_no_script_v16i_no_intervalo={str(not bool(diff_script)).lower()}')
         print(f'sem_alteracao_em_modulos_funcionais_no_intervalo={str(not bool(diff_nucleo)).lower()}')
     else:
-        print('base_ref_01cd2fa_sem_tree_disponivel=true')
-        print('comparacao_git_diff_nao_executada=true')
-        print('recomendacao_git=fetch_completo_ou_baseline_csv_para_comparar_ids')
-        print('ultimos_commits_para_contexto=')
-        print(_git(['git', 'log', '--oneline', '-n', '15']))
+        if commit_ok and tree_ok and not anc:
+            print('base_ref_01cd2fa_is_ancestor_head=false')
+            print('base_ref_01cd2fa_nao_e_ancestral_de_head=true')
+            print('comparacao_git_diff_nao_executada=true')
+            print('recomendacao_git=usar_baseline_csv_ou_comparacao_manual_para_intervalo_nao_ancestral')
+        else:
+            print('base_ref_01cd2fa_sem_tree_disponivel=true')
+            print('comparacao_git_diff_nao_executada=true')
+            print('recomendacao_git=fetch_completo_ou_baseline_csv_para_comparar_ids')
+            print('ultimos_commits_para_contexto=')
+            print(_git(['git', 'log', '--oneline', '-n', '15']))
 
     print('recomendacao_objetiva=se_modulos_funcionais_alteraram_no_intervalo_entao_queda_pode_ser_legitima_por_contexto; se_nao_alteraram_e_filtro_cair_no_tipo_fonte_lote_resgatavel_investigar_regressao_diagnostica_no_script')
     return 0
