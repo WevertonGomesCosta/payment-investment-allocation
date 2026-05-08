@@ -472,7 +472,7 @@ Independentemente da grafia da aba, a entidade interna canônica deve ser tratad
 
 ### 10-A.2. Superação da regra de três abas
 
-A regra operacional anterior segundo a qual as únicas abas de entrada eram `Carteira`, `Todos os Gastos` e `Inventário de Lotes` fica superada para a reconstrução V17 e para versões futuras compatíveis com este contrato.
+A regra operacional anterior segundo a qual as únicas abas de entrada eram `Carteira`, `Todos os Gastos` e `Inventário de Lotes` fica superada para o contrato vigente e para execuções futuras compatíveis com este contrato.
 
 Essas três abas continuam obrigatórias, mas não esgotam mais o contrato de dados do projeto.
 
