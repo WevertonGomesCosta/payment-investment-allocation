@@ -36,6 +36,17 @@ def _git_ok(cmd: list[str]) -> bool:
     except Exception:
         return False
 
+
+def _base_ref_disponivel_para_diff(base_ref: str) -> bool:
+    commit_ok = _git_ok(['git', 'cat-file', '-e', f'{base_ref}^{{commit}}'])
+    tree_ok = _git_ok(['git', 'cat-file', '-e', f'{base_ref}^{{tree}}'])
+    print(f'base_ref_{base_ref}_commit_disponivel={str(commit_ok).lower()}')
+    print(f'base_ref_{base_ref}_tree_disponivel={str(tree_ok).lower()}')
+    if commit_ok and tree_ok:
+        anc = _git_ok(['git', 'merge-base', '--is-ancestor', base_ref, 'HEAD'])
+        print(f'base_ref_{base_ref}_is_ancestor_head={str(anc).lower()}')
+    return commit_ok and tree_ok
+
 def main() -> int:
     print('versao_alvo=V16-J.0-R')
     print('numero_de_versoes_usadas=1')
@@ -109,13 +120,19 @@ def main() -> int:
         print(sorted(list(ids4))[:20])
 
     base_ref = '01cd2fa'
-    if _git_ok(['git', 'rev-parse', '--verify', base_ref]):
+    if _base_ref_disponivel_para_diff(base_ref):
+        diff_script = _git(['git', 'diff', '--name-status', base_ref, 'HEAD', '--', 'scripts/diagnostico/auditar_casos_A_decisao_local_v16i.py'])
+        diff_nucleo = _git(['git', 'diff', '--name-status', base_ref, 'HEAD', '--', 'nucleo/'])
         print('comparacao_script_v16i_entre_01cd2fa_e_head:')
-        print(_git(['git', 'diff', '--name-status', base_ref, 'HEAD', '--', 'scripts/diagnostico/auditar_casos_A_decisao_local_v16i.py']))
+        print(diff_script if diff_script else '(sem alteracoes)')
         print('modulos_funcionais_alterados_no_intervalo:')
-        print(_git(['git', 'diff', '--name-status', base_ref, 'HEAD', '--', 'nucleo/']))
+        print(diff_nucleo if diff_nucleo else '(sem alteracoes)')
+        print(f'sem_alteracao_no_script_v16i_no_intervalo={str(not bool(diff_script)).lower()}')
+        print(f'sem_alteracao_em_modulos_funcionais_no_intervalo={str(not bool(diff_nucleo)).lower()}')
     else:
-        print('base_ref_01cd2fa_nao_encontrada_no_historico_local=true')
+        print('base_ref_01cd2fa_sem_tree_disponivel=true')
+        print('comparacao_git_diff_nao_executada=true')
+        print('recomendacao_git=fetch_completo_ou_baseline_csv_para_comparar_ids')
         print('ultimos_commits_para_contexto=')
         print(_git(['git', 'log', '--oneline', '-n', '15']))
 
