@@ -24,8 +24,25 @@ def gravar(df: pd.DataFrame, nome: str) -> None:
         df.to_csv(caminho, index=False)
 
 
+def carregar_contexto_minimo_v17_c1():
+    """Carrega apenas o contexto necessario para validar o pacote pre-saida.
+
+    A V17-C1 nao deve acionar shadows opcionais pesados nem depender de
+    benchmarks. Esses blocos nao fazem parte do contrato minimo do pacote e
+    podem falhar por assinaturas legadas sem relacao com a implementacao C1.
+    """
+    return carregar_contexto_baseline(
+        raiz_repositorio=RAIZ,
+        incluir_switching_economico_shadow=False,
+        incluir_resolver_hibrido_5p_shadow=False,
+        incluir_benchmark_agrupado_individual_shadow=False,
+        incluir_benchmark_runner_futuro_shadow=False,
+        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
+    )
+
+
 def main() -> int:
-    contexto = carregar_contexto_baseline(raiz_repositorio=RAIZ)
+    contexto = carregar_contexto_minimo_v17_c1()
     pacote = montar_pacote_orquestrado_pre_saida(contexto)
 
     gravar(pacote.recomendacoes_futuras, "v17_c1_recomendacoes_futuras.csv")
@@ -39,6 +56,7 @@ def main() -> int:
     resumo = dict(pacote.resumo)
     resumo.update({
         "status_global_v17_c1": "ok_implementacao_minima",
+        "modo_contexto_v17_c1": "minimo_sem_shadows_opcionais",
         "confirmacao_sem_alterar_motor": True,
         "confirmacao_sem_alterar_contrato_modelo": True,
         "confirmacao_sem_alterar_ranking_saida_switching_funcional": True,
@@ -50,6 +68,7 @@ def main() -> int:
 
     print("=== V17-C1 — PACOTE ORQUESTRADO PRE-SAIDA MINIMO ===")
     print("status_global_v17_c1=ok_implementacao_minima")
+    print("modo_contexto_v17_c1=minimo_sem_shadows_opcionais")
     print(f"recomendacoes_futuras_linhas={len(pacote.recomendacoes_futuras)}")
     print(f"decisoes_pagamento_linhas={len(pacote.decisoes_pagamento)}")
     print(f"fontes_pagamento_v17_linhas={len(pacote.fontes_pagamento_v17)}")
