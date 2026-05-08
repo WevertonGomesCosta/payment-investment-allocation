@@ -230,6 +230,148 @@ A saída operacional não é uma nova otimização, reconciliação ou correçã
 
 ---
 
+## 4-D. Componentes formais de entrada externa, reserva operacional e switching materializado
+
+Além do universo financeiro já observado, o estado temporal deve distinguir explicitamente entradas externas, reservas operacionais, aportes externos e transições por switching.
+
+Seja \(E_t^{ext}\) o conjunto de entradas externas de caixa observadas no dia \(t\), incluindo salários e rendas equivalentes. Para cada entrada \(e\in E_t^{ext}\), defina:
+
+\[
+W_e(t)=P_e(t)+A_e(t)+R_e(t)+G_e(t)+C_e(t)
+\]
+
+onde:
+
+- \(W_e(t)\) é o valor bruto ou líquido efetivamente reconhecido da entrada externa, conforme parametrização oficial;
+- \(P_e(t)\) é a parcela usada para pagamento de contas explícitas;
+- \(A_e(t)\) é a parcela destinada a aporte externo novo;
+- \(R_e(t)\) é a reserva mínima mantida em conta;
+- \(G_e(t)\) é a margem para gastos pequenos não contabilizados individualmente;
+- \(C_e(t)\) é o saldo livre remanescente.
+
+A entrada externa só se torna fonte de pagamento ou aporte quando materializada no estado temporal e classificada como disponível para essa finalidade. O modelo não assume que \(W_e(t)\) esteja integralmente disponível para pagamento ou investimento.
+
+Para eventos de switching materializado, seja \(M_t^{sw}\) o conjunto de transições efetivas de estado no dia \(t\). Para cada transição \(m\in M_t^{sw}\), devem ser preservados:
+
+- fonte ou lote de origem;
+- produto de origem;
+- valor líquido migrado;
+- imposto ou ajuste fiscal, quando aplicável;
+- produto destino;
+- lote ou fonte destino;
+- data de recebimento;
+- data de aplicação;
+- estado operacional do switching.
+
+O resgate por switching não pertence ao conjunto de gastos explícitos, e o aporte por switching não pertence ao conjunto de aportes externos novos. Ambos são transições internas de estado com conservação de vínculo origem-destino.
+
+## 4-E. Refactibilização intradiária antes de falha terminal
+
+Considere uma trajetória de pacote \(k\) no estado intradiário \(S_{t,r}^{(k)}\). Se uma alocação candidata de pagamento usa uma fonte \(i\) que deixa de satisfazer disponibilidade temporal, liquidez, carência, materialização ou suficiência de saldo na etapa \(r\), então essa alocação específica torna-se inviável.
+
+Antes de registrar falha terminal do pagamento, o modelo deve buscar outra alocação factível no mesmo estado, no mesmo pacote e na mesma data:
+
+\[
+\exists \; q_{ij}^{(k)} \ge 0
+\]
+
+tal que, para todo \(j\in\mathcal J_t\),
+
+\[
+\sum_{i\in\mathcal S_{t,r}^{pay,(k)}} q_{ij}^{(k)}=D_j(t)
+\]
+
+respeitando simultaneamente:
+
+- disponibilidade temporal;
+- liquidez;
+- carência;
+- materialização da fonte;
+- cobertura integral;
+- restrição global de residual do dia;
+- conservação de valor;
+- cronologia intradiária do pacote.
+
+O status de falha temporal auditável só pode ser emitido quando o conjunto de alocações factíveis for vazio:
+
+\[
+\mathcal Q_{t,r}^{pay,(k)}=\varnothing
+\]
+
+Assim, `sem_saldo_temporal_auditavel` e rótulos equivalentes são estados terminais de inviabilidade após refactibilização, e não regras primárias de escolha.
+
+## 4-F. Semântica formal das abas operacionais atualizadas
+
+A planilha operacional define cinco famílias principais de entrada:
+
+\[
+\mathcal X = \{\mathcal C,\mathcal D,\mathcal I,\mathcal E,\mathcal M\}
+\]
+
+onde:
+
+- \(\mathcal C\) é a aba `Carteira`;
+- \(\mathcal D\) é a aba `Todos os Gastos`;
+- \(\mathcal I\) é a aba `Inventário de Lotes`;
+- \(\mathcal E\) é a aba `Salários`;
+- \(\mathcal M\) é a aba `Switching`.
+
+A aba `Carteira` define apenas o conjunto de produtos de investimento:
+
+\[
+\mathcal P^{cart}
+\]
+
+e não define fontes operacionais de pagamento. Fontes de caixa, saldo operacional e recebidos disponíveis pertencem ao estado temporal, não ao conjunto \(\mathcal P^{cart}\).
+
+A aba `Inventário de Lotes` gera duas classes de fontes materializadas:
+
+\[
+\mathcal I = \mathcal I^{inv} \cup \mathcal I^{cash}
+\]
+
+em que:
+
+- \(\mathcal I^{inv}\) contém lotes investidos, com data de aplicação e produto de investimento definidos;
+- \(\mathcal I^{cash}\) contém lotes de caixa disponível, com data de recebimento e valor definidos, mas sem data de aplicação e sem produto de investimento.
+
+Para cada lote \(i\in\mathcal I^{cash}\), sua disponibilidade no dia \(t\) é dada por:
+
+\[
+A_i^{cash}(t)=1 \iff d_i^{rec}\le t
+\]
+
+Se \(d_i^{rec}>t\), o lote é futuro e não pertence ao conjunto de fontes elegíveis do dia.
+
+A aba `Salários` define entradas externas de caixa:
+
+\[
+e\in\mathcal E
+\]
+
+com disponibilidade:
+
+\[
+A_e^{ext}(t)=1 \iff d_e^{rec}\le t
+\]
+
+Entradas externas materializadas podem alimentar saldo operacional, pagamento de contas, aporte externo, reserva operacional ou margem para gastos pequenos, conforme a trajetória escolhida pelo motor.
+
+A aba `Todos os Gastos` define obrigações de pagamento. Quando um pagamento histórico estiver marcado com `Lote usado = Saldo`, o modelo deve interpretá-lo como consumo de caixa operacional, sem associá-lo a produto da `Carteira`.
+
+A aba `Switching` define transições materializadas:
+
+\[
+m\in\mathcal M
+\]
+
+Cada transição possui origem, destino, data de recebimento, data de aplicação, valor líquido migrado e produto destino. O lote destino de \(m\) deve ser criado no estado temporal mesmo quando não estiver listado no `Inventário de Lotes`.
+
+Se o lote destino de \(m\) também estiver listado no `Inventário de Lotes`, o modelo deve reconciliar as duas fontes de entrada e manter uma única representação canônica do lote. A duplicação de valor é proibida.
+
+
+
+
 ## 5. Universo bruto e filtragem operacional
 
 ### 5.1. Universo bruto de recursos

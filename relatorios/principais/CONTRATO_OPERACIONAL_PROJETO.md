@@ -190,16 +190,16 @@ Defina:
 
 \[
 \mathbb I_t^{pay}=
-egin{cases}
-1, & 	ext{se existe pelo menos uma conta com vencimento em } t \
-0, & 	ext{caso contrário}
+\begin{cases}
+1, & \text{se existe pelo menos uma conta com vencimento em } t \\
+0, & \text{caso contrário}
 \end{cases}
 \]
 
 com
 
 \[
-\mathcal J_t=\{j:	ext{data da conta }j=t\}
+\mathcal J_t=\{j:\text{data da conta }j=t\}
 \]
 
 ### 7.3. Pacotes factíveis
@@ -335,6 +335,42 @@ A escolha do pacote deve considerar a trajetória completa de estado, e não ape
 
 ---
 
+## 7-D. Falha temporal, reescolha dinâmica e generalidade decisória
+
+### 7-D.1. Status terminal de falha
+
+Status como `sem_saldo_temporal_auditavel`, `saldo_temporal_insuficiente_cumulativo` ou equivalentes representam falha terminal de factibilidade temporal somente depois de esgotada a tentativa de refactibilização no mesmo estado temporal canônico.
+
+Eles não podem ser usados como substitutos da decisão econômica nem como correção em camada de saída.
+
+### 7-D.2. Reescolha dinâmica obrigatória antes da falha definitiva
+
+Quando uma fonte inicialmente escolhida deixar de cobrir temporalmente um pagamento por saldo cumulativo, carência, liquidez, vencimento, materialização ou qualquer restrição dura do estado, o motor deve tentar refactibilizar a decisão dentro do mesmo pacote, na mesma data e no mesmo estado temporal canônico.
+
+A refactibilização só pode usar fontes que, naquela etapa intradiária, estejam:
+
+- materializadas;
+- temporalmente disponíveis;
+- líquidas ou resgatáveis;
+- fora de carência impeditiva;
+- suficientes para a cobertura exigida;
+- compatíveis com as restrições de residual e com a cronologia do pacote.
+
+A falha definitiva só pode ser registrada quando não existir alternativa elegível e suficiente no estado temporal canônico.
+
+### 7-D.3. Vedação a remendos locais
+
+É vedado criar regra específica por despesa, lote, produto nominal, data isolada, caso histórico ou rótulo de auditoria.
+
+Toda correção decisória deve ser formulada como regra geral do motor temporal, aplicável a qualquer fonte, conta, lote, produto ou pacote que satisfaça as mesmas condições estruturais.
+
+### 7-D.4. Separação entre diagnóstico e norma
+
+Rótulos de auditoria, contagens transitórias, nomes de versões, scripts diagnósticos e casos reais usados para validação não constituem regra normativa autônoma.
+
+Eles podem servir como evidência para testar o contrato e o modelo, mas não podem substituir a formulação geral aqui definida.
+
+
 ## 8. Regras obrigatórias de pagamento
 
 ### 8.1. Data correta
@@ -440,6 +476,28 @@ A regra operacional anterior segundo a qual as únicas abas de entrada eram `Car
 
 Essas três abas continuam obrigatórias, mas não esgotam mais o contrato de dados do projeto.
 
+
+### 10-A.2-A. Semântica operacional atualizada das abas
+
+A aba `Carteira` deve conter exclusivamente produtos reais de investimento, isto é, produtos que possam ser avaliados, ranqueados ou considerados como destino de aplicação ou switching.
+
+Rótulos de caixa operacional, saldo disponível, recebido disponível ou fonte de pagamento não são produtos da `Carteira`. Esses elementos pertencem ao estado temporal como fontes operacionais, não ao universo de produtos de investimento.
+
+A aba `Inventário de Lotes` pode representar duas classes de lote materializado:
+
+1. **lote investido/materializado**, quando `Data Recebimento`, `Data Aplicação`, `Valor Original` e `Investimento` estão preenchidos;
+2. **lote de caixa disponível/materializado**, quando `Data Recebimento` e `Valor Original` estão preenchidos, mas `Data Aplicação` e `Investimento` estão vazios.
+
+Um lote de caixa disponível só pode ser tratado como fonte operacional em uma data \(t\) quando sua `Data Recebimento` for menor ou igual a \(t\). Se sua data for posterior a \(t\), ele é recurso futuro e não pode pagar, aportar ou participar de switching no dia.
+
+A aba `Salários` deve alimentar o estado temporal como conjunto de entradas externas de caixa. Entradas com `Data Recebimento` posterior a \(t\) são futuras e indisponíveis; entradas com `Data Recebimento` menor ou igual a \(t\) são materializadas no estado temporal e podem ser classificadas pelo motor como pagamento de conta, aporte externo, reserva operacional, margem de gastos pequenos ou saldo livre.
+
+Na aba `Todos os Gastos`, o valor `Saldo` em `Lote usado` representa pagamento histórico feito por caixa operacional. Esse rótulo não é produto de investimento, não deve ser procurado na `Carteira` e não deve criar lote investido.
+
+A aba `Switching` é fonte suficiente para materializar internamente o lote destino informado em `Lote (ID) Depois`. Se esse lote destino também aparecer no `Inventário de Lotes`, o motor deve reconciliar as informações e impedir contagem dupla. Se o lote destino não aparecer no `Inventário de Lotes`, o motor deve criá-lo internamente no estado temporal a partir dos campos da aba `Switching`.
+
+O campo canônico de valor financeiro na aba `Switching` é `Valor Líquido Migrado`.
+
 ### 10-A.3. Função da aba `Salários`
 
 A aba `Salários` representa entradas externas de renda ou caixa.
@@ -478,7 +536,7 @@ Na versão atual da base, a aba foi encontrada com a grafia `Switiching` e com o
 - `Lote (ID) Depois`;
 - `Data Recebimento`;
 - `Data Aplicação`;
-- `Valor Original`;
+- `Valor Líquido Migrado`;
 - `Investimento`.
 
 Esses campos devem ser interpretados como evidência de transição de estado financeiro, e não como gasto comum ou aporte externo independente.
@@ -540,7 +598,7 @@ Se um lote venceu em \(t\) ou antes, ele deixa de ser lote aportado ativo e pass
 Formalmente:
 
 \[
-m_i \le t \Rightarrow 	ext{fonte disponível do dia}
+m_i \le t \Rightarrow \text{fonte disponível do dia}
 \]
 
 ### 11.2. Regra negativa
