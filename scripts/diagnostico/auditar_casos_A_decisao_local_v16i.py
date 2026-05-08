@@ -37,7 +37,23 @@ def _n(v):
 
 
 def _bool(v):
-    return _n(v) in {'1', 'true', 'sim', 's', 'yes', 'y'} or v is True
+    if v is True:
+        return True
+    if isinstance(v, bool):
+        return v
+    if _is_missing(v):
+        return False
+    if isinstance(v, (int, float)):
+        try:
+            return float(v) == 1.0
+        except Exception:
+            return False
+    tok = _n(v)
+    if tok in {'1', '1.0', 'true', 'sim', 's', 'yes', 'y'}:
+        return True
+    if tok in {'0', '0.0', 'false', 'não', 'nao', 'n'}:
+        return False
+    return False
 
 
 def _head():
@@ -132,12 +148,13 @@ def main() -> int:
         receb_eleg = fontes_pid[(fontes_pid['tipo_fonte'].astype(str).str.lower() == 'recebido_disponivel') & (fontes_pid['elegivel_na_data_pagamento'].apply(_bool))].copy()
         receb_all = fontes_pid[fontes_pid['tipo_fonte'].astype(str).str.lower() == 'recebido_disponivel'].copy()
 
+        receb_eleg['valor_liquido_disponivel_num'] = pd.to_numeric(receb_eleg['valor_liquido_disponivel'], errors='coerce')
         qtd_eleg = int(len(receb_eleg))
         existe_eleg = qtd_eleg > 0
-        maior_val = float(pd.to_numeric(receb_eleg['valor_liquido_disponivel'], errors='coerce').max()) if existe_eleg else 0.0
+        maior_val = float(receb_eleg['valor_liquido_disponivel_num'].max()) if existe_eleg else 0.0
         cobre = maior_val + 0.01 >= vp if existe_eleg else False
 
-        melhor = receb_eleg.sort_values('valor_liquido_disponivel', ascending=False).head(1)
+        melhor = receb_eleg.sort_values('valor_liquido_disponivel_num', ascending=False).head(1)
         melhor_id = str(melhor['recebido_id'].iloc[0]) if len(melhor) else ''
 
         rec_row = q_rec[q_rec['recebido_id'] == melhor_id].head(1)
