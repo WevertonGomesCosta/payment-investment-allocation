@@ -1,0 +1,160 @@
+{
+  "abas": {
+    "carteira": "Carteira",
+    "salarios": "Salários",
+    "despesas": "Todos os Gastos",
+    "lotes": "Inventário de Lotes",
+    "switching": "Switching"
+  },
+  "colunas": {
+    "salarios": {
+      "data_recebimento": [
+        "data_recebimento",
+        "data recebimento",
+        "Data Recebimento",
+        "data",
+        "Data"
+      ],
+      "valor_bruto": [
+        "valor_bruto",
+        "valor bruto",
+        "Valor Bruto",
+        "valor",
+        "Valor"
+      ],
+      "valor_liquido": [
+        "valor_liquido",
+        "valor líquido",
+        "valor liquido",
+        "Valor Líquido",
+        "Valor Liquido"
+      ],
+      "descricao": [
+        "descricao",
+        "descrição",
+        "Descrição",
+        "Descricao"
+      ],
+      "status": [
+        "status",
+        "Status"
+      ],
+      "entrada_id": [
+        "entrada_id",
+        "salario_id",
+        "salário_id",
+        "id",
+        "ID"
+      ]
+    },
+    "switching": {
+      "lote_id_antes": [
+        "lote_id_antes",
+        "lote antes",
+        "Lote Antes",
+        "lote (id) antes",
+        "Lote (ID) Antes"
+      ],
+      "lote_id_depois": [
+        "lote_id_depois",
+        "lote depois",
+        "Lote Depois",
+        "lote (id) depois",
+        "Lote (ID) Depois"
+      ],
+      "data_recebimento": [
+        "data_recebimento",
+        "data recebimento",
+        "Data Recebimento"
+      ],
+      "data_aplicacao": [
+        "data_aplicacao",
+        "data aplicação",
+        "data aplicacao",
+        "Data Aplicação",
+        "Data Aplicacao"
+      ],
+      "valor_liquido_migrado": [
+        "valor_liquido_migrado",
+        "valor líquido migrado",
+        "valor liquido migrado",
+        "Valor Líquido Migrado",
+        "Valor Liquido Migrado"
+      ],
+      "investimento": [
+        "investimento",
+        "Investimento",
+        "produto destino",
+        "Produto Destino",
+        "produto_destino"
+      ],
+      "produto_origem": [
+        "produto origem",
+        "Produto Origem",
+        "produto antes",
+        "Produto Antes",
+        "investimento antes",
+        "Investimento Antes"
+      ],
+      "status": [
+        "status",
+        "Status"
+      ]
+    }
+  },
+  "familias_v17": {
+    "produto_carteira": {
+      "aba": "carteira",
+      "tipo_canonico": "produto_carteira",
+      "modo_v17_a1": "canonizacao_sem_motor"
+    },
+    "entrada_externa_salario": {
+      "aba": "salarios",
+      "tipo_canonico": "entrada_externa_salario",
+      "modo_v17_a1": "canonizacao_sem_motor"
+    },
+    "pagamento_por_saldo": {
+      "aba": "despesas",
+      "tipo_canonico": "pagamento_por_saldo",
+      "modo_v17_a1": "canonizacao_sem_motor"
+    },
+    "pagamento_por_lote": {
+      "aba": "despesas",
+      "tipo_canonico": "pagamento_por_lote",
+      "modo_v17_a1": "canonizacao_sem_motor"
+    },
+    "lote_investido": {
+      "aba": "lotes",
+      "tipo_canonico": "lote_investido",
+      "modo_v17_a1": "canonizacao_sem_motor"
+    },
+    "lote_caixa_disponivel": {
+      "aba": "lotes",
+      "tipo_canonico": "lote_caixa_disponivel",
+      "modo_v17_a1": "canonizacao_sem_motor"
+    },
+    "switching_origem": {
+      "aba": "switching",
+      "tipo_canonico": "switching_origem",
+      "modo_v17_a1": "canonizacao_sem_motor"
+    },
+    "switching_destino_materializado": {
+      "aba": "switching",
+      "tipo_canonico": "switching_destino_materializado",
+      "modo_v17_a1": "canonizacao_sem_motor"
+    }
+  },
+  "v17_a1": {
+    "status": "config_canonizacao_sem_motor",
+    "proibicoes": [
+      "nao_alterar_motor",
+      "nao_alterar_ranking",
+      "nao_alterar_switching_funcional",
+      "nao_alterar_saida_canonica",
+      "nao_alterar_contrato_modelo",
+      "nao_tratar_saldo_como_produto",
+      "nao_preencher_data_aplicacao_artificial_para_lote_caixa",
+      "nao_usar_shadow_como_fonte_primaria_switching_v17"
+    ]
+  }
+}
