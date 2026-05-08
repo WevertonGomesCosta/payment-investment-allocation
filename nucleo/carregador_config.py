@@ -7,6 +7,7 @@ artefatos específicos de módulos, não como substitutos do config global.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from nucleo.ambiente import detectar_raiz_repositorio
 from nucleo.config_utils import obter_config as obter_config_compartilhado
 
 CONFIG_CANONICO_PADRAO = "config_atualizado.json"
+CONFIG_CANONIZACAO_V17_A1 = "config_canonizacao_v17_a1.json"
 
 ARQUIVOS_CONFIG_PADRAO: tuple[str, ...] = (
     CONFIG_CANONICO_PADRAO,
@@ -72,6 +74,53 @@ def _candidatos_config(raiz_repositorio: Path, nomes: Sequence[str]) -> list[Pat
     return ordenados
 
 
+def _mesclar_dicts_recursivo(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    resultado = copy.deepcopy(base)
+    for chave, valor_overlay in overlay.items():
+        valor_base = resultado.get(chave)
+        if isinstance(valor_base, dict) and isinstance(valor_overlay, dict):
+            resultado[chave] = _mesclar_dicts_recursivo(valor_base, valor_overlay)
+        else:
+            resultado[chave] = copy.deepcopy(valor_overlay)
+    return resultado
+
+
+def _caminho_overlay_canonizacao_v17(caminho_config: Path, raiz_repositorio: Path) -> Path:
+    candidatos = [
+        caminho_config.parent / CONFIG_CANONIZACAO_V17_A1,
+        raiz_repositorio / "dados" / CONFIG_CANONIZACAO_V17_A1,
+        raiz_repositorio / "data" / CONFIG_CANONIZACAO_V17_A1,
+    ]
+    for candidato in candidatos:
+        if candidato.exists():
+            return candidato.resolve()
+    return candidatos[0].resolve()
+
+
+def _aplicar_overlay_canonizacao_v17_a1(conteudo: dict[str, Any], caminho_config: Path, raiz_repositorio: Path) -> dict[str, Any]:
+    if caminho_config.name not in {CONFIG_CANONICO_PADRAO, "config.json"}:
+        return conteudo
+
+    caminho_overlay = _caminho_overlay_canonizacao_v17(caminho_config, raiz_repositorio)
+    if not caminho_overlay.exists():
+        return conteudo
+
+    try:
+        with caminho_overlay.open("r", encoding="utf-8") as arquivo:
+            overlay = json.load(arquivo)
+    except Exception as erro:
+        raise RuntimeError(f"Falha ao ler overlay de canonização V17-A1 {caminho_overlay}: {erro}") from erro
+
+    if not isinstance(overlay, dict):
+        raise RuntimeError(f"Overlay de canonização V17-A1 {caminho_overlay} deve conter objeto JSON na raiz.")
+
+    conteudo_mesclado = _mesclar_dicts_recursivo(conteudo, overlay)
+    metadados = conteudo_mesclado.setdefault("metadados_config", {})
+    if isinstance(metadados, dict):
+        metadados["overlay_canonizacao_v17_a1"] = str(caminho_overlay)
+    return conteudo_mesclado
+
+
 def resolver_caminho_config(
     caminho_explicito: Optional[str | Path] = None,
     *,
@@ -122,6 +171,7 @@ def carregar_config(
     if not isinstance(conteudo, dict):
         raise RuntimeError(f"O arquivo de configuração {caminho} deve conter um objeto JSON na raiz.")
 
+    conteudo = _aplicar_overlay_canonizacao_v17_a1(conteudo, caminho, raiz)
     validar_config_nucleo(conteudo)
 
     diretorio_dados = (raiz / "dados") if (raiz / "dados").exists() else (raiz / "data")
