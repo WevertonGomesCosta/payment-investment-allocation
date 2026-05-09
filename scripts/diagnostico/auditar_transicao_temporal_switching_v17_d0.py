@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 import csv
 import re
@@ -213,6 +213,91 @@ def _write_csv(path: Path, cols: list[str], data: list[dict]) -> None:
             w.writerow(d)
 
 
+def _idx_coluna(header: list[str], aliases: list[str]) -> int:
+    h = [_norm(c) for c in header]
+    for a in aliases:
+        n = _norm(a)
+        if n in h:
+            return h.index(n)
+    return -1
+
+
+def _parse_date(v: object) -> date | None:
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    if isinstance(v, (int, float)):
+        # serial Excel (base 1899-12-30)
+        try:
+            base = datetime(1899, 12, 30).date()
+            return base + timedelta(days=int(float(v)))
+        except Exception:
+            return None
+    t = str(v).strip()
+    if not t:
+        return None
+    t = t.replace('T', ' ')
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%Y-%m-%d %H:%M', '%d/%m/%Y %H:%M'):
+        try:
+            return datetime.strptime(t, fmt).date()
+        except Exception:
+            pass
+    m = re.search(r'(\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4})', t)
+    if m:
+        return _parse_date(m.group(1))
+    return None
+
+
+def _usos_lote_pos_switching(extrato_futuro: list[list[str]], lote_origem: str, data_switching: str) -> list[dict]:
+    if not extrato_futuro:
+        return []
+    header = [str(c) for c in extrato_futuro[0]]
+    i_data = _idx_coluna(header, ['Data', 'data', 'data_pagamento', 'data pagamento'])
+    i_desc = _idx_coluna(header, ['Descrição', 'Descricao', 'Conta', 'conta', 'descricao_pagamento'])
+    i_valor = _idx_coluna(header, ['Valor', 'valor', 'valor_pagamento', 'valor pagamento'])
+    i_lote = _idx_coluna(header, ['Lote', 'Lotes usados', 'Lote usado', 'Fonte', 'fonte', 'lote_origem', 'lote origem'])
+    dt_sw = _parse_date(data_switching)
+    usos = []
+    for row in extrato_futuro[1:]:
+        has_lote = False
+        if i_lote >= 0 and i_lote < len(row):
+            has_lote = _cell_matches_lote(str(row[i_lote]), lote_origem)
+        else:
+            has_lote = any(_cell_matches_lote(str(c), lote_origem) for c in row)
+        if not has_lote:
+            continue
+        data_raw = row[i_data] if i_data >= 0 and i_data < len(row) else ''
+        dt_pg = _parse_date(data_raw)
+        desc = str(row[i_desc]) if i_desc >= 0 and i_desc < len(row) else ''
+        valor = _parse_float(row[i_valor]) if i_valor >= 0 and i_valor < len(row) else 0.0
+        viol = False
+        dias = ''
+        just = 'data_pagamento_nao_interpretavel; ocorrencia mantida para auditoria'
+        if dt_pg is not None and dt_sw is not None:
+            d = (dt_pg - dt_sw).days
+            dias = d
+            if d > 0:
+                viol = True
+                just = 'origem aparece em pagamento posterior ao switching'
+            elif d == 0:
+                just = 'ocorrencia no mesmo dia do switching; caso intradiario sem violacao automatica'
+            else:
+                just = 'ocorrencia anterior ao switching; nao e violacao pos-switching'
+        usos.append({
+            'data_pagamento': str(dt_pg if dt_pg is not None else data_raw),
+            'descricao_pagamento': desc,
+            'valor_pagamento': valor,
+            'origem_ocorrencia': 'Extrato Futuro',
+            'dias_apos_switching': dias,
+            'violacao_uso_pos_switching': viol,
+            'justificativa': just,
+        })
+    return usos
+
+
 def main() -> int:
     sheets = _xlsx_sheets(XLSX)
     switching_sheet = sheets.get('Switching', [])
@@ -243,13 +328,16 @@ def main() -> int:
             'justificativa': 'lote de origem ainda visível após switching' if viol_ativo else 'sem indício de atividade indevida',
         })
 
-        uso_pos = _contains_lote(extrato_futuro, s.lote_origem)
-        usos.append({
-            'lote_origem': s.lote_origem, 'data_switching': s.data_switching, 'data_pagamento': '', 'descricao_pagamento': '',
-            'valor_pagamento': 0.0, 'origem_ocorrencia': 'Extrato Futuro', 'dias_apos_switching': '',
-            'violacao_uso_pos_switching': uso_pos,
-            'justificativa': 'origem aparece em estrutura de pagamentos futuros' if uso_pos else 'sem uso pós-switching detectado',
-        })
+        usos_lote = _usos_lote_pos_switching(extrato_futuro, s.lote_origem, s.data_switching)
+        if not usos_lote:
+            usos.append({
+                'lote_origem': s.lote_origem, 'data_switching': s.data_switching, 'data_pagamento': '', 'descricao_pagamento': '',
+                'valor_pagamento': 0.0, 'origem_ocorrencia': 'Extrato Futuro', 'dias_apos_switching': '',
+                'violacao_uso_pos_switching': False, 'justificativa': 'sem uso detectado no extrato futuro para o lote origem',
+            })
+        else:
+            for u in usos_lote:
+                usos.append({'lote_origem': s.lote_origem, 'data_switching': s.data_switching, **u})
 
         ap_inv = _contains_lote(inventario, s.lote_destino)
         ap_sit = _contains_lote(situacao, s.lote_destino)
