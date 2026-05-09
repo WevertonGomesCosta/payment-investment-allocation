@@ -6,6 +6,7 @@ from pathlib import Path
 import csv
 import re
 import sys
+import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -25,6 +26,8 @@ class Switching:
 
 def _norm(s: str) -> str:
     s = (s or '').strip().lower()
+    s = ''.join(ch for ch in unicodedata.normalize('NFD', s) if unicodedata.category(ch) != 'Mn')
+    s = re.sub(r'[^a-z0-9]+', ' ', s)
     s = re.sub(r'\s+', ' ', s)
     return s
 
@@ -99,10 +102,38 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
             if o in header:
                 return header.index(o)
         return -1
-    i_origem = idx(['lote_origem', 'lote origem', 'origem'])
-    i_data = idx(['data_switching', 'data switching', 'data'])
-    i_dest = idx(['lote_destino', 'lote destino', 'destino_switching', 'destino'])
-    i_val = idx(['valor_liquido_migrado', 'valor liquido migrado', 'valor_liquido'])
+    i_origem = idx([
+        'lote id antes',
+        'lote antes',
+        'lote origem',
+        'lote origem switching',
+        'lote_origem',
+        'origem',
+    ])
+    i_data = idx([
+        'data sugerida',
+        'data switching',
+        'data_switching',
+        'data',
+    ])
+    i_dest = idx([
+        'lote id depois',
+        'lote depois',
+        'lote destino',
+        'lote_destino',
+        'destino switching',
+        'destino_switching',
+        'produto destino switching',
+        'destino',
+    ])
+    i_val = idx([
+        'valor liquido migrado',
+        'valor_liquido_migrado',
+        'valor liquido origem',
+        'valor_liquido_origem',
+        'valor liquido',
+        'valor_liquido',
+    ])
     out = []
     for r in sheet[1:]:
         origem = r[i_origem] if i_origem >= 0 and i_origem < len(r) else ''
