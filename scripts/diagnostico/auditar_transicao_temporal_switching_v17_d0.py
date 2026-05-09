@@ -166,7 +166,6 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
         'lote_destino',
         'lote pos switching',
         'lote pos-switching',
-        'lote pos switching',
         'lote destino pos switching',
         'lote destino pos-switching',
         'novo lote',
