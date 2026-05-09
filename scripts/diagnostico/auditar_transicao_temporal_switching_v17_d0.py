@@ -45,7 +45,7 @@ def _parse_float(v: str) -> float:
 
 def _xlsx_sheets(path: Path) -> dict[str, list[list[str]]]:
     if not path.exists():
-        return {}
+        raise FileNotFoundError(f'planilha operacional obrigatoria ausente: {path}')
     # Preferência V17-D0.2: leitura por openpyxl quando disponível.
     try:
         from openpyxl import load_workbook  # type: ignore
@@ -164,13 +164,34 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
     return out
 
 
-def _contains_lote(rows: list[list[str]], lote: str) -> bool:
-    n = _norm(lote)
+def _tokens_lote(celula: str) -> list[str]:
+    txt = _norm(celula)
+    if not txt:
+        return []
+    partes = re.split(r'\s*(?:\+|;|,|\||/)\s*', txt)
+    return [p.strip() for p in partes if p.strip()]
+
+
+def _cell_matches_lote(celula: str, lote: str) -> bool:
+    alvo = _norm(lote)
+    if not alvo:
+        return False
+    cel = _norm(celula)
+    if cel == alvo:
+        return True
+    return alvo in _tokens_lote(celula)
+
+
+def _linhas_com_lote(rows: list[list[str]], lote: str) -> list[list[str]]:
+    linhas: list[list[str]] = []
     for r in rows:
-        for c in r:
-            if n and n in _norm(c):
-                return True
-    return False
+        if any(_cell_matches_lote(str(c), lote) for c in r):
+            linhas.append(r)
+    return linhas
+
+
+def _contains_lote(rows: list[list[str]], lote: str) -> bool:
+    return len(_linhas_com_lote(rows, lote)) > 0
 
 
 def _write_csv(path: Path, cols: list[str], data: list[dict]) -> None:
@@ -200,7 +221,8 @@ def main() -> int:
 
     for s in switchings:
         ativo = _contains_lote(situacao, s.lote_origem)
-        exaurido = _contains_lote(inventario, s.lote_origem) and ('exaur' in _norm(' '.join(' '.join(r) for r in inventario[:30])))
+        linhas_lote = _linhas_com_lote(inventario, s.lote_origem)
+        exaurido = any('exaur' in _norm(' '.join(str(c) for c in row)) for row in linhas_lote)
         viol_ativo = bool(ativo)
         origens.append({
             'lote_origem': s.lote_origem, 'data_switching': s.data_switching, 'destino_switching': s.lote_destino,
