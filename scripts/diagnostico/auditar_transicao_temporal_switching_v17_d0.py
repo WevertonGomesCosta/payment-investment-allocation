@@ -14,6 +14,18 @@ RAIZ = Path(__file__).resolve().parents[2]
 XLSX = RAIZ / 'saidas' / 'oficial' / 'relatorio_operacional_v225.xlsx'
 OUT = RAIZ / 'saidas' / 'diagnostico' / 'v17_d0'
 OUT.mkdir(parents=True, exist_ok=True)
+COLS_USO_POS_SWITCHING = [
+    'lote_origem',
+    'data_switching',
+    'data_pagamento',
+    'descricao_pagamento',
+    'valor_pagamento',
+    'origem_ocorrencia',
+    'dias_apos_switching',
+    'status_comparacao_temporal',
+    'violacao_uso_pos_switching',
+    'justificativa',
+]
 
 
 @dataclass
@@ -401,6 +413,7 @@ def main() -> int:
             usos.append({
                 'lote_origem': s.lote_origem, 'data_switching': s.data_switching, 'data_pagamento': '', 'descricao_pagamento': '',
                 'valor_pagamento': 0.0, 'origem_ocorrencia': 'Extrato Futuro', 'dias_apos_switching': '',
+                'status_comparacao_temporal': 'sem_uso_detectado',
                 'violacao_uso_pos_switching': False, 'justificativa': 'sem uso detectado no extrato futuro para o lote origem',
             })
         else:
@@ -467,7 +480,7 @@ def main() -> int:
     ]
 
     _write_csv(OUT / 'v17_d0_origens_switching_estado_atual.csv', list(origens[0].keys()) if origens else ['lote_origem','data_switching','destino_switching','valor_liquido_migrado','aparece_em_situacao_atual_ativo','aparece_em_lotes_exauridos','status_observado','status_esperado_contrato','violacao_lote_origem_ativo','justificativa'], origens)
-    _write_csv(OUT / 'v17_d0_uso_pos_switching_pagamentos.csv', list(usos[0].keys()) if usos else ['lote_origem','data_switching','data_pagamento','descricao_pagamento','valor_pagamento','origem_ocorrencia','dias_apos_switching','status_comparacao_temporal','violacao_uso_pos_switching','justificativa'], usos)
+    _write_csv(OUT / 'v17_d0_uso_pos_switching_pagamentos.csv', COLS_USO_POS_SWITCHING, usos)
     _write_csv(OUT / 'v17_d0_destinos_switching_materializacao.csv', list(destinos[0].keys()) if destinos else ['lote_origem','lote_destino','produto_destino','data_recebimento','data_aplicacao','valor_liquido_migrado','aparece_no_inventario','aparece_na_situacao_atual','aparece_como_lote_sintetico','materializacao_observada','materializacao_esperada','violacao_destino_nao_materializado','justificativa'], destinos)
     _write_csv(OUT / 'v17_d0_matriz_aderencia_contrato_modelo.csv', list(matriz[0].keys()), matriz)
     _write_csv(OUT / 'v17_d0_resumo.csv', ['metrica', 'valor'], resumo)
