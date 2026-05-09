@@ -48,7 +48,7 @@ def _num(v: Any) -> float:
     try:
         if pd.isna(v):
             return 0.0
-    except Exception:
+    except (TypeError, ValueError):
         pass
     try:
         return float(v)
@@ -89,10 +89,9 @@ def main() -> int:
     if not ARQ_C4_CLASSES.exists():
         _run('scripts/diagnostico/classificar_divergencias_pacote_saida_v17_c4.py')
     if not ARQ_C5_MATRIZ.exists():
-        try:
-            _run('scripts/diagnostico/consolidar_matriz_correcao_v17_c5.py')
-        except Exception:
-            pass
+        _run('scripts/diagnostico/consolidar_matriz_correcao_v17_c5.py')
+        if not ARQ_C5_MATRIZ.exists():
+            raise FileNotFoundError(f'prerequisito C5 ausente apos tentativa de geracao: {ARQ_C5_MATRIZ}')
 
     df_c3 = _read(ARQ_C3_VALORES, ['chave_pagamento', 'campo', 'valor_pacote', 'valor_saida', 'diferenca', 'divergencia_material'])
     df_c4 = _read(ARQ_C4_CLASSES, ['chave_pagamento', 'campo', 'valor_pacote', 'valor_saida', 'diferenca', 'classe_causa_provavel'])
