@@ -1,8 +1,8 @@
-pandas==2.2.3
-numpy==1.26.4
-openpyxl==3.1.5
-python-dateutil==2.9.0.post0
-requests==2.32.3
-pulp==3.3.1
-workalendar==17.0.0
-scipy==1.13.1
+pandas
+numpy
+openpyxl
+python-dateutil
+requests
+pulp
+workalendar
+scipy
