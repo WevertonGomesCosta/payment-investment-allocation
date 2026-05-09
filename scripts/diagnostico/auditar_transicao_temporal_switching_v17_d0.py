@@ -233,6 +233,8 @@ def _linhas_situacao_lotes_ativos(situacao: list[list[str]]) -> list[list[str]]:
 
 def _tokens_lote(celula: str) -> list[str]:
     raw = str(celula or '')
+    raw = re.sub(r'[\(\)\[\]]', ' ', raw)
+    raw = re.sub(r'\s*[–—\-:]\s*', '|', raw)
     partes = re.split(r'\s*(?:\+|;|,|\||/)\s*', raw)
     tokens = []
     for parte in partes:
@@ -248,6 +250,8 @@ def _cell_matches_lote(celula: str, lote: str) -> bool:
         return False
     cel = _norm(celula)
     if cel == alvo:
+        return True
+    if re.match(rf'^{re.escape(alvo)}(?:\b|$)', cel):
         return True
     return alvo in _tokens_lote(celula)
 
@@ -418,9 +422,21 @@ def main() -> int:
         excluir=['Resumo Switching'],
         descricao='aba de eventos switching',
     )
-    situacao = sheets.get('Situação Atual', []) or sheets.get('Situacao Atual', [])
-    inventario = sheets.get('Inventário de Lotes', []) or sheets.get('Inventario de Lotes', [])
-    extrato_futuro = sheets.get('Extrato Futuro', [])
+    _, situacao = _sheet_por_alias(
+        sheets,
+        ['Situação Atual', 'Situacao Atual'],
+        descricao='aba Situação Atual',
+    )
+    _, inventario = _sheet_por_alias(
+        sheets,
+        ['Inventário de Lotes', 'Inventario de Lotes'],
+        descricao='aba Inventário de Lotes',
+    )
+    _, extrato_futuro = _sheet_por_alias(
+        sheets,
+        ['Extrato Futuro'],
+        descricao='aba Extrato Futuro',
+    )
     linhas_lotes_sinteticos = _linhas_evidencia_lote_sintetico(sheets)
 
     switchings = _extract_switchings(switching_sheet)
