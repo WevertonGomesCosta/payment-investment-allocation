@@ -145,6 +145,18 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
         'lote depois',
         'lote destino',
         'lote_destino',
+        'lote pos switching',
+        'lote pos-switching',
+        'lote pos switching',
+        'lote destino pos switching',
+        'lote destino pos-switching',
+        'novo lote',
+        'lote novo',
+        'lote id novo',
+        'lote id pos switching',
+        'lote id pos-switching',
+        'novo lote destino',
+        'lote destino novo',
         'destino switching',
         'destino_switching',
         'produto destino switching',
@@ -240,6 +252,12 @@ def _parse_date(v: object) -> date | None:
     if not t:
         return None
     t = t.replace('T', ' ')
+    if re.fullmatch(r'\d+(\.\d+)?', t):
+        try:
+            base = datetime(1899, 12, 30).date()
+            return base + timedelta(days=int(float(t)))
+        except Exception:
+            return None
     for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%Y-%m-%d %H:%M', '%d/%m/%Y %H:%M'):
         try:
             return datetime.strptime(t, fmt).date()
