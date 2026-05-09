@@ -319,8 +319,11 @@ def _adicionar_situacao_atual(wb, contexto, saida) -> None:
 
 def _adicionar_auditoria_saida_canonica(wb, contexto, saida) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'saida_canonica'))
+    auditoria = dict(getattr(saida, 'auditoria', {}) or {})
+    auditoria['qtd_switchings'] = len(getattr(saida, 'switchings', None) or [])
+
     linhas = []
-    for k, v in saida.auditoria.items():
+    for k, v in auditoria.items():
         if isinstance(v, (list, dict, tuple, set)):
             continue
         linhas.append({'Métrica': k, 'Valor': v})
