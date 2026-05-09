@@ -32,11 +32,19 @@ def _norm(s: str) -> str:
     return s
 
 
-def _parse_float(v: str) -> float:
-    t = (v or '').strip()
+def _parse_float(v: object) -> float:
+    if v is None:
+        return 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    t = str(v).strip()
     if not t:
         return 0.0
-    t = t.replace('.', '').replace(',', '.')
+    t = t.replace('R$', '').replace(' ', '')
+    if ',' in t and '.' in t:
+        t = t.replace('.', '').replace(',', '.')
+    elif ',' in t:
+        t = t.replace(',', '.')
     try:
         return float(t)
     except Exception:
@@ -165,11 +173,14 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
 
 
 def _tokens_lote(celula: str) -> list[str]:
-    txt = _norm(celula)
-    if not txt:
-        return []
-    partes = re.split(r'\s*(?:\+|;|,|\||/)\s*', txt)
-    return [p.strip() for p in partes if p.strip()]
+    raw = str(celula or '')
+    partes = re.split(r'\s*(?:\+|;|,|\||/)\s*', raw)
+    tokens = []
+    for parte in partes:
+        token = _norm(parte)
+        if token:
+            tokens.append(token)
+    return tokens
 
 
 def _cell_matches_lote(celula: str, lote: str) -> bool:
