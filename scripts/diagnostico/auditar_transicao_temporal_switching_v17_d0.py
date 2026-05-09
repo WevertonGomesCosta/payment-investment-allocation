@@ -154,6 +154,8 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
         'origem',
     ])
     i_data = idx([
+        'data aplicacao',
+        'data_aplicacao',
         'data sugerida',
         'data switching',
         'data_switching',
@@ -461,9 +463,15 @@ def main() -> int:
         ap_sit = _contains_lote(situacao, s.lote_destino) if s.lote_destino else False
         ap_sint = _contains_lote(linhas_lotes_sinteticos, s.lote_destino) if s.lote_destino else False
         if s.lote_destino:
-            mat = 'sim' if (ap_inv or ap_sit) else 'nao'
-            viol_dest = not (ap_inv or ap_sit)
-            just_dest = 'destino sem materialização auditável' if viol_dest else 'destino identificado em estado temporal'
+            materializado = ap_inv or ap_sit or ap_sint
+            mat = 'sim' if materializado else 'nao'
+            viol_dest = not materializado
+            if ap_inv or ap_sit:
+                just_dest = 'destino identificado em estado temporal'
+            elif ap_sint:
+                just_dest = 'destino identificado como lote sintetico pos-switching'
+            else:
+                just_dest = 'destino sem materialização auditável'
         elif s.produto_destino_switching:
             mat = 'indeterminada_por_schema'
             viol_dest = False
