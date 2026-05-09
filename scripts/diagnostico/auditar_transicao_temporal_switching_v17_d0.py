@@ -21,6 +21,7 @@ class Switching:
     lote_origem: str
     data_switching: str
     lote_destino: str
+    produto_destino_switching: str
     valor_liquido_migrado: float
 
 
@@ -165,8 +166,12 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
         'lote destino novo',
         'destino switching',
         'destino_switching',
+    ])
+    i_prod_dest = idx([
         'produto destino switching',
-        'destino',
+        'produto destino',
+        'carteira destino',
+        'destino produto',
     ])
     i_val = idx([
         'valor liquido migrado',
@@ -176,8 +181,9 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
         'valor liquido',
         'valor_liquido',
     ])
-    if len(sheet) > 1 and i_dest < 0:
-        raise RuntimeError('falha_schema_switching: coluna de lote destino nao reconhecida')
+    # schema oficial pode ter apenas produto destino sem lote destino explicito
+    if len(sheet) > 1 and i_dest < 0 and i_prod_dest < 0:
+        raise RuntimeError('falha_schema_switching: coluna de lote/produto destino nao reconhecida')
     out = []
     for r in sheet[1:]:
         origem = r[i_origem] if i_origem >= 0 and i_origem < len(r) else ''
@@ -187,9 +193,29 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
             lote_origem=str(origem),
             data_switching=str(r[i_data] if i_data >= 0 and i_data < len(r) else ''),
             lote_destino=str(r[i_dest] if i_dest >= 0 and i_dest < len(r) else ''),
+            produto_destino_switching=str(r[i_prod_dest] if i_prod_dest >= 0 and i_prod_dest < len(r) else ''),
             valor_liquido_migrado=_parse_float(str(r[i_val] if i_val >= 0 and i_val < len(r) else '0')),
         ))
     return out
+
+
+def _linhas_situacao_lotes_ativos(situacao: list[list[str]]) -> list[list[str]]:
+    blocos_ativos: list[list[str]] = []
+    em_ativo = False
+    for row in situacao:
+        linha = ' '.join(str(c) for c in row if str(c).strip())
+        n = _norm(linha)
+        if n:
+            if 'lotes ativos' in n:
+                em_ativo = True
+                continue
+            if 'lotes exauridos' in n and em_ativo:
+                em_ativo = False
+            if em_ativo and any(k in n for k in ['patrimonio total dos lotes', 'recebidos auditaveis', 'fechamento economico', 'resumo de recebidos']):
+                em_ativo = False
+        if em_ativo:
+            blocos_ativos.append(row)
+    return blocos_ativos
 
 
 def _tokens_lote(celula: str) -> list[str]:
@@ -342,7 +368,8 @@ def main() -> int:
     matriz = []
 
     for s in switchings:
-        ativo = _contains_lote(situacao, s.lote_origem)
+        linhas_ativos = _linhas_situacao_lotes_ativos(situacao)
+        ativo = _contains_lote(linhas_ativos, s.lote_origem)
         linhas_lote = _linhas_com_lote(inventario, s.lote_origem)
         exaurido = any('exaur' in _norm(' '.join(str(c) for c in row)) for row in linhas_lote)
         viol_ativo = bool(ativo)
@@ -365,17 +392,27 @@ def main() -> int:
             for u in usos_lote:
                 usos.append({'lote_origem': s.lote_origem, 'data_switching': s.data_switching, **u})
 
-        ap_inv = _contains_lote(inventario, s.lote_destino)
-        ap_sit = _contains_lote(situacao, s.lote_destino)
-        ap_sint = _contains_lote(switching_sheet, s.lote_destino)
-        mat = ap_inv or ap_sit
-        viol_dest = not mat
+        ap_inv = _contains_lote(inventario, s.lote_destino) if s.lote_destino else False
+        ap_sit = _contains_lote(situacao, s.lote_destino) if s.lote_destino else False
+        ap_sint = _contains_lote(switching_sheet, s.lote_destino) if s.lote_destino else False
+        if s.lote_destino:
+            mat = 'sim' if (ap_inv or ap_sit) else 'nao'
+            viol_dest = not (ap_inv or ap_sit)
+            just_dest = 'destino sem materialização auditável' if viol_dest else 'destino identificado em estado temporal'
+        elif s.produto_destino_switching:
+            mat = 'indeterminada_por_schema'
+            viol_dest = False
+            just_dest = 'schema possui produto destino, mas nao lote destino explicito; materializacao de lote nao auditavel nesta aba'
+        else:
+            mat = 'nao'
+            viol_dest = False
+            just_dest = 'sem lote/produto destino explicito na linha de switching'
         destinos.append({
-            'lote_origem': s.lote_origem, 'lote_destino': s.lote_destino, 'produto_destino': '', 'data_recebimento': '', 'data_aplicacao': '',
+            'lote_origem': s.lote_origem, 'lote_destino': s.lote_destino, 'produto_destino': s.produto_destino_switching, 'data_recebimento': '', 'data_aplicacao': '',
             'valor_liquido_migrado': s.valor_liquido_migrado, 'aparece_no_inventario': ap_inv, 'aparece_na_situacao_atual': ap_sit,
-            'aparece_como_lote_sintetico': ap_sint, 'materializacao_observada': 'sim' if mat else 'nao', 'materializacao_esperada': 'sim',
+            'aparece_como_lote_sintetico': ap_sint, 'materializacao_observada': mat, 'materializacao_esperada': 'sim',
             'violacao_destino_nao_materializado': viol_dest,
-            'justificativa': 'destino sem materialização auditável' if viol_dest else 'destino identificado em estado temporal',
+            'justificativa': just_dest,
         })
 
     origens_ativas = sum(1 for x in origens if x['violacao_lote_origem_ativo'])
