@@ -270,6 +270,38 @@ def _write_csv(path: Path, cols: list[str], data: list[dict]) -> None:
             w.writerow(d)
 
 
+def _sheet_por_alias(
+    sheets: dict[str, list[list[str]]],
+    aliases: list[str],
+    *,
+    excluir: list[str] | None = None,
+    descricao: str = 'aba',
+) -> tuple[str, list[list[str]]]:
+    excl = {_norm(x) for x in (excluir or [])}
+    alias_set = {_norm(x) for x in aliases}
+    for nome, rows in sheets.items():
+        n = _norm(nome)
+        if n in excl:
+            continue
+        if n in alias_set:
+            return nome, rows
+    raise RuntimeError(f'falha_schema_switching: {descricao} nao encontrada; abas_disponiveis={list(sheets.keys())}')
+
+
+def _linhas_evidencia_lote_sintetico(sheets: dict[str, list[list[str]]]) -> list[list[str]]:
+    aliases = {
+        _norm('Lotes Sinteticos Pos-Sw'),
+        _norm('Lotes Sintéticos Pos-Sw'),
+        _norm('Estado Pos-Switching'),
+        _norm('Estado Pós-Switching'),
+    }
+    linhas: list[list[str]] = []
+    for nome, rows in sheets.items():
+        if _norm(nome) in aliases:
+            linhas.extend(rows)
+    return linhas
+
+
 def _idx_coluna(header: list[str], aliases: list[str]) -> int:
     h = [_norm(c) for c in header]
     for a in aliases:
@@ -378,10 +410,16 @@ def _contar_lotes_destino_auditados(switchings: list[Switching]) -> int:
 
 def main() -> int:
     sheets = _xlsx_sheets(XLSX)
-    switching_sheet = sheets.get('Switching', [])
+    _, switching_sheet = _sheet_por_alias(
+        sheets,
+        ['Switching', 'Switchings', 'Eventos Switching', 'Eventos de Switching', 'Auditoria Switching', 'Tabela Switching'],
+        excluir=['Resumo Switching'],
+        descricao='aba de eventos switching',
+    )
     situacao = sheets.get('Situação Atual', []) or sheets.get('Situacao Atual', [])
     inventario = sheets.get('Inventário de Lotes', []) or sheets.get('Inventario de Lotes', [])
     extrato_futuro = sheets.get('Extrato Futuro', [])
+    linhas_lotes_sinteticos = _linhas_evidencia_lote_sintetico(sheets)
 
     switchings = _extract_switchings(switching_sheet)
     if switching_sheet and len(switching_sheet) > 1 and not switchings:
@@ -421,7 +459,7 @@ def main() -> int:
 
         ap_inv = _contains_lote(inventario, s.lote_destino) if s.lote_destino else False
         ap_sit = _contains_lote(situacao, s.lote_destino) if s.lote_destino else False
-        ap_sint = _contains_lote(switching_sheet, s.lote_destino) if s.lote_destino else False
+        ap_sint = _contains_lote(linhas_lotes_sinteticos, s.lote_destino) if s.lote_destino else False
         if s.lote_destino:
             mat = 'sim' if (ap_inv or ap_sit) else 'nao'
             viol_dest = not (ap_inv or ap_sit)
