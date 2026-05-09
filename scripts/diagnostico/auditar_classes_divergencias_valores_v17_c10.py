@@ -19,7 +19,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 ARQ_C3_VALORES = DIR_C3 / 'v17_c3_comparativo_valores.csv'
 ARQ_C4_CLASSES = DIR_C4 / 'v17_c4_classificacao_divergencias_valores.csv'
-ARQ_C5_MATRIZ = DIR_C5 / 'v17_c5_matriz_consolidada_correcao.csv'
+ARQ_C5_MATRIZ = DIR_C5 / 'v17_c5_matriz_causas_correcao.csv'
 
 OUT_DET = OUT / 'v17_c10_divergencias_valores_detalhadas.csv'
 OUT_RES_CLASSES = OUT / 'v17_c10_classes_divergencia_resumo.csv'
