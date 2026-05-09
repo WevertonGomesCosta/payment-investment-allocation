@@ -27,6 +27,18 @@ OUT_MATRIZ = OUT / 'v17_c10_matriz_decisao_proxima_correcao.csv'
 OUT_RESUMO = OUT / 'v17_c10_resumo.csv'
 
 
+
+COLS_MATRIZ = [
+    'prioridade',
+    'classe_tecnica_v17_c10',
+    'decisao',
+    'escopo_correcao_futuro',
+    'arquivos_provaveis',
+    'risco_de_regressao',
+    'validar_antes_de_corrigir',
+    'observacao',
+]
+
 def _run(script_rel: str) -> None:
     subprocess.run([sys.executable, str(RAIZ / script_rel)], check=True, cwd=RAIZ)
 
@@ -147,7 +159,7 @@ def main() -> int:
         })
     df_res_classes = pd.DataFrame(resumo_classes)
 
-    df_matriz = pd.DataFrame([
+    linhas_matriz = [
         {
             'prioridade': 'P0',
             'classe_tecnica_v17_c10': c,
@@ -159,7 +171,8 @@ def main() -> int:
             'observacao': 'V17-C10 apenas classifica tecnicamente; nao aplicar mudanca funcional',
         }
         for c, r in sorted({(row['classe_tecnica_v17_c10'], row['tipo_correcao_recomendada']) for _, row in df_res_classes.iterrows()})
-    ])
+    ]
+    df_matriz = pd.DataFrame(linhas_matriz, columns=COLS_MATRIZ)
 
     total = int(len(df_det))
     classes_v17_c4_total = int(df_det['classe_causa_v17_c4'].nunique()) if total else 0
