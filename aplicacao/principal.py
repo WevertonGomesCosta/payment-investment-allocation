@@ -11,7 +11,7 @@ from aplicacao.console.principal import render_console
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.gerar_planilha_operacional import main as gerar_planilha_operacional
 from nucleo.identidade_baseline import VERSAO_BASELINE
-from nucleo.saida_canonica import construir_saida_canonica
+from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 
 
 def carregar_contexto_e_saida():
@@ -24,7 +24,7 @@ def carregar_contexto_e_saida():
         incluir_benchmark_runner_futuro_shadow=False,
         incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
     )
-    saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
+    saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_baseline, versao=VERSAO_BASELINE)
     return contexto_baseline, saida_canonica
 
 
