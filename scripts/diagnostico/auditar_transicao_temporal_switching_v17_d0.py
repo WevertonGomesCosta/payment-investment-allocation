@@ -327,27 +327,42 @@ def _usos_lote_pos_switching(extrato_futuro: list[list[str]], lote_origem: str, 
         valor = _parse_float(row[i_valor]) if i_valor >= 0 and i_valor < len(row) else 0.0
         viol = False
         dias = ''
-        just = 'data_pagamento_nao_interpretavel; ocorrencia mantida para auditoria'
+        status = 'indeterminado_datas_nao_interpretaveis'
+        just = 'datas de pagamento e switching nao interpretaveis; ocorrencia mantida para auditoria'
         if dt_pg is not None and dt_sw is not None:
             d = (dt_pg - dt_sw).days
             dias = d
             if d > 0:
                 viol = True
+                status = 'violacao_pos_switching'
                 just = 'origem aparece em pagamento posterior ao switching'
             elif d == 0:
+                status = 'intradiario_sem_classificacao_automatica'
                 just = 'ocorrencia no mesmo dia do switching; caso intradiario sem violacao automatica'
             else:
+                status = 'ocorrencia_anterior_ao_switching'
                 just = 'ocorrencia anterior ao switching; nao e violacao pos-switching'
+        elif dt_pg is not None and dt_sw is None:
+            status = 'indeterminado_data_switching_nao_interpretavel'
+            just = 'data_switching nao interpretavel; ocorrencia nao classificada temporalmente'
+        elif dt_pg is None and dt_sw is not None:
+            status = 'indeterminado_data_pagamento_nao_interpretavel'
+            just = 'data_pagamento nao interpretavel; ocorrencia nao classificada temporalmente'
         usos.append({
             'data_pagamento': str(dt_pg if dt_pg is not None else data_raw),
             'descricao_pagamento': desc,
             'valor_pagamento': valor,
             'origem_ocorrencia': 'Extrato Futuro',
             'dias_apos_switching': dias,
+            'status_comparacao_temporal': status,
             'violacao_uso_pos_switching': viol,
             'justificativa': just,
         })
     return usos
+
+
+def _contar_lotes_destino_auditados(switchings: list[Switching]) -> int:
+    return len({str(s.lote_destino).strip() for s in switchings if str(s.lote_destino).strip()})
 
 
 def main() -> int:
@@ -417,6 +432,7 @@ def main() -> int:
 
     origens_ativas = sum(1 for x in origens if x['violacao_lote_origem_ativo'])
     usos_pos = sum(1 for x in usos if x['violacao_uso_pos_switching'])
+    usos_indet = sum(1 for x in usos if str(x.get('status_comparacao_temporal', '')).startswith('indeterminado'))
     dest_nao = sum(1 for x in destinos if x['violacao_destino_nao_materializado'])
     dupla = any(o['violacao_lote_origem_ativo'] and (not d['violacao_destino_nao_materializado']) for o, d in zip(origens, destinos))
 
@@ -429,13 +445,15 @@ def main() -> int:
     if not matriz:
         matriz.append({'regra_contrato_modelo': 'aderencia_geral', 'evidencia_observada': 'sem violacoes detectadas', 'status_aderencia': 'aderente', 'severidade': 'baixa', 'impacto_potencial': 'nenhum', 'tipo_correcao_futura': 'sem_correcao', 'observacao': ''})
 
+    lotes_destino_auditados = _contar_lotes_destino_auditados(switchings)
     resumo = [
         {'metrica': 'status_global_v17_d0', 'valor': 'ok_diagnostico'},
         {'metrica': 'switchings_auditados', 'valor': len(switchings)},
         {'metrica': 'lotes_origem_auditados', 'valor': len({s.lote_origem for s in switchings})},
-        {'metrica': 'lotes_destino_auditados', 'valor': len({s.lote_destino for s in switchings})},
+        {'metrica': 'lotes_destino_auditados', 'valor': lotes_destino_auditados},
         {'metrica': 'origens_ativas_pos_switching', 'valor': origens_ativas},
         {'metrica': 'origens_usadas_pagamento_pos_switching', 'valor': usos_pos},
+        {'metrica': 'usos_origem_pos_switching_indeterminados', 'valor': usos_indet},
         {'metrica': 'destinos_nao_materializados', 'valor': dest_nao},
         {'metrica': 'possivel_dupla_contagem', 'valor': dupla},
         {'metrica': 'violacoes_contrato_modelo_total', 'valor': sum(1 for m in matriz if m['status_aderencia'] == 'violado')},
@@ -449,7 +467,7 @@ def main() -> int:
     ]
 
     _write_csv(OUT / 'v17_d0_origens_switching_estado_atual.csv', list(origens[0].keys()) if origens else ['lote_origem','data_switching','destino_switching','valor_liquido_migrado','aparece_em_situacao_atual_ativo','aparece_em_lotes_exauridos','status_observado','status_esperado_contrato','violacao_lote_origem_ativo','justificativa'], origens)
-    _write_csv(OUT / 'v17_d0_uso_pos_switching_pagamentos.csv', list(usos[0].keys()) if usos else ['lote_origem','data_switching','data_pagamento','descricao_pagamento','valor_pagamento','origem_ocorrencia','dias_apos_switching','violacao_uso_pos_switching','justificativa'], usos)
+    _write_csv(OUT / 'v17_d0_uso_pos_switching_pagamentos.csv', list(usos[0].keys()) if usos else ['lote_origem','data_switching','data_pagamento','descricao_pagamento','valor_pagamento','origem_ocorrencia','dias_apos_switching','status_comparacao_temporal','violacao_uso_pos_switching','justificativa'], usos)
     _write_csv(OUT / 'v17_d0_destinos_switching_materializacao.csv', list(destinos[0].keys()) if destinos else ['lote_origem','lote_destino','produto_destino','data_recebimento','data_aplicacao','valor_liquido_migrado','aparece_no_inventario','aparece_na_situacao_atual','aparece_como_lote_sintetico','materializacao_observada','materializacao_esperada','violacao_destino_nao_materializado','justificativa'], destinos)
     _write_csv(OUT / 'v17_d0_matriz_aderencia_contrato_modelo.csv', list(matriz[0].keys()), matriz)
     _write_csv(OUT / 'v17_d0_resumo.csv', ['metrica', 'valor'], resumo)
