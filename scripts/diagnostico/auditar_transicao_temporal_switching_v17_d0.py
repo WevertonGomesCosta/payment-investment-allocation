@@ -46,6 +46,22 @@ def _parse_float(v: str) -> float:
 def _xlsx_sheets(path: Path) -> dict[str, list[list[str]]]:
     if not path.exists():
         return {}
+    # Preferência V17-D0.2: leitura por openpyxl quando disponível.
+    try:
+        from openpyxl import load_workbook  # type: ignore
+        wb = load_workbook(path, data_only=True)
+        out: dict[str, list[list[str]]] = {}
+        for ws in wb.worksheets:
+            rows: list[list[str]] = []
+            for row in ws.iter_rows(values_only=True):
+                rows.append(['' if cell is None else str(cell) for cell in row])
+            out[ws.title] = rows
+        if out:
+            return out
+    except Exception:
+        # fallback XML nativo
+        pass
+
     ns = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
     with zipfile.ZipFile(path) as z:
         shared = []
@@ -173,6 +189,10 @@ def main() -> int:
     extrato_futuro = sheets.get('Extrato Futuro', [])
 
     switchings = _extract_switchings(switching_sheet)
+    if switching_sheet and len(switching_sheet) > 1 and not switchings:
+        raise RuntimeError(
+            'falha_extracao_switching: aba Switching possui linhas, mas nenhum switching foi extraido'
+        )
     origens = []
     usos = []
     destinos = []
