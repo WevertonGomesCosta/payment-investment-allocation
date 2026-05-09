@@ -104,10 +104,16 @@ def _xlsx_sheets(path: Path) -> dict[str, list[list[str]]]:
                     idx -= 1
                     maxc = max(maxc, idx)
                     t = c.attrib.get('t', '')
-                    v = c.find('m:v', ns)
-                    value = v.text if v is not None and v.text is not None else ''
-                    if t == 's' and value.isdigit():
-                        value = shared[int(value)] if int(value) < len(shared) else ''
+                    value = ''
+                    if t == 'inlineStr':
+                        inline = c.find('m:is', ns)
+                        if inline is not None:
+                            value = ''.join(tn.text or '' for tn in inline.findall('.//m:t', ns))
+                    else:
+                        v = c.find('m:v', ns)
+                        value = v.text if v is not None and v.text is not None else ''
+                        if t == 's' and value.isdigit():
+                            value = shared[int(value)] if int(value) < len(shared) else ''
                     vals[idx] = value
                 line = [''] * (maxc + 1)
                 for i, v in vals.items():
@@ -170,6 +176,8 @@ def _extract_switchings(sheet: list[list[str]]) -> list[Switching]:
         'valor liquido',
         'valor_liquido',
     ])
+    if len(sheet) > 1 and i_dest < 0:
+        raise RuntimeError('falha_schema_switching: coluna de lote destino nao reconhecida')
     out = []
     for r in sheet[1:]:
         origem = r[i_origem] if i_origem >= 0 and i_origem < len(r) else ''
