@@ -1591,6 +1591,114 @@ def _construir_lotes_situacao(
     return lotes_ativos, lotes_exauridos
 
 
+def _construir_origens_migradas_por_switching_auditoria(
+    *,
+    extrato_passado: list[dict[str, Any]],
+    destinos_pos_switching_passivos: list[dict[str, Any]],
+    vinculos_origem_destino_pos_switching: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    origens: dict[str, dict[str, Any]] = {}
+    valores_destino_por_evento: dict[str, float] = {}
+
+    for item in list(destinos_pos_switching_passivos or []):
+        evento = str(item.get('evento_switching_id') or '').strip()
+        if not evento:
+            continue
+        try:
+            valores_destino_por_evento[evento] = float(_round_monetario(item.get('valor_liquido_origem'), 0.0) or 0.0)
+        except Exception:
+            valores_destino_por_evento[evento] = 0.0
+
+    for vinc in list(vinculos_origem_destino_pos_switching or []):
+        lote_origem = str(vinc.get('lote_origem') or '').strip()
+        if not lote_origem:
+            continue
+        item = origens.setdefault(
+            lote_origem,
+            {
+                'lote_origem': lote_origem,
+                'data_switching': '',
+                'status_origem': 'migrado_por_switching',
+                'nao_e_ativo_comum': True,
+                'nao_e_fonte_disponivel_pagamentos': True,
+                'valor_liquido_migrado_total': 0.0,
+                'valor_bruto_sacado_historico': 0.0,
+                'valor_liquido_sacado_historico': 0.0,
+                'quantidade_linhas_extrato_passado': 0,
+                'destinos_vinculados': [],
+            },
+        )
+        data_sw = str(vinc.get('data_switching') or '').strip()
+        if data_sw and (not item['data_switching'] or data_sw < item['data_switching']):
+            item['data_switching'] = data_sw
+        evento_id = str(vinc.get('evento_switching_id') or '').strip()
+        valor_liquido_vinc = vinc.get('valor_liquido_origem')
+        if valor_liquido_vinc in (None, '', 'n/d'):
+            valor_liquido_vinc = valores_destino_por_evento.get(evento_id, 0.0)
+        item['destinos_vinculados'].append(
+            {
+                'evento_switching_id': evento_id,
+                'lote_destino': str(vinc.get('lote_pos_switching') or vinc.get('destino_switching') or '').strip(),
+                'produto_destino': str(vinc.get('produto_destino') or '').strip(),
+                'data_switching': data_sw,
+                'valor_liquido_origem': _round_monetario(valor_liquido_vinc, 0.0),
+                'status_materializacao_passiva': str(vinc.get('status_materializacao_passiva') or '').strip(),
+            }
+        )
+
+    for item in list(destinos_pos_switching_passivos or []):
+        lote_origem = str(item.get('lote_origem') or '').strip()
+        if not lote_origem:
+            continue
+        orig = origens.setdefault(
+            lote_origem,
+            {
+                'lote_origem': lote_origem,
+                'data_switching': '',
+                'status_origem': 'migrado_por_switching',
+                'nao_e_ativo_comum': True,
+                'nao_e_fonte_disponivel_pagamentos': True,
+                'valor_liquido_migrado_total': 0.0,
+                'valor_bruto_sacado_historico': 0.0,
+                'valor_liquido_sacado_historico': 0.0,
+                'quantidade_linhas_extrato_passado': 0,
+                'destinos_vinculados': [],
+            },
+        )
+        orig['valor_liquido_migrado_total'] = _round_monetario(
+            float(orig.get('valor_liquido_migrado_total') or 0.0) + float(_round_monetario(item.get('valor_liquido_origem'), 0.0) or 0.0),
+            0.0,
+        )
+        data_sw = str(item.get('data_switching') or '').strip()
+        if data_sw and (not orig['data_switching'] or data_sw < orig['data_switching']):
+            orig['data_switching'] = data_sw
+
+    for linha in list(extrato_passado or []):
+        lote_raw = linha.get('Lotes usados') or linha.get('Lote') or ''
+        lotes_usados = _split_fontes(lote_raw)
+        if not lotes_usados:
+            lotes_usados = [str(lote_raw).strip()] if str(lote_raw).strip() else []
+        for lote in lotes_usados:
+            if lote not in origens:
+                continue
+            origens[lote]['quantidade_linhas_extrato_passado'] = int(origens[lote].get('quantidade_linhas_extrato_passado') or 0) + 1
+            bruto = _round_monetario(linha.get('Bruto'), 0.0)
+            liquido = _round_monetario(linha.get('Líquido'), 0.0)
+            origens[lote]['valor_bruto_sacado_historico'] = _round_monetario(float(origens[lote].get('valor_bruto_sacado_historico') or 0.0) + float(bruto or 0.0), 0.0)
+            origens[lote]['valor_liquido_sacado_historico'] = _round_monetario(float(origens[lote].get('valor_liquido_sacado_historico') or 0.0) + float(liquido or 0.0), 0.0)
+
+    itens = sorted(origens.values(), key=lambda x: str(x.get('lote_origem') or ''))
+    reconciliacao = {
+        'origens_migradas_por_switching_total': len(itens),
+        'valor_liquido_migrado_total': _round_monetario(sum(float(x.get('valor_liquido_migrado_total') or 0.0) for x in itens), 0.0),
+        'valor_bruto_sacado_historico_total': _round_monetario(sum(float(x.get('valor_bruto_sacado_historico') or 0.0) for x in itens), 0.0),
+        'valor_liquido_sacado_historico_total': _round_monetario(sum(float(x.get('valor_liquido_sacado_historico') or 0.0) for x in itens), 0.0),
+        'observacao': 'Historico sacado das origens migradas e auditavel, nao representa saldo atual disponivel nem ativo comum.',
+    }
+    return itens, reconciliacao
+
+
+
 def _construir_recebidos_atuais(contexto: Any) -> list[dict[str, Any]]:
     recebidos = getattr(contexto, 'recebidos_auditaveis', None)
     quadro = getattr(recebidos, 'quadro_recebidos_auditaveis', None) if recebidos is not None else None
@@ -1658,6 +1766,11 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     destinos_pos_switching_passivos = list(ledger_result.get('destinos_pos_switching_materializados_passivos', []))
     vinculos_origem_destino_pos_switching = list(ledger_result.get('vinculos_origem_destino_pos_switching', []))
     lotes_ativos, lotes_exauridos = _construir_lotes_situacao(contexto, destinos_pos_switching_passivos)
+    origens_migradas_por_switching, reconciliacao_origens_migradas = _construir_origens_migradas_por_switching_auditoria(
+        extrato_passado=extrato_passado,
+        destinos_pos_switching_passivos=destinos_pos_switching_passivos,
+        vinculos_origem_destino_pos_switching=vinculos_origem_destino_pos_switching,
+    )
     recebidos_atuais = _construir_recebidos_atuais(contexto)
     eventos_ledger = list(ledger_result.get('eventos', []))
     fifo_candidatos_avaliados = list(ledger_result.get('fifo_candidatos_avaliados', []))
@@ -1708,6 +1821,9 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'destinos_pos_switching_materializados_passivos_total': int(ledger_result.get('destinos_pos_switching_materializados_passivos_total', len(destinos_pos_switching_passivos))),
         'vinculos_origem_destino_pos_switching': vinculos_origem_destino_pos_switching,
         'vinculos_origem_destino_pos_switching_total': int(ledger_result.get('vinculos_origem_destino_pos_switching_total', len(vinculos_origem_destino_pos_switching))),
+        'origens_migradas_por_switching': origens_migradas_por_switching,
+        'origens_migradas_por_switching_total': len(origens_migradas_por_switching),
+        'reconciliacao_patrimonial_origens_migradas': reconciliacao_origens_migradas,
         **(_PRE_INVARIANTE_EXTRATO_FUTURO or {}),
         **(_SOMBRA_DIVERGENCIAS_LEDGER or {}),
     }
