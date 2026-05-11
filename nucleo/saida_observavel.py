@@ -23,6 +23,18 @@ COLS_LOTES_VALORES_CURTAS = [
     'Rend. líq.',
 ]
 
+COLS_ORIGENS_MIGRADAS_SWITCHING = [
+    'Lote origem',
+    'Status',
+    'Valor migrado',
+    'Bruto sac. hist.',
+    'Líq. sac. hist.',
+    'Linhas extrato',
+    'Destinos',
+    'Não ativo',
+    'Não fonte',
+]
+
 COLS_RECEBIDOS_AUDITAVEIS = [
     'Recebido',
     'Lote origem',
@@ -156,6 +168,38 @@ def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str) -> list[
     ]
 
 
+def construir_linhas_origens_migradas_por_switching(saida) -> list[dict[str, Any]]:
+    auditoria = dict(getattr(saida, 'auditoria', {}) or {})
+    origens = list(auditoria.get('origens_migradas_por_switching') or [])
+    linhas: list[dict[str, Any]] = []
+
+    for item in origens:
+        destinos = list(item.get('destinos_vinculados') or [])
+        linhas.append({
+            'Lote origem': item.get('lote_origem'),
+            'Status': item.get('status_origem') or 'migrado_por_switching',
+            'Valor migrado': round(para_float(item.get('valor_liquido_migrado_total')), 2),
+            'Bruto sac. hist.': round(para_float(item.get('valor_bruto_sacado_historico')), 2),
+            'Líq. sac. hist.': round(para_float(item.get('valor_liquido_sacado_historico')), 2),
+            'Linhas extrato': int(item.get('quantidade_linhas_extrato_passado') or 0),
+            'Destinos': len(destinos),
+            'Não ativo': bool(item.get('nao_e_ativo_comum')),
+            'Não fonte': bool(item.get('nao_e_fonte_disponivel_pagamentos')),
+        })
+
+    return linhas
+
+
+def _reconciliacao_origens_migradas(saida) -> dict[str, float]:
+    auditoria = dict(getattr(saida, 'auditoria', {}) or {})
+    rec = dict(auditoria.get('reconciliacao_patrimonial_origens_migradas') or {})
+    return {
+        'valor_liquido_migrado_total': round(para_float(rec.get('valor_liquido_migrado_total')), 2),
+        'valor_bruto_sacado_historico_total': round(para_float(rec.get('valor_bruto_sacado_historico_total')), 2),
+        'valor_liquido_sacado_historico_total': round(para_float(rec.get('valor_liquido_sacado_historico_total')), 2),
+    }
+
+
 def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, Any]]:
     linhas = (
         construir_linhas_lotes_consolidados(contexto, saida, tipo='exauridos')
@@ -171,6 +215,15 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, A
     patrimonio_liquido_atual = round(sum(para_float(item.get('Patr. líq.')) for item in linhas), 2)
     rendimento_liquido_atual = round(patrimonio_liquido_atual - valor_original_total, 2)
 
+    rec_origens = _reconciliacao_origens_migradas(saida)
+    valor_liquido_migrado_pos_switching = rec_origens['valor_liquido_migrado_total']
+    valor_bruto_sacado_origens_migradas = rec_origens['valor_bruto_sacado_historico_total']
+    valor_liquido_sacado_origens_migradas = rec_origens['valor_liquido_sacado_historico_total']
+    patrimonio_liquido_reconciliado = round(
+        patrimonio_liquido_atual + valor_liquido_sacado_origens_migradas,
+        2,
+    )
+
     return [
         {'Métrica': 'Valor original total', 'Valor': valor_original_total},
         {'Métrica': 'Valor total investido em carteira', 'Valor': valor_total_investido_em_carteira},
@@ -180,6 +233,10 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, A
         {'Métrica': 'Valor líquido atual', 'Valor': valor_liquido_atual},
         {'Métrica': 'Patrimônio líquido atual', 'Valor': patrimonio_liquido_atual},
         {'Métrica': 'Rendimento líquido atual', 'Valor': rendimento_liquido_atual},
+        {'Métrica': 'Valor líquido migrado para destinos pós-switching', 'Valor': valor_liquido_migrado_pos_switching},
+        {'Métrica': 'Valor bruto sacado — origens migradas', 'Valor': valor_bruto_sacado_origens_migradas},
+        {'Métrica': 'Valor líquido sacado — origens migradas', 'Valor': valor_liquido_sacado_origens_migradas},
+        {'Métrica': 'Patrimônio líquido atual — reconciliado com origens migradas', 'Valor': patrimonio_liquido_reconciliado},
     ]
 
 
@@ -204,6 +261,11 @@ def construir_blocos_situacao_atual(contexto, saida) -> list[dict[str, Any]]:
             'titulo': 'Lotes ativos — valores e patrimônio',
             'headers': COLS_LOTES_VALORES_CURTAS,
             'linhas': construir_linhas_lotes_valores_curta(contexto, saida, tipo='ativos'),
+        },
+        {
+            'titulo': 'Origens migradas por switching — reconciliação patrimonial',
+            'headers': COLS_ORIGENS_MIGRADAS_SWITCHING,
+            'linhas': construir_linhas_origens_migradas_por_switching(saida),
         },
         {
             'titulo': 'Patrimônio total dos lotes',
