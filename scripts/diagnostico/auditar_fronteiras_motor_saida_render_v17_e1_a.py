@@ -68,7 +68,12 @@ def read_layer_map() -> dict[str, str]:
         r = csv.DictReader(f)
         for row in r:
             arq = row.get("arquivo") or row.get("file") or ""
-            camada = row.get("camada_7e") or row.get("camada") or "indefinido"
+            camada = (
+                row.get("camada_7e_inferida")
+                or row.get("camada_7e")
+                or row.get("camada")
+                or "indefinido"
+            )
             if arq:
                 mapping[arq] = camada
     return mapping
@@ -119,6 +124,7 @@ def main() -> None:
 
     fronteiras, funcoes, pontes, fluxo, riscos = [], [], [], [], []
     ordem_fluxo = 1
+    principal_audit = next((a for a in audits if a.path == "aplicacao/principal.py"), None)
     for a in audits:
         tm, ts, tr, td, te = count_terms(a.text, ESTADO), count_terms(a.text, SAIDA), count_terms(a.text, RENDER), count_terms(a.text, DECISAO), count_terms(a.text, ESTADO)
         role = infer_role(a.path, tm, ts, tr)
@@ -135,11 +141,22 @@ def main() -> None:
             if d>0 and role in {"saida_canonica","construtor_saida"}: obs = "responsabilidade_mista"
             funcoes.append({"arquivo":a.path,"funcao_ou_classe":n,"linha_inicio":lin,"papel_esperado":role,"papel_observado":obs,"termos_detectados":f"decisao={d};estado={e};saida={s};render={r}","pode_decidir":"sim" if d>0 else "nao","pode_alterar_estado":"sim" if e>0 else "nao","pode_materializar_switching":"sim" if "switching" in seg else "nao","pode_recalcular_saldo":"sim" if "saldo" in seg else "nao","pode_renderizar":"sim" if r>0 else "nao","risco_fronteira":"alto" if obs=="responsabilidade_mista" else "medio" if d>0 else "baixo","acao_recomendada":"indefinido_requer_auditoria" if obs=="responsabilidade_mista" else "manter_auditar","justificativa":"Classificação heurística com viés para falso positivo controlado."})
 
-        if a.path == "aplicacao/principal.py":
-            calls = ["contexto","saida_canonica","console","planilha"]
-            for c in calls:
-                fluxo.append({"ordem":ordem_fluxo,"arquivo":a.path,"funcao_ou_chamada":c,"camada_7e":layer.get(a.path,"indefinido"),"tipo_fluxo":"inferido_estatico" if c in a.text else "indeterminado","observacao":"Mapeamento de fluxo principal para contexto→saída→renderizações.","risco":"medio" if c not in a.text else "baixo"})
-                ordem_fluxo += 1
+    principal_text = principal_audit.text if principal_audit else ""
+    principal_path = principal_audit.path if principal_audit else "aplicacao/principal.py"
+    calls = ["contexto", "saida_canonica", "console", "planilha"]
+    for c in calls:
+        fluxo.append(
+            {
+                "ordem": ordem_fluxo,
+                "arquivo": principal_path,
+                "funcao_ou_chamada": c,
+                "camada_7e": layer.get(principal_path, "indefinido"),
+                "tipo_fluxo": "inferido_estatico" if c in principal_text else "indeterminado",
+                "observacao": "Mapeamento de fluxo principal para contexto→saída→renderizações.",
+                "risco": "medio" if c not in principal_text else "baixo",
+            }
+        )
+        ordem_fluxo += 1
 
     for f in fronteiras:
         if f["tipo_risco_principal"] in {"responsabilidade_mista","renderizacao_com_regra_semantica"}:
