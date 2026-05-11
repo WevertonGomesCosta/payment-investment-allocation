@@ -89,6 +89,35 @@ def _mapa_switchings_aba_operacional(contexto: Any) -> dict[str, dict[str, Any]]
     return mapa
 
 
+def _eventos_switching_aba_operacional(contexto: Any) -> list[dict[str, Any]]:
+    pacote_planilha = getattr(contexto, 'pacote_planilha', None) if contexto is not None else None
+    quadros_brutos = getattr(pacote_planilha, 'quadros_brutos', {}) if pacote_planilha is not None else {}
+    df = quadros_brutos.get('Switching') if isinstance(quadros_brutos, dict) else None
+    if not isinstance(df, pd.DataFrame):
+        return []
+    eventos: list[dict[str, Any]] = []
+    for i, row in df.iterrows():
+        r = row.to_dict()
+        lote_origem = _txt(r.get('Lote (ID) Antes') or r.get('lote_origem') or r.get('lote_id'))
+        if not lote_origem:
+            continue
+        data_sw = _primeira_data_valida_em_ordem(r, ['Data Aplicação', 'Data', 'Data Recebimento'])
+        if _normalizar_data_comparavel(data_sw) is None:
+            continue
+        lote_destino = _txt(r.get('Lote (ID) Depois') or r.get('lote_pos_switching'))
+        eventos.append({
+            'evento_switching_id': _txt(r.get('evento_switching_id')) or f"swop::{_normalizar_data_comparavel(data_sw)}::{lote_origem}::{lote_destino or i}",
+            'lote_origem': lote_origem,
+            'data_switching': _normalizar_data_comparavel(data_sw),
+            'produto_destino': _txt(r.get('Investimento') or r.get('produto_destino')),
+            'valor_liquido_origem': _round(r.get('Valor Líquido Migrado') or r.get('valor_liquido_origem')),
+            'lote_pos_switching': lote_destino or f"lote_pos_switching_audit::{lote_origem}::{i}",
+            'status_materializacao_passiva': 'materializado_passivo',
+            'origem_mapa_migracao': 'aba_switching_operacional',
+        })
+    return eventos
+
+
 def _propagar_migracao_para_estado_lotes(
     estado_lotes: dict[str, dict[str, Any]],
     lote_origem: Any,
@@ -590,6 +619,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         ):
             mapa_global_sw[lo] = meta
     mapa_sw_operacional = _mapa_switchings_aba_operacional(contexto)
+    eventos_sw_operacional = _eventos_switching_aba_operacional(contexto)
     for lo, meta in mapa_sw_operacional.items():
         atual = mapa_global_sw.get(lo)
         if atual is None or (
@@ -603,6 +633,18 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'v17_f0a_status_ok_sem_cobertura_corrigidos': 0,
         'v17_f0a_eventos_intradia_migracao_bloqueados': 0,
     }
+    destinos_pos_switching_passivos = list(eventos_sw_operacional)
+    vinculos_origem_destino_passivos = [
+        {
+            'evento_switching_id': e.get('evento_switching_id'),
+            'lote_origem': e.get('lote_origem'),
+            'lote_pos_switching': e.get('lote_pos_switching'),
+            'produto_destino': e.get('produto_destino'),
+            'data_switching': e.get('data_switching'),
+            'status_materializacao_passiva': e.get('status_materializacao_passiva'),
+        }
+        for e in destinos_pos_switching_passivos
+    ]
     for lo, meta_sw in mapa_global_sw.items():
         _propagar_migracao_para_estado_lotes(
             estado_lotes=estado_lotes,
@@ -2651,6 +2693,11 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d31f,
         **d32a,
         **v17_f0a,
+        "switchings_promovidos_ledger": len(destinos_pos_switching_passivos),
+        "destinos_pos_switching_materializados_passivos": destinos_pos_switching_passivos,
+        "destinos_pos_switching_materializados_passivos_total": len(destinos_pos_switching_passivos),
+        "vinculos_origem_destino_pos_switching": vinculos_origem_destino_passivos,
+        "vinculos_origem_destino_pos_switching_total": len(vinculos_origem_destino_passivos),
         **saldo_temporal,
         "d3b_lotes_detalhe": d3b_lotes_detalhe,
         "d3c_fontes_saneadas": d3c_fontes_saneadas,
