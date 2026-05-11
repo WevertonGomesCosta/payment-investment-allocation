@@ -87,13 +87,13 @@
     "2026-05-07": 1.000534
   },
   "taxa_projecao": 0.0,
-  "data_atualizacao": "2026-05-09",
+  "data_atualizacao": "2026-05-11",
   "meta": {
     "fonte": "bcb_online",
     "data_inicial": "2026-01-01",
-    "data_final": "2026-05-09",
+    "data_final": "2026-05-11",
     "taxa_projecao": 0.0,
-    "data_atualizacao": "2026-05-09"
+    "data_atualizacao": "2026-05-11"
   },
   "registros": [
     {
