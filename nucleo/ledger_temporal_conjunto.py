@@ -32,6 +32,14 @@ def _eh_nd(v: Any) -> bool:
     return _norm(v) in {'', 'n/d', 'nd', 'não determinado', 'nao determinado', 'none'}
 
 
+def _extrair_lotes_compostos(v: Any) -> list[str]:
+    txt = _txt(v)
+    if not txt:
+        return []
+    lotes = [_txt(p) for p in txt.split('+')]
+    return [x for x in lotes if x and not _eh_nd(x)]
+
+
 
 
 
@@ -162,7 +170,7 @@ def _inferir_pacote(row: dict[str, Any]) -> str:
 
 
 def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]:
-    mapa: dict[str, dict[str, Any]] = {}
+    mapa_switchings: dict[str, dict[str, Any]] = {}
     shadow = getattr(contexto, 'switching_economico_shadow', None) if contexto is not None else None
     plano = getattr(shadow, 'plano_shadow', None) if shadow is not None else None
     if isinstance(plano, pd.DataFrame) and not plano.empty:
@@ -179,10 +187,13 @@ def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]
                     lote_obj = l
                     break
             data_sw = None
-            if lote_obj is not None:
+            data_sw_exp = row.get('data_operacional') or row.get('data_switching') or row.get('data_switching_operacional') or row.get('data_horizonte') or row.get('data_referencia')
+            if data_sw_exp is not None and _normalizar_data_comparavel(data_sw_exp) is not None:
+                data_sw = data_sw_exp
+            elif lote_obj is not None:
                 carteira = getattr(contexto, 'carteira_canonica', None)
-                mapa = getattr(carteira, 'mapa_produtos', {}) if carteira is not None else {}
-                meta_prod = ((mapa.get('by_key') or {}).get(getattr(lote_obj, 'produto_key', None)) or {}) if isinstance(mapa, dict) else {}
+                mapa_produtos = getattr(carteira, 'mapa_produtos', {}) if carteira is not None else {}
+                meta_prod = ((mapa_produtos.get('by_key') or {}).get(getattr(lote_obj, 'produto_key', None)) or {}) if isinstance(mapa_produtos, dict) else {}
                 prazo = int(meta_prod.get('prazo_dias') or 0)
                 datas_candidatas = []
                 if prazo > 0:
@@ -197,8 +208,8 @@ def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]
                     except Exception:
                         data_sw = base
             if data_sw is None:
-                data_sw = row.get('data_horizonte') or row.get('data_referencia')
-            mapa[lote] = {
+                data_sw = data_sw_exp
+            evento_sw = {
                 'lote_origem': lote,
                 'data_switching': data_sw,
                 'produto_destino': _txt(row.get('produto_destino_nome') or row.get('produto_destino_key')),
@@ -207,7 +218,15 @@ def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]
                 'origem_mapa_migracao': 'contexto.switching_economico_shadow.plano_shadow::data_operacional',
                 'lote_pos_switching': '',
             }
-    return mapa
+            atual = mapa_switchings.get(lote)
+            if atual is None:
+                mapa_switchings[lote] = evento_sw
+            else:
+                data_atual = _normalizar_data_comparavel(atual.get('data_switching'))
+                data_nova = _normalizar_data_comparavel(evento_sw.get('data_switching'))
+                if data_atual is None or (data_nova is not None and data_nova > data_atual):
+                    mapa_switchings[lote] = evento_sw
+    return mapa_switchings
 
 
 
@@ -237,6 +256,21 @@ def _normalizar_evento_operacional(ev: dict[str, Any]) -> dict[str, Any]:
         ev['cobertura_integral'] = 'não'
         for k in ['saldo_antes','bruto','imposto','liquido','consumo','saldo_depois']:
             ev[k] = ''
+    val_pag = _round(ev.get('fifo_valor_pagamento'))
+    liq = _round(ev.get('liquido'))
+    if (
+        _norm(ev.get('status')) == 'ok'
+        and _norm(ev.get('cobertura_integral')) == 'não'
+        and val_pag != ''
+        and liq != ''
+        and float(liq) + 0.01 < float(val_pag)
+    ):
+        ev['status'] = 'sem_saldo_temporal_auditavel'
+        ev['motivo_bloqueio'] = _txt(ev.get('motivo_bloqueio')) or 'status_ok_sem_cobertura_corrigido_v17_f0a'
+        ev['cobertura_integral'] = 'não'
+        for k in ['saldo_antes','bruto','imposto','liquido','consumo','saldo_depois']:
+            ev[k] = ''
+        ev['_v17_f0a_status_ok_sem_cobertura_corrigido'] = True
     return ev
 
 
@@ -440,6 +474,12 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             }
 
     mapa_global_sw = _mapa_global_switchings_contexto(contexto)
+    v17_f0a = {
+        'v17_f0a_origens_migradas_detectadas': len(mapa_global_sw),
+        'v17_f0a_bloqueios_origem_migrada': 0,
+        'v17_f0a_status_ok_sem_cobertura_corrigidos': 0,
+        'v17_f0a_eventos_intradia_migracao_bloqueados': 0,
+    }
     for lo, meta_sw in mapa_global_sw.items():
         if lo in estado_lotes:
             estado_lotes[lo]['migrado_em'] = meta_sw.get('data_switching')
@@ -1065,16 +1105,31 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             etapa_descarte_fonte = ''
             motivo_descarte_fonte = ''
             origem_motivo_descarte = ''
-            if not _eh_nd(lote_op) and lote_op in estado_lotes:
-                motivo_migracao_lote = _motivo_bloqueio_migracao(d.get('data_pagamento'), estado_lotes.get(lote_op, {}).get('migrado_em'), pacote)
-                if motivo_migracao_lote:
+            lotes_operacionais = _extrair_lotes_compostos(lote_op)
+            lotes_migrados_bloqueados: list[str] = []
+            motivo_migracao_lote = ''
+            for lote_item in lotes_operacionais:
+                if lote_item not in estado_lotes:
+                    continue
+                motivo_item = _motivo_bloqueio_migracao(d.get('data_pagamento'), estado_lotes.get(lote_item, {}).get('migrado_em'), pacote)
+                if motivo_item:
+                    lotes_migrados_bloqueados.append(lote_item)
+                    if not motivo_migracao_lote:
+                        motivo_migracao_lote = motivo_item
+            if motivo_migracao_lote:
                     lote_op = 'não determinado'
                     cobertura = 'não'
                     status = 'sem_fonte_auditavel'
                     motivo = motivo_migracao_lote
+                    v17_f0a['v17_f0a_bloqueios_origem_migrada'] += len(lotes_migrados_bloqueados) if lotes_migrados_bloqueados else 1
+                    if motivo_migracao_lote in {'bloqueado_por_migracao_intradia_switch_then_pay', 'bloqueado_por_migracao_intradia_precedencia_ambigua'}:
+                        v17_f0a['v17_f0a_eventos_intradia_migracao_bloqueados'] += 1
                     etapa_descarte_fonte = 'selecao_fonte_operacional'
                     motivo_descarte_fonte = motivo_migracao_lote
                     origem_motivo_descarte = 'registrada_pipeline'
+                    if not sw_mat and not necessita_sw:
+                        motivo = 'fonte_pos_switching_nao_materializada'
+                        motivo_descarte_fonte = 'fonte_pos_switching_nao_materializada'
             if lote_op=='não determinado':
                 cobertura='não'
                 if status in {'','ok','não determinado'}: status='sem_fonte_auditavel'
@@ -1277,6 +1332,38 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 etapa_descarte_fonte = etapa_descarte_fonte or 'selecao_fonte_operacional'
                 motivo_descarte_fonte = motivo_descarte_fonte or motivo or status or 'sem_fonte_auditavel'
                 origem_motivo_descarte = origem_motivo_descarte or ('registrada_pipeline' if motivo else 'inferida')
+            lotes_pos_ativacao = _extrair_lotes_compostos(lote_op)
+            motivo_migracao_final = ''
+            lotes_migrados_final: list[str] = []
+            for lote_item in lotes_pos_ativacao:
+                if lote_item not in estado_lotes:
+                    continue
+                motivo_item = _motivo_bloqueio_migracao(d.get('data_pagamento'), estado_lotes.get(lote_item, {}).get('migrado_em'), pacote)
+                if motivo_item:
+                    lotes_migrados_final.append(lote_item)
+                    if not motivo_migracao_final:
+                        motivo_migracao_final = motivo_item
+            if motivo_migracao_final:
+                lote_op = 'não determinado'
+                cobertura = 'não'
+                status = 'sem_fonte_auditavel'
+                motivo = motivo_migracao_final
+                sal_ant=br=imp=liq=cons=sal_dep=''
+                fontes_usadas = []
+                valor_pago_por_fonte = {}
+                saldo_antes_por_fonte = {}
+                consumo_por_fonte = {}
+                saldo_depois_por_fonte = {}
+                residual_por_fonte = {}
+                residual_positivo_por_fonte = {}
+                etapa_descarte_fonte = 'selecao_fonte_operacional'
+                origem_motivo_descarte = 'registrada_pipeline'
+                if not sw_mat and not necessita_sw:
+                    motivo = 'fonte_pos_switching_nao_materializada'
+                motivo_descarte_fonte = motivo
+                v17_f0a['v17_f0a_bloqueios_origem_migrada'] += len(lotes_migrados_final) if lotes_migrados_final else 1
+                if motivo_migracao_final in {'bloqueado_por_migracao_intradia_switch_then_pay', 'bloqueado_por_migracao_intradia_precedencia_ambigua'}:
+                    v17_f0a['v17_f0a_eventos_intradia_migracao_bloqueados'] += 1
 
         valor_pag_fifo = float(val or 0.0) if 'val' in locals() and val != '' else float(_round(d.get('valor_pagamento')) or 0.0)
         lote_sugerido_original = _txt(d.get('lote_recomendado_consumivel') or d.get('lote_recomendado') or d.get('lote_id_escolhido') or d.get('fonte_origem_id') or central.get('lote_final_central'))
@@ -1343,7 +1430,11 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         elif pid in plano_d2b1_por_pagamento:
             d2b1['d2b1_residual_pagamentos_falhos'] += 1
             d2b1['d2b1_residual_falhas_por_evento_final'] += 1
-        eventos.append(_normalizar_evento_operacional(evento))
+        evento = _normalizar_evento_operacional(evento)
+        if bool(evento.get('_v17_f0a_status_ok_sem_cobertura_corrigido')):
+            v17_f0a['v17_f0a_status_ok_sem_cobertura_corrigidos'] += 1
+            evento.pop('_v17_f0a_status_ok_sem_cobertura_corrigido', None)
+        eventos.append(evento)
     d2b1['d2b1_residual_falhas_por_mapeamento_despesa_id'] = len(planned_ids_d2b1 - pagamentos_planejados_encontrados)
 
     for evento in eventos:
@@ -2410,6 +2501,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         **d31e,
         **d31f,
         **d32a,
+        **v17_f0a,
         **saldo_temporal,
         "d3b_lotes_detalhe": d3b_lotes_detalhe,
         "d3c_fontes_saneadas": d3c_fontes_saneadas,
