@@ -23,11 +23,13 @@ from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_observavel import (
     construir_amostras_pagamentos_operacionais,
-    COLS_LOTES_ID_CURTAS,
+    COLS_LOTES_EXAURIDOS_ID_CURTAS,
+    COLS_LOTES_ATIVOS_ID_CURTAS,
     COLS_LOTES_VALORES_CURTAS,
     construir_linhas_lotes_id_curta,
     construir_linhas_lotes_valores_curta,
     construir_resumo_patrimonio_total_lotes,
+    construir_switchings_observaveis,
 )
 
 
@@ -120,7 +122,7 @@ def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> Non
 def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) -> None:
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
-    linhas = list(getattr(saida_canonica, 'switchings', []) or [])[:10]
+    linhas = construir_switchings_observaveis(contexto_baseline, saida_canonica)[:10]
     shadow = getattr(contexto_baseline, 'switching_economico_shadow', None)
     auditoria_shadow = getattr(shadow, 'auditoria', {}) if shadow is not None else {}
     resumo_shadow = dict(auditoria_shadow.get('resumo', {}) or {})
@@ -183,7 +185,7 @@ def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo
     exauridos_val = construir_linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='exauridos')
     if exauridos_id:
         print('  identificação:')
-        _imprimir_tabela(COLS_LOTES_ID_CURTAS, exauridos_id, limite=None)
+        _imprimir_tabela(COLS_LOTES_EXAURIDOS_ID_CURTAS, exauridos_id, limite=None)
         print('\n  valores e patrimônio:')
         _imprimir_tabela(COLS_LOTES_VALORES_CURTAS, exauridos_val, limite=None)
     else:
@@ -194,7 +196,7 @@ def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo
     ativos_val = construir_linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='ativos')
     if ativos_id:
         print('  identificação:')
-        _imprimir_tabela(COLS_LOTES_ID_CURTAS, ativos_id, limite=None)
+        _imprimir_tabela(COLS_LOTES_ATIVOS_ID_CURTAS, ativos_id, limite=None)
         print('\n  valores e patrimônio:')
         _imprimir_tabela(COLS_LOTES_VALORES_CURTAS, ativos_val, limite=None)
     else:

@@ -21,7 +21,7 @@ from nucleo.identidade_baseline import (
     nome_relatorio_operacional,
 )
 from nucleo.saida_canonica import construir_saida_canonica
-from nucleo.saida_observavel import construir_blocos_situacao_atual
+from nucleo.saida_observavel import construir_blocos_situacao_atual, construir_switchings_observaveis
 
 
 DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
@@ -364,7 +364,8 @@ def main(*, contexto=None, saida=None) -> Path:
 
     ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, "switching"))
     headers_switching = _cabecalhos_operacionais(contexto, "switching")
-    _apply_table_style(ws_switching, headers_switching, _rows(saida.switchings, headers_switching), freeze=True)
+    switchings_observaveis = construir_switchings_observaveis(contexto, saida)
+    _apply_table_style(ws_switching, headers_switching, _rows(switchings_observaveis, headers_switching), freeze=True)
 
     if _usar_abas_diagnosticas(contexto):
         ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
