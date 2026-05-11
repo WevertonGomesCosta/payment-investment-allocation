@@ -89,6 +89,29 @@ def _mapa_switchings_aba_operacional(contexto: Any) -> dict[str, dict[str, Any]]
     return mapa
 
 
+def _propagar_migracao_para_estado_lotes(
+    estado_lotes: dict[str, dict[str, Any]],
+    lote_origem: Any,
+    data_switching: Any,
+    produto_destino: Any,
+    lote_pos_switching: Any,
+    status_switching: Any,
+    origem_mapa_migracao: Any,
+) -> None:
+    componentes = _extrair_lotes_compostos(lote_origem)
+    if not componentes and _txt(lote_origem):
+        componentes = [_txt(lote_origem)]
+    data_norm = _normalizar_data_comparavel(data_switching)
+    for comp in componentes:
+        if comp not in estado_lotes:
+            continue
+        estado_lotes[comp]['migrado_em'] = data_norm
+        estado_lotes[comp]['destino_switching'] = produto_destino
+        estado_lotes[comp]['lote_pos_switching'] = lote_pos_switching
+        estado_lotes[comp]['status_switching'] = status_switching
+        estado_lotes[comp]['origem_mapa_migracao'] = origem_mapa_migracao
+
+
 
 
 
@@ -581,21 +604,26 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'v17_f0a_eventos_intradia_migracao_bloqueados': 0,
     }
     for lo, meta_sw in mapa_global_sw.items():
-        if lo in estado_lotes:
-            estado_lotes[lo]['migrado_em'] = _normalizar_data_comparavel(meta_sw.get('data_switching'))
-            estado_lotes[lo]['destino_switching'] = meta_sw.get('produto_destino')
-            estado_lotes[lo]['lote_pos_switching'] = meta_sw.get('lote_pos_switching')
-            estado_lotes[lo]['status_switching'] = meta_sw.get('status_switching')
-            estado_lotes[lo]['origem_mapa_migracao'] = meta_sw.get('origem_mapa_migracao')
+        _propagar_migracao_para_estado_lotes(
+            estado_lotes=estado_lotes,
+            lote_origem=lo,
+            data_switching=meta_sw.get('data_switching'),
+            produto_destino=meta_sw.get('produto_destino'),
+            lote_pos_switching=meta_sw.get('lote_pos_switching'),
+            status_switching=meta_sw.get('status_switching'),
+            origem_mapa_migracao=meta_sw.get('origem_mapa_migracao'),
+        )
 
     for ev in materializados.values():
-        lo = str(ev.get('lote_origem') or '')
-        if lo in estado_lotes:
-            estado_lotes[lo]['migrado_em'] = _normalizar_data_comparavel(ev.get('data_switching'))
-            estado_lotes[lo]['destino_switching'] = ev.get('produto_destino')
-            estado_lotes[lo]['lote_pos_switching'] = ev.get('lote_pos_switching')
-            estado_lotes[lo]['status_switching'] = ev.get('estado')
-            estado_lotes[lo]['origem_mapa_migracao'] = 'materializacao_no_quadro_futuro'
+        _propagar_migracao_para_estado_lotes(
+            estado_lotes=estado_lotes,
+            lote_origem=ev.get('lote_origem'),
+            data_switching=ev.get('data_switching'),
+            produto_destino=ev.get('produto_destino'),
+            lote_pos_switching=ev.get('lote_pos_switching'),
+            status_switching=ev.get('estado'),
+            origem_mapa_migracao='materializacao_no_quadro_futuro',
+        )
 
     # shadow diagnóstico pay_only_diario_v1 (sem impacto funcional)
     shadow_por_data: list[dict[str, Any]] = []
