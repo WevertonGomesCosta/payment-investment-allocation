@@ -107,16 +107,26 @@ def count_terms(text: str, terms: set[str]) -> int:
 
 def infer_role(path: str, t_m: int, t_s: int, t_r: int) -> str:
     p = path.lower()
-    if "diagnostico" in p: return "diagnostico"
-    if "principal.py" in p and p.startswith("aplicacao/"): return "orquestrador"
-    if "ponte_" in p: return "ponte_saida"
-    if "planilha" in p: return "render_planilha"
-    if "console" in p: return "render_console"
-    if "construir_saida" in p: return "construtor_saida"
-    if "saida_canonica" in p: return "saida_canonica"
-    if "ledger" in p: return "ledger_estado"
-    if "motor" in p or "planejador" in p or "alocador" in p or "recomputacao" in p: return "motor_temporal"
-    if t_m > t_s and t_m >= t_r: return "motor_temporal"
+    if "diagnostico" in p:
+        return "diagnostico"
+    if p.startswith("aplicacao/console/") or "console" in p:
+        return "render_console"
+    if p == "aplicacao/principal.py":
+        return "orquestrador"
+    if "ponte_" in p:
+        return "ponte_saida"
+    if "planilha" in p:
+        return "render_planilha"
+    if "construir_saida" in p:
+        return "construtor_saida"
+    if "saida_canonica" in p:
+        return "saida_canonica"
+    if "ledger" in p:
+        return "ledger_estado"
+    if "motor" in p or "planejador" in p or "alocador" in p or "recomputacao" in p:
+        return "motor_temporal"
+    if t_m > t_s and t_m >= t_r:
+        return "motor_temporal"
     return "indefinido"
 
 
