@@ -55,6 +55,10 @@ class FileAudit:
     funcs: list[tuple[str,int,str]]
 
 
+def norm_path_key(value: str) -> str:
+    return str(value or "").replace("\\", "/")
+
+
 def must_exist_v17_e0() -> None:
     missing = [f for f in REQUIRED_V17_E0 if not (V17_E0_DIR / f).exists()]
     if missing:
@@ -67,7 +71,7 @@ def read_layer_map() -> dict[str, str]:
     with p.open(encoding="utf-8", newline="") as f:
         r = csv.DictReader(f)
         for row in r:
-            arq = row.get("arquivo") or row.get("file") or ""
+            arq = norm_path_key(row.get("arquivo") or row.get("file") or "")
             camada = (
                 row.get("camada_7e_inferida")
                 or row.get("camada_7e")
@@ -94,7 +98,7 @@ def extract(path: Path) -> FileAudit:
         elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             seg = ast.get_source_segment(txt, n) or ""
             funcs.append((n.name, n.lineno, seg.lower()))
-    return FileAudit(str(path.relative_to(ROOT)), txt.lower(), sorted(set(imports)), funcs)
+    return FileAudit(str(path.relative_to(ROOT).as_posix()), txt.lower(), sorted(set(imports)), funcs)
 
 
 def count_terms(text: str, terms: set[str]) -> int:
@@ -132,17 +136,17 @@ def main() -> None:
         risk = "alto" if mixed else "medio" if (td>0 and role in {"saida_canonica","construtor_saida","render_console","render_planilha","ponte_saida"}) else "baixo"
         tipo = "responsabilidade_mista" if mixed else ("renderizacao_com_regra_semantica" if role.startswith("render") and td>0 else "evidencia_fronteira")
         action = "indefinido_requer_auditoria" if risk=="alto" else ("congelar_como_ponte_transitoria" if role=="ponte_saida" else "manter_auditar")
-        fronteiras.append({"arquivo":a.path,"camada_7e_v17_e0":layer.get(a.path,"indefinido"),"papel_inferido_v17_e1_a":role,"linhas":a.text.count("\n")+1,"imports_relevantes":";".join(a.imports[:12]),"termos_motor":tm,"termos_saida":ts,"termos_renderizacao":tr,"termos_decisao":td,"risco_fronteira":risk,"tipo_risco_principal":tipo,"acao_recomendada":action,"justificativa":"Heurística de fronteira sem inferência de bug funcional."})
+        fronteiras.append({"arquivo":norm_path_key(a.path),"camada_7e_v17_e0":layer.get(norm_path_key(a.path),"indefinido"),"papel_inferido_v17_e1_a":role,"linhas":a.text.count("\n")+1,"imports_relevantes":";".join(a.imports[:12]),"termos_motor":tm,"termos_saida":ts,"termos_renderizacao":tr,"termos_decisao":td,"risco_fronteira":risk,"tipo_risco_principal":tipo,"acao_recomendada":action,"justificativa":"Heurística de fronteira sem inferência de bug funcional."})
         if role=="ponte_saida" or any(x in a.path for x in ["construir_saida_canonica_v17_c7","saida_canonica_switching_v17_c7","ponte_renderizacao_switching_v17_c6"]):
-            pontes.append({"arquivo":a.path,"funcao_ou_classe":"arquivo","tipo_ponte":"wrapper_versionado","alvo_chamado":"indeterminado","altera_estado":"sim" if tm>0 and td>0 else "nao","altera_saida":"sim" if ts>0 else "nao","altera_apenas_renderizacao":"sim" if tr>0 and ts==0 and tm==0 else "nao","risco":risk,"acao_recomendada":"congelar_como_ponte_transitoria","observacao":"Ponte C6/C7 tratada como transição, não erro automático."})
+            pontes.append({"arquivo":norm_path_key(a.path),"funcao_ou_classe":"arquivo","tipo_ponte":"wrapper_versionado","alvo_chamado":"indeterminado","altera_estado":"sim" if tm>0 and td>0 else "nao","altera_saida":"sim" if ts>0 else "nao","altera_apenas_renderizacao":"sim" if tr>0 and ts==0 and tm==0 else "nao","risco":risk,"acao_recomendada":"congelar_como_ponte_transitoria","observacao":"Ponte C6/C7 tratada como transição, não erro automático."})
         for n,lin,seg in a.funcs:
             d,e,s,r = count_terms(seg,DECISAO), count_terms(seg,ESTADO), count_terms(seg,SAIDA), count_terms(seg,RENDER)
             obs = role
             if d>0 and role in {"saida_canonica","construtor_saida"}: obs = "responsabilidade_mista"
-            funcoes.append({"arquivo":a.path,"funcao_ou_classe":n,"linha_inicio":lin,"papel_esperado":role,"papel_observado":obs,"termos_detectados":f"decisao={d};estado={e};saida={s};render={r}","pode_decidir":"sim" if d>0 else "nao","pode_alterar_estado":"sim" if e>0 else "nao","pode_materializar_switching":"sim" if "switching" in seg else "nao","pode_recalcular_saldo":"sim" if "saldo" in seg else "nao","pode_renderizar":"sim" if r>0 else "nao","risco_fronteira":"alto" if obs=="responsabilidade_mista" else "medio" if d>0 else "baixo","acao_recomendada":"indefinido_requer_auditoria" if obs=="responsabilidade_mista" else "manter_auditar","justificativa":"Classificação heurística com viés para falso positivo controlado."})
+            funcoes.append({"arquivo":norm_path_key(a.path),"funcao_ou_classe":n,"linha_inicio":lin,"papel_esperado":role,"papel_observado":obs,"termos_detectados":f"decisao={d};estado={e};saida={s};render={r}","pode_decidir":"sim" if d>0 else "nao","pode_alterar_estado":"sim" if e>0 else "nao","pode_materializar_switching":"sim" if "switching" in seg else "nao","pode_recalcular_saldo":"sim" if "saldo" in seg else "nao","pode_renderizar":"sim" if r>0 else "nao","risco_fronteira":"alto" if obs=="responsabilidade_mista" else "medio" if d>0 else "baixo","acao_recomendada":"indefinido_requer_auditoria" if obs=="responsabilidade_mista" else "manter_auditar","justificativa":"Classificação heurística com viés para falso positivo controlado."})
 
     principal_text = principal_audit.text if principal_audit else ""
-    principal_path = principal_audit.path if principal_audit else "aplicacao/principal.py"
+    principal_path = norm_path_key(principal_audit.path) if principal_audit else "aplicacao/principal.py"
     calls = ["contexto", "saida_canonica", "console", "planilha"]
     for c in calls:
         fluxo.append(
@@ -150,7 +154,7 @@ def main() -> None:
                 "ordem": ordem_fluxo,
                 "arquivo": principal_path,
                 "funcao_ou_chamada": c,
-                "camada_7e": layer.get(principal_path, "indefinido"),
+                "camada_7e": layer.get(norm_path_key(principal_path), "indefinido"),
                 "tipo_fluxo": "inferido_estatico" if c in principal_text else "indeterminado",
                 "observacao": "Mapeamento de fluxo principal para contexto→saída→renderizações.",
                 "risco": "medio" if c not in principal_text else "baixo",
