@@ -40,6 +40,55 @@ def _extrair_lotes_compostos(v: Any) -> list[str]:
     return [x for x in lotes if x and not _eh_nd(x)]
 
 
+def _primeira_data_valida_em_ordem(row: dict[str, Any], colunas: list[str]) -> Any:
+    for col in colunas:
+        v = row.get(col)
+        if _normalizar_data_comparavel(v) is not None:
+            return v
+    return None
+
+
+def _mapa_switchings_aba_operacional(contexto: Any) -> dict[str, dict[str, Any]]:
+    pacote_planilha = getattr(contexto, 'pacote_planilha', None) if contexto is not None else None
+    quadros_brutos = getattr(pacote_planilha, 'quadros_brutos', {}) if pacote_planilha is not None else {}
+    df = quadros_brutos.get('Switching') if isinstance(quadros_brutos, dict) else None
+    if not isinstance(df, pd.DataFrame):
+        caminho_planilha = getattr(pacote_planilha, 'caminho', None)
+        if not caminho_planilha:
+            return {}
+        try:
+            df = pd.read_excel(caminho_planilha, sheet_name='Switching')
+        except Exception:
+            return {}
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return {}
+    mapa: dict[str, dict[str, Any]] = {}
+    for _, row in df.iterrows():
+        r = row.to_dict()
+        lote = _txt(r.get('Lote (ID) Antes') or r.get('Lote') or r.get('Lote origem') or r.get('Lote Origem') or r.get('lote_origem') or r.get('lote_id'))
+        if not lote:
+            continue
+        data_sw = _primeira_data_valida_em_ordem(
+            r,
+            ['Data Aplicação', 'Data', 'Data switching', 'data_switching', 'data_operacional', 'Data operação', 'Data Recebimento'],
+        )
+        if _normalizar_data_comparavel(data_sw) is None:
+            continue
+        meta = {
+            'lote_origem': lote,
+            'data_switching': data_sw,
+            'produto_destino': _txt(r.get('Investimento') or r.get('Destino') or r.get('Produto destino') or r.get('produto_destino')),
+            'valor_liquido_origem': _round(r.get('Valor Líquido Migrado') or r.get('Valor líquido origem') or r.get('valor_liquido_origem')),
+            'status_switching': 'classificado_promovido',
+            'origem_mapa_migracao': 'aba_switching_operacional',
+            'lote_pos_switching': _txt(r.get('Lote (ID) Depois') or r.get('lote_pos_switching')),
+        }
+        atual = mapa.get(lote)
+        if atual is None or _normalizar_data_comparavel(meta.get('data_switching')) > _normalizar_data_comparavel(atual.get('data_switching')):
+            mapa[lote] = meta
+    return mapa
+
+
 
 
 
@@ -187,7 +236,10 @@ def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]
                     lote_obj = l
                     break
             data_sw = None
-            data_sw_exp = row.get('data_operacional') or row.get('data_switching') or row.get('data_switching_operacional') or row.get('data_horizonte') or row.get('data_referencia')
+            data_sw_exp = _primeira_data_valida_em_ordem(
+                row,
+                ['data_operacional', 'data_switching', 'data_switching_operacional', 'data_horizonte', 'data_referencia'],
+            )
             if data_sw_exp is not None and _normalizar_data_comparavel(data_sw_exp) is not None:
                 data_sw = data_sw_exp
             elif lote_obj is not None:
@@ -474,6 +526,51 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             }
 
     mapa_global_sw = _mapa_global_switchings_contexto(contexto)
+    mapa_sw_quadro: dict[str, dict[str, Any]] = {}
+    for _, row in quadro_ord.iterrows():
+        dsw = row.to_dict()
+        lote_sw = _txt(dsw.get('lote_recomendado_consumivel') or dsw.get('lote_recomendado') or dsw.get('lote_id_escolhido') or dsw.get('fonte_origem_id'))
+        if not lote_sw:
+            continue
+        houve_switch = bool(dsw.get('switching_antes_pagamento') or dsw.get('switching_depois_pagamento'))
+        if not houve_switch:
+            continue
+        data_sw = _primeira_data_valida_em_ordem(
+            dsw,
+            ['data_switching_referencia', 'data_sugerida_switching', 'data_operacional', 'data_pagamento'],
+        )
+        if _normalizar_data_comparavel(data_sw) is None:
+            continue
+        ev_sw = {
+            'lote_origem': lote_sw,
+            'data_switching': data_sw,
+            'produto_destino': _txt(dsw.get('produto_destino_switching')),
+            'valor_liquido_origem': _round(dsw.get('liquido_recomendado')),
+            'status_switching': 'classificado_promovido',
+            'origem_mapa_migracao': 'quadro_futuro::switching_promovido',
+            'lote_pos_switching': _txt(dsw.get('lote_nome_operacional') or dsw.get('fonte_pos_sw') or dsw.get('lote_id_sintetico')),
+        }
+        atual = mapa_sw_quadro.get(lote_sw)
+        if atual is None or (
+            _normalizar_data_comparavel(atual.get('data_switching')) is None
+            or _normalizar_data_comparavel(data_sw) > _normalizar_data_comparavel(atual.get('data_switching'))
+        ):
+            mapa_sw_quadro[lote_sw] = ev_sw
+    for lo, meta in mapa_sw_quadro.items():
+        atual = mapa_global_sw.get(lo)
+        if atual is None or (
+            _normalizar_data_comparavel(atual.get('data_switching')) is None
+            or _normalizar_data_comparavel(meta.get('data_switching')) > _normalizar_data_comparavel(atual.get('data_switching'))
+        ):
+            mapa_global_sw[lo] = meta
+    mapa_sw_operacional = _mapa_switchings_aba_operacional(contexto)
+    for lo, meta in mapa_sw_operacional.items():
+        atual = mapa_global_sw.get(lo)
+        if atual is None or (
+            _normalizar_data_comparavel(atual.get('data_switching')) is None
+            or _normalizar_data_comparavel(meta.get('data_switching')) >= _normalizar_data_comparavel(atual.get('data_switching'))
+        ):
+            mapa_global_sw[lo] = meta
     v17_f0a = {
         'v17_f0a_origens_migradas_detectadas': len(mapa_global_sw),
         'v17_f0a_bloqueios_origem_migrada': 0,
@@ -482,7 +579,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     }
     for lo, meta_sw in mapa_global_sw.items():
         if lo in estado_lotes:
-            estado_lotes[lo]['migrado_em'] = meta_sw.get('data_switching')
+            estado_lotes[lo]['migrado_em'] = _normalizar_data_comparavel(meta_sw.get('data_switching'))
             estado_lotes[lo]['destino_switching'] = meta_sw.get('produto_destino')
             estado_lotes[lo]['lote_pos_switching'] = meta_sw.get('lote_pos_switching')
             estado_lotes[lo]['status_switching'] = meta_sw.get('status_switching')
@@ -491,7 +588,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     for ev in materializados.values():
         lo = str(ev.get('lote_origem') or '')
         if lo in estado_lotes:
-            estado_lotes[lo]['migrado_em'] = ev.get('data_switching')
+            estado_lotes[lo]['migrado_em'] = _normalizar_data_comparavel(ev.get('data_switching'))
             estado_lotes[lo]['destino_switching'] = ev.get('produto_destino')
             estado_lotes[lo]['lote_pos_switching'] = ev.get('lote_pos_switching')
             estado_lotes[lo]['status_switching'] = ev.get('estado')
@@ -1128,7 +1225,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                     motivo_descarte_fonte = motivo_migracao_lote
                     origem_motivo_descarte = 'registrada_pipeline'
                     if not sw_mat and not necessita_sw:
-                        motivo = 'fonte_pos_switching_nao_materializada'
                         motivo_descarte_fonte = 'fonte_pos_switching_nao_materializada'
             if lote_op=='não determinado':
                 cobertura='não'
@@ -1359,8 +1455,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
                 etapa_descarte_fonte = 'selecao_fonte_operacional'
                 origem_motivo_descarte = 'registrada_pipeline'
                 if not sw_mat and not necessita_sw:
-                    motivo = 'fonte_pos_switching_nao_materializada'
-                motivo_descarte_fonte = motivo
+                    motivo_descarte_fonte = f"{motivo}|fonte_pos_switching_nao_materializada"
+                else:
+                    motivo_descarte_fonte = motivo
                 v17_f0a['v17_f0a_bloqueios_origem_migrada'] += len(lotes_migrados_final) if lotes_migrados_final else 1
                 if motivo_migracao_final in {'bloqueado_por_migracao_intradia_switch_then_pay', 'bloqueado_por_migracao_intradia_precedencia_ambigua'}:
                     v17_f0a['v17_f0a_eventos_intradia_migracao_bloqueados'] += 1
@@ -1420,6 +1517,27 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'fifo_carencia_melhor_lote': cand_sum.get('melhor_car', ''),
             'fifo_motivo_nao_promocao': cand_sum.get('motivo', ''),
         }
+        lotes_evento_final = _extrair_lotes_compostos(evento.get('lote_sugerido_operacional'))
+        motivo_bloqueio_final_migracao = ''
+        componentes_migrados_final: list[str] = []
+        for lote_comp in lotes_evento_final:
+            meta_comp = estado_lotes.get(lote_comp, {})
+            motivo_comp = _motivo_bloqueio_migracao(evento.get('data'), meta_comp.get('migrado_em'), evento.get('pacote_do_dia'))
+            if motivo_comp:
+                componentes_migrados_final.append(lote_comp)
+                if not motivo_bloqueio_final_migracao:
+                    motivo_bloqueio_final_migracao = motivo_comp
+        if motivo_bloqueio_final_migracao:
+            evento['status'] = 'sem_saldo_temporal_auditavel'
+            evento['cobertura_integral'] = 'não'
+            evento['motivo_bloqueio'] = motivo_bloqueio_final_migracao
+            evento['motivo_descarte_fonte'] = motivo_bloqueio_final_migracao
+            evento['origem_motivo_descarte'] = 'validacao_final_lote_determinado_migrado'
+            for k in ['saldo_antes', 'bruto', 'imposto', 'liquido', 'consumo', 'saldo_depois']:
+                evento[k] = ''
+            v17_f0a['v17_f0a_bloqueios_origem_migrada'] += len(componentes_migrados_final) if componentes_migrados_final else 1
+            if motivo_bloqueio_final_migracao in {'bloqueado_por_migracao_intradia_switch_then_pay', 'bloqueado_por_migracao_intradia_precedencia_ambigua'}:
+                v17_f0a['v17_f0a_eventos_intradia_migracao_bloqueados'] += 1
         if str(evento.get('origem_fonte_candidata') or '').strip() == 'pay_only_diario_v1':
             d2a_funil['d2a_promovidas_evento_final_pay_only_diario_v1'] += 1
             d2a_funil['d2a_promovidas_extrato_futuro_auditoria_fontes'] += 1
