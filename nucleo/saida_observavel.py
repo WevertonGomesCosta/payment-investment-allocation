@@ -404,6 +404,115 @@ def _mapa_produto_por_lote(contexto: Any, saida: Any) -> dict[str, Any]:
     return mapa
 
 
+
+def _registrar_valor_original_lote(mapa: dict[str, float], lote_id: Any, valor_original: Any) -> None:
+    lote = str(lote_id or "").strip()
+    valor = round(para_float(valor_original), 2)
+    if not lote or valor <= 0:
+        return
+    mapa.setdefault(lote, valor)
+
+
+def _mapa_valor_original_por_lote(contexto: Any, saida: Any) -> dict[str, float]:
+    """Busca o valor original do lote em estruturas já carregadas.
+
+    Usado apenas para renderização observável de origens migradas por switching.
+    Não altera motor, ledger, ranking nem totais patrimoniais.
+    """
+    mapa: dict[str, float] = {}
+
+    for item in list(getattr(saida, "lotes_ativos", []) or []) + list(getattr(saida, "lotes_exauridos", []) or []):
+        _registrar_valor_original_lote(
+            mapa,
+            item.get("Lote"),
+            item.get("Valor original") or item.get("Orig."),
+        )
+
+    for item in list(getattr(saida, "recebidos_atuais", []) or []):
+        _registrar_valor_original_lote(
+            mapa,
+            item.get("Lote origem") or item.get("Recebido"),
+            item.get("Valor bruto") or item.get("Valor líquido") or item.get("Valor"),
+        )
+
+    replay = getattr(contexto, "replay_passado", None)
+    for attr in [
+        "lotes_apos_replay",
+        "lotes_antes_replay",
+        "lotes_replay",
+        "lotes_originais",
+        "lotes",
+    ]:
+        lotes = getattr(replay, attr, None) if replay is not None else None
+        if not lotes:
+            continue
+        try:
+            iter_lotes = list(lotes)
+        except Exception:
+            continue
+
+        for lote_obj in iter_lotes:
+            lote_id = (
+                getattr(lote_obj, "id", None)
+                or getattr(lote_obj, "lote_id", None)
+                or getattr(lote_obj, "nome", None)
+            )
+            valor = (
+                getattr(lote_obj, "valor_original", None)
+                or getattr(lote_obj, "valor", None)
+                or getattr(lote_obj, "principal", None)
+            )
+            _registrar_valor_original_lote(mapa, lote_id, valor)
+
+    fila = [contexto]
+    vistos: set[int] = set()
+    while fila and len(vistos) < 250:
+        obj = fila.pop(0)
+        if obj is None or id(obj) in vistos:
+            continue
+        vistos.add(id(obj))
+
+        cols = getattr(obj, "columns", None)
+        if cols is not None and hasattr(obj, "iterrows"):
+            colunas = list(cols)
+            cols_norm = {str(c).strip().lower(): c for c in colunas}
+
+            candidatos_lote = [
+                "lote (id)",
+                "lote",
+                "lote id",
+                "lote_id",
+                "lote origem",
+                "lote_origem",
+            ]
+            candidatos_valor = [
+                "valor original",
+                "valor_original",
+                "valor bruto",
+                "valor_bruto",
+            ]
+
+            col_lote = next((cols_norm[c] for c in candidatos_lote if c in cols_norm), None)
+            col_valor = next((cols_norm[c] for c in candidatos_valor if c in cols_norm), None)
+
+            if col_lote is not None and col_valor is not None:
+                try:
+                    for _, row in obj.iterrows():
+                        _registrar_valor_original_lote(mapa, row.get(col_lote), row.get(col_valor))
+                except Exception:
+                    pass
+            continue
+
+        dct = getattr(obj, "__dict__", None)
+        if isinstance(dct, dict):
+            for val in dct.values():
+                if id(val) not in vistos:
+                    fila.append(val)
+
+    return mapa
+
+
+
 def _origens_migradas_auditoria(saida: Any) -> list[dict[str, Any]]:
     auditoria = dict(getattr(saida, "auditoria", {}) or {})
     return list(auditoria.get("origens_migradas_por_switching") or [])
@@ -497,9 +606,17 @@ def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str) -> list[dict[
 
 
 def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
+    linhas_base = list(construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo))
+
+    if tipo == 'exauridos':
+        # Mantém alinhamento visual entre a tabela de identificação e a tabela de valores.
+        # As origens migradas por switching entram apenas como linhas observáveis
+        # e NÃO são usadas por construir_resumo_patrimonio_total_lotes(...).
+        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida)
+
     return [
         {chave: item.get(chave) for chave in COLS_LOTES_VALORES_CURTAS}
-        for item in construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo)
+        for item in linhas_base
     ]
 
 
@@ -532,6 +649,47 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida) -> list[dic
         })
 
     return linhas
+
+
+
+def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida) -> list[dict[str, Any]]:
+    """Valores observáveis das origens migradas por switching.
+
+    Essas linhas existem para alinhar a renderização das tabelas:
+    - aparecem em "Lotes exauridos — identificação";
+    - também aparecem em "Lotes exauridos — valores e patrimônio";
+    - não são somadas no resumo patrimonial, pois o resumo continua usando
+      construir_linhas_lotes_consolidados(...).
+    """
+    valores_originais = _mapa_valor_original_por_lote(contexto, saida)
+    linhas: list[dict[str, Any]] = []
+
+    for item in _origens_migradas_auditoria(saida):
+        lote = str(item.get('lote_origem') or '').strip()
+        valor_original = round(
+            para_float(valores_originais.get(lote)) or para_float(item.get('valor_liquido_migrado_total')),
+            2,
+        )
+        valor_migrado = round(para_float(item.get('valor_liquido_migrado_total')), 2)
+        bruto_sacado_historico = round(para_float(item.get('valor_bruto_sacado_historico')), 2)
+        liquido_sacado_historico = round(para_float(item.get('valor_liquido_sacado_historico')), 2)
+
+        patrimonio_liquido_observavel = round(liquido_sacado_historico + valor_migrado, 2)
+        rendimento_liquido_observavel = round(patrimonio_liquido_observavel - valor_original, 2)
+
+        linhas.append({
+            'Lote': lote,
+            'Orig.': valor_original,
+            'Bruto sac.': bruto_sacado_historico,
+            'Líq. sac.': liquido_sacado_historico,
+            'Bruto atual': 0.0,
+            'Líq. atual': 0.0,
+            'Patr. líq.': patrimonio_liquido_observavel,
+            'Rend. líq.': rendimento_liquido_observavel,
+        })
+
+    return linhas
+
 
 
 def construir_linhas_origens_migradas_por_switching(contexto, saida) -> list[dict[str, Any]]:
