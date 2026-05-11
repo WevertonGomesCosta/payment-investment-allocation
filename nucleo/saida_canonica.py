@@ -1486,7 +1486,10 @@ def _construir_ranking_amostra(contexto: Any, limite: int = 10) -> list[dict[str
     return linhas
 
 
-def _construir_lotes_situacao(contexto: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _construir_lotes_situacao(
+    contexto: Any,
+    destinos_pos_switching_passivos: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     replay = getattr(contexto, 'replay_passado', None)
     if replay is None:
         return [], []
@@ -1560,6 +1563,29 @@ def _construir_lotes_situacao(contexto: Any) -> tuple[list[dict[str, Any]], list
             lotes_exauridos.append(linha)
         else:
             lotes_ativos.append(linha)
+    destinos_pos_switching_passivos = list(destinos_pos_switching_passivos or [])
+    origens_migradas = {str(x.get('lote_origem') or '').strip() for x in destinos_pos_switching_passivos if str(x.get('lote_origem') or '').strip()}
+    if origens_migradas:
+        lotes_ativos = [x for x in lotes_ativos if str(x.get('Lote') or '').strip() not in origens_migradas]
+    for idx, item in enumerate(destinos_pos_switching_passivos):
+        lotes_ativos.append({
+            'Lote': str(item.get('lote_pos_switching') or '').strip() or f"lote_pos_switching_audit::{idx}",
+            'Recebimento': _fmt_data(item.get('data_switching')),
+            'Aplicação': _fmt_data(item.get('data_switching')),
+            'Último uso': '',
+            'Produto': str(item.get('produto_destino') or '').strip(),
+            'Dias corridos': '',
+            'Dias úteis': '',
+            'Valor original': _round_monetario(item.get('valor_liquido_origem'), 0.0),
+            'Bruto': _round_monetario(item.get('valor_liquido_origem'), 0.0),
+            'Líquido': _round_monetario(item.get('valor_liquido_origem'), 0.0),
+            'Saldo rem': _round_monetario(item.get('valor_liquido_origem'), 0.0),
+            'Status': 'ativo_pos_switching',
+            'Origem migrada': str(item.get('lote_origem') or '').strip(),
+            'Data switching': _fmt_data(item.get('data_switching')),
+            'Evento switching ID': str(item.get('evento_switching_id') or '').strip(),
+            'Status materialização': str(item.get('status_materializacao_passiva') or '').strip(),
+        })
     lotes_exauridos.sort(key=lambda item: (str(item.get('Último uso') or ''), str(item.get('Aplicação') or ''), str(item.get('Lote') or '')), reverse=True)
     lotes_ativos.sort(key=lambda item: (str(item.get('Aplicação') or ''), str(item.get('Lote') or '')), reverse=True)
     return lotes_ativos, lotes_exauridos
@@ -1626,11 +1652,13 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     ]
     switchings = _construir_switchings(contexto)
     ranking_amostra = _construir_ranking_amostra(contexto)
-    lotes_ativos, lotes_exauridos = _construir_lotes_situacao(contexto)
-    recebidos_atuais = _construir_recebidos_atuais(contexto)
     quadro_futuro = _quadro_futuro_preferencial(contexto)
     mapa_central = _mapa_pagamentos_central(contexto)
     ledger_result = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto) or {}
+    destinos_pos_switching_passivos = list(ledger_result.get('destinos_pos_switching_materializados_passivos', []))
+    vinculos_origem_destino_pos_switching = list(ledger_result.get('vinculos_origem_destino_pos_switching', []))
+    lotes_ativos, lotes_exauridos = _construir_lotes_situacao(contexto, destinos_pos_switching_passivos)
+    recebidos_atuais = _construir_recebidos_atuais(contexto)
     eventos_ledger = list(ledger_result.get('eventos', []))
     fifo_candidatos_avaliados = list(ledger_result.get('fifo_candidatos_avaliados', []))
     auditoria = {
@@ -1676,6 +1704,10 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'alocacao_fontes_auditoria': ledger_result.get('alocacao_fontes_auditoria', []),
         'saldo_temporal_lote_8500_trilha_eventos': ledger_result.get('saldo_temporal_lote_8500_trilha_eventos', []),
         'comparativo_mapa_funcoes_legadas': ledger_result.get('comparativo_mapa_funcoes_legadas', []),
+        'destinos_pos_switching_materializados_passivos': destinos_pos_switching_passivos,
+        'destinos_pos_switching_materializados_passivos_total': int(ledger_result.get('destinos_pos_switching_materializados_passivos_total', len(destinos_pos_switching_passivos))),
+        'vinculos_origem_destino_pos_switching': vinculos_origem_destino_pos_switching,
+        'vinculos_origem_destino_pos_switching_total': int(ledger_result.get('vinculos_origem_destino_pos_switching_total', len(vinculos_origem_destino_pos_switching))),
         **(_PRE_INVARIANTE_EXTRATO_FUTURO or {}),
         **(_SOMBRA_DIVERGENCIAS_LEDGER or {}),
     }
