@@ -535,6 +535,9 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         houve_switch = bool(dsw.get('switching_antes_pagamento') or dsw.get('switching_depois_pagamento'))
         if not houve_switch:
             continue
+        lote_pos_sw = _txt(dsw.get('lote_nome_operacional') or dsw.get('fonte_pos_sw') or dsw.get('lote_id_sintetico'))
+        if not lote_pos_sw:
+            continue
         data_sw = _primeira_data_valida_em_ordem(
             dsw,
             ['data_switching_referencia', 'data_sugerida_switching', 'data_operacional', 'data_pagamento'],
@@ -548,7 +551,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'valor_liquido_origem': _round(dsw.get('liquido_recomendado')),
             'status_switching': 'classificado_promovido',
             'origem_mapa_migracao': 'quadro_futuro::switching_promovido',
-            'lote_pos_switching': _txt(dsw.get('lote_nome_operacional') or dsw.get('fonte_pos_sw') or dsw.get('lote_id_sintetico')),
+            'lote_pos_switching': lote_pos_sw,
         }
         atual = mapa_sw_quadro.get(lote_sw)
         if atual is None or (
