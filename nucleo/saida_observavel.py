@@ -513,6 +513,28 @@ def _mapa_valor_original_por_lote(contexto: Any, saida: Any) -> dict[str, float]
 
 
 
+def _valor_nominal_extraido_do_id_lote(lote_id: Any) -> float:
+    """Extrai valor nominal do identificador textual do lote.
+
+    Exemplo:
+    - Lote 3000 mar. B  -> 3000.00
+    - Lote 8500 mar.    -> 8500.00
+    - Lote 6630,64 fev. -> 6630.64
+
+    Uso restrito à renderização observável de origens migradas por switching.
+    Não altera motor, replay, ledger, ranking, switching nem totais patrimoniais.
+    """
+    partes = str(lote_id or "").strip().split()
+    if len(partes) < 2 or partes[0].lower() != "lote":
+        return 0.0
+
+    bruto = partes[1].strip()
+    if "," in bruto:
+        bruto = bruto.replace(".", "").replace(",", ".")
+
+    return para_float(bruto)
+
+
 def _origens_migradas_auditoria(saida: Any) -> list[dict[str, Any]]:
     auditoria = dict(getattr(saida, "auditoria", {}) or {})
     return list(auditoria.get("origens_migradas_por_switching") or [])
@@ -667,7 +689,9 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida) -> 
     for item in _origens_migradas_auditoria(saida):
         lote = str(item.get('lote_origem') or '').strip()
         valor_original = round(
-            para_float(valores_originais.get(lote)) or para_float(item.get('valor_liquido_migrado_total')),
+            _valor_nominal_extraido_do_id_lote(lote)
+            or para_float(valores_originais.get(lote))
+            or para_float(item.get('valor_liquido_migrado_total')),
             2,
         )
         valor_migrado = round(para_float(item.get('valor_liquido_migrado_total')), 2)
