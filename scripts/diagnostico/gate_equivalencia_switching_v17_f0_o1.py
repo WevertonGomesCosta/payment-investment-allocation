@@ -15,6 +15,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.identidade_baseline import VERSAO_BASELINE
+from nucleo.ledger_switching_estado_temporal_v17_f0_o2 import materializar_eventos_switching_ledger_estado_temporal_v17_f0_o2
 from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
 from nucleo.pacote_orquestrado_pre_saida import montar_pacote_orquestrado_pre_saida
 
@@ -104,7 +105,7 @@ def _canon(registros: list[dict[str, Any]], origem: str) -> list[dict[str, Any]]
         destino_lote = _txt(_pick(r, ["Lote destino", "lote_destino", "lote_id_destino", "lote_id_depois", "Lote (ID) Depois", "lote_pos_switching"]))
         produto_destino = _txt(_pick(r, ["Produto destino switching", "produto_destino", "Investimento", "investimento", "Destino", "produto_destino_nome", "produto_destino_key"]))
         valor = _num(_pick(r, ["Valor líquido origem", "valor_liquido_origem", "Valor líquido total", "Valor Líquido Migrado", "valor_liquido_migrado", "valor_liquido_resgatavel"]))
-        status = _txt(_pick(r, ["Status", "status", "Status reconciliação", "status_reconciliacao", "status_switching", "status_materializacao_passiva"]))
+        status = _txt(_pick(r, ["Status", "status", "Status reconciliação", "status_reconciliacao", "status_switching", "status_materializacao_passiva", "status_materializacao"]))
         chave = "|".join([_norm(data), _norm(origem_lote), _norm(destino_lote), _norm(produto_destino), valor])
         saida.append({
             "origem": origem,
@@ -194,20 +195,45 @@ def _switchings_ledger(contexto: Any) -> FonteSwitching:
         "tentativas_ledger": [],
         "eventos_ledger_brutos": 0,
         "eventos_ledger_descartados_por_nao_switching_explicito": 0,
+        "eventos_switching_materializados_v17_f0_o2": 0,
     }
-    if not isinstance(quadro, pd.DataFrame) or quadro.empty:
-        return FonteSwitching("ledger_temporal_conjunto.eventos_switching_explicitos", [], "nenhum_quadro_interno_do_motor_disponivel_para_construir_ledger_temporal_conjunto", detalhes)
-    detalhes["tentativas_ledger"] = ["motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes"]
+    erros = []
+    eventos: list[dict[str, Any]] = []
+    if isinstance(quadro, pd.DataFrame) and not quadro.empty:
+        detalhes["tentativas_ledger"].append("motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes")
+        try:
+            resultado = construir_ledger_temporal_conjunto(quadro.copy(), _mapa_central(contexto), contexto)
+            eventos_ledger, total, descartados = _eventos_switching_ledger(resultado)
+            detalhes["eventos_ledger_brutos"] = total
+            detalhes["eventos_ledger_descartados_por_nao_switching_explicito"] = descartados
+            for evento in eventos_ledger:
+                evento["_origem_tentativa_ledger"] = detalhes["tentativas_ledger"][0]
+            eventos.extend(eventos_ledger)
+        except Exception as e:
+            erros.append(f"motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes: {e.__class__.__name__}: {e}")
+    else:
+        erros.append("nenhum_quadro_interno_do_motor_disponivel_para_construir_ledger_temporal_conjunto")
+
     try:
-        resultado = construir_ledger_temporal_conjunto(quadro.copy(), _mapa_central(contexto), contexto)
-        eventos, total, descartados = _eventos_switching_ledger(resultado)
-        detalhes["eventos_ledger_brutos"] = total
-        detalhes["eventos_ledger_descartados_por_nao_switching_explicito"] = descartados
-        for evento in eventos:
-            evento["_origem_tentativa_ledger"] = detalhes["tentativas_ledger"][0]
-        return FonteSwitching("ledger_temporal_conjunto.eventos_switching_explicitos", _canon(eventos, "ledger_temporal_conjunto.eventos_switching_explicitos"), "", detalhes)
+        eventos_materializados = materializar_eventos_switching_ledger_estado_temporal_v17_f0_o2(contexto)
+        detalhes["eventos_switching_materializados_v17_f0_o2"] = len(eventos_materializados)
+        detalhes["tentativas_ledger"].append("ledger_switching_estado_temporal_v17_f0_o2")
+        eventos.extend(eventos_materializados)
     except Exception as e:
-        return FonteSwitching("ledger_temporal_conjunto.eventos_switching_explicitos", [], f"motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes: {e.__class__.__name__}: {e}", detalhes)
+        erros.append(f"ledger_switching_estado_temporal_v17_f0_o2: {e.__class__.__name__}: {e}")
+
+    vistos = set()
+    unicos = []
+    for evento in eventos:
+        regs = _canon([evento], "ledger_temporal_conjunto.eventos_switching_explicitos")
+        if not regs:
+            continue
+        chave = regs[0]["chave_equivalencia"]
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        unicos.append(evento)
+    return FonteSwitching("ledger_temporal_conjunto.eventos_switching_explicitos", _canon(unicos, "ledger_temporal_conjunto.eventos_switching_explicitos"), " | ".join(erros), detalhes)
 
 
 def _comparar(origens: dict[str, FonteSwitching]) -> list[dict[str, Any]]:
@@ -274,6 +300,7 @@ def main() -> None:
         "usa_saida_extrato_futuro_renderizado": detalhes.get("usa_saida_extrato_futuro_renderizado", False),
         "eventos_ledger_brutos": detalhes.get("eventos_ledger_brutos", 0),
         "eventos_ledger_descartados_por_nao_switching_explicito": detalhes.get("eventos_ledger_descartados_por_nao_switching_explicito", 0),
+        "eventos_switching_materializados_v17_f0_o2": detalhes.get("eventos_switching_materializados_v17_f0_o2", 0),
         "tentativas_ledger": json.dumps(detalhes.get("tentativas_ledger", []), ensure_ascii=False),
         "erro_ledger": origens["ledger"].erro,
     }]
@@ -281,7 +308,7 @@ def main() -> None:
     ARQUIVO_COMPARACAO.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(resumo + comparacao).to_csv(ARQUIVO_COMPARACAO, index=False)
 
-    print("=== GATE V17-F0-O.1.1 — EQUIVALÊNCIA SWITCHING PONTE VS LEDGER ===")
+    print("=== GATE V17-F0-O.2 — EQUIVALÊNCIA SWITCHING PONTE VS LEDGER ===")
     print(f"versao_baseline={VERSAO_BASELINE}")
     print(f"ponte_equivale_ledger={'sim' if equivalente else 'nao'}")
     print(f"switchings_ponte={len(origens['ponte'].registros)}")
@@ -291,6 +318,7 @@ def main() -> None:
     print(f"usa_saida_extrato_futuro_renderizado={detalhes.get('usa_saida_extrato_futuro_renderizado', False)}")
     print(f"eventos_ledger_brutos={detalhes.get('eventos_ledger_brutos', 0)}")
     print(f"eventos_ledger_descartados_por_nao_switching_explicito={detalhes.get('eventos_ledger_descartados_por_nao_switching_explicito', 0)}")
+    print(f"eventos_switching_materializados_v17_f0_o2={detalhes.get('eventos_switching_materializados_v17_f0_o2', 0)}")
     if origens["ledger"].erro:
         print(f"erro_ledger={origens['ledger'].erro}")
     print(f"csv={ARQUIVO_COMPARACAO}")
