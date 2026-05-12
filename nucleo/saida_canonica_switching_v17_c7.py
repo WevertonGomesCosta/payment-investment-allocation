@@ -13,12 +13,31 @@ def _texto(v: Any) -> str:
     return str(v).strip()
 
 
+def _numero(v: Any) -> float | None:
+    t=_texto(v)
+    if not t:
+        return None
+    try:
+        return round(float(v),2)
+    except Exception:
+        pass
+    try:
+        t=t.replace("R$","").strip()
+        if "," in t:
+            t=t.replace(".","").replace(",", ".")
+        return round(float(t),2)
+    except Exception:
+        return None
+
+
 def _converter_evento_para_schema_renderizavel(evento: dict[str, Any]) -> dict[str, Any]:
     data_switching = _texto(evento.get("data_switching"))
     lote_origem = _texto(evento.get("lote_origem"))
     lote_destino = _texto(evento.get("lote_destino")) or _texto(evento.get("lote_pos_switching"))
     produto_destino = _texto(evento.get("produto_destino"))
-    valor_liquido_origem = _texto(evento.get("valor_liquido_origem")) or _texto(evento.get("valor_liquido_migrado"))
+    valor_liquido_origem = _numero(evento.get("valor_liquido_origem"))
+    if valor_liquido_origem is None:
+        valor_liquido_origem = _numero(evento.get("valor_liquido_migrado"))
     status_materializacao = _texto(evento.get("status_materializacao")) or "materializado_estado_temporal_v17_f0_p1_1"
 
     renderizado = dict(evento)
