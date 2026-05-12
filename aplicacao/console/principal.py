@@ -233,11 +233,31 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
 
     abas_cfg = pacote_config.conteudo.get("abas", {}) if isinstance(pacote_config.conteudo.get("abas"), dict) else {}
     nome_aba_carteira_real = getattr(carteira_canonica, "nome_aba", abas_cfg.get("carteira", "Carteira"))
+    dados_operacionais = getattr(contexto_baseline, "dados_operacionais", None)
+
+    nome_aba_salarios_real = (
+        getattr(dados_operacionais, "nome_aba_salarios", "")
+        or abas_cfg.get("salarios", "")
+        or ("Salários" if "Salários" in pacote_planilha.nomes_abas else "")
+    )
+    nome_aba_switching_real = (
+        getattr(dados_operacionais, "nome_aba_switching", "")
+        or abas_cfg.get("switching", "")
+        or ("Switching" if "Switching" in pacote_planilha.nomes_abas else "")
+    )
+
+    abas_operacionais_canonicas = [
+        ("carteira", nome_aba_carteira_real),
+        ("salarios", nome_aba_salarios_real),
+        ("despesas", abas_cfg.get("despesas", "Todos os Gastos")),
+        ("switching", nome_aba_switching_real),
+        ("lotes", abas_cfg.get("lotes", "Inventário de Lotes")),
+    ]
 
     abas_primarias_reais = [
-        ("carteira", nome_aba_carteira_real),
-        ("lotes", abas_cfg.get("lotes", "Inventário de Lotes")),
-        ("despesas", abas_cfg.get("despesas", "Todos os Gastos")),
+        (chave, nome_aba)
+        for chave, nome_aba in abas_operacionais_canonicas
+        if nome_aba
     ]
 
     abas_auxiliares = [

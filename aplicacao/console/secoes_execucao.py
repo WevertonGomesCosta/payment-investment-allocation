@@ -52,7 +52,7 @@ def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, s
     for indice, nome_aba in enumerate(pacote_planilha.nomes_abas, start=1):
         print(f"- [{indice}] {nome_aba}")
 
-    imprimir_titulo('RESUMO ESTRUTURAL DAS ABAS PRIMÁRIAS')
+    imprimir_titulo('RESUMO ESTRUTURAL DAS ABAS OPERACIONAIS CANÔNICAS')
     for _, nome_aba in abas_primarias_reais:
         info = resumo_por_aba.get(nome_aba)
         if not info:
@@ -63,8 +63,8 @@ def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, s
         if colunas:
             print(f"  colunas (primeiras 8): {', '.join(colunas[:8])}")
 
-    imprimir_titulo('ABAS PRIMÁRIAS DO CONTRATO')
-    imprimir_linha_status('Abas primárias do contrato', 'OK', f"{len(abas_primarias_reais)} blocos esperados")
+    imprimir_titulo('ABAS OPERACIONAIS CANÔNICAS')
+    imprimir_linha_status('Abas operacionais canônicas', 'OK', f"{len(abas_primarias_reais)} blocos esperados")
     for chave, nome_aba in abas_primarias_reais:
         presente = nome_aba in pacote_planilha.nomes_abas
         info = resumo_por_aba.get(nome_aba)
@@ -76,8 +76,8 @@ def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, s
         print('')
 
     if abas_auxiliares:
-        imprimir_titulo('ABAS AUXILIARES / NÃO OPERACIONAIS')
-        imprimir_linha_status('Abas auxiliares identificadas', 'OK', f"{len(abas_auxiliares)} abas fora do contrato operacional")
+        imprimir_titulo('ABAS AUXILIARES / FORA DO PACOTE CANÔNICO OPERACIONAL')
+        imprimir_linha_status('Abas auxiliares identificadas', 'OK', f"{len(abas_auxiliares)} abas fora do pacote canônico operacional")
         for nome_aba in abas_auxiliares:
             info = resumo_por_aba.get(nome_aba)
             linhas = info['n_linhas'] if info else '-'
