@@ -85,14 +85,14 @@ def main() -> None:
     d_op = _comparar(sw_oficial, sw_ponte, 'oficial', 'ponte_legada')
     d_ol = _comparar(sw_oficial, sw_ledger, 'oficial', 'ledger')
     d_pl = _comparar(sw_ponte, sw_ledger, 'ponte_legada', 'ledger')
-    m_oficial, m_ledger = _metricas(saida_oficial, len(eventos)), _metricas(saida_oficial, len(eventos))
-    d_metricas = [] if m_oficial == m_ledger else [{'tipo_linha':'divergencia_metrica','metrica':'invariantes_saida_oficial','valor_oficial':json.dumps(m_oficial,ensure_ascii=False),'valor_ledger_ref':json.dumps(m_ledger,ensure_ascii=False)}]
-    resumo = {'tipo_linha':'resumo','ponte_removivel':'sim' if not (d_op or d_ol or d_pl or d_metricas) else 'nao','switchings_saida_oficial':len(sw_oficial),'switchings_ponte_legada':len(sw_ponte),'switchings_ledger_materializados':len(sw_ledger),'divergencias_oficial_vs_ponte_legada':len(d_op),'divergencias_oficial_vs_ledger':len(d_ol),'divergencias_ponte_legada_vs_ledger':len(d_pl),'divergencias_metricas':len(d_metricas),'switchings_com_ponte':len(sw_ponte),'switchings_sem_ponte_simulada':len(sw_ledger),'divergencias_switching':len(d_ol),**m_oficial}
+    m_oficial = _metricas(saida_oficial, len(eventos))
+    d_metricas = []
+    resumo = {'tipo_linha':'resumo','ponte_removivel':'sim' if not (d_op or d_ol or d_pl) else 'nao','switchings_saida_oficial':len(sw_oficial),'switchings_ponte_legada':len(sw_ponte),'switchings_ledger_materializados':len(sw_ledger),'divergencias_oficial_vs_ponte_legada':len(d_op),'divergencias_oficial_vs_ledger':len(d_ol),'divergencias_ponte_legada_vs_ledger':len(d_pl),'divergencias_metricas':0,'semantica_metricas':'invariantes_saida_oficial_sem_fonte_independente_para_comparacao','switchings_com_ponte':len(sw_ponte),'switchings_sem_ponte_simulada':len(sw_ledger),'divergencias_switching':len(d_ol),**m_oficial}
     ARQUIVO_DIAGNOSTICO.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame([resumo]+d_op+d_ol+d_pl+d_metricas).to_csv(ARQUIVO_DIAGNOSTICO,index=False)
+    pd.DataFrame([resumo]+d_op+d_ol+d_pl).to_csv(ARQUIVO_DIAGNOSTICO,index=False)
     print('=== GATE V17-F0-P.0 — REMOCAO PREVENTIVA DA PONTE V17-C7 ===')
     print(f'versao_baseline={VERSAO_BASELINE}')
-    for k in ['ponte_removivel','switchings_saida_oficial','switchings_ponte_legada','switchings_ledger_materializados','divergencias_oficial_vs_ponte_legada','divergencias_oficial_vs_ledger','divergencias_ponte_legada_vs_ledger','divergencias_metricas','switchings_com_ponte','switchings_sem_ponte_simulada','divergencias_switching','qtd_eventos_ledger','qtd_extrato_futuro']:
+    for k in ['ponte_removivel','switchings_saida_oficial','switchings_ponte_legada','switchings_ledger_materializados','divergencias_oficial_vs_ponte_legada','divergencias_oficial_vs_ledger','divergencias_ponte_legada_vs_ledger','divergencias_metricas','semantica_metricas','switchings_com_ponte','switchings_sem_ponte_simulada','divergencias_switching','qtd_eventos_ledger','qtd_extrato_futuro']:
         print(f'{k}={resumo[k]}')
     print(f'csv={ARQUIVO_DIAGNOSTICO}')
 

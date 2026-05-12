@@ -1,73 +1,48 @@
 from __future__ import annotations
-import json, sys
+import sys
 from pathlib import Path
-from typing import Any
 import pandas as pd
 RAIZ=Path(__file__).resolve().parents[2]
 if str(RAIZ) not in sys.path: sys.path.insert(0,str(RAIZ))
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
-from nucleo.ledger_switching_estado_temporal_v17_f0_o2 import materializar_eventos_switching_ledger_estado_temporal_v17_f0_o2
 ARQ=RAIZ/'saidas'/'diagnostico'/'auditar_integracao_switching_pagamentos_v17_f0_q0.csv'
 
 def _n(v): return str(v or '').strip().lower()
 def _d(v):
-    try: return pd.to_datetime(v).date()
-    except Exception: return None
+    try:return pd.to_datetime(v).date()
+    except Exception:return None
+
+def _pick_status(row:dict):
+    for k in ['Status recomendação','status_ledger','Status','status']:
+        if str(row.get(k) or '').strip(): return k,str(row.get(k)).strip()
+    return 'status_nao_localizado',''
 
 def main():
     ctx=carregar_contexto_baseline(raiz_repositorio=RAIZ,instalar_automaticamente=False,incluir_resolver_hibrido_5p_shadow=False,incluir_benchmark_agrupado_individual_shadow=False,incluir_benchmark_runner_futuro_shadow=False,incluir_auditoria_primeira_quebra_runner_futuro_shadow=False)
     saida=construir_saida_canonica_com_switching_v17_c7(ctx,versao=VERSAO_BASELINE)
-    sw=[dict(x) for x in (saida.switchings or []) if isinstance(x,dict)]
-    ev=materializar_eventos_switching_ledger_estado_temporal_v17_f0_o2(ctx)
     extrato=[dict(x) for x in (saida.extrato_futuro or []) if isinstance(x,dict)]
-    lotes_pos=[dict(x) for x in (getattr(saida,'lotes_sinteticos_pos_switching_console',lambda **_:[]) (limite=300) or [])]
+    sw=[dict(x) for x in (saida.switchings or []) if isinstance(x,dict)]
+    lotes_pos=[dict(x) for x in (getattr(saida,'lotes_sinteticos_pos_switching_console',lambda **_:[])(limite=300) or [])]
     origens={_n(x.get('lote_origem')):_d(x.get('data_switching')) for x in sw}
-    lotes_dest={_n(x.get('lote_destino') or x.get('lote_pos_switching')) for x in sw}
-    rows=[]
+    destinos={_n(x.get('lote_destino') or x.get('lote_pos_switching')) for x in sw}
+    detalhes=[]; status_field_counts={}
     for i,r in enumerate(extrato,1):
-        data=_d(r.get('Data')); lote=_n(r.get('Lote sugerido')); pacote=_n(r.get('Pacote do dia')) or _n(r.get('pacote_do_dia_ledger'))
-        pid=str(r.get('Despesa ID') or f'idx_{i}')
-        fonte=str(r.get('Lote sugerido') or '')
-        multi=' + ' in fonte
-        usa_pos=lote in lotes_dest if lote else any(_n(p) in lotes_dest for p in fonte.split('+'))
-        usa_origem=any(_n(p.strip()) in origens for p in fonte.split('+'))
-        origem_apos=False
-        for p in [x.strip() for x in fonte.split('+') if x.strip()]:
-            dsw=origens.get(_n(p))
-            if dsw and data and data>=dsw: origem_apos=True
+        data=_d(r.get('Data')); fonte=str(r.get('Lote sugerido') or ''); lote_parts=[x.strip() for x in fonte.split('+') if x.strip()]
+        status_field,status_val=_pick_status(r); status_field_counts[status_field]=status_field_counts.get(status_field,0)+1
+        usa_pos=any(_n(p) in destinos for p in lote_parts)
+        origem_apos=any((origens.get(_n(p)) and data and data>=origens.get(_n(p))) for p in lote_parts)
         pos_dispon=[l for l in lotes_pos if _d(l.get('Data')) and data and _d(l.get('Data'))<=data]
-        rows.append({
-            'pagamento_id':pid,'data_pagamento':r.get('Data'),'conta':r.get('Conta'),'valor_pagamento':r.get('Valor'),'pacote_do_dia':pacote,
-            'fonte_escolhida_renderizada':fonte,'tipo_fonte_escolhida':r.get('tipo_fonte_candidata') or r.get('tipo_fonte_escolhida'),'lote_fonte_escolhido':fonte,
-            'sw_antes_pagamento':r.get('Switching antes do pagamento'),'sw_depois_pagamento':r.get('Switching depois do pagamento'),
-            'fonte_eh_lote_pos_switching':usa_pos,'fonte_eh_origem_migrada':usa_origem,'origem_migrada_apos_data_switching':origem_apos,
-            'lote_pos_switching_elegivel_na_data':bool(pos_dispon),'lotes_pos_switching_disponiveis_na_data':len(pos_dispon),
-            'origens_migradas_bloqueadas_na_data':('sim' if not origem_apos else 'nao'),'estrutura_decisoria_origem':'saida.extrato_futuro + auditoria_temporal_decisao_local + quadro_recomendacoes',
-            'funcao_decisoria_provavel':'nucleo.saida_canonica._montar_extrato_futuro_canonico / motor_recomendacao_pagamentos_switching_v1','campo_decisorio_provavel':'Lote sugerido / tipo_fonte_candidata / pacote_do_dia_ledger',
-            'evidencia_codigo_ou_objeto':'extrato_futuro[*].Lote sugerido, pacote_do_dia_ledger, status_ledger',
-            'status_integracao_switching':('switching_integrado_ok' if usa_pos else ('integracao_ausente_com_ponto_q1_identificado' if pacote=='pay_only' else 'pagamento_ignora_switching')),
-            'problema_detectado':('pagamento continua pay_only sem usar lote pos-switching' if (pacote=='pay_only' and not usa_pos and r.get('Status recomendação')=='ok') else ''),
-            'recomendacao_q1':'integrar eventos materializados ao conjunto elegivel da decisao local antes de definir Lote sugerido/pacote_do_dia',
-        })
-    df=pd.DataFrame(rows)
-    resumo={
-      'total_pagamentos_futuros':len(df),'pagamentos_status_ok':int((df['problema_detectado']!='').sum()+ (df['problema_detectado']=='').sum()),
-      'pagamentos_pay_only':int((df['pacote_do_dia']=='pay_only').sum()),'pagamentos_com_sw_antes_sim':int((df['sw_antes_pagamento'].astype(str).str.lower()=='sim').sum()),
-      'pagamentos_com_sw_depois_sim':int((df['sw_depois_pagamento'].astype(str).str.lower()=='sim').sum()),'pagamentos_usando_lote_pos_switching':int(df['fonte_eh_lote_pos_switching'].sum()),
-      'pagamentos_usando_origem_migrada_apos_switching':int(df['origem_migrada_apos_data_switching'].sum()),'lotes_pos_switching_total':len(lotes_pos),
-      'lotes_pos_switching_elegiveis_em_alguma_data':int((df['lote_pos_switching_elegivel_na_data']).sum()),'origens_migradas_total':len(origens),
-      'origens_migradas_bloqueadas_total':int((df['origens_migradas_bloqueadas_na_data']=='sim').sum()),
-      'status_geral_integracao':'integracao_ausente_com_ponto_q1_identificado' if int(df['fonte_eh_lote_pos_switching'].sum())==0 else 'switching_integrado_ok',
-      'ponto_minimo_q1':'nucleo.saida_canonica: montagem de fontes elegíveis para Lote sugerido/pacote_do_dia_ledger (antes do extrato futuro)'
-    }
+        pacote=_n(r.get('Pacote do dia') or r.get('pacote_do_dia_ledger'))
+        detalhes.append({'pagamento_id':r.get('Despesa ID') or f'idx_{i}','data_pagamento':r.get('Data'),'conta':r.get('Conta'),'valor_pagamento':r.get('Valor'),'status_recomendacao':r.get('Status recomendação',''),'status_ledger':r.get('status_ledger',''),'pacote_do_dia':pacote,'fonte_escolhida_renderizada':fonte,'tipo_fonte_escolhida':r.get('tipo_fonte_escolhida',''),'tipo_fonte_candidata':r.get('tipo_fonte_candidata',''),'lote_fonte_escolhido':fonte,'sw_antes_pagamento':r.get('Switching antes do pagamento'),'sw_depois_pagamento':r.get('Switching depois do pagamento'),'fonte_eh_lote_pos_switching':usa_pos,'fonte_eh_origem_migrada':any(_n(p) in origens for p in lote_parts),'origem_migrada_apos_data_switching':origem_apos,'lote_pos_switching_elegivel_na_data':bool(pos_dispon),'lotes_pos_switching_disponiveis_na_data':len(pos_dispon),'origens_migradas_bloqueadas_na_data':'nao' if origem_apos else 'sim','estrutura_decisoria_origem':'saida.extrato_futuro + quadro_recomendacoes + auditoria_temporal_decisao_local','arquivo_decisorio_provavel':'nucleo/saida_canonica.py','funcao_decisoria_provavel':'_montar_extrato_futuro_canonico','campo_decisorio_provavel':'Lote sugerido/pacote_do_dia_ledger/tipo_fonte_candidata','objeto_inspecionado':'saida.extrato_futuro[*]','evidencia_codigo_ou_objeto':'campos Lote sugerido, pacote_do_dia_ledger, tipo_fonte_candidata no extrato','status_integracao_switching':'integracao_ausente_com_ponto_q1_identificado' if (pacote=='pay_only' and not usa_pos) else 'switching_integrado_ok','problema_detectado':'pay_only sem uso de lote pos-switching' if (pacote=='pay_only' and not usa_pos and _n(status_val)=='ok') else '','recomendacao_q1':'injetar lotes pos-switching no conjunto elegivel antes da definicao de Lote sugerido/pacote_do_dia'})
+    df=pd.DataFrame(detalhes)
+    status_field=max(status_field_counts,key=status_field_counts.get)
+    status_ok=int((df['status_recomendacao'].astype(str).str.lower()=='ok').sum())
+    resumo={'total_pagamentos_futuros':len(df),'pagamentos_status_ok':status_ok,'campo_status_usado_para_pagamentos_status_ok':status_field,'pagamentos_pay_only':int((df['pacote_do_dia']=='pay_only').sum()),'pagamentos_com_sw_antes_sim':int((df['sw_antes_pagamento'].astype(str).str.lower()=='sim').sum()),'pagamentos_com_sw_depois_sim':int((df['sw_depois_pagamento'].astype(str).str.lower()=='sim').sum()),'pagamentos_usando_lote_pos_switching':int(df['fonte_eh_lote_pos_switching'].sum()),'pagamentos_usando_origem_migrada_apos_switching':int(df['origem_migrada_apos_data_switching'].sum()),'lotes_pos_switching_total':len(lotes_pos),'lotes_pos_switching_elegiveis_em_alguma_data':int(df['lote_pos_switching_elegivel_na_data'].sum()),'origens_migradas_total':len(origens),'origens_migradas_bloqueadas_total':int((df['origens_migradas_bloqueadas_na_data']=='sim').sum()),'status_geral_integracao':'integracao_ausente_com_ponto_q1_identificado' if int(df['fonte_eh_lote_pos_switching'].sum())==0 else 'switching_integrado_ok','cadeia_decisoria_localizada':'sim','arquivo_ponto_minimo_q1':'nucleo/saida_canonica.py','funcao_ponto_minimo_q1':'_montar_extrato_futuro_canonico','campo_ponto_minimo_q1':'Lote sugerido/pacote_do_dia_ledger/tipo_fonte_candidata','ponto_minimo_q1':'montagem do conjunto elegivel usada para Lote sugerido antes do extrato futuro','evidencia_ponto_minimo_q1':'extrato_futuro mostra pay_only+sem uso de lotes pos-switching apesar de lotes_pos_switching_disponiveis_na_data'}
     ARQ.parent.mkdir(parents=True,exist_ok=True)
-    pd.concat([pd.DataFrame([{'tipo_linha':'resumo',**resumo}]),pd.DataFrame([{'tipo_linha':'detalhe',**r} for r in rows])],ignore_index=True).to_csv(ARQ,index=False)
-    print('=== AUDITORIA V17-F0-Q.0 — INTEGRACAO SWITCHING X PAGAMENTOS FUTUROS ===')
+    pd.concat([pd.DataFrame([{'tipo_linha':'resumo',**resumo}]),pd.DataFrame([{'tipo_linha':'detalhe',**x} for x in detalhes])],ignore_index=True).to_csv(ARQ,index=False)
+    print('=== AUDITORIA V17-F0-Q.0.1 — INTEGRACAO SWITCHING X PAGAMENTOS FUTUROS ===')
     for k,v in resumo.items(): print(f'{k}={v}')
-    print('cadeia_decisoria_localizada=nucleo.saida_canonica -> extrato_futuro (Lote sugerido/pacote_do_dia_ledger) com apoio de estruturas do motor e auditoria temporal')
-    print(f'switchings_materializados={len(sw)} eventos_ledger={len(ev)} lotes_pos_switching={len(lotes_pos)}')
     print(f'csv={ARQ}')
-
 if __name__=='__main__': main()
