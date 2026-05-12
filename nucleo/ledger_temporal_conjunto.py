@@ -10,6 +10,7 @@ from datetime import timedelta
 
 import pandas as pd
 from nucleo.calendario_financeiro import proximo_dia_util_bancario_em_ou_apos
+from nucleo.ledger_switching_estado_temporal_v17_f0_o2 import materializar_eventos_switching_ledger_estado_temporal_v17_f0_o2
 
 
 def _txt(v: Any) -> str:
@@ -221,7 +222,7 @@ def avaliar_candidatos_fifo_pagamento(pid: str, d: dict[str, Any], estado_lotes:
         if bc: b_car += 1
         if bm: b_mig += 1
         if not bs: qtd_suf += 1
-        candidatos.append({'Data': d.get('data_pagamento'),'Conta': d.get('descricao_pagamento') or '','Despesa ID': pid,'Valor': valor_pag,'lote_id': lid,'data_aplicacao': da,'carencia_ate': car,'migrado_em': mig,'saldo_liquido': round(saldo,2),'avaliado_fifo': True,'bloqueado_por_saldo': bs,'bloqueado_por_data': bd,'bloqueado_por_carencia': bc,'bloqueado_por_migracao': bm,'elegivel_fifo': eleg,'ordem_fifo': ordem,'motivo_bloqueio_fifo': 'saldo' if bs else ('data' if bd else ('carencia' if bc else ('migracao' if bm else '')) ),'motivo_bloqueio_migracao_detalhe': motivo_mig if bm else ''})
+        candidatos.append({'Data': d.get('data_pagamento'),'Conta': d.get('descricao_pagamento') or '','Despesa ID': pid,'Valor': valor_pag,'lote_id': lid,'data_aplicacao': da,'carencia_ate': car,'migrado_em': mig,'saldo_liquido': round(saldo,2),'avaliado_fifo': True,'bloqueado_por_saldo': bs,'bloqueado_por_data': bd,'bloqueado_por_carencia': bc,'bloqueado_por_migracao': bm,'elegivel_fifo': eleg,'ordem_fifo': ordem,'motivo_bloqueio_fifo': 'saldo' if bs else ('data' if bd else ('carencia' if bc else ('migracao' if bm else '')) ),'motivo_bloqueio_migracao_detalhe': motivo_mig if bm else '','status_funcional': meta.get('status_funcional',''),'fonte_temporal': meta.get('fonte_temporal',''),'fonte_eh_lote_pos_switching': _norm(meta.get('status_funcional')) == 'ativo_pos_switching','evento_switching_id': meta.get('evento_switching_id',''),'lote_origem_switching': meta.get('lote_origem_switching',''),'produto_destino': meta.get('produto_destino','')})
     if lote_sugerido and _norm(lote_sugerido) not in {'','n/d','nd','não determinado','nao determinado'}:
         motivo='fifo_nao_aplicavel_lote_ja_determinado'
     elif b_saldo == qtd_av:
@@ -536,6 +537,139 @@ def _selecionar_recebido_funcional(
             return fonte
     return None
 
+
+def _valor_monetario_pos_switching(v: Any) -> float:
+    try:
+        if v is None:
+            return 0.0
+        if pd.isna(v):
+            return 0.0
+    except Exception:
+        pass
+    try:
+        return float(v)
+    except Exception:
+        pass
+
+    txt = _txt(v).replace('R$', '').strip()
+    if not txt or _eh_nd(txt):
+        return 0.0
+    if ',' in txt:
+        txt = txt.replace('.', '').replace(',', '.')
+    try:
+        return float(txt)
+    except Exception:
+        return 0.0
+
+
+def _injetar_lotes_pos_switching_em_estado_lotes(
+    contexto: Any,
+    estado_lotes: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Insere destinos pós-switching no estado temporal local de fontes.
+
+    Não escolhe fonte, não altera ranking e não cria motor paralelo.
+    Apenas torna os lotes materializados por switching visíveis ao mesmo
+    avaliador temporal que já processa os demais lotes em estado_lotes.
+    """
+    auditoria = {
+        'eventos_switching_recebidos': 0,
+        'lotes_pos_switching_injetados': 0,
+        'origens_migradas_marcadas': 0,
+        'eventos_sem_lote_destino': 0,
+        'eventos_sem_valor_valido': 0,
+    }
+
+    if contexto is None:
+        return auditoria
+
+    try:
+        eventos = materializar_eventos_switching_ledger_estado_temporal_v17_f0_o2(contexto)
+    except Exception:
+        eventos = []
+
+    auditoria['eventos_switching_recebidos'] = len(eventos)
+
+    for ev in eventos:
+        if not isinstance(ev, dict):
+            continue
+
+        data_sw = _normalizar_data_comparavel(
+            ev.get('data_switching')
+            or ev.get('Data')
+            or ev.get('Data sugerida')
+        )
+        lote_origem = _txt(
+            ev.get('lote_origem')
+            or ev.get('Lote origem')
+            or ev.get('lote_id_origem')
+        )
+        lote_destino = _txt(
+            ev.get('lote_pos_switching')
+            or ev.get('lote_destino')
+            or ev.get('Lote destino')
+            or ev.get('lote_id_destino')
+        )
+        valor = _valor_monetario_pos_switching(
+            ev.get('valor_liquido_origem')
+            or ev.get('valor_liquido_migrado')
+            or ev.get('Valor líquido origem')
+            or ev.get('Valor Líquido Migrado')
+        )
+        produto_destino = _txt(
+            ev.get('produto_destino')
+            or ev.get('Produto destino switching')
+            or ev.get('Destino')
+        )
+        evento_id = (
+            _txt(ev.get('evento_switching_id'))
+            or f"switching::{data_sw}::{lote_origem}::{lote_destino}"
+        )
+        origem_materializacao = (
+            _txt(ev.get('origem_materializacao') or ev.get('origem_mapa_migracao'))
+            or 'switching_materializado_v17_f0_o2'
+        )
+
+        if lote_origem:
+            componentes = _extrair_lotes_compostos(lote_origem) or [lote_origem]
+            for comp in componentes:
+                if comp in estado_lotes:
+                    estado_lotes[comp]['migrado_em'] = data_sw
+                    estado_lotes[comp]['destino_switching'] = produto_destino
+                    estado_lotes[comp]['lote_pos_switching'] = lote_destino
+                    estado_lotes[comp]['status_switching'] = (
+                        ev.get('status_materializacao')
+                        or ev.get('status_materializacao_passiva')
+                        or 'materializado_estado_temporal_v17_f0_o2'
+                    )
+                    estado_lotes[comp]['origem_mapa_migracao'] = origem_materializacao
+                    auditoria['origens_migradas_marcadas'] += 1
+
+        if not lote_destino:
+            auditoria['eventos_sem_lote_destino'] += 1
+            continue
+
+        if valor <= 0.0:
+            auditoria['eventos_sem_valor_valido'] += 1
+            continue
+
+        estado_lotes[lote_destino] = {
+            'data_aplicacao': data_sw,
+            'carencia_ate': data_sw,
+            'saldo_liquido': round(valor, 2),
+            'migrado_em': None,
+            'status_funcional': 'ativo_pos_switching',
+            'fonte_temporal': 'switching_materializado_v17_f0_o2',
+            'evento_switching_id': evento_id,
+            'lote_origem_switching': lote_origem,
+            'produto_destino': produto_destino,
+            'origem_materializacao': origem_materializacao,
+        }
+        auditoria['lotes_pos_switching_injetados'] += 1
+
+    return auditoria
+
+
 def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_central: dict[str, dict[str, Any]] | None = None, contexto: Any | None = None) -> dict[str, Any]:
     if not isinstance(quadro_futuro, pd.DataFrame) or quadro_futuro.empty:
         return {"eventos": [], "fifo_candidatos_avaliados": []}
@@ -559,6 +693,8 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'saldo_liquido': round(saldo_liq, 2),
             'migrado_em': None,
         }
+
+    auditoria_pos_switching_estado_lotes = _injetar_lotes_pos_switching_em_estado_lotes(contexto, estado_lotes)
 
     pagamentos_planejados_encontrados: set[str] = set()
     for _, row in quadro_ord.iterrows():
