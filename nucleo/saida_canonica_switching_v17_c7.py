@@ -28,6 +28,8 @@ def _converter_evento_para_schema_renderizavel(evento: dict[str, Any]) -> dict[s
             "Data sugerida": data_switching,
             "Lote origem": lote_origem,
             "Lote destino": lote_destino,
+            "Destino": produto_destino,
+            "Produto destino": produto_destino,
             "Produto destino switching": produto_destino,
             "Valor líquido origem": valor_liquido_origem,
             "Status": status_materializacao,
