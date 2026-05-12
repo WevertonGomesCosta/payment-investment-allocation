@@ -1,7 +1,6 @@
 # =========================================================
 # Política principal de exclusão do repositório
 # Este arquivo é a fonte canônica das regras de ignore.
-
 # ---------------------------------------------------------
 # R / RStudio
 .Rproj.user/
@@ -95,3 +94,4 @@ Script 2.txt
 .positai
 code/script_atual_*.py
 code/config_atualizado_config_*.json
+Auditoria profunda do repositório payment-investment-allocation.pdf
