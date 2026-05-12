@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -17,7 +17,8 @@ from nucleo.calendario_financeiro import calcular_dias_lote, proximo_dia_util_ba
 from nucleo.contexto_baseline import obter_limiar_residuo_resolvido
 from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
-from nucleo.utilitarios_neutros import normalizar_valores_situacao_atual_exaurida
+from nucleo.nucleo_financeiro_minimo import criar_lote_de_aporte
+from nucleo.utilitarios_neutros import normalizar_texto, normalizar_valores_situacao_atual_exaurida
 
 
 def _norm(txt: Any) -> str:
@@ -431,6 +432,180 @@ def _avancar_lote_para_data(lote: Any, data_origem: Any, data_alvo: Any, context
     while data_cursor < data_alvo:
         data_cursor = data_cursor + timedelta(days=1)
         lote.atualizar_juros(data_cursor, taxa_diaria, contexto.calendario_financeiro, serie_cdi=None, data_fechamento_referencia=data_cursor)
+
+
+def _parse_data_canonica(valor: Any) -> date | None:
+    if valor in (None, ''):
+        return None
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    try:
+        return datetime.fromisoformat(str(valor)[:10]).date()
+    except Exception:
+        return None
+
+
+def _float_canonico(valor: Any, padrao: float = 0.0) -> float:
+    try:
+        if valor in (None, ''):
+            return float(padrao)
+        if isinstance(valor, str):
+            txt = valor.strip().replace('%', '')
+            if ',' in txt:
+                txt = txt.replace('.', '').replace(',', '.')
+            return float(txt)
+        return float(valor)
+    except Exception:
+        return float(padrao)
+
+
+def _bool_canonico(valor: Any) -> bool:
+    if isinstance(valor, bool):
+        return valor
+    txt = normalizar_texto(valor)
+    return txt in {'true', '1', 'sim', 'yes', 's', 'isento', 'isento_ir'}
+
+
+def _default_lote_config(contexto: Any, chave: str, padrao: Any) -> Any:
+    config = getattr(getattr(contexto, 'pacote_config', None), 'conteudo', {}) or {}
+    defaults = config.get('defaults_lote', {}) if isinstance(config, dict) else {}
+    if isinstance(defaults, dict) and chave in defaults:
+        return defaults.get(chave)
+    return padrao
+
+
+def _meta_produto_destino_pos_switching(contexto: Any, produto_destino: Any) -> dict[str, Any]:
+    produto_txt = str(produto_destino or '').strip()
+    if not produto_txt:
+        return {}
+
+    carteira = getattr(contexto, 'carteira_canonica', None)
+    mapa_produtos = getattr(carteira, 'mapa_produtos', {}) if carteira is not None else {}
+    if not isinstance(mapa_produtos, dict):
+        return {}
+
+    by_key = mapa_produtos.get('by_key', {}) or {}
+    by_nome_norm = mapa_produtos.get('by_nome_norm', {}) or {}
+
+    nome_norm = normalizar_texto(produto_txt)
+    key = by_nome_norm.get(nome_norm)
+
+    if key and key in by_key:
+        meta = dict(by_key.get(key) or {})
+        meta.setdefault('produto_key', key)
+        return meta
+
+    for chave, meta_raw in by_key.items():
+        meta = dict(meta_raw or {})
+        candidatos = [
+            meta.get('produto_nome_canonico'),
+            meta.get('nome'),
+            meta.get('Nome'),
+            meta.get('produto'),
+            meta.get('Produto'),
+        ]
+        for cand in candidatos:
+            cand_norm = normalizar_texto(cand)
+            if cand_norm and (cand_norm == nome_norm or cand_norm in nome_norm or nome_norm in cand_norm):
+                meta.setdefault('produto_key', chave)
+                return meta
+
+    return {}
+
+
+def _valor_meta_produto(meta: dict[str, Any], nomes: list[str], padrao: Any) -> Any:
+    for nome in nomes:
+        if nome in meta and meta.get(nome) not in (None, ''):
+            return meta.get(nome)
+    return padrao
+
+
+def _precificar_destino_pos_switching_canonico(
+    contexto: Any,
+    item: dict[str, Any],
+    *,
+    lote_id: str,
+    valor_original: float,
+) -> dict[str, Any]:
+    valor_original = _round_monetario(valor_original, 0.0)
+    data_switching = _parse_data_canonica(item.get('data_switching'))
+    data_referencia = getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
+    data_referencia = _parse_data_canonica(data_referencia)
+
+    if valor_original <= 0.0 or data_switching is None or data_referencia is None:
+        return {'bruto': valor_original, 'liquido': valor_original, 'metodo': 'fallback_sem_dados_minimos'}
+
+    if data_referencia <= data_switching:
+        return {'bruto': valor_original, 'liquido': valor_original, 'metodo': 'sem_rendimento_ate_data_switching'}
+
+    produto_destino = str(item.get('produto_destino') or '').strip()
+    meta_produto = _meta_produto_destino_pos_switching(contexto, produto_destino)
+
+    taxa_base = _float_canonico(
+        _valor_meta_produto(meta_produto, ['taxa_base_cdi', 'Taxa_Base_CDI', 'Taxa Base CDI', 'taxa_cdi'], _default_lote_config(contexto, 'taxa_base_cdi', 1.0)),
+        1.0,
+    )
+    taxa_bonus = _float_canonico(
+        _valor_meta_produto(meta_produto, ['taxa_bonus_cdi', 'Taxa_Bonus_CDI', 'Taxa Bonus CDI'], _default_lote_config(contexto, 'taxa_bonus_cdi', 0.0)),
+        0.0,
+    )
+    dias_bonus = int(_float_canonico(
+        _valor_meta_produto(meta_produto, ['dias_bonus', 'Dias_Bonus', 'Dias Bonus'], _default_lote_config(contexto, 'dias_bonus', 0)),
+        0.0,
+    ))
+    isento_ir = _bool_canonico(_valor_meta_produto(meta_produto, ['isento_ir', 'Isento_IR', 'isento', 'produto_isento_ir'], False))
+    regra_iof = str(_valor_meta_produto(meta_produto, ['regra_iof', 'Regra_IOF', 'regra iof'], 'a_confirmar') or 'a_confirmar').strip()
+
+    meta_lote = {
+        'investimento': produto_destino,
+        'produto_key': meta_produto.get('produto_key'),
+        'data_base_fiscal': data_switching,
+        'data_recebimento': data_switching,
+        'fator_acumulado_inicial': 1.0,
+        'taxa_base_cdi': taxa_base,
+        'taxa_bonus_cdi': taxa_bonus,
+        'dias_bonus': dias_bonus,
+        'principal_remanescente': valor_original,
+        'produto_isento_ir': isento_ir,
+        'regra_iof': regra_iof,
+    }
+
+    try:
+        lote_tmp = criar_lote_de_aporte(data_switching, valor_original, lote_id, meta_lote)
+        serie_cdi = getattr(getattr(contexto, 'cache_cdi', None), 'serie_cdi', None)
+
+        bruto = _round_monetario(
+            lote_tmp.valor_bruto_em_data(
+                data_referencia,
+                contexto.calendario_financeiro,
+                serie_cdi=serie_cdi,
+                data_base_referencia=data_switching,
+            ),
+            valor_original,
+        )
+
+        liquido = _round_monetario(
+            lote_tmp.valor_liquido_em_data(
+                data_referencia,
+                contexto.calendario_financeiro,
+                tabela_iof=getattr(contexto, 'tabela_iof', None),
+                faixas_ir=getattr(contexto, 'faixas_ir', None),
+                serie_cdi=serie_cdi,
+                data_base_referencia=data_switching,
+            ),
+            valor_original,
+        )
+
+        if bruto < valor_original:
+            bruto = valor_original
+        if liquido < 0.0:
+            liquido = valor_original
+
+        return {'bruto': bruto, 'liquido': liquido, 'metodo': 'nucleo_financeiro_minimo_lote_sintetico'}
+    except Exception:
+        return {'bruto': valor_original, 'liquido': valor_original, 'metodo': 'fallback_excecao_precificacao_pos_switching'}
 
 
 def _quadro_futuro_preferencial(contexto: Any) -> pd.DataFrame | None:
@@ -1567,24 +1742,35 @@ def _construir_lotes_situacao(
     origens_migradas = {str(x.get('lote_origem') or '').strip() for x in destinos_pos_switching_passivos if str(x.get('lote_origem') or '').strip()}
     if origens_migradas:
         lotes_ativos = [x for x in lotes_ativos if str(x.get('Lote') or '').strip() not in origens_migradas]
-    for idx, item in enumerate(destinos_pos_switching_passivos):
+    for idx, item in enumerate(destinos_pos_switching_passivos, start=1):
+        lote_pos_switching = str(item.get('lote_pos_switching') or '').strip() or f"lote_pos_switching_audit::{idx}"
+        valor_original_pos_switching = _round_monetario(item.get('valor_liquido_origem'), 0.0)
+        precificacao_pos_switching = _precificar_destino_pos_switching_canonico(
+            contexto,
+            item,
+            lote_id=lote_pos_switching,
+            valor_original=valor_original_pos_switching,
+        )
+        bruto_pos_switching = _round_monetario(precificacao_pos_switching.get('bruto'), valor_original_pos_switching)
+        liquido_pos_switching = _round_monetario(precificacao_pos_switching.get('liquido'), valor_original_pos_switching)
         lotes_ativos.append({
-            'Lote': str(item.get('lote_pos_switching') or '').strip() or f"lote_pos_switching_audit::{idx}",
+            'Lote': lote_pos_switching,
             'Recebimento': _fmt_data(item.get('data_switching')),
             'Aplicação': _fmt_data(item.get('data_switching')),
             'Último uso': '',
             'Produto': str(item.get('produto_destino') or '').strip(),
             'Dias corridos': '',
             'Dias úteis': '',
-            'Valor original': _round_monetario(item.get('valor_liquido_origem'), 0.0),
-            'Bruto': _round_monetario(item.get('valor_liquido_origem'), 0.0),
-            'Líquido': _round_monetario(item.get('valor_liquido_origem'), 0.0),
-            'Saldo rem': _round_monetario(item.get('valor_liquido_origem'), 0.0),
+            'Valor original': valor_original_pos_switching,
+            'Bruto': bruto_pos_switching,
+            'Líquido': liquido_pos_switching,
+            'Saldo rem': bruto_pos_switching,
             'Status': 'ativo_pos_switching',
             'Origem migrada': str(item.get('lote_origem') or '').strip(),
             'Data switching': _fmt_data(item.get('data_switching')),
             'Evento switching ID': str(item.get('evento_switching_id') or '').strip(),
             'Status materialização': str(item.get('status_materializacao_passiva') or '').strip(),
+            'Método precificação pós-switching': str(precificacao_pos_switching.get('metodo') or ''),
         })
     lotes_exauridos.sort(key=lambda item: (str(item.get('Último uso') or ''), str(item.get('Aplicação') or ''), str(item.get('Lote') or '')), reverse=True)
     lotes_ativos.sort(key=lambda item: (str(item.get('Aplicação') or ''), str(item.get('Lote') or '')), reverse=True)
