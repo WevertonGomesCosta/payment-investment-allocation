@@ -18,7 +18,6 @@ from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
 from nucleo.pacote_orquestrado_pre_saida import montar_pacote_orquestrado_pre_saida
 
-
 ARQUIVO_COMPARACAO = RAIZ_REPOSITORIO / "saidas" / "diagnostico" / "gate_equivalencia_switching_v17_f0_o1.csv"
 
 
@@ -27,62 +26,57 @@ class FonteSwitching:
     nome: str
     registros: list[dict[str, Any]]
     erro: str = ""
+    detalhes: dict[str, Any] | None = None
 
 
-def _txt(valor: Any) -> str:
-    if valor is None:
+def _txt(v: Any) -> str:
+    if v is None:
         return ""
     try:
-        if pd.isna(valor):
+        if pd.isna(v):
             return ""
     except Exception:
         pass
-    return str(valor).strip()
+    return str(v).strip()
 
 
-def _norm(valor: Any) -> str:
-    texto = _txt(valor).lower()
-    texto = " ".join(texto.split())
-    return texto
+def _norm(v: Any) -> str:
+    return " ".join(_txt(v).lower().split())
 
 
-def _data_iso(valor: Any) -> str:
-    if valor is None:
+def _pick(d: dict[str, Any], nomes: list[str]) -> Any:
+    mapa = {_norm(k): k for k in d.keys()}
+    for nome in nomes:
+        chave = mapa.get(_norm(nome))
+        if chave is not None and _txt(d.get(chave)):
+            return d.get(chave)
+    return ""
+
+
+def _data(v: Any) -> str:
+    if not _txt(v):
         return ""
-    try:
-        if pd.isna(valor):
-            return ""
-    except Exception:
-        pass
-    if hasattr(valor, "date") and not isinstance(valor, str):
+    if hasattr(v, "date") and not isinstance(v, str):
         try:
-            return valor.date().isoformat()
+            return v.date().isoformat()
         except Exception:
             pass
-    if hasattr(valor, "isoformat") and not isinstance(valor, str):
-        try:
-            return valor.isoformat()[:10]
-        except Exception:
-            pass
-    texto = _txt(valor)
-    if not texto:
-        return ""
     for dayfirst in (False, True):
         try:
-            data = pd.to_datetime(texto, errors="raise", dayfirst=dayfirst)
-            if not pd.isna(data):
-                return data.date().isoformat()
+            dt = pd.to_datetime(v, errors="raise", dayfirst=dayfirst)
+            if not pd.isna(dt):
+                return dt.date().isoformat()
         except Exception:
-            continue
-    return texto[:10]
+            pass
+    return _txt(v)[:10]
 
 
-def _numero(valor: Any) -> str:
-    texto = _txt(valor)
+def _num(v: Any) -> str:
+    texto = _txt(v)
     if not texto:
         return ""
     try:
-        return f"{float(valor):.2f}"
+        return f"{float(v):.2f}"
     except Exception:
         pass
     try:
@@ -94,266 +88,159 @@ def _numero(valor: Any) -> str:
         return texto
 
 
-def _primeiro(d: dict[str, Any], nomes: list[str]) -> Any:
-    mapa = {_norm(k): k for k in d.keys()}
-    for nome in nomes:
-        chave = mapa.get(_norm(nome))
-        if chave is None:
-            continue
-        valor = d.get(chave)
-        if _txt(valor):
-            return valor
-    return ""
-
-
-def _df_para_registros(df: Any) -> list[dict[str, Any]]:
+def _df_records(df: Any) -> list[dict[str, Any]]:
     if not isinstance(df, pd.DataFrame) or df.empty:
         return []
-    return [dict(row) for row in df.to_dict(orient="records")]
+    return [dict(x) for x in df.to_dict(orient="records")]
 
 
-def _canonizar(registros: list[dict[str, Any]], origem: str) -> list[dict[str, Any]]:
-    saida: list[dict[str, Any]] = []
-    for indice, registro in enumerate(registros, start=1):
-        if not isinstance(registro, dict):
+def _canon(registros: list[dict[str, Any]], origem: str) -> list[dict[str, Any]]:
+    saida = []
+    for i, r in enumerate(registros, start=1):
+        if not isinstance(r, dict):
             continue
-        data = _data_iso(_primeiro(registro, [
-            "Data", "Data sugerida", "data_switching", "data_sugerida_switching",
-            "Data Aplicação", "data_aplicacao", "Data Recebimento", "data_recebimento",
-        ]))
-        lote_origem = _txt(_primeiro(registro, [
-            "Lote origem", "lote_origem", "lote_id_origem", "lote_id_antes",
-            "Lote (ID) Antes", "lote antes", "Lote Antes", "lote_id",
-        ]))
-        lote_destino = _txt(_primeiro(registro, [
-            "Lote destino", "lote_destino", "lote_id_destino", "lote_id_depois",
-            "Lote (ID) Depois", "lote depois", "Lote Depois", "lote_pos_switching",
-        ]))
-        produto_destino = _txt(_primeiro(registro, [
-            "Produto destino switching", "produto_destino_switching", "produto_destino",
-            "Investimento", "investimento", "Destino", "destino", "produto_destino_nome",
-            "produto_destino_key",
-        ]))
-        valor_liquido = _numero(_primeiro(registro, [
-            "Valor líquido origem", "valor_liquido_origem", "Valor líquido total",
-            "Valor Líquido Migrado", "valor_liquido_migrado", "valor_liquido_resgatavel",
-            "Valor migrado",
-        ]))
-        status = _txt(_primeiro(registro, [
-            "Status", "status", "Status reconciliação", "status_reconciliacao",
-            "status_switching", "status_materializacao_passiva",
-        ]))
-        chave = "|".join([
-            _norm(data),
-            _norm(lote_origem),
-            _norm(lote_destino),
-            _norm(produto_destino),
-            valor_liquido,
-        ])
+        data = _data(_pick(r, ["Data", "Data sugerida", "data_switching", "Data Aplicação", "data_aplicacao", "Data Recebimento", "data_recebimento"]))
+        origem_lote = _txt(_pick(r, ["Lote origem", "lote_origem", "lote_id_origem", "lote_id_antes", "Lote (ID) Antes", "lote_id"]))
+        destino_lote = _txt(_pick(r, ["Lote destino", "lote_destino", "lote_id_destino", "lote_id_depois", "Lote (ID) Depois", "lote_pos_switching"]))
+        produto_destino = _txt(_pick(r, ["Produto destino switching", "produto_destino", "Investimento", "investimento", "Destino", "produto_destino_nome", "produto_destino_key"]))
+        valor = _num(_pick(r, ["Valor líquido origem", "valor_liquido_origem", "Valor líquido total", "Valor Líquido Migrado", "valor_liquido_migrado", "valor_liquido_resgatavel"]))
+        status = _txt(_pick(r, ["Status", "status", "Status reconciliação", "status_reconciliacao", "status_switching", "status_materializacao_passiva"]))
+        chave = "|".join([_norm(data), _norm(origem_lote), _norm(destino_lote), _norm(produto_destino), valor])
         saida.append({
             "origem": origem,
-            "indice_origem": indice,
+            "indice_origem": i,
             "data": data,
-            "lote_origem": lote_origem,
-            "lote_destino": lote_destino,
+            "lote_origem": origem_lote,
+            "lote_destino": destino_lote,
             "produto_destino": produto_destino,
-            "valor_liquido": valor_liquido,
+            "valor_liquido": valor,
             "status": status,
             "chave_equivalencia": chave,
-            "registro_json": json.dumps(registro, ensure_ascii=False, default=str, sort_keys=True),
+            "registro_json": json.dumps(r, ensure_ascii=False, default=str, sort_keys=True),
         })
     return saida
 
 
 def _switchings_ponte(saida: Any) -> FonteSwitching:
-    return FonteSwitching("saida.switchings_pos_ponte_v17_c7", _canonizar(list(getattr(saida, "switchings", []) or []), "saida.switchings_pos_ponte_v17_c7"))
+    return FonteSwitching("saida.switchings_pos_ponte_v17_c7", _canon(list(getattr(saida, "switchings", []) or []), "saida.switchings_pos_ponte_v17_c7"))
 
 
 def _switchings_pre_saida(contexto: Any) -> FonteSwitching:
     try:
         pacote = montar_pacote_orquestrado_pre_saida(contexto)
-        df = getattr(pacote, "estado_temporal_switching", pd.DataFrame())
-        return FonteSwitching("pacote_orquestrado_pre_saida.estado_temporal_switching", _canonizar(_df_para_registros(df), "pacote_orquestrado_pre_saida.estado_temporal_switching"))
-    except Exception as erro:
-        return FonteSwitching("pacote_orquestrado_pre_saida.estado_temporal_switching", [], f"{erro.__class__.__name__}: {erro}")
+        return FonteSwitching("pacote_orquestrado_pre_saida.estado_temporal_switching", _canon(_df_records(getattr(pacote, "estado_temporal_switching", pd.DataFrame())), "pacote_orquestrado_pre_saida.estado_temporal_switching"))
+    except Exception as e:
+        return FonteSwitching("pacote_orquestrado_pre_saida.estado_temporal_switching", [], f"{e.__class__.__name__}: {e}")
 
 
-def _resolver_quadro_switching_planilha(contexto: Any) -> tuple[str, pd.DataFrame]:
-    pacote_planilha = getattr(contexto, "pacote_planilha", None)
-    quadros_canonicos = getattr(pacote_planilha, "quadros_canonicos", {}) if pacote_planilha is not None else {}
-    quadros_brutos = getattr(pacote_planilha, "quadros_brutos", {}) if pacote_planilha is not None else {}
+def _quadro_aba_switching(contexto: Any) -> tuple[str, pd.DataFrame]:
+    pacote = getattr(contexto, "pacote_planilha", None)
+    canonicos = getattr(pacote, "quadros_canonicos", {}) if pacote is not None else {}
+    brutos = getattr(pacote, "quadros_brutos", {}) if pacote is not None else {}
     config = getattr(getattr(contexto, "pacote_config", None), "conteudo", {}) or {}
-    nome_config = ((config.get("abas") or {}).get("switching") if isinstance(config, dict) else None) or "Switching"
-    candidatos = [nome_config, "Switching", "Switiching", "Swtiching"]
-
-    for nome in candidatos:
-        if isinstance(quadros_canonicos, dict) and isinstance(quadros_canonicos.get(nome), pd.DataFrame):
-            return nome, quadros_canonicos[nome].copy()
-        if isinstance(quadros_brutos, dict) and isinstance(quadros_brutos.get(nome), pd.DataFrame):
-            return nome, quadros_brutos[nome].copy()
-
-    nomes = []
-    if isinstance(quadros_canonicos, dict):
-        nomes.extend(list(quadros_canonicos.keys()))
-    if isinstance(quadros_brutos, dict):
-        nomes.extend(list(quadros_brutos.keys()))
-    for nome_real in nomes:
-        if _norm(nome_real) in {_norm(x) for x in candidatos}:
-            if isinstance(quadros_canonicos, dict) and isinstance(quadros_canonicos.get(nome_real), pd.DataFrame):
-                return str(nome_real), quadros_canonicos[nome_real].copy()
-            if isinstance(quadros_brutos, dict) and isinstance(quadros_brutos.get(nome_real), pd.DataFrame):
-                return str(nome_real), quadros_brutos[nome_real].copy()
-
+    nome_cfg = ((config.get("abas") or {}).get("switching") if isinstance(config, dict) else None) or "Switching"
+    for nome in [nome_cfg, "Switching", "Switiching", "Swtiching"]:
+        for quadros in [canonicos, brutos]:
+            if isinstance(quadros, dict) and isinstance(quadros.get(nome), pd.DataFrame):
+                return nome, quadros[nome].copy()
     return "", pd.DataFrame()
 
 
 def _switchings_aba(contexto: Any) -> FonteSwitching:
     try:
-        nome, df = _resolver_quadro_switching_planilha(contexto)
+        nome, df = _quadro_aba_switching(contexto)
         origem = f"planilha.aba_switching[{nome or 'nao_encontrada'}]"
-        return FonteSwitching(origem, _canonizar(_df_para_registros(df), origem))
-    except Exception as erro:
-        return FonteSwitching("planilha.aba_switching", [], f"{erro.__class__.__name__}: {erro}")
+        return FonteSwitching(origem, _canon(_df_records(df), origem))
+    except Exception as e:
+        return FonteSwitching("planilha.aba_switching", [], f"{e.__class__.__name__}: {e}")
 
 
 def _mapa_central(contexto: Any) -> dict[str, dict[str, Any]]:
     pacote = getattr(contexto, "recomputacao_sequencial_central_v1", None)
     quadro = getattr(pacote, "quadro_recomputacao_sequencial_central", None) if pacote is not None else None
-    mapa: dict[str, dict[str, Any]] = {}
-    if isinstance(quadro, pd.DataFrame) and not quadro.empty:
-        for _, row in quadro.iterrows():
-            pid = _txt(row.get("pagamento_id"))
-            if pid:
-                mapa[pid] = row.to_dict()
+    if not isinstance(quadro, pd.DataFrame) or quadro.empty:
+        return {}
+    mapa = {}
+    for _, row in quadro.iterrows():
+        pid = _txt(row.get("pagamento_id"))
+        if pid:
+            mapa[pid] = row.to_dict()
     return mapa
 
 
-def _eventos_switching_do_resultado_ledger(resultado: Any) -> list[dict[str, Any]]:
-    eventos: list[dict[str, Any]] = []
+def _evento_switching_explicito(e: dict[str, Any]) -> bool:
+    return bool(_txt(_pick(e, ["evento_switching_id"]))) or _norm(_pick(e, ["tipo_evento", "evento", "tipo"])) == "switching"
+
+
+def _eventos_switching_ledger(resultado: Any) -> tuple[list[dict[str, Any]], int, int]:
+    bruto = []
     if isinstance(resultado, dict):
         bruto = resultado.get("eventos") or resultado.get("ledger") or []
     elif isinstance(resultado, list):
         bruto = resultado
-    else:
-        bruto = []
     if isinstance(bruto, pd.DataFrame):
         bruto = bruto.to_dict(orient="records")
     if not isinstance(bruto, list):
-        return []
-    for evento in bruto:
-        if not isinstance(evento, dict):
-            continue
-        texto = json.dumps(evento, ensure_ascii=False, default=str).lower()
-        chaves = {_norm(k) for k in evento.keys()}
-        tem_campo_switching = bool({
-            "evento_switching_id", "data_switching", "lote_origem", "lote_pos_switching",
-            "produto_destino", "status_materializacao_passiva", "origem_mapa_migracao",
-        } & chaves)
-        tem_tipo_switching = "switching" in _norm(evento.get("tipo_evento") or evento.get("evento") or evento.get("tipo"))
-        if tem_campo_switching or tem_tipo_switching or "switching" in texto:
-            eventos.append(evento)
-    return eventos
+        return [], 0, 0
+    validos = [dict(e) for e in bruto if isinstance(e, dict) and _evento_switching_explicito(e)]
+    return validos, len(bruto), len(bruto) - len(validos)
 
 
-def _switchings_ledger(contexto: Any, saida: Any) -> FonteSwitching:
-    tentativas: list[tuple[str, pd.DataFrame]] = []
+def _switchings_ledger(contexto: Any) -> FonteSwitching:
     motor = getattr(contexto, "motor_recomendacao_pagamentos_switching_v1", None)
-    quadro_motor = getattr(motor, "quadro_recomendacoes", None) if motor is not None else None
-    if isinstance(quadro_motor, pd.DataFrame) and not quadro_motor.empty:
-        tentativas.append(("motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes", quadro_motor.copy()))
-
-    extrato_futuro = pd.DataFrame(list(getattr(saida, "extrato_futuro", []) or []))
-    if not extrato_futuro.empty:
-        tentativas.append(("saida.extrato_futuro", extrato_futuro))
-
-    erros: list[str] = []
-    todos_eventos: list[dict[str, Any]] = []
-    for nome, quadro in tentativas:
-        try:
-            resultado = construir_ledger_temporal_conjunto(quadro, _mapa_central(contexto), contexto)
-            eventos = _eventos_switching_do_resultado_ledger(resultado)
-            for evento in eventos:
-                evento = dict(evento)
-                evento["_origem_tentativa_ledger"] = nome
-                todos_eventos.append(evento)
-        except Exception as erro:
-            erros.append(f"{nome}: {erro.__class__.__name__}: {erro}")
-
-    registros = _canonizar(todos_eventos, "ledger_temporal_conjunto.eventos_switching")
-    return FonteSwitching("ledger_temporal_conjunto.eventos_switching", registros, " | ".join(erros))
+    quadro = getattr(motor, "quadro_recomendacoes", None) if motor is not None else None
+    detalhes = {
+        "usa_saida_extrato_futuro_renderizado": False,
+        "tentativas_ledger": [],
+        "eventos_ledger_brutos": 0,
+        "eventos_ledger_descartados_por_nao_switching_explicito": 0,
+    }
+    if not isinstance(quadro, pd.DataFrame) or quadro.empty:
+        return FonteSwitching("ledger_temporal_conjunto.eventos_switching_explicitos", [], "nenhum_quadro_interno_do_motor_disponivel_para_construir_ledger_temporal_conjunto", detalhes)
+    detalhes["tentativas_ledger"] = ["motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes"]
+    try:
+        resultado = construir_ledger_temporal_conjunto(quadro.copy(), _mapa_central(contexto), contexto)
+        eventos, total, descartados = _eventos_switching_ledger(resultado)
+        detalhes["eventos_ledger_brutos"] = total
+        detalhes["eventos_ledger_descartados_por_nao_switching_explicito"] = descartados
+        for evento in eventos:
+            evento["_origem_tentativa_ledger"] = detalhes["tentativas_ledger"][0]
+        return FonteSwitching("ledger_temporal_conjunto.eventos_switching_explicitos", _canon(eventos, "ledger_temporal_conjunto.eventos_switching_explicitos"), "", detalhes)
+    except Exception as e:
+        return FonteSwitching("ledger_temporal_conjunto.eventos_switching_explicitos", [], f"motor_recomendacao_pagamentos_switching_v1.quadro_recomendacoes: {e.__class__.__name__}: {e}", detalhes)
 
 
-def _linha_resumo(origens: dict[str, FonteSwitching], ponte_equivale_ledger: bool) -> list[dict[str, Any]]:
-    return [{
-        "tipo_linha": "resumo",
-        "fonte": "veredito",
-        "ponte_equivale_ledger": "sim" if ponte_equivale_ledger else "nao",
-        "switchings_ponte": len(origens["ponte"].registros),
-        "switchings_pre_saida": len(origens["pre_saida"].registros),
-        "switchings_ledger": len(origens["ledger"].registros),
-        "switchings_aba": len(origens["aba"].registros),
-        "erro_pre_saida": origens["pre_saida"].erro,
-        "erro_ledger": origens["ledger"].erro,
-        "erro_aba": origens["aba"].erro,
-    }]
-
-
-def _linhas_comparacao(origens: dict[str, FonteSwitching]) -> list[dict[str, Any]]:
-    por_chave: dict[str, dict[str, Any]] = {}
-    for nome_curto, fonte in origens.items():
-        for registro in fonte.registros:
-            chave = registro.get("chave_equivalencia", "")
-            linha = por_chave.setdefault(chave, {
+def _comparar(origens: dict[str, FonteSwitching]) -> list[dict[str, Any]]:
+    linhas: dict[str, dict[str, Any]] = {}
+    for fonte, obj in origens.items():
+        for r in obj.registros:
+            chave = r["chave_equivalencia"]
+            linha = linhas.setdefault(chave, {
                 "tipo_linha": "comparacao",
                 "chave_equivalencia": chave,
-                "data": registro.get("data", ""),
-                "lote_origem": registro.get("lote_origem", ""),
-                "lote_destino": registro.get("lote_destino", ""),
-                "produto_destino": registro.get("produto_destino", ""),
-                "valor_liquido": registro.get("valor_liquido", ""),
-                "em_ponte": "nao",
-                "em_pre_saida": "nao",
-                "em_ledger": "nao",
-                "em_aba": "nao",
-                "status_ponte": "",
-                "status_pre_saida": "",
-                "status_ledger": "",
-                "status_aba": "",
-                "json_ponte": "",
-                "json_pre_saida": "",
-                "json_ledger": "",
-                "json_aba": "",
+                "data": r["data"],
+                "lote_origem": r["lote_origem"],
+                "lote_destino": r["lote_destino"],
+                "produto_destino": r["produto_destino"],
+                "valor_liquido": r["valor_liquido"],
+                "em_ponte": "nao", "em_pre_saida": "nao", "em_ledger": "nao", "em_aba": "nao",
+                "json_ponte": "", "json_pre_saida": "", "json_ledger": "", "json_aba": "",
             })
-            if nome_curto == "ponte":
-                linha["em_ponte"] = "sim"
-                linha["status_ponte"] = registro.get("status", "")
-                linha["json_ponte"] = registro.get("registro_json", "")
-            elif nome_curto == "pre_saida":
-                linha["em_pre_saida"] = "sim"
-                linha["status_pre_saida"] = registro.get("status", "")
-                linha["json_pre_saida"] = registro.get("registro_json", "")
-            elif nome_curto == "ledger":
-                linha["em_ledger"] = "sim"
-                linha["status_ledger"] = registro.get("status", "")
-                linha["json_ledger"] = registro.get("registro_json", "")
-            elif nome_curto == "aba":
-                linha["em_aba"] = "sim"
-                linha["status_aba"] = registro.get("status", "")
-                linha["json_aba"] = registro.get("registro_json", "")
-    linhas = list(por_chave.values())
-    linhas.sort(key=lambda r: (str(r.get("data", "")), str(r.get("lote_origem", "")), str(r.get("produto_destino", "")), str(r.get("valor_liquido", ""))))
-    for linha in linhas:
-        divergencias = []
-        if linha.get("em_ponte") == "sim" and linha.get("em_ledger") != "sim":
-            divergencias.append("ponte_sem_equivalente_ledger")
-        if linha.get("em_ledger") == "sim" and linha.get("em_ponte") != "sim":
-            divergencias.append("ledger_sem_equivalente_ponte")
-        if linha.get("em_ponte") == "sim" and linha.get("em_aba") != "sim":
-            divergencias.append("ponte_sem_equivalente_aba")
-        if linha.get("em_ponte") == "sim" and linha.get("em_pre_saida") != "sim":
-            divergencias.append("ponte_sem_equivalente_pre_saida")
-        linha["divergencias"] = ";".join(divergencias) if divergencias else "n/d"
-    return linhas
+            linha[f"em_{fonte}"] = "sim"
+            linha[f"json_{fonte}"] = r["registro_json"]
+    saida = list(linhas.values())
+    for l in saida:
+        divs = []
+        if l["em_ponte"] == "sim" and l["em_ledger"] != "sim":
+            divs.append("ponte_sem_equivalente_ledger")
+        if l["em_ledger"] == "sim" and l["em_ponte"] != "sim":
+            divs.append("ledger_sem_equivalente_ponte")
+        if l["em_ponte"] == "sim" and l["em_aba"] != "sim":
+            divs.append("ponte_sem_equivalente_aba")
+        if l["em_ponte"] == "sim" and l["em_pre_saida"] != "sim":
+            divs.append("ponte_sem_equivalente_pre_saida")
+        l["divergencias"] = ";".join(divs) if divs else "n/d"
+    return sorted(saida, key=lambda x: (x["data"], x["lote_origem"], x["produto_destino"], x["valor_liquido"]))
 
 
 def main() -> None:
@@ -366,40 +253,52 @@ def main() -> None:
         incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
     )
     saida = construir_saida_canonica_com_switching_v17_c7(contexto, versao=VERSAO_BASELINE)
-
     origens = {
         "ponte": _switchings_ponte(saida),
         "pre_saida": _switchings_pre_saida(contexto),
-        "ledger": _switchings_ledger(contexto, saida),
+        "ledger": _switchings_ledger(contexto),
         "aba": _switchings_aba(contexto),
     }
-
     chaves_ponte = {r["chave_equivalencia"] for r in origens["ponte"].registros}
     chaves_ledger = {r["chave_equivalencia"] for r in origens["ledger"].registros}
-    ponte_equivale_ledger = bool(chaves_ponte) and chaves_ponte == chaves_ledger
-
-    linhas = _linha_resumo(origens, ponte_equivale_ledger) + _linhas_comparacao(origens)
+    equivalente = bool(chaves_ponte) and chaves_ponte == chaves_ledger
+    detalhes = origens["ledger"].detalhes or {}
+    resumo = [{
+        "tipo_linha": "resumo",
+        "fonte": "veredito",
+        "ponte_equivale_ledger": "sim" if equivalente else "nao",
+        "switchings_ponte": len(origens["ponte"].registros),
+        "switchings_pre_saida": len(origens["pre_saida"].registros),
+        "switchings_ledger": len(origens["ledger"].registros),
+        "switchings_aba": len(origens["aba"].registros),
+        "usa_saida_extrato_futuro_renderizado": detalhes.get("usa_saida_extrato_futuro_renderizado", False),
+        "eventos_ledger_brutos": detalhes.get("eventos_ledger_brutos", 0),
+        "eventos_ledger_descartados_por_nao_switching_explicito": detalhes.get("eventos_ledger_descartados_por_nao_switching_explicito", 0),
+        "tentativas_ledger": json.dumps(detalhes.get("tentativas_ledger", []), ensure_ascii=False),
+        "erro_ledger": origens["ledger"].erro,
+    }]
+    comparacao = _comparar(origens)
     ARQUIVO_COMPARACAO.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(linhas).to_csv(ARQUIVO_COMPARACAO, index=False)
+    pd.DataFrame(resumo + comparacao).to_csv(ARQUIVO_COMPARACAO, index=False)
 
-    print("=== GATE V17-F0-O.1 — EQUIVALÊNCIA SWITCHING PONTE VS LEDGER ===")
+    print("=== GATE V17-F0-O.1.1 — EQUIVALÊNCIA SWITCHING PONTE VS LEDGER ===")
     print(f"versao_baseline={VERSAO_BASELINE}")
-    print(f"ponte_equivale_ledger={'sim' if ponte_equivale_ledger else 'nao'}")
+    print(f"ponte_equivale_ledger={'sim' if equivalente else 'nao'}")
     print(f"switchings_ponte={len(origens['ponte'].registros)}")
     print(f"switchings_pre_saida={len(origens['pre_saida'].registros)}")
     print(f"switchings_ledger={len(origens['ledger'].registros)}")
     print(f"switchings_aba={len(origens['aba'].registros)}")
+    print(f"usa_saida_extrato_futuro_renderizado={detalhes.get('usa_saida_extrato_futuro_renderizado', False)}")
+    print(f"eventos_ledger_brutos={detalhes.get('eventos_ledger_brutos', 0)}")
+    print(f"eventos_ledger_descartados_por_nao_switching_explicito={detalhes.get('eventos_ledger_descartados_por_nao_switching_explicito', 0)}")
     if origens["ledger"].erro:
         print(f"erro_ledger={origens['ledger'].erro}")
     print(f"csv={ARQUIVO_COMPARACAO}")
-
-    comparacao = pd.DataFrame(_linhas_comparacao(origens))
-    if not comparacao.empty:
-        colunas = ["data", "lote_origem", "lote_destino", "produto_destino", "valor_liquido", "em_ponte", "em_pre_saida", "em_ledger", "em_aba", "divergencias"]
+    if comparacao:
+        cols = ["data", "lote_origem", "lote_destino", "produto_destino", "valor_liquido", "em_ponte", "em_pre_saida", "em_ledger", "em_aba", "divergencias"]
         print("\n=== AMOSTRA COMPARATIVA ===")
-        print(comparacao[colunas].to_string(index=False))
-
-    if ponte_equivale_ledger:
+        print(pd.DataFrame(comparacao)[cols].to_string(index=False))
+    if equivalente:
         print("\nrecomendacao=ponte_pode_ser_removida_em_microetapa_posterior_apenas_com_gate_de_regressao")
     else:
         print("\nrecomendacao=manter_ponte_e_migrar_materializacao_dos_switchings_para_ledger_estado_temporal_em_microetapa_posterior")
