@@ -30,13 +30,27 @@ def _pick(d: dict[str, Any], nomes: list[str]) -> Any:
     return ''
 
 def _num(v: Any) -> float:
+    """Converte valor para número apenas para gate diagnóstico.
+
+    Marcadores textuais como 'n/d', 'na' ou '-' retornam 0.0 como
+    valor neutro defensivo. Este helper não deve ser usado como regra
+    econômica; ele existe apenas para impedir que o gate quebre antes
+    de emitir o CSV diagnóstico.
+    """
     t = _txt(v)
-    if not t: return 0.0
-    try: return round(float(v), 2)
-    except Exception: pass
+    if not t:
+        return 0.0
+    try:
+        return round(float(v), 2)
+    except Exception:
+        pass
     l = t.replace('R$', '').strip()
-    if ',' in l: l = l.replace('.', '').replace(',', '.')
-    return round(float(l), 2)
+    if ',' in l:
+        l = l.replace('.', '').replace(',', '.')
+    try:
+        return round(float(l), 2)
+    except Exception:
+        return 0.0
 
 def _data(v: Any) -> str:
     if not _txt(v): return ''
