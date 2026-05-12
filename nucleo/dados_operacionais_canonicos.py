@@ -6,6 +6,8 @@ implementar replay do passado, núcleo financeiro, resgates ou capitalização.
 Escopo desta etapa:
 - leitura canônica do Inventário de Lotes;
 - leitura canônica de Todos os Gastos;
+- leitura canônica de Salários;
+- leitura canônica de Switching, incluindo aliases de aba;
 - classificação operacional mínima dos lotes;
 - separação estrutural entre contas pagas e não pagas.
 """
@@ -40,6 +42,12 @@ class PacoteDadosOperacionaisCanonicos:
     gastos_canonicos: pd.DataFrame
     auditoria_inventario: dict[str, Any]
     auditoria_gastos: dict[str, Any]
+    nome_aba_salarios: str = ""
+    nome_aba_switching: str = ""
+    salarios_canonicos: Optional[pd.DataFrame] = None
+    switching_canonico: Optional[pd.DataFrame] = None
+    auditoria_salarios: Optional[dict[str, Any]] = None
+    auditoria_switching: Optional[dict[str, Any]] = None
 
 
 
@@ -415,6 +423,294 @@ def carregar_gastos_canonicos(
     return nome_aba, quadro, auditoria
 
 
+
+def _resolver_aba_por_alias(
+    pacote_planilha: PacotePlanilha,
+    aliases: list[str],
+    *,
+    obrigatoria: bool = False,
+) -> tuple[str, Optional[pd.DataFrame], dict[str, Any]]:
+    mapa = {normalizar_texto(nome): nome for nome in pacote_planilha.nomes_abas}
+    aliases_norm = [normalizar_texto(a) for a in aliases]
+
+    for alias_norm in aliases_norm:
+        if alias_norm in mapa:
+            nome = mapa[alias_norm]
+            return nome, pacote_planilha.quadros_brutos.get(nome), {
+                "aba_encontrada": True,
+                "nome_aba": nome,
+                "aliases_aceitos": aliases,
+                "tipo_match_aba": "alias_exato_normalizado",
+            }
+
+    auditoria = {
+        "aba_encontrada": False,
+        "nome_aba": "",
+        "aliases_aceitos": aliases,
+        "abas_disponiveis": list(pacote_planilha.nomes_abas),
+        "tipo_match_aba": "nao_encontrada",
+    }
+    if obrigatoria:
+        raise KeyError(f"Aba não encontrada. Aliases tentados: {aliases}. Abas disponíveis: {pacote_planilha.nomes_abas}")
+    return "", None, auditoria
+
+
+def _resolver_coluna_por_alias_local(
+    df: pd.DataFrame,
+    aliases: list[str],
+) -> Optional[str]:
+    if df is None or len(getattr(df, "columns", [])) == 0:
+        return None
+    mapa = {normalizar_texto(c): c for c in df.columns}
+    for alias in aliases:
+        alias_norm = normalizar_texto(alias)
+        if alias_norm in mapa:
+            return str(mapa[alias_norm])
+    return None
+
+
+def _primeira_coluna_monetaria(df: pd.DataFrame, excluir: set[str] | None = None) -> Optional[str]:
+    excluir = excluir or set()
+    melhor_coluna = None
+    melhor_qtd = -1
+    for col in df.columns:
+        if str(col) in excluir:
+            continue
+        valores = df[col].apply(lambda v: para_float_monetario(v, 0.0))
+        qtd = int((valores > 0).sum())
+        if qtd > melhor_qtd:
+            melhor_coluna = str(col)
+            melhor_qtd = qtd
+    return melhor_coluna if melhor_qtd > 0 else None
+
+
+def carregar_salarios_canonicos(
+    pacote_planilha: PacotePlanilha,
+    config: Mapping[str, Any],
+    *,
+    data_referencia: date,
+) -> tuple[str, pd.DataFrame, dict[str, Any]]:
+    aliases_aba = ["Salários", "Salarios", "Salário", "Salario"]
+    nome_aba, df, auditoria_aba = _resolver_aba_por_alias(pacote_planilha, aliases_aba, obrigatoria=False)
+
+    auditoria: dict[str, Any] = {
+        **auditoria_aba,
+        "colunas_resolvidas": {},
+        "linhas_descartadas": [],
+    }
+
+    if df is None:
+        quadro = pd.DataFrame(columns=[
+            "salario_id",
+            "ordem_planilha_salario",
+            "origem_registro",
+            "data_recebimento",
+            "descricao",
+            "valor_bruto",
+            "valor_liquido",
+            "disponivel_na_data_referencia",
+        ])
+        auditoria["validacao"] = {"ok": True, "erros": [], "avisos": ["aba_salarios_ausente"]}
+        auditoria["resumo"] = {"total_salarios": 0, "valor_bruto_total": 0.0, "valor_liquido_total": 0.0}
+        return nome_aba, quadro, auditoria
+
+    col_data = _resolver_coluna_por_alias_local(df, [
+        "data_recebimento", "data recebimento", "Data Recebimento",
+        "data", "Data", "mês", "mes", "Mês", "Mes",
+    ])
+    col_descricao = _resolver_coluna_por_alias_local(df, [
+        "descricao", "descrição", "Descrição", "Descricao",
+        "origem", "Origem", "fonte", "Fonte", "observacao", "observação",
+    ])
+    col_valor_bruto = _resolver_coluna_por_alias_local(df, [
+        "valor_bruto", "valor bruto", "Valor Bruto",
+        "salario_bruto", "salário bruto", "Salário Bruto", "Salario Bruto",
+        "valor", "Valor", "salario", "salário", "Salário", "Salario",
+    ])
+    col_valor_liquido = _resolver_coluna_por_alias_local(df, [
+        "valor_liquido", "valor líquido", "Valor Líquido", "Valor Liquido",
+        "salario_liquido", "salário líquido", "Salário Líquido", "Salario Liquido",
+        "liquido", "líquido", "Líquido", "Liquido",
+    ])
+
+    if col_valor_bruto is None:
+        col_valor_bruto = _primeira_coluna_monetaria(df)
+
+    auditoria["colunas_resolvidas"] = {
+        "data_recebimento": col_data,
+        "descricao": col_descricao,
+        "valor_bruto": col_valor_bruto,
+        "valor_liquido": col_valor_liquido,
+    }
+
+    registros = []
+    for idx, row in df.iterrows():
+        data_recebimento = para_data(row.get(col_data)) if col_data else None
+        valor_bruto = para_float_monetario(row.get(col_valor_bruto), 0.0) if col_valor_bruto else 0.0
+        valor_liquido = para_float_monetario(row.get(col_valor_liquido), valor_bruto) if col_valor_liquido else valor_bruto
+
+        if data_recebimento is None and valor_bruto <= 0 and valor_liquido <= 0:
+            auditoria["linhas_descartadas"].append({"idx": int(idx), "motivo": "linha_vazia_ou_sem_valor"})
+            continue
+
+        registros.append({
+            "salario_id": f"salario_auto_{len(registros) + 1:05d}",
+            "ordem_planilha_salario": para_int(idx, 0) + 1,
+            "origem_registro": "salarios",
+            "data_recebimento": data_recebimento,
+            "descricao": limpar_texto(row.get(col_descricao)) if col_descricao else "",
+            "valor_bruto": valor_bruto,
+            "valor_liquido": valor_liquido,
+            "disponivel_na_data_referencia": bool(data_recebimento is None or data_recebimento <= data_referencia),
+        })
+
+    quadro = pd.DataFrame(registros)
+    validacao = {"ok": True, "erros": [], "avisos": []}
+    if len(quadro) == 0:
+        validacao["avisos"].append("salarios_canonicos_vazio")
+    if len(quadro) > 0 and (quadro["valor_bruto"] <= 0).any():
+        validacao["avisos"].append("existem_salarios_sem_valor_bruto_positivo")
+    if len(quadro) > 0 and quadro["data_recebimento"].isna().any():
+        validacao["avisos"].append("existem_salarios_sem_data_recebimento")
+
+    auditoria["validacao"] = validacao
+    auditoria["resumo"] = {
+        "total_salarios": int(len(quadro)),
+        "valor_bruto_total": float(round(quadro["valor_bruto"].sum(), 2)) if len(quadro) else 0.0,
+        "valor_liquido_total": float(round(quadro["valor_liquido"].sum(), 2)) if len(quadro) else 0.0,
+        "disponiveis_na_data_referencia": int(quadro["disponivel_na_data_referencia"].sum()) if len(quadro) else 0,
+    }
+    return nome_aba, quadro, auditoria
+
+
+def carregar_switching_canonico(
+    pacote_planilha: PacotePlanilha,
+    config: Mapping[str, Any],
+    *,
+    data_referencia: date,
+) -> tuple[str, pd.DataFrame, dict[str, Any]]:
+    aliases_aba = ["Switching", "Switiching", "Swtiching"]
+    nome_aba, df, auditoria_aba = _resolver_aba_por_alias(pacote_planilha, aliases_aba, obrigatoria=False)
+
+    auditoria: dict[str, Any] = {
+        **auditoria_aba,
+        "colunas_resolvidas": {},
+        "linhas_descartadas": [],
+    }
+
+    cols = [
+        "switching_id",
+        "ordem_planilha_switching",
+        "origem_registro",
+        "data_switching",
+        "lote_origem",
+        "lote_destino",
+        "produto_origem",
+        "produto_destino",
+        "ganho_estimado",
+        "valor_liquido_origem",
+        "status",
+    ]
+
+    if df is None:
+        quadro = pd.DataFrame(columns=cols)
+        auditoria["validacao"] = {"ok": True, "erros": [], "avisos": ["aba_switching_ausente"]}
+        auditoria["resumo"] = {"total_switchings": 0, "valor_liquido_origem_total": 0.0}
+        return nome_aba, quadro, auditoria
+
+    col_data = _resolver_coluna_por_alias_local(df, [
+        "data_switching", "data switching", "Data Switching",
+        "data sugerida", "Data sugerida", "Data Sugerida",
+        "data", "Data",
+    ])
+    col_lote_origem = _resolver_coluna_por_alias_local(df, [
+        "lote_origem", "lote origem", "Lote origem", "Lote Origem",
+        "lote_id_antes", "lote antes", "Lote antes",
+    ])
+    col_lote_destino = _resolver_coluna_por_alias_local(df, [
+        "lote_destino", "lote destino", "Lote destino", "Lote Destino",
+        "lote_pos_switching", "lote pós switching", "lote pos switching",
+        "lote_id_depois", "lote depois", "Lote depois",
+    ])
+    col_produto_origem = _resolver_coluna_por_alias_local(df, [
+        "produto_origem", "produto origem", "Produto origem", "Produto Origem",
+        "investimento_origem", "investimento origem",
+    ])
+    col_produto_destino = _resolver_coluna_por_alias_local(df, [
+        "produto_destino", "produto destino", "Produto destino", "Produto Destino",
+        "produto destino switching", "Produto destino switching", "Produto Destino Switching",
+        "destino", "Destino", "investimento", "Investimento",
+    ])
+    col_ganho = _resolver_coluna_por_alias_local(df, [
+        "ganho_estimado", "ganho estimado", "Ganho estimado", "Ganho Estimado",
+        "ganho", "Ganho",
+    ])
+    col_valor = _resolver_coluna_por_alias_local(df, [
+        "valor_liquido_origem", "valor líquido origem", "Valor líquido origem", "Valor Liquido Origem",
+        "valor_liquido_migrado", "valor líquido migrado", "Valor líquido migrado", "Valor Liquido Migrado",
+        "valor", "Valor",
+    ])
+    col_status = _resolver_coluna_por_alias_local(df, ["status", "Status"])
+
+    auditoria["colunas_resolvidas"] = {
+        "data_switching": col_data,
+        "lote_origem": col_lote_origem,
+        "lote_destino": col_lote_destino,
+        "produto_origem": col_produto_origem,
+        "produto_destino": col_produto_destino,
+        "ganho_estimado": col_ganho,
+        "valor_liquido_origem": col_valor,
+        "status": col_status,
+    }
+
+    registros = []
+    for idx, row in df.iterrows():
+        data_switching = para_data(row.get(col_data)) if col_data else None
+        lote_origem = normalizar_identificador(row.get(col_lote_origem)) if col_lote_origem else ""
+        lote_destino = normalizar_identificador(row.get(col_lote_destino)) if col_lote_destino else ""
+        produto_destino = limpar_texto(row.get(col_produto_destino)) if col_produto_destino else ""
+        valor_liquido = para_float_monetario(row.get(col_valor), 0.0) if col_valor else 0.0
+
+        if data_switching is None and not lote_origem and not lote_destino and not produto_destino and valor_liquido <= 0:
+            auditoria["linhas_descartadas"].append({"idx": int(idx), "motivo": "linha_vazia"})
+            continue
+
+        registros.append({
+            "switching_id": f"switching_auto_{len(registros) + 1:05d}",
+            "ordem_planilha_switching": para_int(idx, 0) + 1,
+            "origem_registro": "switching",
+            "data_switching": data_switching,
+            "lote_origem": lote_origem,
+            "lote_destino": lote_destino,
+            "produto_origem": limpar_texto(row.get(col_produto_origem)) if col_produto_origem else "",
+            "produto_destino": produto_destino,
+            "ganho_estimado": para_float_monetario(row.get(col_ganho), 0.0) if col_ganho else 0.0,
+            "valor_liquido_origem": valor_liquido,
+            "status": limpar_texto(row.get(col_status)) if col_status else "",
+        })
+
+    quadro = pd.DataFrame(registros, columns=cols)
+    validacao = {"ok": True, "erros": [], "avisos": []}
+    if len(quadro) == 0:
+        validacao["avisos"].append("switching_canonico_vazio")
+    if len(quadro) > 0 and quadro["data_switching"].isna().any():
+        validacao["avisos"].append("existem_switchings_sem_data")
+    if len(quadro) > 0 and (quadro["lote_origem"] == "").any():
+        validacao["avisos"].append("existem_switchings_sem_lote_origem")
+    if len(quadro) > 0 and (quadro["produto_destino"] == "").any() and (quadro["lote_destino"] == "").any():
+        validacao["avisos"].append("existem_switchings_sem_destino_identificavel")
+
+    auditoria["validacao"] = validacao
+    auditoria["resumo"] = {
+        "total_switchings": int(len(quadro)),
+        "valor_liquido_origem_total": float(round(quadro["valor_liquido_origem"].sum(), 2)) if len(quadro) else 0.0,
+        "com_lote_origem": int((quadro["lote_origem"] != "").sum()) if len(quadro) else 0,
+        "com_lote_destino": int((quadro["lote_destino"] != "").sum()) if len(quadro) else 0,
+        "com_produto_destino": int((quadro["produto_destino"] != "").sum()) if len(quadro) else 0,
+    }
+    return nome_aba, quadro, auditoria
+
+
 def carregar_dados_operacionais_canonicos(
     pacote_planilha: PacotePlanilha,
     config: Mapping[str, Any],
@@ -433,6 +729,16 @@ def carregar_dados_operacionais_canonicos(
         config,
         data_referencia=data_referencia,
     )
+    nome_aba_salarios, salarios_canonicos, auditoria_salarios = carregar_salarios_canonicos(
+        pacote_planilha,
+        config,
+        data_referencia=data_referencia,
+    )
+    nome_aba_switching, switching_canonico, auditoria_switching = carregar_switching_canonico(
+        pacote_planilha,
+        config,
+        data_referencia=data_referencia,
+    )
     return PacoteDadosOperacionaisCanonicos(
         nome_aba_lotes=nome_aba_lotes,
         nome_aba_despesas=nome_aba_despesas,
@@ -440,4 +746,10 @@ def carregar_dados_operacionais_canonicos(
         gastos_canonicos=gastos_canonicos,
         auditoria_inventario=auditoria_inventario,
         auditoria_gastos=auditoria_gastos,
+        nome_aba_salarios=nome_aba_salarios,
+        nome_aba_switching=nome_aba_switching,
+        salarios_canonicos=salarios_canonicos,
+        switching_canonico=switching_canonico,
+        auditoria_salarios=auditoria_salarios,
+        auditoria_switching=auditoria_switching,
     )
