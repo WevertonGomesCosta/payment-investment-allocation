@@ -145,7 +145,7 @@ def main():
             cls = "falha_extracao_recebidos_auditaveis"
             causa, reco = "fonte_recebidos_auditaveis_nao_localizada", "corrigir extracao diagnostica antes de inferir divergencia economica"
         else:
-            flags = [f_sal_sem_aporte, f_pag_sem_fonte, f_rec_fut_na, f_div_temp]
+            flags = [f_sal_sem_aporte, f_pag_sem_fonte, f_rec_fut_na, f_div_sal_rec, f_div_rec_res]
             if sum(flags) > 1: cls = "multiplas_divergencias"
             elif f_sal_sem_aporte: cls = "salario_sem_aporte"
             elif f_pag_sem_fonte: cls = "pagamento_sem_fonte_temporal"
@@ -171,8 +171,9 @@ def main():
     meses_sal_sem_aporte = int(df["flag_salario_sem_aporte"].sum()) if not df.empty else 0
     meses_pag_sem_fonte = int(df["flag_pagamento_sem_fonte_temporal"].sum()) if not df.empty else 0
     meses_div_sal_rec = int(df["diferenca_salarios_vs_recebidos"].abs().fillna(0).gt(0.01).sum()) if not df.empty else 0
+    meses_div_rec_res = int(df["diferenca_recebidos_vs_resumo"].abs().fillna(0).gt(0.01).sum()) if (not df.empty and resumo_temporal) else 0
     meses_recv_fut = int(df["flag_recebido_futuro_nao_aportado"].sum()) if not df.empty else 0
-    status = "temporal_reconciliado" if (meses_sal_sem_aporte + meses_pag_sem_fonte + meses_div_sal_rec + meses_recv_fut) == 0 else "temporal_com_divergencias_diagnosticadas"
+    status = "temporal_reconciliado" if (meses_sal_sem_aporte + meses_pag_sem_fonte + meses_div_sal_rec + meses_div_rec_res + meses_recv_fut) == 0 else "temporal_com_divergencias_diagnosticadas"
 
     print("=== AUDITORIA V17-F0-S.0 — RECONCILIACAO TEMPORAL MENSAL ===")
     print("correcao_aplicada=V17-F0-S.0.1")
@@ -187,6 +188,7 @@ def main():
     print(f"meses_com_salario_sem_aporte={meses_sal_sem_aporte}")
     print(f"meses_com_pagamento_sem_fonte_temporal={meses_pag_sem_fonte}")
     print(f"meses_com_divergencia_salario_x_recebidos={meses_div_sal_rec}")
+    print(f"meses_com_divergencia_recebidos_x_resumo={meses_div_rec_res}")
     print(f"meses_com_recebidos_futuros_ainda_nao_aportados={meses_recv_fut}")
     print(f"total_reconciliado_salarios={df['salario_liquido_canonico'].sum() if not df.empty else 0.0:.2f}")
     print(f"total_reconciliado_recebidos={total_rec:.2f}")
