@@ -15,7 +15,8 @@ Fora do escopo desta etapa:
 - switching econômico;
 - score econômico final;
 - relatório financeiro atual;
-- replay de despesas sem lote informado.
+- replay de despesas sem lote informado, exceto quando `Lote usado = Saldo`,
+  pois `Saldo` exclusivo representa caixa operacional histórico auditável.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Optional
 
+import re
 import pandas as pd
 
 from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro, calcular_dias_lote
@@ -226,6 +228,28 @@ def _inconsistencia_e_material(item: dict[str, Any], limiar: float) -> bool:
         return True
 
 
+FONTE_CAIXA_OPERACIONAL_HISTORICO = 'caixa_operacional_historico'
+ROTULO_SALDO_HISTORICO = 'Saldo'
+
+
+def _tokens_lote_historico(valor: Any) -> list[str]:
+    txt = limpar_texto(valor)
+    if not txt:
+        return []
+    partes = re.split(r"\s*(?:\+|,|;|\||/|\n)\s*", txt)
+    return [normalizar_texto(p) for p in partes if limpar_texto(p)]
+
+
+def _eh_saldo_historico_exclusivo(valor: Any) -> bool:
+    tokens = _tokens_lote_historico(valor)
+    return len(tokens) == 1 and tokens[0] == 'saldo'
+
+
+def _contem_saldo_historico_nao_exclusivo(valor: Any) -> bool:
+    tokens = _tokens_lote_historico(valor)
+    return 'saldo' in tokens and not (len(tokens) == 1 and tokens[0] == 'saldo')
+
+
 def _contexto_inconsistencia(conta: dict[str, Any], restante: Optional[float] = None) -> dict[str, Any]:
     lotes_informados = [x for x in [limpar_texto(conta.get('lote_usado_1')), limpar_texto(conta.get('lote_usado_2'))] if x]
     return {
@@ -317,7 +341,9 @@ def carregar_replay_passado_controlado(
         validacao = {'ok': True, 'erros': [], 'avisos': ['nao_ha_contas_pagas_para_replay']}
         return PacoteReplayPassadoControlado(lotes_base, pd.DataFrame(), estado, auditoria, validacao)
 
-    data_inicial = min(l.data_aplicacao for l in lotes_base)
+    data_inicial_lotes = min((l.data_aplicacao for l in lotes_base), default=data_referencia)
+    data_inicial_contas = min(contas_pagas['data'])
+    data_inicial = min(data_inicial_lotes, data_inicial_contas)
     data_final_historico = max(contas_pagas['data'])
     data_final = max(data_final_historico, data_referencia)
     log_registros: list[dict[str, Any]] = []
@@ -339,6 +365,13 @@ def carregar_replay_passado_controlado(
     qtd_alias_resolvido = 0
     qtd_fechamentos_referencia_com_fallback = 0
     auditoria_fechamento_referencia: list[dict[str, Any]] = []
+    qtd_contas_saldo_historico = 0
+    qtd_movimentos_saldo_historico = 0
+    qtd_contas_janeiro_saldo_historico = 0
+    qtd_contas_saldo_historico_nao_exclusivo = 0
+    valor_total_saldo_historico = 0.0
+    valor_janeiro_saldo_historico = 0.0
+    valor_saldo_historico_nao_exclusivo = 0.0
 
     while data_atual <= data_final:
         info_capitalizacao = atualizar_saldo_lotes_no_dia(
@@ -370,7 +403,48 @@ def carregar_replay_passado_controlado(
                 continue
 
             consumiu_algo = False
-            for lote_id_informado in lotes_informados:
+            saldo_historico_exclusivo = len(lotes_informados) == 1 and _eh_saldo_historico_exclusivo(lotes_informados[0])
+            saldo_historico_nao_exclusivo = any(_contem_saldo_historico_nao_exclusivo(x) for x in lotes_informados)
+            lotes_informados_sem_saldo = [x for x in lotes_informados if not _eh_saldo_historico_exclusivo(x)]
+
+            if saldo_historico_nao_exclusivo:
+                qtd_contas_saldo_historico_nao_exclusivo += 1
+                valor_saldo_historico_nao_exclusivo += valor
+                inconsistencias.append({**_contexto_inconsistencia(conta, restante), 'motivo': 'saldo_historico_nao_exclusivo_fora_escopo_v17_f0_k'})
+
+            if saldo_historico_exclusivo and restante > tolerancia:
+                liquido_saldo = arredondar_monetario(restante)
+                total_coberto += liquido_saldo
+                valor_total_saldo_historico += liquido_saldo
+                qtd_contas_saldo_historico += 1
+                qtd_movimentos_saldo_historico += 1
+                if getattr(data_atual, 'month', None) == 1:
+                    qtd_contas_janeiro_saldo_historico += 1
+                    valor_janeiro_saldo_historico += liquido_saldo
+                consumiu_algo = True
+                log_registros.append({
+                    'Data': data_atual,
+                    'Despesa ID': conta.get('despesa_id'),
+                    'Conta': conta.get('descricao'),
+                    'Valor Conta': arredondar_monetario(valor),
+                    'Lote': FONTE_CAIXA_OPERACIONAL_HISTORICO,
+                    'Lote Informado': ROTULO_SALDO_HISTORICO,
+                    'Alias Historico Resolvido': False,
+                    'Saldo Antes': '',
+                    'Bruto': liquido_saldo,
+                    'Imposto': 0.0,
+                    'Liquido': liquido_saldo,
+                    'Dias Corridos': '',
+                    'Dias Úteis': '',
+                    'Fase Operacional Lote': FONTE_CAIXA_OPERACIONAL_HISTORICO,
+                    'Saldo Remanescente': '',
+                    'Sequencia Saque': seq_mov,
+                    'Situacao Investimento Lote': FONTE_CAIXA_OPERACIONAL_HISTORICO,
+                })
+                restante = max(restante - liquido_saldo, 0.0)
+                seq_mov += 1
+
+            for lote_id_informado in lotes_informados_sem_saldo:
                 if restante <= tolerancia:
                     break
                 lote = lotes_por_id.get(lote_id_informado)
@@ -489,6 +563,14 @@ def carregar_replay_passado_controlado(
     auditoria = {
         'qtd_contas_historicas': int(len(contas_pagas)),
         'qtd_contas_com_lote_informado': int((contas_pagas['qtd_lotes_informados'] > 0).sum()),
+        'qtd_contas_com_saldo_historico': int(qtd_contas_saldo_historico),
+        'qtd_movimentos_saldo_historico': int(qtd_movimentos_saldo_historico),
+        'qtd_contas_janeiro_saldo_historico': int(qtd_contas_janeiro_saldo_historico),
+        'qtd_contas_saldo_historico_nao_exclusivo': int(qtd_contas_saldo_historico_nao_exclusivo),
+        'valor_total_saldo_historico': arredondar_monetario(valor_total_saldo_historico),
+        'valor_janeiro_saldo_historico': arredondar_monetario(valor_janeiro_saldo_historico),
+        'valor_saldo_historico_nao_exclusivo': arredondar_monetario(valor_saldo_historico_nao_exclusivo),
+        'fonte_saldo_historico': FONTE_CAIXA_OPERACIONAL_HISTORICO,
         'qtd_contas_processadas': int(qtd_contas_processadas),
         'qtd_contas_cobertas_integralmente': int(qtd_integral),
         'qtd_contas_parcialmente_cobertas': int(qtd_parcial),
@@ -522,6 +604,8 @@ def carregar_replay_passado_controlado(
     avisos = []
     if qtd_sem_lote > 0:
         avisos.append('existem_contas_historicas_sem_lote_informado_no_replay_controlado')
+    if qtd_contas_saldo_historico_nao_exclusivo > 0:
+        avisos.append('existem_contas_historicas_com_saldo_nao_exclusivo_fora_escopo_v17_f0_k')
     if qtd_parcial_material > 0:
         avisos.append('existem_contas_historicas_parcialmente_cobertas_no_replay_controlado')
     if qtd_nao_material > 0:
