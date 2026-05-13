@@ -125,22 +125,28 @@ def main():
     df.to_csv(OUT,index=False)
     cnt=Counter(df['classe_lacuna']) if not df.empty else Counter()
     principal=cnt.most_common(1)[0][0] if cnt else 'nenhuma'
+    classes_lacuna={"salario_sem_recebido_auditavel","salario_sem_aporte","salario_sem_recebido_e_sem_aporte","salario_com_recebido_mas_sem_aporte","salario_com_aporte_mas_sem_recebido","recebido_sem_salario_mesmo_mes","recebido_materializado_com_uso_pre_aplicacao","aporte_sem_vinculo_salarial_explicito","pagamento_sem_fonte_temporal_no_mes","divergencia_mensal_salarios_vs_recebidos","divergencia_mensal_salarios_vs_aportes","divergencia_mensal_recebidos_vs_aportes","diferenca_semantica_salarios_vs_inventario"}
+    meses_com_lacuna = int(df.loc[df['classe_lacuna'].isin(classes_lacuna),'mes'].nunique()) if not df.empty else 0
+    if not df.empty:
+        df_mensal=df.drop_duplicates(subset=['mes'])[['mes','salario_mes_total','recebidos_mes_total','aportes_mes_total','pagamentos_historicos_mes_total','pagamentos_futuros_mes_total','pagamentos_futuros_sem_cobertura_total']]
+    else:
+        df_mensal=df
     if fonte_rec=='nao_localizada': status='falha_extracao_fonte_essencial'
     elif df.empty: status='lacuna_integracao_sem_linhas'
     else: status='lacuna_integracao_decomposta'
     print('=== AUDITORIA V17-F0-S.2 — LACUNA INTEGRACAO TEMPORAL ===')
-    print('correcao_aplicada=V17-F0-S.2')
+    print('correcao_aplicada=V17-F0-S.2.1')
     print(f'qtd_salarios_canonicos={len(salarios)}')
     print(f'qtd_recebidos_auditaveis={len(recebidos)}')
     print(f'qtd_lotes_inventario={len(inventario)}')
-    print(f'total_meses_auditados={len(set(df.mes)) if not df.empty else 0}')
+    print(f'total_meses_auditados={len(df_mensal)}')
     print(f'total_linhas_lacuna={len(df)}')
-    print(f'total_salarios_liquidos={df.salario_mes_total.sum() if not df.empty else 0.0:.2f}')
-    print(f'total_recebidos_auditaveis={df.recebidos_mes_total.sum() if not df.empty else 0.0:.2f}')
-    print(f'total_aportes={df.aportes_mes_total.sum() if not df.empty else 0.0:.2f}')
-    print(f'diferenca_total_salarios_vs_recebidos={(df.salario_mes_total.sum()-df.recebidos_mes_total.sum()) if not df.empty else 0.0:.2f}')
-    print(f'diferenca_total_salarios_vs_aportes={(df.salario_mes_total.sum()-df.aportes_mes_total.sum()) if not df.empty else 0.0:.2f}')
-    print(f'meses_com_lacuna_integracao_temporal={int((df.classe_lacuna=="lacuna_integracao_temporal").sum()) if not df.empty else 0}')
+    print(f'total_salarios_liquidos={df_mensal.salario_mes_total.sum() if not df_mensal.empty else 0.0:.2f}')
+    print(f'total_recebidos_auditaveis={df_mensal.recebidos_mes_total.sum() if not df_mensal.empty else 0.0:.2f}')
+    print(f'total_aportes={df_mensal.aportes_mes_total.sum() if not df_mensal.empty else 0.0:.2f}')
+    print(f'diferenca_total_salarios_vs_recebidos={(df_mensal.salario_mes_total.sum()-df_mensal.recebidos_mes_total.sum()) if not df_mensal.empty else 0.0:.2f}')
+    print(f'diferenca_total_salarios_vs_aportes={(df_mensal.salario_mes_total.sum()-df_mensal.aportes_mes_total.sum()) if not df_mensal.empty else 0.0:.2f}')
+    print(f'meses_com_lacuna_integracao_temporal={meses_com_lacuna}')
     print(f'linhas_classe_salario_sem_recebido_e_sem_aporte={int((df.classe_lacuna=="salario_sem_recebido_e_sem_aporte").sum()) if not df.empty else 0}')
     print(f'linhas_classe_pagamento_sem_fonte_temporal_no_mes={int((df.classe_lacuna=="pagamento_sem_fonte_temporal_no_mes").sum()) if not df.empty else 0}')
     print(f'linhas_classe_uso_pre_aplicacao={int((df.classe_lacuna=="recebido_materializado_com_uso_pre_aplicacao").sum()) if not df.empty else 0}')
