@@ -35,6 +35,25 @@ def _rows_generico(obj):
     if isinstance(obj, list): return [dict(x) for x in obj if isinstance(x, dict)]
     return []
 
+
+
+def _to_bool(v):
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return False
+    try:
+        if pd.isna(v):
+            return False
+    except Exception:
+        pass
+    t = str(v).strip().lower()
+    if t in {"true", "1", "sim", "s", "yes", "y"}:
+        return True
+    if t in {"false", "0", "nao", "não", "n", "no", "", "none", "nan", "null"}:
+        return False
+    return False
+
 def _rows_recebidos_auditaveis(obj):
     if obj is None:
         return [], "nao_localizada"
@@ -97,7 +116,7 @@ def main():
     rec_mes = _mes_valor_qtd(recebidos, ["Data", "Data Recebimento", "data_recebimento", "Recebimento"], ["valor_liquido", "Valor líquido", "valor", "Valor", "valor_bruto", "Valor bruto"])
     resumo_mes = _mes_valor_qtd(resumo_rows, ["Data", "data", "Data Recebimento", "data_recebimento", "mes", "Mês"], ["Valor", "valor", "total", "valor_total", "Valor líquido"]) if resumo_temporal else defaultdict(lambda: {"total": None, "qtd": 0})
     pag_mes = _mes_valor_qtd(extrato, ["Data"], ["Valor"])
-    aportes_mes = _mes_valor_qtd(inventario, ["data_aplicacao", "data_recebimento", "Data"], ["valor_original", "Valor", "valor_liquido"], filtro=lambda r: bool(r.get("aportado")) is True)
+    aportes_mes = _mes_valor_qtd(inventario, ["data_aplicacao", "data_recebimento", "Data"], ["valor_original", "Valor", "valor_liquido"], filtro=lambda r: _to_bool(r.get("aportado")))
     sw_mes = _mes_valor_qtd(switchings, ["data_switching", "data_aplicacao", "data_recebimento", "Data"], ["valor_liquido_migrado", "valor_liquido_origem", "Valor líquido origem", "Valor"])
 
     pag_sem_cov = defaultdict(lambda: {"qtd": 0, "total": 0.0})
@@ -113,7 +132,7 @@ def main():
     for r in inventario:
         mes = _to_mes(_get_any(r, ["data_aplicacao", "data_recebimento", "Data"]))
         if not mes: continue
-        if bool(r.get("recebido_futuro_nao_disponivel")) or _norm(r.get("situacao_temporal")) in {"recebido_futuro_nao_disponivel", "futuro_nao_disponivel"}:
+        if _to_bool(r.get("recebido_futuro_nao_disponivel")) or _norm(r.get("situacao_temporal")) in {"recebido_futuro_nao_disponivel", "futuro_nao_disponivel"}:
             recv_futuro_nao_aportado_mes[mes] += 1
 
     meses = sorted(set(list(sal_bruto.keys()) + list(sal_liq.keys()) + list(rec_mes.keys()) + (list(resumo_mes.keys()) if resumo_temporal else []) + list(pag_mes.keys()) + list(aportes_mes.keys()) + list(sw_mes.keys()) + list(pag_sem_cov.keys()) + list(recv_futuro_nao_aportado_mes.keys())))
@@ -181,7 +200,7 @@ def main():
         status = "temporal_com_divergencias_diagnosticadas"
 
     print("=== AUDITORIA V17-F0-S.0 — RECONCILIACAO TEMPORAL MENSAL ===")
-    print("correcao_aplicada=V17-F0-S.1.4")
+    print("correcao_aplicada=V17-F0-S.1.5")
     print(f"fonte_recebidos_auditaveis={fonte_recebidos}")
     print(f"qtd_linhas_recebidos_auditaveis={len(recebidos)}")
     print(f"resumo_recebidos_temporal={'sim' if resumo_temporal else 'nao'}")
