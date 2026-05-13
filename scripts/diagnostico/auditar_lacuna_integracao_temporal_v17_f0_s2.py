@@ -121,9 +121,9 @@ def main():
             if fonte_rec=='nao_localizada': cls='classificacao_indefinida'; causa='fonte_recebidos_nao_localizada'; acao='corrigir_extracao'; sev='alta'; obs='falha_extracao_fonte_essencial'
             elif s>0 and r==0 and a==0: cls='salario_sem_recebido_e_sem_aporte'; causa='sem_materializacao'; acao='rastrear salario->recebido->aporte'; sev='alta'; cad=True
             elif pay_sc: cls='pagamento_sem_fonte_temporal_no_mes'; causa='sem_cobertura'; acao='decompor_fonte_temporal'; sev='alta'; tmp=True
+            elif pre_aplicacao_linha: cls='recebido_materializado_com_uso_pre_aplicacao'; causa='uso_pre_aplicacao_com_vinculo_explicito'; acao='auditar_janela_temporal'; sev='alta'; tmp=True
             elif s>0 and r>0 and a==0: cls='salario_com_recebido_mas_sem_aporte'; causa='recebido_sem_aporte'; acao='validar regra aporte'; sev='alta'; tmp=True
             elif s>0 and r==0 and a>0: cls='salario_com_aporte_mas_sem_recebido'; causa='aporte_sem_recebido'; acao='reconciliar_semantica'; sev='media'; sem=True
-            elif pre_aplicacao_linha: cls='recebido_materializado_com_uso_pre_aplicacao'; causa='uso_pre_aplicacao_com_vinculo_explicito'; acao='auditar_janela_temporal'; sev='alta'; tmp=True
             elif has_pre: cls='uso_pre_aplicacao_no_mes_sem_vinculo_linha'; causa='pre_aplicacao_mensal_sem_chave_linha'; acao='auditar_vinculo_recebido_salario_lote'; sev='media'; tmp=True
             elif s>0 and r==0: cls='salario_sem_recebido_auditavel'; causa='salario_sem_recebido'; acao='rastrear materializacao'; sev='alta'; cad=True
             elif s>0 and a==0: cls='salario_sem_aporte'; causa='salario_sem_aporte'; acao='validar inventario'; sev='media'; cad=True
@@ -150,7 +150,7 @@ def main():
     elif df.empty: status='lacuna_integracao_sem_linhas'
     else: status='lacuna_integracao_decomposta'
     print('=== AUDITORIA V17-F0-S.2 — LACUNA INTEGRACAO TEMPORAL ===')
-    print('correcao_aplicada=V17-F0-S.4.2')
+    print('correcao_aplicada=V17-F0-S.6.2')
     print(f'qtd_salarios_canonicos={len(salarios)}')
     print(f'qtd_recebidos_auditaveis={len(recebidos)}')
     print(f'qtd_lotes_inventario={len(inventario)}')
