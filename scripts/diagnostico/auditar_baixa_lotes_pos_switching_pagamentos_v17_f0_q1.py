@@ -10,7 +10,7 @@ from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 
-BASELINE_ENTRADA="5ab610c"; BASELINE_CODIGO_ANTERIOR="1c2ea40"; BASELINE_DADOS_ANTERIOR="f94f07d"
+BASELINE_ENTRADA="26aad5a"; BASELINE_CODIGO_ANTERIOR="5ab610c"; BASELINE_DADOS_ANTERIOR="f94f07d"
 CSV_DETALHE=RAIZ/'saidas/diagnostico/auditoria_baixa_lotes_pos_switching_pagamentos_v17_f0_q1.csv'
 CSV_RESUMO=RAIZ/'saidas/diagnostico/auditoria_baixa_lotes_pos_switching_pagamentos_v17_f0_q1_resumo.csv'
 DADOS=RAIZ/'dados/dados_financeiros.xlsx'
@@ -135,14 +135,109 @@ def main():
         if row['tipo_divergencia_q1'] not in TIPOS: row['tipo_divergencia_q1']='sem_pagamento_pos_switching_para_auditar'
         detalhes.append(row)
 
-    # casos explicitos
+    # Q.1.5-A2: medir candidatos passados POS em gastos_canonicos, sem reconciliar baixa
     explic=[('2026-05-13','Aluguel',192.89,'Lote 190 mai'),('2026-05-13','Pelada',24.00,'Lote 3120 mai')]
+    encontrados_exp=set()
+    qtd_passados_pos='nao_determinado'
+    qtd_casos_exp_encontrados='nao_determinado'
+
+    if fonte_status=='localizada_canonica' and isinstance(gc,pd.DataFrame) and not colunas_faltantes:
+        cand=gc[(gc['pago']==True) & (gc['passado_pago_ate_data_referencia']==True)].copy()
+        qtd_passados_pos=0
+
+        for _,r in cand.iterrows():
+            lu=' + '.join([str(r.get('lote_usado_1') or ''), str(r.get('lote_usado_2') or '')]).strip(' +')
+            is_pos=_fonte_contem_lote_pos_switching(lu,pos_names)
+
+            if is_pos:
+                qtd_passados_pos += 1
+                row=_empty_row()
+                row.update({
+                    'origem_pagamento':'pagamentos_passados_base_canonica',
+                    'fonte_base_operacional_gastos':fonte_base,
+                    'fonte_base_operacional_gastos_status':fonte_status,
+                    'fonte_auxiliar_observavel':fonte_aux,
+                    'fonte_pagamentos_passados':'saida_canonica',
+                    'pagamento_id':r.get('despesa_id'),
+                    'data_pagamento':r.get('data'),
+                    'conta':r.get('descricao'),
+                    'valor_pagamento':r.get('valor'),
+                    'pagamento_ok_na_planilha':'sim',
+                    'lote_usado_planilha':lu,
+                    'lote_sugerido':lu,
+                    'fonte_eh_lote_pos_switching':'sim',
+                    'fonte_pos_switching':'sim',
+                    'pos_sw_flag':'sim',
+                    'presente_no_extrato_futuro':'nao',
+                    'presente_no_extrato_passado':'nao_determinado',
+                    'baixa_refletida_situacao_atual':'nao_determinado',
+                    'divergencia_baixa_pos_switching':'nao_confirmado',
+                    'tipo_divergencia_q1':'baixa_pos_switching_sem_evidencia_observavel',
+                    'camada_onde_falha':'nao_determinado',
+                    'evidencia_q1':'pagamento passado POS localizado em gastos_canonicos; reconciliacao adiada para Q.1.5-B',
+                    'recomendacao_q1':'V17-F0-Q.1.5-B',
+                })
+                detalhes.append(row)
+
+            for j,(dt,conta,val,lote) in enumerate(explic,1):
+                data_ok=str(_d(r.get('data'))) == dt
+                conta_ok=_n(conta) in _n(r.get('descricao'))
+                valor_r=_num(r.get('valor'))
+                valor_ok=(valor_r is not None and abs(valor_r-val) <= 0.01)
+                lote_ok=_fonte_contem_lote_pos_switching(lu,{_norm_lote(lote)})
+                if data_ok and conta_ok and valor_ok and lote_ok:
+                    encontrados_exp.add(j)
+
+        qtd_casos_exp_encontrados=len(encontrados_exp)
+
     for j,(dt,conta,val,lote) in enumerate(explic,1):
-        row=_empty_row(); row.update({'origem_pagamento':'caso_explicitamente_auditado','fonte_base_operacional_gastos':fonte_base,'fonte_base_operacional_gastos_status':fonte_status,'fonte_auxiliar_observavel':fonte_aux,'fonte_pagamentos_passados':'saida_canonica','pagamento_id':f'caso_{j}','data_pagamento':dt,'conta':conta,'valor_pagamento':val,'lote_usado_planilha':lote,'lote_sugerido':lote,'presente_no_extrato_passado':'nao','presente_no_extrato_futuro':'nao','fonte_eh_lote_pos_switching':'nao_confirmado','fonte_pos_switching':'nao_confirmado','pos_sw_flag':'nao_confirmado','divergencia_baixa_pos_switching':'nao','camada_onde_falha':'base_operacional_gastos'})
-        if fonte_status=='localizada_confiavel':
-            row.update({'pagamento_ok_na_planilha':'nao','tipo_divergencia_q1':'caso_explicito_nao_localizado_na_base_operacional','evidencia_q1':'fonte canonica localizada mas caso explicito nao encontrado; nao contar como divergencia pos-switching','recomendacao_q1':'verificar_cadastro_manual_dos_gastos'})
+        if isinstance(qtd_casos_exp_encontrados,int) and j in encontrados_exp:
+            continue
+
+        row=_empty_row()
+        row.update({
+            'origem_pagamento':'caso_explicitamente_auditado',
+            'fonte_base_operacional_gastos':fonte_base,
+            'fonte_base_operacional_gastos_status':fonte_status,
+            'fonte_auxiliar_observavel':fonte_aux,
+            'fonte_pagamentos_passados':'saida_canonica',
+            'pagamento_id':f'caso_{j}',
+            'data_pagamento':dt,
+            'conta':conta,
+            'valor_pagamento':val,
+            'lote_usado_planilha':lote,
+            'lote_sugerido':lote,
+            'presente_no_extrato_passado':'nao_determinado',
+            'presente_no_extrato_futuro':'nao',
+            'fonte_eh_lote_pos_switching':'nao_confirmado',
+            'fonte_pos_switching':'nao_confirmado',
+            'pos_sw_flag':'nao_confirmado',
+            'divergencia_baixa_pos_switching':'nao',
+            'camada_onde_falha':'base_operacional_gastos'
+        })
+
+        if fonte_status=='localizada_canonica':
+            row.update({
+                'pagamento_ok_na_planilha':'nao',
+                'tipo_divergencia_q1':'caso_explicito_nao_localizado_na_base_operacional',
+                'evidencia_q1':'gastos_canonicos localizado, mas caso explicito nao encontrado',
+                'recomendacao_q1':'verificar_cadastro_manual_dos_gastos'
+            })
+        elif fonte_status=='localizada_canonica_incompleta':
+            row.update({
+                'pagamento_ok_na_planilha':'indeterminado',
+                'tipo_divergencia_q1':'base_operacional_gastos_nao_localizada',
+                'evidencia_q1':'gastos_canonicos incompleto; nao auditar caso explicito',
+                'recomendacao_q1':'corrigir_exposicao_gastos_canonicos'
+            })
         else:
-            row.update({'pagamento_ok_na_planilha':'indeterminado','tipo_divergencia_q1':'base_operacional_gastos_nao_localizada','evidencia_q1':'fonte canonica Todos os Gastos nao localizada em ctx/objetos carregados; nao concluir falso zero e nao contar como divergencia pos-switching','recomendacao_q1':'expor_base_canonica_todos_os_gastos_ao_auditor'})
+            row.update({
+                'pagamento_ok_na_planilha':'indeterminado',
+                'tipo_divergencia_q1':'base_operacional_gastos_nao_localizada',
+                'evidencia_q1':'gastos_canonicos nao localizado',
+                'recomendacao_q1':'expor_base_canonica_todos_os_gastos_ao_auditor'
+            })
+
         detalhes.append(row)
 
     df=pd.DataFrame(detalhes)
@@ -168,7 +263,7 @@ def main():
     fut=df[df['origem_pagamento']=='pagamentos_futuros']
     pos=df[df['fonte_eh_lote_pos_switching']=='sim']
     qtd_div=int((df['divergencia_baixa_pos_switching'].astype(str)=='sim').sum())
-    qpass='nao_determinado'; qaus='nao_determinado'; qsit='nao_determinado'; qenc='nao_determinado'; qce='nao_determinado'
+    qpass=qtd_passados_pos; qaus='nao_determinado'; qsit='nao_determinado'; qenc=qtd_casos_exp_encontrados; qce='nao_determinado'
     if fonte_status=='localizada_canonica':
         status='baixa_pos_switching_sem_evidencia_observavel'; camada='saida_observavel'
     elif fonte_status=='localizada_canonica_incompleta':
@@ -193,7 +288,7 @@ def main():
       'linhas_futuras_pos_marcadas_como_divergencia_confirmada':int(((fut['fonte_eh_lote_pos_switching']=='sim') & (fut['divergencia_baixa_pos_switching'].astype(str)=='sim')).sum()),'qtd_pagamentos_pos_switching_divergencia_confirmada':qtd_div,'qtd_pagamentos_pos_switching_divergencia_nao_confirmada':int((df['divergencia_baixa_pos_switching'].astype(str)=='nao_confirmado').sum()),'qtd_divergencias_baixa_pos_switching':qtd_div,'camada_falha_dominante':camada,'status_geral_q1':status,'status_geral_q1_derivado_dos_resultados':'sim','q1_alinhado_com_q0':alinh,'q0_status':q0_status,'q0_motivo':q0_motivo,'matching_pos_switching':'token_exato','usa_substring_global_para_matching':'nao','tokens_pos_switching_testados':'sim','dados_financeiros_modificado_apos_execucao':mod
     }
     CSV_DETALHE.parent.mkdir(parents=True,exist_ok=True); df.to_csv(CSV_DETALHE,index=False); pd.DataFrame([resumo]).to_csv(CSV_RESUMO,index=False)
-    print('=== AUDITORIA V17-F0-Q.1.5-A1 — LOCALIZA GASTOS CANONICOS ===')
+    print('=== AUDITORIA V17-F0-Q.1.5-A2 — MEDE PASSADOS POS EM GASTOS CANONICOS ===')
     for k,v in resumo.items(): print(f'{k}={v}')
     if mod=='sim': print('motivo_falha=dados_financeiros_modificado_por_execucao_diagnostica')
     print(f'csv_detalhe={CSV_DETALHE}'); print(f'csv_resumo={CSV_RESUMO}')
