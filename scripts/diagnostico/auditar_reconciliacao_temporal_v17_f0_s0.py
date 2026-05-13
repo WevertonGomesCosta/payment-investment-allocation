@@ -17,6 +17,11 @@ ARQ = RAIZ / "saidas" / "diagnostico" / "auditoria_reconciliacao_temporal_v17_f0
 
 def _norm(v): return str(v or "").strip().lower()
 def _to_num(v):
+    try:
+        if pd.isna(v):
+            return 0.0
+    except Exception:
+        pass
     try: return float(v)
     except Exception: return 0.0
 
@@ -200,7 +205,7 @@ def main():
         status = "temporal_com_divergencias_diagnosticadas"
 
     print("=== AUDITORIA V17-F0-S.0 — RECONCILIACAO TEMPORAL MENSAL ===")
-    print("correcao_aplicada=V17-F0-S.1.5")
+    print("correcao_aplicada=V17-F0-S.2.2")
     print(f"fonte_recebidos_auditaveis={fonte_recebidos}")
     print(f"qtd_linhas_recebidos_auditaveis={len(recebidos)}")
     print(f"resumo_recebidos_temporal={'sim' if resumo_temporal else 'nao'}")

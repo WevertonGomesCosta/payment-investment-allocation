@@ -153,7 +153,8 @@ def main():
         gh,gf=gh_m[m]["tot"],gf_m[m]["tot"]
         dsr,dsa=smt-rt,smt-at
         tem_r,tem_a=rt>0,at>0
-        if sliq>0 and rt==0: cls="salario_em_mes_sem_recebido_auditavel"; causa="mes_sem_recebido_auditavel_materializado"; recm="S.2 rastrear materializacao mensal"
+        if fonte_recebidos=="nao_localizada": cls="salario_com_falha_extracao_recebidos_auditaveis"; causa="fonte_recebidos_auditaveis_nao_localizada"; recm="corrigir extracao diagnostica antes de inferir ausencia economica de recebido"
+        elif sliq>0 and rt==0: cls="salario_em_mes_sem_recebido_auditavel"; causa="mes_sem_recebido_auditavel_materializado"; recm="S.2 rastrear materializacao mensal"
         elif sliq>0 and at==0: cls="salario_em_mes_sem_aporte"; causa="mes_sem_aporte_materializado"; recm="S.2 investigar regra de aporte"
         elif abs(dsr)>0.01: cls="salario_em_mes_com_divergencia_mensal_salarios_vs_recebidos"; causa="divergencia_no_nivel_agregado_mensal_salarios_vs_recebidos"; recm="S.2 decompor agregado mensal"
         elif abs(dsa)>0.01: cls="salario_em_mes_com_divergencia_mensal_salarios_vs_aportes"; causa="divergencia_no_nivel_agregado_mensal_salarios_vs_aportes"; recm="S.2 decompor agregado mensal"
@@ -190,7 +191,7 @@ def main():
     else:
         status_geral = "divergencias_decompostas"
     print("=== AUDITORIA V17-F0-S.1 — DECOMPOSICAO SALARIOS X RECEBIDOS ===")
-    print("correcao_aplicada=V17-F0-S.1.6")
+    print("correcao_aplicada=V17-F0-S.2.2")
     print(f"fonte_recebidos_auditaveis={fonte_recebidos}")
     print(f"qtd_salarios_canonicos={len(salarios)}")
     print(f"qtd_recebidos_auditaveis={len(recebidos)}")
