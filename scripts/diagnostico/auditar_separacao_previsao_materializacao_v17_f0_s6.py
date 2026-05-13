@@ -161,7 +161,7 @@ def _classificar(row, min_mes_mat, max_mes_mat):
 
 def main():
     print('=== AUDITORIA V17-F0-S.6 — SEPARAÇÃO PREVISÃO × MATERIALIZAÇÃO ===')
-    print('correcao_aplicada=V17-F0-S.6')
+    print('correcao_aplicada=V17-F0-S.6.1')
 
     if not CSV_S2.exists():
         print('csv_s2_lido=nao')
@@ -227,7 +227,7 @@ def main():
         qtd_linhas=('salario_id', 'count'),
         total_salarios_mes=('valor_liq_num', 'sum'),
         total_salarios_previstos_nao_materializados=('valor_liq_num', lambda s: s[det.loc[s.index, 'classe_politica_s6'] == 'salario_previsto_futuro_nao_materializado'].sum()),
-        total_lacuna_operacional_materializada=('valor_liq_num', lambda s: s[det.loc[s.index, 'classe_politica_s6'] == 'lacuna_real_de_integracao'].sum()),
+        total_lacuna_operacional_materializada=('valor_liq_num', lambda s: s[det.loc[s.index, 'entra_lacuna_operacional_materializada'].astype(bool)].sum()),
         total_materializado_recebido=('valor_liq_num', lambda s: s[det.loc[s.index, 'classe_politica_s6'] == 'salario_materializado_em_recebido'].sum()),
         total_materializado_aporte=('valor_liq_num', lambda s: s[det.loc[s.index, 'classe_politica_s6'] == 'salario_materializado_em_aporte'].sum()),
         qtd_salario_previsto_futuro_nao_materializado=('classe_politica_s6', lambda s: int((s == 'salario_previsto_futuro_nao_materializado').sum())),
@@ -275,7 +275,7 @@ if __name__ == '__main__':
         main()
     except Exception as e:
         print('=== AUDITORIA V17-F0-S.6 — SEPARAÇÃO PREVISÃO × MATERIALIZAÇÃO ===')
-        print('correcao_aplicada=V17-F0-S.6')
+        print('correcao_aplicada=V17-F0-S.6.1')
         print('status_geral=falha_separacao_s6')
         print(f'erro={e}')
         raise
