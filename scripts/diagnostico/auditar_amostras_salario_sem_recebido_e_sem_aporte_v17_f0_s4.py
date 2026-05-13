@@ -4,9 +4,10 @@ from collections import Counter
 from pathlib import Path
 import pandas as pd
 
-CSV_S2 = Path('saidas/diagnostico/auditoria_lacuna_integracao_temporal_v17_f0_s2.csv')
-CSV_OUT = Path('saidas/diagnostico/auditoria_amostras_salario_sem_recebido_e_sem_aporte_v17_f0_s4.csv')
-CSV_OUT_RES = Path('saidas/diagnostico/auditoria_amostras_salario_sem_recebido_e_sem_aporte_v17_f0_s4_resumo_mensal.csv')
+RAIZ = Path(__file__).resolve().parents[2]
+CSV_S2 = RAIZ / 'saidas' / 'diagnostico' / 'auditoria_lacuna_integracao_temporal_v17_f0_s2.csv'
+CSV_OUT = RAIZ / 'saidas' / 'diagnostico' / 'auditoria_amostras_salario_sem_recebido_e_sem_aporte_v17_f0_s4.csv'
+CSV_OUT_RES = RAIZ / 'saidas' / 'diagnostico' / 'auditoria_amostras_salario_sem_recebido_e_sem_aporte_v17_f0_s4_resumo_mensal.csv'
 CLASSE = 'salario_sem_recebido_e_sem_aporte'
 
 
@@ -75,7 +76,7 @@ def _classificar(row, min_mes_mat, max_mes_mat):
 
 def main():
     print('=== AUDITORIA V17-F0-S.4 — AMOSTRAS CLASSE DOMINANTE ===')
-    print('correcao_aplicada=V17-F0-S.4')
+    print('correcao_aplicada=V17-F0-S.4.2')
 
     if not CSV_S2.exists():
         print('csv_s2_lido=nao')
@@ -167,7 +168,7 @@ if __name__ == '__main__':
         main()
     except Exception as e:
         print('=== AUDITORIA V17-F0-S.4 — AMOSTRAS CLASSE DOMINANTE ===')
-        print('correcao_aplicada=V17-F0-S.4')
+        print('correcao_aplicada=V17-F0-S.4.2')
         print('status_geral=falha_auditoria_s4')
         print(f'erro={e}')
         raise
