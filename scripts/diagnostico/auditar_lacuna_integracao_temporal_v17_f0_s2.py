@@ -61,12 +61,14 @@ def main():
         m=_to_mes(r.get('data_recebimento')); 
         if not m: continue
         sal_m[m]['tot']+=_to_num(r.get('valor_liquido')); sal_m[m]['qtd']+=1; sal_m[m]['rows'].append((i,r))
-    rec_m=defaultdict(lambda:{'tot':0.0,'qtd':0,'rows':[],'pre':False})
+    rec_m=defaultdict(lambda:{'tot':0.0,'qtd':0,'rows':[],'pre':False,'pre_rows':[]})
     for i,r in enumerate(recebidos,1):
         m=_to_mes(r.get('data_recebimento')); 
         if not m: continue
         v=_to_num(r.get('valor_liquido')); rec_m[m]['tot']+=v; rec_m[m]['qtd']+=1; rec_m[m]['rows'].append((i,r))
-        if _to_num(r.get('valor_pagamentos_pre_aplicacao'))>0 or str(r.get('status_recebido') or '').lower()=='uso_pre_aplicacao_com_aporte_posterior': rec_m[m]['pre']=True
+        if _to_num(r.get('valor_pagamentos_pre_aplicacao'))>0 or str(r.get('status_recebido') or '').lower()=='uso_pre_aplicacao_com_aporte_posterior':
+            rec_m[m]['pre']=True
+            rec_m[m]['pre_rows'].append((i,r))
     ap_m=defaultdict(lambda:{'tot':0.0,'qtd':0,'rows':[]})
     for i,r in enumerate(inventario,1):
         if not _to_bool(r.get('aportado')): continue
@@ -103,10 +105,22 @@ def main():
                 sid=sr.get('salario_id') or f'sal_{i}'; dts=sr.get('data_recebimento'); desc=sr.get('descricao') or sr.get('origem'); vb=_to_num(sr.get('valor_bruto')); vl=_to_num(sr.get('valor_liquido'))
             rec_c=rec_m[m]['rows'][0][1] if rec_m[m]['rows'] else {}
             ap_c=ap_m[m]['rows'][0][1] if ap_m[m]['rows'] else {}
+            pre_rows=rec_m[m]['pre_rows']
+            pre_aplicacao_linha=False
+            if has_pre:
+                if sid=='sem_salario_no_mes':
+                    pre_aplicacao_linha=True
+                else:
+                    chaves_salario={str(v).strip() for v in [sr.get('salario_id'), sr.get('recebido_id'), sr.get('lote_id'), sr.get('lote_id_origem'), sr.get('lote_destino_id')] if v not in (None,'')}
+                    for _,pr in pre_rows:
+                        chaves_pre={str(v).strip() for v in [pr.get('salario_id'), pr.get('recebido_id'), pr.get('lote_id'), pr.get('lote_id_origem'), pr.get('lote_destino_id')] if v not in (None,'')}
+                        if chaves_salario and chaves_pre and (chaves_salario & chaves_pre):
+                            pre_aplicacao_linha=True
+                            break
             cls='classificacao_indefinida'; causa='indefinida'; acao='revisar_dados'; sev='media'; cad=tmp=sem=False; mot=False; obs=''
             if fonte_rec=='nao_localizada': cls='classificacao_indefinida'; causa='fonte_recebidos_nao_localizada'; acao='corrigir_extracao'; sev='alta'; obs='falha_extracao_fonte_essencial'
             elif s>0 and r==0 and a==0: cls='salario_sem_recebido_e_sem_aporte'; causa='sem_materializacao'; acao='rastrear salario->recebido->aporte'; sev='alta'; cad=True
-            elif has_pre: cls='recebido_materializado_com_uso_pre_aplicacao'; causa='uso_pre_aplicacao'; acao='auditar_janela_temporal'; sev='alta'; tmp=True
+            elif pre_aplicacao_linha: cls='recebido_materializado_com_uso_pre_aplicacao'; causa='uso_pre_aplicacao'; acao='auditar_janela_temporal'; sev='alta'; tmp=True
             elif pay_sc: cls='pagamento_sem_fonte_temporal_no_mes'; causa='sem_cobertura'; acao='decompor_fonte_temporal'; sev='alta'; tmp=True
             elif s>0 and r>0 and a==0: cls='salario_com_recebido_mas_sem_aporte'; causa='recebido_sem_aporte'; acao='validar regra aporte'; sev='alta'; tmp=True
             elif s>0 and r==0 and a>0: cls='salario_com_aporte_mas_sem_recebido'; causa='aporte_sem_recebido'; acao='reconciliar_semantica'; sev='media'; sem=True
@@ -135,7 +149,7 @@ def main():
     elif df.empty: status='lacuna_integracao_sem_linhas'
     else: status='lacuna_integracao_decomposta'
     print('=== AUDITORIA V17-F0-S.2 — LACUNA INTEGRACAO TEMPORAL ===')
-    print('correcao_aplicada=V17-F0-S.2.3')
+    print('correcao_aplicada=V17-F0-S.4.1')
     print(f'qtd_salarios_canonicos={len(salarios)}')
     print(f'qtd_recebidos_auditaveis={len(recebidos)}')
     print(f'qtd_lotes_inventario={len(inventario)}')
