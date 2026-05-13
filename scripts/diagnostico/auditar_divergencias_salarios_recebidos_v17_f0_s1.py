@@ -81,6 +81,7 @@ def main():
         qsa,qra,qaa=sal_m[m]["qtd"],rec_m[m]["qtd"],aporte_m[m]["qtd"]
         gh, qgh=gh_m[m]["tot"], gh_m[m]["qtd"]; gf,qgf=gf_m[m]["tot"],gf_m[m]["qtd"]
         d_sr=s-r; d_sa=s-a; d_ra=r-a
+        f_div_sr=abs(d_sr)>0.01; f_div_sa=abs(d_sa)>0.01; f_div_ra=abs(d_ra)>0.01
         f_ssr=s>0 and r==0
         f_ssa=s>0 and a==0
         f_rss=r>0 and s==0
@@ -93,9 +94,12 @@ def main():
         elif f_ssr: cls="salario_sem_recebido_auditavel_no_mes"; causa="salario_sem_linha_correspondente_em_recebidos_auditaveis"; recm="S.2: rastrear materializacao"
         elif f_rss: cls="recebido_sem_salario_no_mes"; causa="recebido_materializado_sem_linha_salarial_no_mes"; recm="S.2: mapear origem nao salarial"
         elif poss_pre: cls="possivel_pagamento_antes_aporte"; causa="uso_pre_aplicacao_detectado_em_recebidos"; recm="S.2: auditar janela temporal"
+        elif f_div_sr: cls="divergencia_mensal_salarios_vs_recebidos"; causa="totais_mensais_salarios_e_recebidos_nao_batem"; recm="S.2: decompor divergencia mensal salario->recebido"
+        elif f_div_sa: cls="divergencia_mensal_salarios_vs_aportes"; causa="totais_mensais_salarios_e_aportes_nao_batem"; recm="S.2: decompor divergencia mensal salario->aporte"
+        elif f_div_ra: cls="divergencia_mensal_recebidos_vs_aportes"; causa="totais_mensais_recebidos_e_aportes_nao_batem"; recm="S.2: decompor recebido->aporte"
         else: cls="mes_reconciliado"; causa="sem_divergencia_relevante"; recm="manter"
         causas.append(cls)
-        mens.append({"mes":m,"salario_liquido_canonico":s,"qtd_salarios_canonicos":qsa,"recebidos_auditaveis_total":r,"qtd_recebidos_auditaveis":qra,"aportes_no_mes_total":a,"qtd_aportes_no_mes":qaa,"pagamentos_historicos_no_mes_total":gh,"qtd_pagamentos_historicos_no_mes":qgh,"pagamentos_futuros_no_mes_total":gf,"qtd_pagamentos_futuros_no_mes":qgf,"pagamentos_no_mes_total":gh+gf,"qtd_pagamentos_no_mes":qgh+qgf,"pagamentos_futuros_sem_cobertura_total":gf_m[m]["semcov_tot"],"qtd_pagamentos_futuros_sem_cobertura":gf_m[m]["semcov_qtd"],"diferenca_salario_vs_recebidos":d_sr,"diferenca_salario_vs_aportes":d_sa,"diferenca_recebidos_vs_aportes":d_ra,"flag_salario_sem_recebido":f_ssr,"flag_salario_sem_aporte":f_ssa,"flag_recebido_sem_salario_no_mes":f_rss,"flag_possivel_pagamento_antes_aporte":poss_pre,"flag_possivel_diferenca_semantica_salarios_vs_inventario":f_sem,"flag_possivel_lacuna_integracao_temporal":f_lac,"classificacao_causa":cls,"causa_provavel":causa,"recomendacao_proxima_microetapa":recm})
+        mens.append({"mes":m,"salario_liquido_canonico":s,"qtd_salarios_canonicos":qsa,"recebidos_auditaveis_total":r,"qtd_recebidos_auditaveis":qra,"aportes_no_mes_total":a,"qtd_aportes_no_mes":qaa,"pagamentos_historicos_no_mes_total":gh,"qtd_pagamentos_historicos_no_mes":qgh,"pagamentos_futuros_no_mes_total":gf,"qtd_pagamentos_futuros_no_mes":qgf,"pagamentos_no_mes_total":gh+gf,"qtd_pagamentos_no_mes":qgh+qgf,"pagamentos_futuros_sem_cobertura_total":gf_m[m]["semcov_tot"],"qtd_pagamentos_futuros_sem_cobertura":gf_m[m]["semcov_qtd"],"diferenca_salario_vs_recebidos":d_sr,"diferenca_salario_vs_aportes":d_sa,"diferenca_recebidos_vs_aportes":d_ra,"flag_salario_sem_recebido":f_ssr,"flag_salario_sem_aporte":f_ssa,"flag_recebido_sem_salario_no_mes":f_rss,"flag_possivel_pagamento_antes_aporte":poss_pre,"flag_possivel_diferenca_semantica_salarios_vs_inventario":f_sem,"flag_possivel_lacuna_integracao_temporal":f_lac,"flag_divergencia_mensal_salarios_vs_recebidos":f_div_sr,"flag_divergencia_mensal_salarios_vs_aportes":f_div_sa,"flag_divergencia_mensal_recebidos_vs_aportes":f_div_ra,"classificacao_causa":cls,"causa_provavel":causa,"recomendacao_proxima_microetapa":recm})
 
     for i,r in enumerate(salarios,1):
         m=_mes(r.get("data_recebimento"));
@@ -124,7 +128,7 @@ def main():
     principal = c.most_common(1)[0][0] if c else "indefinida"
     ok = len(recebidos)>0 and len(mens)>0
     print("=== AUDITORIA V17-F0-S.1 — DECOMPOSICAO SALARIOS X RECEBIDOS ===")
-    print("correcao_aplicada=V17-F0-S.1.1")
+    print("correcao_aplicada=V17-F0-S.1.2")
     print(f"total_meses_auditados={len(dfm)}")
     print(f"meses_com_salario_sem_recebido={int(dfm['flag_salario_sem_recebido'].sum()) if not dfm.empty else 0}")
     print(f"meses_com_salario_sem_aporte={int(dfm['flag_salario_sem_aporte'].sum()) if not dfm.empty else 0}")
@@ -132,6 +136,9 @@ def main():
     print(f"meses_com_possivel_pagamento_antes_aporte={int(dfm['flag_possivel_pagamento_antes_aporte'].sum()) if not dfm.empty else 0}")
     print(f"meses_com_possivel_diferenca_semantica_salarios_vs_inventario={int(dfm['flag_possivel_diferenca_semantica_salarios_vs_inventario'].sum()) if not dfm.empty else 0}")
     print(f"meses_com_possivel_lacuna_integracao_temporal={int(dfm['flag_possivel_lacuna_integracao_temporal'].sum()) if not dfm.empty else 0}")
+    print(f"meses_com_divergencia_mensal_salarios_vs_recebidos={int(dfm['flag_divergencia_mensal_salarios_vs_recebidos'].sum()) if not dfm.empty else 0}")
+    print(f"meses_com_divergencia_mensal_salarios_vs_aportes={int(dfm['flag_divergencia_mensal_salarios_vs_aportes'].sum()) if not dfm.empty else 0}")
+    print(f"meses_com_divergencia_mensal_recebidos_vs_aportes={int(dfm['flag_divergencia_mensal_recebidos_vs_aportes'].sum()) if not dfm.empty else 0}")
     print(f"total_salarios_liquidos={dfm['salario_liquido_canonico'].sum() if not dfm.empty else 0.0:.2f}")
     print(f"total_recebidos_auditaveis={dfm['recebidos_auditaveis_total'].sum() if not dfm.empty else 0.0:.2f}")
     print(f"total_aportes={dfm['aportes_no_mes_total'].sum() if not dfm.empty else 0.0:.2f}")
