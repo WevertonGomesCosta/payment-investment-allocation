@@ -87,6 +87,20 @@ def _classificar(row, min_mes_mat, max_mes_mat):
             'recomendacao_s6': 'auditar_vinculo_recebido_salario_lote',
         }
 
+    if classe_s2 in LACUNAS_REAIS_S2 and not fora_horizonte:
+        return {
+            'classe_politica_s6': 'lacuna_real_de_integracao',
+            'camada_temporal_s6': 'lacuna_operacional',
+            'entra_lacuna_operacional_materializada': True,
+            'entra_previsao_futura_nao_materializada': False,
+            'entra_fonte_disponivel_para_pagamento': False,
+            'requer_correcao_motor': False,
+            'requer_correcao_integracao': True,
+            'requer_documentacao_horizonte': False,
+            'evidencia_s6': 'classe_s2_lacuna_real_dentro_horizonte',
+            'recomendacao_s6': 'auditar_integracao_salario_recebido_aporte',
+        }
+
     if a > 0:
         return {
             'classe_politica_s6': 'salario_materializado_em_aporte',
@@ -113,20 +127,6 @@ def _classificar(row, min_mes_mat, max_mes_mat):
             'requer_documentacao_horizonte': False,
             'evidencia_s6': 'recebidos_mes_total_maior_que_zero',
             'recomendacao_s6': 'validar_transicao_recebido_para_aporte',
-        }
-
-    if classe_s2 in LACUNAS_REAIS_S2 and not fora_horizonte:
-        return {
-            'classe_politica_s6': 'lacuna_real_de_integracao',
-            'camada_temporal_s6': 'lacuna_operacional',
-            'entra_lacuna_operacional_materializada': True,
-            'entra_previsao_futura_nao_materializada': False,
-            'entra_fonte_disponivel_para_pagamento': False,
-            'requer_correcao_motor': False,
-            'requer_correcao_integracao': True,
-            'requer_documentacao_horizonte': False,
-            'evidencia_s6': 'classe_s2_lacuna_real_dentro_horizonte',
-            'recomendacao_s6': 'auditar_integracao_salario_recebido_aporte',
         }
 
     if classe_s2 == 'diferenca_semantica_salarios_vs_inventario':
@@ -173,7 +173,7 @@ def _classificar(row, min_mes_mat, max_mes_mat):
 
 def main():
     print('=== AUDITORIA V17-F0-S.6 — SEPARAÇÃO PREVISÃO × MATERIALIZAÇÃO ===')
-    print('correcao_aplicada=V17-F0-S.6.3')
+    print('correcao_aplicada=V17-F0-S.6.4')
 
     if not CSV_S2.exists():
         print('csv_s2_lido=nao')
@@ -287,7 +287,7 @@ if __name__ == '__main__':
         main()
     except Exception as e:
         print('=== AUDITORIA V17-F0-S.6 — SEPARAÇÃO PREVISÃO × MATERIALIZAÇÃO ===')
-        print('correcao_aplicada=V17-F0-S.6.3')
+        print('correcao_aplicada=V17-F0-S.6.4')
         print('status_geral=falha_separacao_s6')
         print(f'erro={e}')
         raise
