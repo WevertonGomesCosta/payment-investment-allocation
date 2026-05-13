@@ -126,9 +126,19 @@ def main():
     dfm=pd.DataFrame(mens)
     c=Counter(causas)
     principal = c.most_common(1)[0][0] if c else "indefinida"
-    ok = len(recebidos)>0 and len(mens)>0
+    tem_meses = len(mens) > 0
+    tem_salarios = len(salarios) > 0
+    tem_recebidos = len(recebidos) > 0
+    if not tem_meses:
+        status_geral = "falha_decomposicao_diagnostica"
+    elif tem_salarios and not tem_recebidos:
+        status_geral = "divergencias_decompostas_sem_recebidos_auditaveis"
+    else:
+        status_geral = "divergencias_decompostas"
     print("=== AUDITORIA V17-F0-S.1 — DECOMPOSICAO SALARIOS X RECEBIDOS ===")
-    print("correcao_aplicada=V17-F0-S.1.2")
+    print("correcao_aplicada=V17-F0-S.1.3")
+    print(f"qtd_salarios_canonicos={len(salarios)}")
+    print(f"qtd_recebidos_auditaveis={len(recebidos)}")
     print(f"total_meses_auditados={len(dfm)}")
     print(f"meses_com_salario_sem_recebido={int(dfm['flag_salario_sem_recebido'].sum()) if not dfm.empty else 0}")
     print(f"meses_com_salario_sem_aporte={int(dfm['flag_salario_sem_aporte'].sum()) if not dfm.empty else 0}")
@@ -147,7 +157,7 @@ def main():
     print(f"diferenca_total_salarios_vs_recebidos={(dfm['salario_liquido_canonico'].sum()-dfm['recebidos_auditaveis_total'].sum()) if not dfm.empty else 0.0:.2f}")
     print(f"diferenca_total_salarios_vs_aportes={(dfm['salario_liquido_canonico'].sum()-dfm['aportes_no_mes_total'].sum()) if not dfm.empty else 0.0:.2f}")
     print(f"principal_causa_observada={principal}")
-    print(f"status_geral={'divergencias_decompostas' if ok else 'falha_decomposicao_diagnostica'}")
+    print(f"status_geral={status_geral}")
     print(f"csv_mensal={OUT_MENSAL}")
     print(f"csv_salarios={OUT_SAL}")
     print(f"csv_recebidos={OUT_REC}")
