@@ -14,8 +14,30 @@ OUT_REC = RAIZ / "saidas" / "diagnostico" / "auditoria_divergencias_salarios_rec
 
 def _n(v): return str(v or "").strip().lower()
 def _f(v):
+    try:
+        if pd.isna(v):
+            return 0.0
+    except Exception:
+        pass
     try: return float(v)
     except Exception: return 0.0
+
+def _to_bool(v):
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return False
+    try:
+        if pd.isna(v):
+            return False
+    except Exception:
+        pass
+    t = str(v).strip().lower()
+    if t in {"true", "1", "sim", "s", "yes", "y"}:
+        return True
+    if t in {"false", "0", "nao", "não", "n", "no", "", "none", "nan", "null"}:
+        return False
+    return False
 
 def _mes(v):
     try: return pd.to_datetime(v).strftime("%Y-%m")
@@ -73,14 +95,14 @@ def main():
 
     aporte_m=defaultdict(lambda:{"tot":0.0,"qtd":0})
     for r in inventario:
-        if bool(r.get("aportado")) is not True: continue
+        if not _to_bool(r.get("aportado")): continue
         m=_mes(r.get("data_aplicacao"));
         if not m: continue
         aporte_m[m]["tot"]+=_f(r.get("valor_original")); aporte_m[m]["qtd"]+=1
 
     gh_m=defaultdict(lambda:{"tot":0.0,"qtd":0})
     for r in gastos:
-        if bool(r.get("passado_pago_ate_data_referencia")) is not True: continue
+        if not _to_bool(r.get("passado_pago_ate_data_referencia")): continue
         m=_mes(r.get("data"));
         if not m: continue
         gh_m[m]["tot"]+=_f(r.get("valor")); gh_m[m]["qtd"]+=1
@@ -147,6 +169,12 @@ def main():
     pd.DataFrame(rec_det).to_csv(OUT_REC,index=False)
 
     dfm=pd.DataFrame(mens)
+    num_cols=["salario_liquido_canonico","recebidos_auditaveis_total","aportes_no_mes_total","pagamentos_historicos_no_mes_total","pagamentos_futuros_no_mes_total","pagamentos_no_mes_total","pagamentos_futuros_sem_cobertura_total","diferenca_salario_vs_recebidos","diferenca_salario_vs_aportes","diferenca_recebidos_vs_aportes"]
+    for col in num_cols:
+        if col in dfm.columns:
+            if col in {"diferenca_salario_vs_recebidos","diferenca_recebidos_vs_aportes"} and fonte_recebidos=="nao_localizada":
+                continue
+            dfm[col]=pd.to_numeric(dfm[col], errors="coerce").fillna(0.0)
     c=Counter(causas)
     principal = c.most_common(1)[0][0] if c else "indefinida"
     tem_meses = len(mens) > 0
@@ -162,7 +190,7 @@ def main():
     else:
         status_geral = "divergencias_decompostas"
     print("=== AUDITORIA V17-F0-S.1 — DECOMPOSICAO SALARIOS X RECEBIDOS ===")
-    print("correcao_aplicada=V17-F0-S.1.4")
+    print("correcao_aplicada=V17-F0-S.1.6")
     print(f"fonte_recebidos_auditaveis={fonte_recebidos}")
     print(f"qtd_salarios_canonicos={len(salarios)}")
     print(f"qtd_recebidos_auditaveis={len(recebidos)}")
