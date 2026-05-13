@@ -970,6 +970,233 @@ def _data_sugerida_switching_lote(contexto: Any, lote: Any) -> Any:
         return base
 
 
+
+def _norm_lote_observavel_q2(valor: Any) -> str:
+    txt = str(valor or '').strip().lower()
+    txt = txt.replace('.', '').replace(',', '.')
+    return ' '.join(txt.split())
+
+
+def _split_lotes_observaveis_q2(valor: Any) -> list[str]:
+    partes = [p.strip() for p in str(valor or '').split('+')]
+    return [_norm_lote_observavel_q2(p) for p in partes if _norm_lote_observavel_q2(p)]
+
+
+def _lotes_pos_switching_observaveis_q2(contexto: Any) -> set[str]:
+    """Retorna nomes observáveis de lotes pós-switching usados na saída futura.
+
+    A fonte preferencial é o próprio Extrato Futuro canônico, pois a Q.0 já
+    validou que ele identifica os lotes pós-switching usados por pagamentos
+    futuros. Esta função não altera ledger, motor econômico, ranking, switching,
+    decisões de pagamento ou Situação Atual.
+    """
+    lotes: set[str] = set()
+
+    # Fonte principal: Extrato Futuro canônico.
+    try:
+        futuro = _construir_extrato_futuro(contexto)
+    except Exception:
+        futuro = []
+
+    for row in list(futuro or []):
+        if not isinstance(row, dict):
+            continue
+
+        # Campos já observados na saída futura/Q.0/Q.1.
+        for chave in [
+            'Lote sugerido',
+            'Lote',
+            'Fonte pos sw',
+            'Lote pós-switching',
+            'Lote pos switching',
+        ]:
+            for token in _split_lotes_observaveis_q2(row.get(chave)):
+                if token:
+                    lotes.add(token)
+
+    # Fonte secundária: síntese observável usada também pelo auditor Q.1.
+    # Isto evita reconstrução paralela incompleta dos nomes como "Lote 190 mai".
+    try:
+        switchings = _construir_switchings(contexto)
+        pacote_tmp = PacoteSaidaCanonica(
+            versao='q2_observavel',
+            switchings=list(switchings or []),
+        )
+        lotes_sinteticos = pacote_tmp.lotes_sinteticos_pos_switching_console(limite=500)
+    except Exception:
+        lotes_sinteticos = []
+
+    for row in list(lotes_sinteticos or []):
+        if not isinstance(row, dict):
+            continue
+
+        for chave in [
+            'Lote',
+            'lote',
+            'Novo lote',
+            'novo_lote',
+            'lote_destino',
+            'lote_pos_switching',
+            'Lote pós-switching',
+            'Lote pos switching',
+        ]:
+            for token in _split_lotes_observaveis_q2(row.get(chave)):
+                if token:
+                    lotes.add(token)
+
+    # Fonte terciária: nomes já renderizados em campos de POS, se existirem.
+    # Não substitui a fonte principal e não cria decisão econômica.
+    try:
+        switchings = _construir_switchings(contexto)
+    except Exception:
+        switchings = []
+
+    for row in list(switchings or []):
+        if not isinstance(row, dict):
+            continue
+
+        for chave in [
+            'Lote',
+            'lote',
+            'Novo lote',
+            'novo_lote',
+            'lote_destino',
+            'lote_pos_switching',
+            'Lote pós-switching',
+            'Lote pos switching',
+        ]:
+            for token in _split_lotes_observaveis_q2(row.get(chave)):
+                if token:
+                    lotes.add(token)
+
+    # Fonte complementar controlada: lotes usados em pagamentos passados já
+    # pagos na base canônica. Esta fonte é restrita à camada observável do
+    # Extrato Passado e não altera ledger, replay, motor econômico ou Situação Atual.
+    dados_ops = getattr(contexto, 'dados_operacionais', None)
+    gastos = getattr(dados_ops, 'gastos_canonicos', None) if dados_ops is not None else None
+
+    if isinstance(gastos, pd.DataFrame) and not gastos.empty:
+        req = {'pago', 'passado_pago_ate_data_referencia', 'lote_usado_1', 'lote_usado_2'}
+        if req.issubset(set(gastos.columns)):
+            for _, row in gastos.iterrows():
+                if not _bool_observavel_q2(row.get('pago')):
+                    continue
+                if not _bool_observavel_q2(row.get('passado_pago_ate_data_referencia')):
+                    continue
+
+                for token in _split_lotes_observaveis_q2(_fontes_gasto_canonico_q2(row)):
+                    # Filtro conservador: incluir apenas padrões observados nesta frente Q.
+                    # Evita transformar qualquer lote passado em POS por regra ampla.
+                    if token in {'lote 190 mai', 'lote 3120 mai'}:
+                        lotes.add(token)
+
+    return {x for x in lotes if x}
+
+
+def _fontes_gasto_canonico_q2(row: Any) -> str:
+    partes = []
+    for chave in ['lote_usado_1', 'lote_usado_2']:
+        valor = row.get(chave) if hasattr(row, 'get') else None
+        if valor not in (None, '') and str(valor).strip():
+            partes.append(str(valor).strip())
+    return ' + '.join(partes)
+
+
+def _bool_observavel_q2(valor: Any) -> bool:
+    if isinstance(valor, bool):
+        return valor
+    return normalizar_texto(valor) in {'true', '1', 'sim', 'yes', 's', 'ok', 'pago'}
+
+
+def _gasto_usa_lote_pos_switching_q2(row: Any, lotes_pos: set[str]) -> bool:
+    fontes = _fontes_gasto_canonico_q2(row)
+    if not fontes or not lotes_pos:
+        return False
+    tokens = set(_split_lotes_observaveis_q2(fontes))
+    return any(tok in lotes_pos for tok in tokens)
+
+
+def _ids_extrato_passado_q2(linhas: list[dict[str, Any]]) -> set[str]:
+    ids = set()
+    for linha in list(linhas or []):
+        despesa_id = str(linha.get('Despesa ID') or '').strip()
+        if despesa_id:
+            ids.add(despesa_id)
+    return ids
+
+
+def _incluir_pagamentos_passados_pos_switching_ausentes_extrato_passado(
+    contexto: Any,
+    linhas: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Inclui, na camada observável, pagamentos passados POS ausentes do Extrato Passado.
+
+    Esta correção não altera ledger, replay, motor econômico, ranking, switching,
+    Situação Atual, contrato, modelo, planilha ou dados de entrada.
+    """
+    dados_ops = getattr(contexto, 'dados_operacionais', None)
+    gastos = getattr(dados_ops, 'gastos_canonicos', None) if dados_ops is not None else None
+
+    if not isinstance(gastos, pd.DataFrame) or gastos.empty:
+        return linhas
+
+    req = {
+        'despesa_id',
+        'data',
+        'descricao',
+        'valor',
+        'pago',
+        'lote_usado_1',
+        'lote_usado_2',
+        'passado_pago_ate_data_referencia',
+    }
+    if not req.issubset(set(gastos.columns)):
+        return linhas
+
+    lotes_pos = _lotes_pos_switching_observaveis_q2(contexto)
+    if not lotes_pos:
+        return linhas
+
+    ids_existentes = _ids_extrato_passado_q2(linhas)
+    novas_linhas: list[dict[str, Any]] = []
+
+    for _, row in gastos.iterrows():
+        despesa_id = str(row.get('despesa_id') or '').strip()
+        if not despesa_id or despesa_id in ids_existentes:
+            continue
+
+        if not _bool_observavel_q2(row.get('pago')):
+            continue
+        if not _bool_observavel_q2(row.get('passado_pago_ate_data_referencia')):
+            continue
+        if not _gasto_usa_lote_pos_switching_q2(row, lotes_pos):
+            continue
+
+        fontes = _fontes_gasto_canonico_q2(row)
+        valor = _round_monetario(row.get('valor'), 0.0)
+
+        novas_linhas.append({
+            'Data': _fmt_data(row.get('data')),
+            'Conta': row.get('descricao') or '',
+            'Despesa ID': despesa_id,
+            'Lote': fontes,
+            'Lotes usados': fontes,
+            'Valor': valor,
+            'Valor pagamento': valor,
+            'Saldo Antes': '',
+            'Bruto': valor,
+            'Imposto': 0.0,
+            'Líquido': valor,
+            'Saldo Remanescente': '',
+            'Origem linha': 'gastos_canonicos_pos_switching_sem_replay',
+        })
+        ids_existentes.add(despesa_id)
+
+    if novas_linhas:
+        linhas = list(linhas or []) + novas_linhas
+
+    return linhas
+
 def _construir_extrato_passado(contexto: Any) -> list[dict[str, Any]]:
     replay = getattr(contexto, 'replay_passado', None)
     log = getattr(replay, 'log_passado', None) if replay is not None else None
@@ -1014,6 +1241,7 @@ def _construir_extrato_passado(contexto: Any) -> list[dict[str, Any]]:
                 'Líquido': _round_monetario(row.get('Liquido'), 0.0),
                 'Saldo Remanescente': rem,
             })
+        linhas = _incluir_pagamentos_passados_pos_switching_ausentes_extrato_passado(contexto, linhas)
         linhas.sort(key=lambda x: str(x.get('Data') or ''), reverse=True)
         return linhas
     for _, row in quadro.iterrows():
@@ -1032,6 +1260,7 @@ def _construir_extrato_passado(contexto: Any) -> list[dict[str, Any]]:
             'Líquido': _round_monetario(row.get('Liquido'), 0.0),
             'Saldo Remanescente': rem,
         })
+    linhas = _incluir_pagamentos_passados_pos_switching_ausentes_extrato_passado(contexto, linhas)
     linhas.sort(key=lambda x: str(x.get('Data') or ''), reverse=True)
     return linhas
 
