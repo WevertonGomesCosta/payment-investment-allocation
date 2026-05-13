@@ -100,18 +100,21 @@ def main():
     for i,r in enumerate(salarios,1):
         m=_mes(r.get("data_recebimento"));
         if not m: continue
-        sliq=_f(r.get("valor_liquido")); rt,at=rec_m[m]["tot"],aporte_m[m]["tot"]
+        sliq=_f(r.get("valor_liquido")); smt,rt,at=sal_m[m]["tot"],rec_m[m]["tot"],aporte_m[m]["tot"]
         gh,gf=gh_m[m]["tot"],gf_m[m]["tot"]
+        dsr,dsa=smt-rt,smt-at
         tem_r,tem_a=rt>0,at>0
-        if sliq>0 and not tem_r: cls="salario_sem_recebido_auditavel_no_mes"; causa="sem_recebido_materializado"; recm="S.2 rastrear origem"
-        elif sliq>0 and not tem_a: cls="salario_sem_aporte_no_mes"; causa="sem_aporte_no_inventario"; recm="S.2 regra aporte"
-        elif tem_r and abs(sliq-rt)>0.01: cls="salario_maior_que_recebidos_auditaveis"; causa="diferenca_semantica_ou_timing"; recm="S.2 decompor por evento"
-        else: cls="salario_reconciliado"; causa="ok"; recm="manter"
-        sal_det.append({"salario_id":r.get("salario_id") or f"sal_{i}","mes":m,"data_recebimento":r.get("data_recebimento"),"descricao_salario":r.get("descricao") or r.get("origem"),"valor_bruto_salario":_f(r.get("valor_bruto")),"valor_liquido_salario":sliq,"recebido_auditavel_mes_total":rt,"aporte_mes_total":at,"pagamentos_historicos_mes_total":gh,"pagamentos_futuros_mes_total":gf,"pagamento_mes_total":gh+gf,"diferenca_salario_vs_recebido_mes":sliq-rt,"diferenca_salario_vs_aporte_mes":sliq-at,"tem_recebido_no_mes":tem_r,"tem_aporte_no_mes":tem_a,"tem_pagamento_historico_no_mes":gh>0,"tem_pagamento_futuro_no_mes":gf>0,"classificacao_salario":cls,"causa_provavel":causa,"recomendacao":recm})
+        if sliq>0 and rt==0: cls="salario_em_mes_sem_recebido_auditavel"; causa="mes_sem_recebido_auditavel_materializado"; recm="S.2 rastrear materializacao mensal"
+        elif sliq>0 and at==0: cls="salario_em_mes_sem_aporte"; causa="mes_sem_aporte_materializado"; recm="S.2 investigar regra de aporte"
+        elif abs(dsr)>0.01: cls="salario_em_mes_com_divergencia_mensal_salarios_vs_recebidos"; causa="divergencia_no_nivel_agregado_mensal_salarios_vs_recebidos"; recm="S.2 decompor agregado mensal"
+        elif abs(dsa)>0.01: cls="salario_em_mes_com_divergencia_mensal_salarios_vs_aportes"; causa="divergencia_no_nivel_agregado_mensal_salarios_vs_aportes"; recm="S.2 decompor agregado mensal"
+        else: cls="salario_em_mes_reconciliado_no_agregado"; causa="agregado_mensal_reconciliado"; recm="manter"
+        sal_det.append({"salario_id":r.get("salario_id") or f"sal_{i}","mes":m,"data_recebimento":r.get("data_recebimento"),"descricao_salario":r.get("descricao") or r.get("origem"),"valor_bruto_salario":_f(r.get("valor_bruto")),"valor_liquido_salario":sliq,"salario_mes_total":smt,"recebido_auditavel_mes_total":rt,"aporte_mes_total":at,"pagamentos_historicos_mes_total":gh,"pagamentos_futuros_mes_total":gf,"pagamento_mes_total":gh+gf,"diferenca_salario_mes_total_vs_recebido_mes_total":dsr,"diferenca_salario_mes_total_vs_aporte_mes_total":dsa,"tem_recebido_no_mes":tem_r,"tem_aporte_no_mes":tem_a,"tem_pagamento_historico_no_mes":gh>0,"tem_pagamento_futuro_no_mes":gf>0,"classificacao_salario":cls,"causa_provavel":causa,"recomendacao":recm})
 
     sal_mes_map={x["mes"]:x["salario_liquido_canonico"] for x in mens}
     for x in rec_det: x["salario_mes_total"]=sal_mes_map.get(x["mes_recebimento"],0.0)
 
+    OUT_MENSAL.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(mens).to_csv(OUT_MENSAL,index=False)
     pd.DataFrame(sal_det).to_csv(OUT_SAL,index=False)
     pd.DataFrame(rec_det).to_csv(OUT_REC,index=False)
@@ -121,6 +124,7 @@ def main():
     principal = c.most_common(1)[0][0] if c else "indefinida"
     ok = len(recebidos)>0 and len(mens)>0
     print("=== AUDITORIA V17-F0-S.1 — DECOMPOSICAO SALARIOS X RECEBIDOS ===")
+    print("correcao_aplicada=V17-F0-S.1.1")
     print(f"total_meses_auditados={len(dfm)}")
     print(f"meses_com_salario_sem_recebido={int(dfm['flag_salario_sem_recebido'].sum()) if not dfm.empty else 0}")
     print(f"meses_com_salario_sem_aporte={int(dfm['flag_salario_sem_aporte'].sum()) if not dfm.empty else 0}")
