@@ -10,7 +10,7 @@ from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 
-BASELINE_ENTRADA="1c2ea40"; BASELINE_CODIGO_ANTERIOR="bea7df1"; BASELINE_DADOS_ANTERIOR="f94f07d"
+BASELINE_ENTRADA="5ab610c"; BASELINE_CODIGO_ANTERIOR="1c2ea40"; BASELINE_DADOS_ANTERIOR="f94f07d"
 CSV_DETALHE=RAIZ/'saidas/diagnostico/auditoria_baixa_lotes_pos_switching_pagamentos_v17_f0_q1.csv'
 CSV_RESUMO=RAIZ/'saidas/diagnostico/auditoria_baixa_lotes_pos_switching_pagamentos_v17_f0_q1_resumo.csv'
 DADOS=RAIZ/'dados/dados_financeiros.xlsx'
@@ -95,6 +95,31 @@ def main():
     if conf:
         escolhido=conf[0]; fonte_base=escolhido['nome']; fonte_status='localizada_confiavel'; esc=escolhido['nome']; mot_esc='estrutura com >=200 linhas e campos Data/Valor/Pago/Lote'; mot_nloc=''
 
+    # Q.1.5-A1: localizar fonte canonica ja carregada no contexto, sem leitura direta da planilha
+    fonte_base_linhas='nao_determinado'
+    nome_aba_despesas=''
+    colunas_faltantes=[]
+    qtd_passados_base_canonica='nao_determinado'
+    gc=None
+    req_gastos=['despesa_id','data','descricao','valor','pago','lote_usado_1','lote_usado_2','passado_pago_ate_data_referencia']
+    dados_ops=getattr(ctx,'dados_operacionais',None)
+    if dados_ops is not None:
+        gc=getattr(dados_ops,'gastos_canonicos',None)
+        nome_aba_despesas=str(getattr(dados_ops,'nome_aba_despesas','') or '')
+    if isinstance(gc,pd.DataFrame) and not gc.empty:
+        fonte_base='ctx.dados_operacionais.gastos_canonicos'
+        fonte_base_linhas=len(gc)
+        colunas_faltantes=[c for c in req_gastos if c not in gc.columns]
+        esc=fonte_base
+        if colunas_faltantes:
+            fonte_status='localizada_canonica_incompleta'
+            mot_esc='gastos_canonicos localizado, mas com colunas faltantes'
+        else:
+            fonte_status='localizada_canonica'
+            mot_esc='gastos_canonicos localizado em ctx.dados_operacionais'
+            mot_nloc=''
+            qtd_passados_base_canonica=int(((gc['pago']==True) & (gc['passado_pago_ate_data_referencia']==True)).sum())
+
     detalhes=[]
     destinos={_n(s.get('lote_destino') or s.get('lote_pos_switching')):s for s in switch if _n(s.get('lote_destino') or s.get('lote_pos_switching'))}
     pos_names={_norm_lote(x.get('Lote') or x.get('lote') or x.get('Novo lote') or x.get('lote_destino') or x.get('lote_pos_switching')) for x in lotes_pos}; pos_names={x for x in pos_names if x}
@@ -104,7 +129,7 @@ def main():
         lote=row['lote_usado_planilha']; is_pos=_fonte_contem_lote_pos_switching(lote,pos_names)
         row['fonte_eh_lote_pos_switching']='sim' if is_pos else 'nao'; row['fonte_pos_switching']='sim' if is_pos else 'nao'; row['pos_sw_flag']='sim' if is_pos else 'nao'
         if is_pos:
-            row.update({'divergencia_baixa_pos_switching':'sim','tipo_divergencia_q1':'baixa_pos_switching_sem_evidencia_observavel','camada_onde_falha':'saida_observavel','recomendacao_q1':'V17-F0-Q.2','evidencia_q1':'futuro pos-switching sem evidencia de baixa observavel'})
+            row.update({'divergencia_baixa_pos_switching':'nao_confirmado','tipo_divergencia_q1':'baixa_pos_switching_sem_evidencia_observavel','camada_onde_falha':'saida_observavel','recomendacao_q1':'continuar_diagnostico','evidencia_q1':'futuro pos-switching; baixa ainda nao aplicavel nesta etapa'})
         else:
             row.update({'divergencia_baixa_pos_switching':'nao','tipo_divergencia_q1':'sem_pagamento_pos_switching_para_auditar','camada_onde_falha':'nao_determinado','recomendacao_q1':'continuar_diagnostico','evidencia_q1':'sem lote pos-switching'})
         if row['tipo_divergencia_q1'] not in TIPOS: row['tipo_divergencia_q1']='sem_pagamento_pos_switching_para_auditar'
@@ -142,11 +167,14 @@ def main():
             q0_status='erro_leitura'; q0_motivo=f'erro_leitura_q0:{type(exc).__name__}'
     fut=df[df['origem_pagamento']=='pagamentos_futuros']
     pos=df[df['fonte_eh_lote_pos_switching']=='sim']
-    qtd_div=int((pos['divergencia_baixa_pos_switching']=='sim').sum())
-    if fonte_status!='localizada_confiavel':
-        qpass='nao_determinado'; qaus='nao_determinado'; qsit='nao_determinado'; qenc='nao_determinado'; qce='nao_determinado'; status='base_operacional_gastos_nao_localizada'; camada='base_operacional_gastos'
+    qtd_div=int((df['divergencia_baixa_pos_switching'].astype(str)=='sim').sum())
+    qpass='nao_determinado'; qaus='nao_determinado'; qsit='nao_determinado'; qenc='nao_determinado'; qce='nao_determinado'
+    if fonte_status=='localizada_canonica':
+        status='baixa_pos_switching_sem_evidencia_observavel'; camada='saida_observavel'
+    elif fonte_status=='localizada_canonica_incompleta':
+        status='falha_diagnostico_q1'; camada='base_operacional_gastos'
     else:
-        qpass='nao_determinado'; qaus='nao_determinado'; qsit='nao_determinado'; qenc='nao_determinado'; qce='nao_determinado'; status='falha_diagnostico_q1'; camada='base_operacional_gastos'
+        status='base_operacional_gastos_nao_localizada'; camada='base_operacional_gastos'
     alinh='nao_determinado'
     if q0r:
         alinh='sim' if (len(fut)==int(q0r.get('total_pagamentos_futuros',-1)) and int((fut['fonte_eh_lote_pos_switching']=='sim').sum())==int(q0r.get('pagamentos_usando_lote_pos_switching',-1)) and len(lotes_pos)==int(q0r.get('lotes_pos_switching_total',-1)) and int((df['origem_migrada_usada_indevidamente']=='sim').sum())==int(q0r.get('origens_migradas_usadas_indevidamente_total',-1))) else 'nao'
@@ -154,18 +182,18 @@ def main():
     if mod=='sim': status='falha_diagnostico_q1'
     resumo={
       'baseline_entrada':BASELINE_ENTRADA,'baseline_codigo_anterior':BASELINE_CODIGO_ANTERIOR,'baseline_dados_anterior':BASELINE_DADOS_ANTERIOR,
-      'fonte_base_operacional_gastos':fonte_base,'fonte_base_operacional_gastos_status':fonte_status,'fonte_auxiliar_observavel':fonte_aux,'fonte_pagamentos_passados':'saida_canonica',
+      'fonte_base_operacional_gastos':fonte_base,'fonte_base_operacional_gastos_status':fonte_status,'fonte_base_operacional_gastos_linhas':fonte_base_linhas,'nome_aba_despesas':nome_aba_despesas,'colunas_gastos_canonicos_faltantes':('nenhuma' if not colunas_faltantes else '|'.join(colunas_faltantes)),'fonte_auxiliar_observavel':fonte_aux,'fonte_pagamentos_passados':'saida_canonica',
       'candidatos_fonte_gastos_inspecionados':len(candidatos),'candidatos_fonte_gastos_confiaveis':len(conf),'candidato_fonte_gastos_escolhido':esc,'motivo_fonte_gastos_escolhida':mot_esc,'motivo_fonte_gastos_nao_localizada':mot_nloc,
       'qtd_pagamentos_futuros':len(fut),'qtd_pagamentos_futuros_usando_lote_pos_switching':int((fut['fonte_eh_lote_pos_switching']=='sim').sum()),'qtd_linhas_futuras_pos_switching_csv':int((fut['fonte_eh_lote_pos_switching']=='sim').sum()),
-      'qtd_pagamentos_passados_ok_usando_lote_pos_switching':qpass,'qtd_pagamentos_passados_pos_switching_ausentes_extrato_passado':qaus,'qtd_baixas_passadas_pos_switching_nao_refletidas_situacao_atual':qsit,
+      'qtd_pagamentos_passados_base_canonica':qtd_passados_base_canonica,'qtd_pagamentos_passados_ok_usando_lote_pos_switching':qpass,'qtd_pagamentos_passados_pos_switching_ausentes_extrato_passado':qaus,'qtd_baixas_passadas_pos_switching_nao_refletidas_situacao_atual':qsit,
       'qtd_casos_explicitos_auditados':2,'qtd_casos_explicitos_encontrados_base_operacional':qenc,'qtd_casos_explicitos_ausentes_extrato_passado':qce,
       'qtd_lotes_pos_switching_total':len(lotes_pos),'qtd_lotes_pos_switching_elegiveis_em_alguma_data':int((fut['fonte_eh_lote_pos_switching']=='sim').sum()),
       'qtd_pagamentos_pos_switching_com_baixa_confirmada':int((pos['tipo_divergencia_q1']=='baixa_pos_switching_confirmada').sum()),'qtd_pagamentos_pos_switching_com_baixa_ausente_confirmada':int((pos['tipo_divergencia_q1']=='baixa_pos_switching_ausente_confirmada').sum()),'qtd_pagamentos_pos_switching_sem_evidencia_observavel_de_baixa':int((pos['tipo_divergencia_q1']=='baixa_pos_switching_sem_evidencia_observavel').sum()),'qtd_pagamentos_pos_switching_com_baixa_inconsistente':int((pos['tipo_divergencia_q1']=='baixa_pos_switching_parcial_ou_inconsistente').sum()),
       'qtd_origens_migradas_usadas_indevidamente':int((df['origem_migrada_usada_indevidamente']=='sim').sum()) if 'origem_migrada_usada_indevidamente' in df.columns else 0,
-      'qtd_divergencias_baixa_pos_switching':qtd_div,'camada_falha_dominante':camada,'status_geral_q1':status,'q1_alinhado_com_q0':alinh,'q0_status':q0_status,'q0_motivo':q0_motivo,'matching_pos_switching':'token_exato','usa_substring_global_para_matching':'nao','tokens_pos_switching_testados':'sim','dados_financeiros_modificado_apos_execucao':mod
+      'linhas_futuras_pos_marcadas_como_divergencia_confirmada':int(((fut['fonte_eh_lote_pos_switching']=='sim') & (fut['divergencia_baixa_pos_switching'].astype(str)=='sim')).sum()),'qtd_pagamentos_pos_switching_divergencia_confirmada':qtd_div,'qtd_pagamentos_pos_switching_divergencia_nao_confirmada':int((df['divergencia_baixa_pos_switching'].astype(str)=='nao_confirmado').sum()),'qtd_divergencias_baixa_pos_switching':qtd_div,'camada_falha_dominante':camada,'status_geral_q1':status,'status_geral_q1_derivado_dos_resultados':'sim','q1_alinhado_com_q0':alinh,'q0_status':q0_status,'q0_motivo':q0_motivo,'matching_pos_switching':'token_exato','usa_substring_global_para_matching':'nao','tokens_pos_switching_testados':'sim','dados_financeiros_modificado_apos_execucao':mod
     }
     CSV_DETALHE.parent.mkdir(parents=True,exist_ok=True); df.to_csv(CSV_DETALHE,index=False); pd.DataFrame([resumo]).to_csv(CSV_RESUMO,index=False)
-    print('=== AUDITORIA V17-F0-Q.1.4.1 — GUARDA LEITURA Q0 ===')
+    print('=== AUDITORIA V17-F0-Q.1.5-A1 — LOCALIZA GASTOS CANONICOS ===')
     for k,v in resumo.items(): print(f'{k}={v}')
     if mod=='sim': print('motivo_falha=dados_financeiros_modificado_por_execucao_diagnostica')
     print(f'csv_detalhe={CSV_DETALHE}'); print(f'csv_resumo={CSV_RESUMO}')
