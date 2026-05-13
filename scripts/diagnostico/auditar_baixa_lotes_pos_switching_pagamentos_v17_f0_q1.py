@@ -1,9 +1,7 @@
 from __future__ import annotations
-
 import sys
 from pathlib import Path
 from typing import Any
-
 import pandas as pd
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -14,227 +12,255 @@ from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 
+BASELINE_ENTRADA = "1625655"
 CSV_DETALHE = RAIZ / "saidas" / "diagnostico" / "auditoria_baixa_lotes_pos_switching_pagamentos_v17_f0_q1.csv"
 CSV_RESUMO = RAIZ / "saidas" / "diagnostico" / "auditoria_baixa_lotes_pos_switching_pagamentos_v17_f0_q1_resumo.csv"
 
+TIPOS_DIVERGENCIA = {
+    "baixa_pos_switching_confirmada", "baixa_pos_switching_ausente_confirmada", "baixa_pos_switching_sem_evidencia_observavel",
+    "baixa_pos_switching_parcial_ou_inconsistente", "pagamento_ok_pos_switching_ausente_extrato_passado",
+    "baixa_passada_pos_switching_nao_refletida_situacao_atual", "saldo_pos_switching_exibido_sem_consumo",
+    "extrato_futuro_sem_reflexo_da_baixa", "console_sem_reflexo_da_baixa", "origem_migrada_usada_apos_switching",
+    "sem_divergencia_observada", "sem_pagamento_pos_switching_para_auditar"
+}
+CAMADAS = {"console", "extrato_passado", "extrato_futuro", "situacao_atual", "saida_canonica", "saida_observavel", "estado_temporal_ledger", "replay_passado", "decisao_pagamento", "nao_determinado", "sem_falha_observada"}
+STATUS_GERAL = {"sem_pagamentos_pos_switching_para_auditar", "baixa_pos_switching_confirmada", "baixa_pos_switching_sem_evidencia_observavel", "baixa_pos_switching_inconsistente", "baixa_pos_switching_ausente_confirmada", "baixa_passada_pos_switching_nao_refletida", "pagamento_ok_pos_switching_ausente_extrato_passado", "origem_migrada_usada_indevidamente", "falha_diagnostico_q1"}
 
-def _n(v: Any) -> str:
-    return str(v or "").strip().lower()
 
+def _n(v: Any) -> str: return str(v or "").strip().lower()
+def _num(v: Any):
+    try: return float(v)
+    except Exception: return None
 
 def _d(v: Any):
-    try:
-        return pd.to_datetime(v).date()
-    except Exception:
-        return None
+    try: return pd.to_datetime(v, dayfirst=True, errors="coerce").date()
+    except Exception: return None
 
+def _contains_lote(texto: Any, lote_norm: str) -> bool:
+    return lote_norm and lote_norm in _n(texto)
 
-def _num(v: Any):
-    try:
-        return float(v)
-    except Exception:
-        return None
-
-
-def _pick_status(row: dict[str, Any]):
+def _pick_status(r: dict[str, Any]) -> str:
     for k in ["Status recomendação", "status_ledger", "Status", "status"]:
-        vv = str(row.get(k) or "").strip()
-        if vv:
-            return k, vv
-    return "status_nao_localizado", ""
+        if str(r.get(k) or "").strip(): return str(r.get(k))
+    return ""
+
+def _switch_maps(switchings: list[dict[str, Any]]):
+    destinos = {}
+    origem_data = {}
+    for s in switchings:
+        origem = _n(s.get("lote_origem"))
+        destino = _n(s.get("lote_destino") or s.get("lote_pos_switching"))
+        data_sw = _d(s.get("data_switching"))
+        if destino:
+            destinos[destino] = {"origem": origem, "destino": destino, "data_switching": data_sw}
+        if origem:
+            origem_data[origem] = data_sw
+    return destinos, origem_data
 
 
-def _resolver_lotes_pos_por_data(lotes_pos: list[dict[str, Any]]):
-    por_nome: dict[str, list[dict[str, Any]]] = {}
-    for lote in lotes_pos:
-        nome = _n(lote.get("Lote") or lote.get("lote") or lote.get("lote_destino") or lote.get("lote_pos_switching"))
-        if not nome:
-            continue
-        por_nome.setdefault(nome, []).append(lote)
-    return por_nome
-
-
-def auditar_q1(extrato: list[dict[str, Any]], switchings: list[dict[str, Any]], lotes_pos: list[dict[str, Any]]):
-    origens = {_n(x.get("lote_origem")): _d(x.get("data_switching")) for x in switchings}
-    destinos = {_n(x.get("lote_destino") or x.get("lote_pos_switching")) for x in switchings if _n(x.get("lote_destino") or x.get("lote_pos_switching"))}
-    lotes_por_nome = _resolver_lotes_pos_por_data(lotes_pos)
-
-    detalhes = []
-    for i, r in enumerate(extrato, 1):
-        data_pag = _d(r.get("Data"))
-        fonte = str(r.get("Lote sugerido") or "")
-        partes = [x.strip() for x in fonte.split("+") if x.strip()]
-        partes_n = [_n(x) for x in partes]
-
-        campo_status, status_usado = _pick_status(r)
-        usa_pos = any(p in destinos for p in partes_n)
-        usa_origem_migrada_indevida = any((origens.get(p) and data_pag and data_pag >= origens.get(p)) for p in partes_n)
-
-        candidatos_pos_na_data = [
-            l for l in lotes_pos if _d(l.get("Data")) and data_pag and _d(l.get("Data")) <= data_pag
-        ]
-
-        evidencias = []
-        classificacao = "nao_aplicavel"
-
-        saldo_antes = _num(r.get("Saldo antes"))
-        saldo_depois = _num(r.get("Saldo depois"))
-        valor_pag = _num(r.get("Valor"))
-
-        if usa_pos:
-            observavel_saldo = saldo_antes is not None and saldo_depois is not None and valor_pag is not None
-            if observavel_saldo:
-                consumo = round((saldo_antes - saldo_depois), 2)
-                if consumo == round(valor_pag, 2):
-                    classificacao = "baixa_confirmada"
-                    evidencias.append("saldo_antes-saldo_depois igual ao valor_pagamento")
-                elif consumo == 0:
-                    classificacao = "baixa_ausente_confirmada"
-                    evidencias.append("saldo observavel sem reducao apesar de pagamento usando lote_pos_switching")
-                else:
-                    classificacao = "baixa_inconsistente"
-                    evidencias.append("saldo observavel com consumo divergente do valor_pagamento")
-            else:
-                campos_consumo = [
-                    "valor_consumido_lote", "consumo_lote", "baixa_lote", "saldo_lote_antes", "saldo_lote_depois"
-                ]
-                sinais = {k: r.get(k) for k in campos_consumo if k in r}
-                if sinais:
-                    vals = [x for x in sinais.values() if _num(x) is not None]
-                    if vals and any(v > 0 for v in vals):
-                        classificacao = "baixa_confirmada"
-                        evidencias.append("campo observavel de consumo > 0")
-                    elif vals and all(v == 0 for v in vals):
-                        classificacao = "baixa_ausente_confirmada"
-                        evidencias.append("campo observavel de consumo igual a zero")
-                    else:
-                        classificacao = "sem_evidencia_observavel_de_baixa"
-                        evidencias.append("campos observaveis existem mas nao trazem metrica numerica utilizavel")
-                else:
-                    classificacao = "sem_evidencia_observavel_de_baixa"
-                    evidencias.append("sem campos observaveis de consumo/saldo para confirmar baixa")
-
-        detalhes.append(
-            {
-                "pagamento_id": r.get("Despesa ID") or f"idx_{i}",
-                "data_pagamento": r.get("Data"),
-                "conta": r.get("Conta"),
-                "valor_pagamento": r.get("Valor"),
-                "campo_status_usado": campo_status,
-                "status_usado": status_usado,
-                "pacote_do_dia": _n(r.get("Pacote do dia") or r.get("pacote_do_dia_ledger")),
-                "fonte_escolhida_renderizada": fonte,
-                "fonte_eh_lote_pos_switching": usa_pos,
-                "origem_migrada_usada_indevidamente": usa_origem_migrada_indevida,
-                "lote_pos_switching_elegivel_na_data": bool(candidatos_pos_na_data),
-                "lotes_pos_switching_disponiveis_na_data": len(candidatos_pos_na_data),
-                "saldo_antes_observavel": saldo_antes,
-                "saldo_depois_observavel": saldo_depois,
-                "classificacao_baixa": classificacao,
-                "evidencia_classificacao": " | ".join(evidencias),
-                "camada_falha": (
-                    "origem_switching" if usa_origem_migrada_indevida else (
-                        "observabilidade" if classificacao == "sem_evidencia_observavel_de_baixa" else (
-                            "baixa_contabil" if classificacao in {"baixa_ausente_confirmada", "baixa_inconsistente"} else "n/a"
-                        )
-                    )
-                ),
-            }
-        )
-
-    df = pd.DataFrame(detalhes)
-    if df.empty:
-        resumo = {
-            "baseline_entrada": "276733b",
-            "qtd_pagamentos_futuros": 0,
-            "qtd_pagamentos_usando_lote_pos_switching": 0,
-            "qtd_lotes_pos_switching_total": len(lotes_pos),
-            "qtd_lotes_pos_switching_elegiveis_em_alguma_data": 0,
-            "qtd_pagamentos_pos_switching_com_baixa_confirmada": 0,
-            "qtd_pagamentos_pos_switching_com_baixa_ausente_confirmada": 0,
-            "qtd_pagamentos_pos_switching_sem_evidencia_observavel_de_baixa": 0,
-            "qtd_pagamentos_pos_switching_com_baixa_inconsistente": 0,
-            "qtd_origens_migradas_usadas_indevidamente": 0,
-            "qtd_divergencias_baixa_pos_switching": 0,
-            "camada_falha_dominante": "sem_pagamentos_futuros",
-            "status_geral_q1": "sem_pagamentos_futuros_para_auditar",
-        }
-        return resumo, df
-
-    df_pos = df[df["fonte_eh_lote_pos_switching"] == True]
-    divergencias = df_pos["classificacao_baixa"].isin(["baixa_ausente_confirmada", "baixa_inconsistente", "sem_evidencia_observavel_de_baixa"]).sum()
-    camada_dominante = "n/a"
-    if divergencias > 0:
-        camada_dominante = (
-            df_pos[df_pos["classificacao_baixa"].isin(["baixa_ausente_confirmada", "baixa_inconsistente", "sem_evidencia_observavel_de_baixa"])]["camada_falha"]
-            .value_counts()
-            .index[0]
-        )
-
-    status_geral = "ok_baixa_confirmada"
-    if int((df_pos["classificacao_baixa"] == "baixa_confirmada").sum()) == 0 and len(df_pos) > 0:
-        status_geral = "divergencia_detectada_sem_confirmacao_de_baixa"
-    elif divergencias > 0:
-        status_geral = "divergencia_parcial_detectada"
-
-    resumo = {
-        "baseline_entrada": "276733b",
-        "qtd_pagamentos_futuros": int(len(df)),
-        "qtd_pagamentos_usando_lote_pos_switching": int(len(df_pos)),
-        "qtd_lotes_pos_switching_total": int(len(lotes_pos)),
-        "qtd_lotes_pos_switching_elegiveis_em_alguma_data": int(df["lote_pos_switching_elegivel_na_data"].sum()),
-        "qtd_pagamentos_pos_switching_com_baixa_confirmada": int((df_pos["classificacao_baixa"] == "baixa_confirmada").sum()),
-        "qtd_pagamentos_pos_switching_com_baixa_ausente_confirmada": int((df_pos["classificacao_baixa"] == "baixa_ausente_confirmada").sum()),
-        "qtd_pagamentos_pos_switching_sem_evidencia_observavel_de_baixa": int((df_pos["classificacao_baixa"] == "sem_evidencia_observavel_de_baixa").sum()),
-        "qtd_pagamentos_pos_switching_com_baixa_inconsistente": int((df_pos["classificacao_baixa"] == "baixa_inconsistente").sum()),
-        "qtd_origens_migradas_usadas_indevidamente": int(df["origem_migrada_usada_indevidamente"].sum()),
-        "qtd_divergencias_baixa_pos_switching": int(divergencias),
-        "camada_falha_dominante": camada_dominante,
-        "status_geral_q1": status_geral,
-    }
-    return resumo, df
+def _linhas_passado(saida) -> tuple[list[dict[str, Any]], str]:
+    extrato_passado = [dict(x) for x in (getattr(saida, "extrato_passado", []) or []) if isinstance(x, dict)]
+    return extrato_passado, ("saida_canonica" if extrato_passado else "nao_localizada")
 
 
 def main():
-    ctx = carregar_contexto_baseline(
-        raiz_repositorio=RAIZ,
-        instalar_automaticamente=False,
-        incluir_resolver_hibrido_5p_shadow=False,
-        incluir_benchmark_agrupado_individual_shadow=False,
-        incluir_benchmark_runner_futuro_shadow=False,
-        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
-    )
+    ctx = carregar_contexto_baseline(raiz_repositorio=RAIZ, instalar_automaticamente=False, incluir_resolver_hibrido_5p_shadow=False, incluir_benchmark_agrupado_individual_shadow=False, incluir_benchmark_runner_futuro_shadow=False, incluir_auditoria_primeira_quebra_runner_futuro_shadow=False)
     saida = construir_saida_canonica_com_switching_v17_c7(ctx, versao=VERSAO_BASELINE)
-    extrato = [dict(x) for x in (saida.extrato_futuro or []) if isinstance(x, dict)]
+
+    extrato_futuro = [dict(x) for x in (saida.extrato_futuro or []) if isinstance(x, dict)]
+    extrato_passado, fonte_passados = _linhas_passado(saida)
     switchings = [dict(x) for x in (saida.switchings or []) if isinstance(x, dict)]
     lotes_pos = [dict(x) for x in (getattr(saida, "lotes_sinteticos_pos_switching_console", lambda **_: [])(limite=500) or [])]
+    situacao_raw = getattr(saida, "estado_pos_switching_lotes_console", lambda **_: [])
+    situacao_atual = [dict(x) for x in ((situacao_raw(limite=500) if callable(situacao_raw) else (situacao_raw or [])) or []) if isinstance(x, dict)]
 
-    resumo, df_detalhe = auditar_q1(extrato, switchings, lotes_pos)
+    destinos, origem_data = _switch_maps(switchings)
+    nomes_lotes_pos = set(destinos.keys())
+
+    detalhe = []
+
+    def montar_linha(base: dict[str, Any], origem_pagamento: str):
+        data = _d(base.get("Data"))
+        conta = str(base.get("Conta") or "")
+        valor = _num(base.get("Valor"))
+        lote_sugerido = str(base.get("Lote sugerido") or "")
+        lote_usado = str(base.get("Lote usado") or lote_sugerido)
+        partes = [_n(x.strip()) for x in lote_sugerido.split("+") if x.strip()]
+        lote_pos_encontrado = next((p for p in partes if p in nomes_lotes_pos), "")
+        info_sw = destinos.get(lote_pos_encontrado, {})
+        origem_sw = info_sw.get("origem", "")
+        data_sw = info_sw.get("data_switching")
+
+        origem_migrada_indevida = any(origem_data.get(p) and data and data >= origem_data.get(p) for p in partes if p in origem_data)
+        presente_passado = origem_pagamento == "pagamentos_passados"
+        presente_futuro = origem_pagamento == "pagamentos_futuros"
+
+        linha_sit = next((x for x in situacao_atual if _contains_lote(x.get("Lote") or x.get("lote"), lote_pos_encontrado)), {})
+        bruto_sacado = _num(linha_sit.get("Bruto sac.") or linha_sit.get("bruto_sacado"))
+        liquido_sacado = _num(linha_sit.get("Líq. sac.") or linha_sit.get("liq_sacado") or linha_sit.get("liquido_sacado"))
+        saldo_exibido = _num(linha_sit.get("Líq. disp.") or linha_sit.get("saldo"))
+        bruto_pos = _num(linha_sit.get("Bruto") or linha_sit.get("bruto"))
+        liquido_pos = _num(linha_sit.get("Líquido") or linha_sit.get("liquido"))
+        ativo_integral = bool((_n(linha_sit.get("status")) == "ativo_pos_switching") and (bruto_sacado in (0, None)) and (liquido_sacado in (0, None)))
+
+        tipo = "sem_divergencia_observada"
+        camada = "sem_falha_observada"
+        evid = []
+
+        fonte_eh_pos = bool(lote_pos_encontrado)
+        if not fonte_eh_pos:
+            tipo = "sem_pagamento_pos_switching_para_auditar"
+            camada = "nao_determinado"
+        else:
+            if origem_migrada_indevida:
+                tipo = "origem_migrada_usada_apos_switching"
+                camada = "decisao_pagamento"
+                evid.append("origem migrada usada apos data_switching")
+            elif origem_pagamento == "pagamentos_passados" and not presente_passado:
+                tipo = "pagamento_ok_pos_switching_ausente_extrato_passado"
+                camada = "extrato_passado"
+            elif origem_pagamento == "pagamentos_passados" and ativo_integral:
+                tipo = "baixa_passada_pos_switching_nao_refletida_situacao_atual"
+                camada = "situacao_atual"
+                evid.append("lote ativo_pos_switching com bruto/liquido sacados zerados")
+            elif origem_pagamento == "pagamentos_futuros":
+                tipo = "baixa_pos_switching_sem_evidencia_observavel"
+                camada = "saida_observavel"
+            else:
+                tipo = "baixa_pos_switching_confirmada"
+                camada = "sem_falha_observada"
+
+        if tipo not in TIPOS_DIVERGENCIA: tipo = "baixa_pos_switching_sem_evidencia_observavel"
+        if camada not in CAMADAS: camada = "nao_determinado"
+
+        return {
+            "origem_pagamento": origem_pagamento,
+            "fonte_pagamentos_passados": fonte_passados,
+            "pagamento_id": base.get("Despesa ID") or f"{origem_pagamento}_{conta}_{base.get('Data')}",
+            "data_pagamento": base.get("Data"),
+            "conta": conta,
+            "valor_pagamento": base.get("Valor"),
+            "pagamento_ok_na_planilha": "sim" if origem_pagamento == "pagamentos_passados" else "nao",
+            "presente_no_extrato_passado": "sim" if presente_passado else "nao",
+            "presente_no_extrato_futuro": "sim" if presente_futuro else "nao",
+            "pacote_do_dia": _n(base.get("Pacote do dia") or base.get("pacote_do_dia_ledger")),
+            "status_recomendacao": _pick_status(base),
+            "lote_sugerido": lote_sugerido,
+            "lote_usado_planilha": lote_usado,
+            "lote_pos_switching_renderizado": lote_pos_encontrado,
+            "fonte_pos_switching": "sim" if fonte_eh_pos else "nao",
+            "pos_sw_flag": "sim" if fonte_eh_pos else "nao",
+            "origem_switching": origem_sw,
+            "destino_switching": lote_pos_encontrado,
+            "data_switching": data_sw,
+            "lote_pos_switching_elegivel_na_data": "sim" if data_sw and data and data >= data_sw else "nao",
+            "fonte_eh_lote_pos_switching": "sim" if fonte_eh_pos else "nao",
+            "origem_migrada_usada_indevidamente": "sim" if origem_migrada_indevida else "nao",
+            "saldo_pos_switching_exibido": saldo_exibido,
+            "saldo_temporal_antes": None,
+            "consumo_temporal": None,
+            "saldo_temporal_depois": None,
+            "saldo_remanescente_extrato": None,
+            "bruto_pos": bruto_pos,
+            "liquido_pos": liquido_pos,
+            "bruto_sacado_situacao_atual": bruto_sacado,
+            "liquido_sacado_situacao_atual": liquido_sacado,
+            "baixa_refletida_situacao_atual": "sim" if (bruto_sacado not in (None, 0) or liquido_sacado not in (None, 0)) else "nao",
+            "lote_pos_switching_permanece_ativo_integral": "sim" if ativo_integral else "nao",
+            "valor_pagamento_abateu_saldo_pos_switching": "nao_determinado",
+            "saldo_pos_switching_esperado_apos_pagamento": None,
+            "divergencia_baixa_pos_switching": "sim" if tipo not in {"sem_divergencia_observada", "baixa_pos_switching_confirmada", "sem_pagamento_pos_switching_para_auditar"} else "nao",
+            "tipo_divergencia_q1": tipo,
+            "tipo_falha_replay_passado": "sem_evidencia_direta_ledger" if tipo in {"baixa_pos_switching_sem_evidencia_observavel", "baixa_passada_pos_switching_nao_refletida_situacao_atual"} else "n/a",
+            "camada_onde_falha": camada,
+            "evidencia_q1": " | ".join(evid) if evid else "sem_evidencia_direta_adicional",
+            "recomendacao_q1": "V17-F0-Q.2" if tipo != "baixa_pos_switching_confirmada" else "V17-F0-S.7",
+        }
+
+    for r in extrato_futuro:
+        detalhe.append(montar_linha(r, "pagamentos_futuros"))
+    for r in extrato_passado:
+        detalhe.append(montar_linha(r, "pagamentos_passados"))
+
+    df = pd.DataFrame(detalhe)
+    # auditoria explícita dos dois casos informados
+    casos = [
+        (pd.Timestamp("2026-05-13").date(), "aluguel", 192.89, "lote 190 mai"),
+        (pd.Timestamp("2026-05-13").date(), "pelada", 24.00, "lote 3120 mai"),
+    ]
+    for dt, conta, valor, lote in casos:
+        existe = ((pd.to_datetime(df["data_pagamento"], errors="coerce", dayfirst=True).dt.date == dt) & (df["conta"].astype(str).str.lower() == conta) & (pd.to_numeric(df["valor_pagamento"], errors="coerce").round(2) == round(valor, 2))).any() if not df.empty else False
+        if not existe:
+            detalhe.append({c: None for c in df.columns} if not df.empty else {})
+
+    df = pd.DataFrame(detalhe)
+    df_pos = df[df["fonte_eh_lote_pos_switching"] == "sim"] if not df.empty else pd.DataFrame()
+    df_fut = df[df["origem_pagamento"] == "pagamentos_futuros"] if not df.empty else pd.DataFrame()
+    df_pass = df[(df["origem_pagamento"] == "pagamentos_passados") & (df["pagamento_ok_na_planilha"] == "sim") & (df["fonte_eh_lote_pos_switching"] == "sim")] if not df.empty else pd.DataFrame()
+
+    q0 = pd.read_csv(RAIZ / "saidas" / "diagnostico" / "auditar_integracao_switching_pagamentos_v17_f0_q0.csv") if (RAIZ / "saidas" / "diagnostico" / "auditar_integracao_switching_pagamentos_v17_f0_q0.csv").exists() else pd.DataFrame()
+    q0r = q0[q0.get("tipo_linha", "") == "resumo"].head(1).to_dict("records") if not q0.empty else []
+    q0r = q0r[0] if q0r else {}
+
+    alinhado = (
+        int(len(df_fut)) == int(q0r.get("total_pagamentos_futuros", -1)) and
+        int((df_fut["fonte_eh_lote_pos_switching"] == "sim").sum()) == int(q0r.get("pagamentos_usando_lote_pos_switching", -1)) and
+        int(len(lotes_pos)) == int(q0r.get("lotes_pos_switching_total", -1)) and
+        int((df["origem_migrada_usada_indevidamente"] == "sim").sum()) == int(q0r.get("origens_migradas_usadas_indevidamente_total", -1))
+    ) if q0r else False
+
+    cont_tipo = df_pos["tipo_divergencia_q1"].value_counts() if not df_pos.empty else pd.Series(dtype=int)
+    if len(df_pos) == 0:
+        status = "sem_pagamentos_pos_switching_para_auditar"
+    elif int(cont_tipo.get("origem_migrada_usada_apos_switching", 0)) > 0:
+        status = "origem_migrada_usada_indevidamente"
+    elif int(cont_tipo.get("pagamento_ok_pos_switching_ausente_extrato_passado", 0)) > 0:
+        status = "pagamento_ok_pos_switching_ausente_extrato_passado"
+    elif int(cont_tipo.get("baixa_passada_pos_switching_nao_refletida_situacao_atual", 0)) > 0:
+        status = "baixa_passada_pos_switching_nao_refletida"
+    elif int(cont_tipo.get("baixa_pos_switching_ausente_confirmada", 0)) > 0:
+        status = "baixa_pos_switching_ausente_confirmada"
+    elif int(cont_tipo.get("baixa_pos_switching_parcial_ou_inconsistente", 0)) > 0:
+        status = "baixa_pos_switching_inconsistente"
+    elif int(cont_tipo.get("baixa_pos_switching_sem_evidencia_observavel", 0)) > 0:
+        status = "baixa_pos_switching_sem_evidencia_observavel"
+    else:
+        status = "baixa_pos_switching_confirmada"
+    if status not in STATUS_GERAL: status = "falha_diagnostico_q1"
+
+    diverg = int((df_pos["divergencia_baixa_pos_switching"] == "sim").sum()) if not df_pos.empty else 0
+    camada_dom = (df_pos[df_pos["divergencia_baixa_pos_switching"] == "sim"]["camada_onde_falha"].value_counts().index[0] if diverg > 0 else "sem_falha_observada")
+
+    resumo = {
+        "baseline_entrada": BASELINE_ENTRADA,
+        "qtd_pagamentos_futuros": int(len(df_fut)),
+        "qtd_pagamentos_futuros_usando_lote_pos_switching": int((df_fut["fonte_eh_lote_pos_switching"] == "sim").sum()) if not df_fut.empty else 0,
+        "fonte_pagamentos_passados": fonte_passados,
+        "qtd_pagamentos_passados_ok_usando_lote_pos_switching": int(len(df_pass)),
+        "qtd_pagamentos_passados_pos_switching_ausentes_extrato_passado": int(cont_tipo.get("pagamento_ok_pos_switching_ausente_extrato_passado", 0)),
+        "qtd_baixas_passadas_pos_switching_nao_refletidas_situacao_atual": int(cont_tipo.get("baixa_passada_pos_switching_nao_refletida_situacao_atual", 0)),
+        "qtd_lotes_pos_switching_total": int(len(lotes_pos)),
+        "qtd_lotes_pos_switching_elegiveis_em_alguma_data": int((df_fut["lote_pos_switching_elegivel_na_data"] == "sim").sum()) if not df_fut.empty else 0,
+        "qtd_pagamentos_pos_switching_com_baixa_confirmada": int(cont_tipo.get("baixa_pos_switching_confirmada", 0)),
+        "qtd_pagamentos_pos_switching_com_baixa_ausente_confirmada": int(cont_tipo.get("baixa_pos_switching_ausente_confirmada", 0)),
+        "qtd_pagamentos_pos_switching_sem_evidencia_observavel_de_baixa": int(cont_tipo.get("baixa_pos_switching_sem_evidencia_observavel", 0)),
+        "qtd_pagamentos_pos_switching_com_baixa_inconsistente": int(cont_tipo.get("baixa_pos_switching_parcial_ou_inconsistente", 0)),
+        "qtd_origens_migradas_usadas_indevidamente": int((df["origem_migrada_usada_indevidamente"] == "sim").sum()) if not df.empty else 0,
+        "qtd_divergencias_baixa_pos_switching": diverg,
+        "camada_falha_dominante": camada_dom,
+        "status_geral_q1": status,
+        "q1_alinhado_com_q0": "sim" if alinhado else "nao",
+    }
 
     CSV_DETALHE.parent.mkdir(parents=True, exist_ok=True)
-    df_detalhe.to_csv(CSV_DETALHE, index=False)
+    df.to_csv(CSV_DETALHE, index=False)
     pd.DataFrame([resumo]).to_csv(CSV_RESUMO, index=False)
 
-    print("=== AUDITORIA V17-F0-Q.1 — BAIXA CONTABIL LOTES POS-SWITCHING EM PAGAMENTOS ===")
-    for chave in [
-        "baseline_entrada",
-        "qtd_pagamentos_futuros",
-        "qtd_pagamentos_usando_lote_pos_switching",
-        "qtd_lotes_pos_switching_total",
-        "qtd_lotes_pos_switching_elegiveis_em_alguma_data",
-        "qtd_pagamentos_pos_switching_com_baixa_confirmada",
-        "qtd_pagamentos_pos_switching_com_baixa_ausente_confirmada",
-        "qtd_pagamentos_pos_switching_sem_evidencia_observavel_de_baixa",
-        "qtd_pagamentos_pos_switching_com_baixa_inconsistente",
-        "qtd_origens_migradas_usadas_indevidamente",
-        "qtd_divergencias_baixa_pos_switching",
-        "camada_falha_dominante",
-        "status_geral_q1",
-    ]:
-        print(f"{chave}={resumo[chave]}")
+    print("=== AUDITORIA V17-F0-Q.1.1 — BAIXA CONTABIL LOTES POS-SWITCHING EM PAGAMENTOS PASSADOS E FUTUROS ===")
+    for k in ["baseline_entrada","qtd_pagamentos_futuros","qtd_pagamentos_futuros_usando_lote_pos_switching","fonte_pagamentos_passados","qtd_pagamentos_passados_ok_usando_lote_pos_switching","qtd_pagamentos_passados_pos_switching_ausentes_extrato_passado","qtd_baixas_passadas_pos_switching_nao_refletidas_situacao_atual","qtd_lotes_pos_switching_total","qtd_lotes_pos_switching_elegiveis_em_alguma_data","qtd_pagamentos_pos_switching_com_baixa_confirmada","qtd_pagamentos_pos_switching_com_baixa_ausente_confirmada","qtd_pagamentos_pos_switching_sem_evidencia_observavel_de_baixa","qtd_pagamentos_pos_switching_com_baixa_inconsistente","qtd_origens_migradas_usadas_indevidamente","qtd_divergencias_baixa_pos_switching","camada_falha_dominante","status_geral_q1","q1_alinhado_com_q0"]:
+        print(f"{k}={resumo[k]}")
     print(f"csv_detalhe={CSV_DETALHE}")
     print(f"csv_resumo={CSV_RESUMO}")
-
 
 if __name__ == "__main__":
     main()
