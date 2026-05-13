@@ -38,9 +38,21 @@ def _norm_mes(v):
     return ''
 
 
+def _norm_str(v):
+    try:
+        if v is None or pd.isna(v):
+            return ''
+    except Exception:
+        pass
+    s = str(v).strip()
+    if s.lower() in {'', 'nan', 'na', 'none', 'null', 'nat', '<na>'}:
+        return ''
+    return s
+
+
 def _classificar(row, min_mes_mat, max_mes_mat):
-    classe_s2 = str(row.get('classe_lacuna_s2', '')).strip()
-    hip_s4 = str(row.get('hipotese_causal_s4', '')).strip()
+    classe_s2 = _norm_str(row.get('classe_lacuna_s2', ''))
+    hip_s4 = _norm_str(row.get('hipotese_causal_s4', ''))
     mes = _norm_mes(row.get('mes'))
     r = _to_num(row.get('recebidos_mes_total'))
     a = _to_num(row.get('aportes_mes_total'))
@@ -161,7 +173,7 @@ def _classificar(row, min_mes_mat, max_mes_mat):
 
 def main():
     print('=== AUDITORIA V17-F0-S.6 — SEPARAÇÃO PREVISÃO × MATERIALIZAÇÃO ===')
-    print('correcao_aplicada=V17-F0-S.6.1')
+    print('correcao_aplicada=V17-F0-S.6.3')
 
     if not CSV_S2.exists():
         print('csv_s2_lido=nao')
@@ -275,7 +287,7 @@ if __name__ == '__main__':
         main()
     except Exception as e:
         print('=== AUDITORIA V17-F0-S.6 — SEPARAÇÃO PREVISÃO × MATERIALIZAÇÃO ===')
-        print('correcao_aplicada=V17-F0-S.6.1')
+        print('correcao_aplicada=V17-F0-S.6.3')
         print('status_geral=falha_separacao_s6')
         print(f'erro={e}')
         raise
