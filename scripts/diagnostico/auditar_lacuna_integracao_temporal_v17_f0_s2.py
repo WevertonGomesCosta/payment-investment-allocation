@@ -113,10 +113,10 @@ def main():
             elif s>0 and r==0: cls='salario_sem_recebido_auditavel'; causa='salario_sem_recebido'; acao='rastrear materializacao'; sev='alta'; cad=True
             elif s>0 and a==0: cls='salario_sem_aporte'; causa='salario_sem_aporte'; acao='validar inventario'; sev='media'; cad=True
             elif r>0 and s==0: cls='recebido_sem_salario_mesmo_mes'; causa='recebido_sem_salario'; acao='mapear origem'; sev='media'; sem=True
+            elif (s-r)>0.01 and abs(d_ra)<=0.01: cls='diferenca_semantica_salarios_vs_inventario'; causa='escopo_salarios_maior_que_materializacao'; acao='reconciliacao_semantica'; sev='media'; sem=True
             elif abs(d_sr)>0.01: cls='divergencia_mensal_salarios_vs_recebidos'; causa='totais_nao_batem'; acao='decompor divergencia'; sev='alta' if abs(d_sr)>1000 else 'media'; sem=True
             elif abs(d_sa)>0.01: cls='divergencia_mensal_salarios_vs_aportes'; causa='totais_nao_batem'; acao='decompor divergencia'; sev='alta' if abs(d_sa)>1000 else 'media'; sem=True
             elif abs(d_ra)>0.01: cls='divergencia_mensal_recebidos_vs_aportes'; causa='totais_nao_batem'; acao='decompor divergencia'; sev='media'; sem=True
-            elif s>r and r==a: cls='diferenca_semantica_salarios_vs_inventario'; causa='escopo_salarios_maior_que_materializacao'; acao='reconciliacao_semantica'; sev='media'; sem=True
             else: cls='mes_reconciliado_no_agregado'; causa='sem_divergencia'; acao='manter_monitoramento'; sev='baixa'
             rows.append({**base,'salario_id':sid,'data_recebimento_salario':dts,'descricao_salario':desc,'valor_bruto_salario':vb,'valor_liquido_salario':vl,'recebido_id_candidato':rec_c.get('recebido_id'),'data_recebido_candidato':rec_c.get('data_recebimento'),'valor_recebido_candidato':_to_num(rec_c.get('valor_liquido')),'lote_id_destino_candidato':ap_c.get('lote_id') or ap_c.get('lote_destino_id'),'data_aplicacao_lote':ap_c.get('data_aplicacao'),'valor_aporte_lote':_to_num(ap_c.get('valor_original')),'classe_lacuna':cls,'causa_provavel':causa,'acao_recomendada':acao,'severidade_diagnostica':sev,'pode_exigir_correcao_cadastro':cad,'pode_exigir_regra_temporal':tmp,'pode_exigir_reconciliacao_semantica':sem,'pode_exigir_motor':mot,'observacao_auditavel':obs})
 
@@ -135,7 +135,7 @@ def main():
     elif df.empty: status='lacuna_integracao_sem_linhas'
     else: status='lacuna_integracao_decomposta'
     print('=== AUDITORIA V17-F0-S.2 — LACUNA INTEGRACAO TEMPORAL ===')
-    print('correcao_aplicada=V17-F0-S.2.1')
+    print('correcao_aplicada=V17-F0-S.2.3')
     print(f'qtd_salarios_canonicos={len(salarios)}')
     print(f'qtd_recebidos_auditaveis={len(recebidos)}')
     print(f'qtd_lotes_inventario={len(inventario)}')
