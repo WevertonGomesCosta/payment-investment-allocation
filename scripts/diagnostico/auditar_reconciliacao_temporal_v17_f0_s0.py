@@ -173,10 +173,15 @@ def main():
     meses_div_sal_rec = int(df["diferenca_salarios_vs_recebidos"].abs().fillna(0).gt(0.01).sum()) if not df.empty else 0
     meses_div_rec_res = int(df["diferenca_recebidos_vs_resumo"].abs().fillna(0).gt(0.01).sum()) if (not df.empty and resumo_temporal) else 0
     meses_recv_fut = int(df["flag_recebido_futuro_nao_aportado"].sum()) if not df.empty else 0
-    status = "temporal_reconciliado" if (meses_sal_sem_aporte + meses_pag_sem_fonte + meses_div_sal_rec + meses_div_rec_res + meses_recv_fut) == 0 else "temporal_com_divergencias_diagnosticadas"
+    if fonte_recebidos == "nao_localizada":
+        status = "falha_extracao_recebidos_auditaveis"
+    elif (meses_sal_sem_aporte + meses_pag_sem_fonte + meses_div_sal_rec + meses_div_rec_res + meses_recv_fut) == 0:
+        status = "temporal_reconciliado"
+    else:
+        status = "temporal_com_divergencias_diagnosticadas"
 
     print("=== AUDITORIA V17-F0-S.0 — RECONCILIACAO TEMPORAL MENSAL ===")
-    print("correcao_aplicada=V17-F0-S.0.1")
+    print("correcao_aplicada=V17-F0-S.1.4")
     print(f"fonte_recebidos_auditaveis={fonte_recebidos}")
     print(f"qtd_linhas_recebidos_auditaveis={len(recebidos)}")
     print(f"resumo_recebidos_temporal={'sim' if resumo_temporal else 'nao'}")

@@ -30,10 +30,28 @@ def _rows(obj):
 def _sem_cobertura(r):
     return (_n(r.get("Cobertura integral")) != "sim" or _n(r.get("Status recomendação")) == "sem_saldo_temporal_auditavel" or _n(r.get("Motivo bloqueio lote")) == "saldo_temporal_insuficiente_cumulativo")
 
+
+def _rows_recebidos_auditaveis(obj):
+    if obj is None:
+        return [], "nao_localizada"
+    if isinstance(obj, pd.DataFrame):
+        return obj.to_dict(orient="records"), "objeto_dataframe"
+    if isinstance(obj, list):
+        return [dict(x) for x in obj if isinstance(x, dict)], "objeto_lista"
+    for attr in ["quadro_recebidos_auditaveis", "quadro", "df", "dados", "recebidos_auditaveis"]:
+        if not hasattr(obj, attr):
+            continue
+        v = getattr(obj, attr)
+        if isinstance(v, pd.DataFrame):
+            return v.to_dict(orient="records"), attr
+        if isinstance(v, list):
+            return [dict(x) for x in v if isinstance(x, dict)], attr
+    return [], "nao_localizada"
+
 def main():
     contexto, saida = carregar_contexto_e_saida()
     salarios = _rows(contexto.dados_operacionais.salarios_canonicos)
-    recebidos = _rows(getattr(contexto.recebidos_auditaveis, "quadro_recebidos_auditaveis", None))
+    recebidos, fonte_recebidos = _rows_recebidos_auditaveis(contexto.recebidos_auditaveis)
     inventario = _rows(contexto.dados_operacionais.inventario_canonico)
     gastos = _rows(contexto.dados_operacionais.gastos_canonicos)
     extrato = _rows(saida.extrato_futuro)
@@ -80,15 +98,20 @@ def main():
         s,r,a=sal_m[m]["tot"],rec_m[m]["tot"],aporte_m[m]["tot"]
         qsa,qra,qaa=sal_m[m]["qtd"],rec_m[m]["qtd"],aporte_m[m]["qtd"]
         gh, qgh=gh_m[m]["tot"], gh_m[m]["qtd"]; gf,qgf=gf_m[m]["tot"],gf_m[m]["qtd"]
-        d_sr=s-r; d_sa=s-a; d_ra=r-a
-        f_div_sr=abs(d_sr)>0.01; f_div_sa=abs(d_sa)>0.01; f_div_ra=abs(d_ra)>0.01
+        if fonte_recebidos == "nao_localizada":
+            d_sr=None; d_sa=s-a; d_ra=None
+            f_div_sr=False; f_div_sa=abs(d_sa)>0.01; f_div_ra=False
+        else:
+            d_sr=s-r; d_sa=s-a; d_ra=r-a
+            f_div_sr=abs(d_sr)>0.01; f_div_sa=abs(d_sa)>0.01; f_div_ra=abs(d_ra)>0.01
         f_ssr=s>0 and r==0
         f_ssa=s>0 and a==0
         f_rss=r>0 and s==0
         poss_pre=any((x["mes_recebimento"]==m and x["classificacao_recebido"]=="possivel_pagamento_antes_aporte") for x in rec_det)
         f_sem=(s>0 and r==0 and qaa==0)
         f_lac=(s>0 and r==0 and a==0 and gf>0)
-        if f_lac: cls="lacuna_integracao_temporal"; causa="salario_sem_materializacao_em_recebidos_e_inventario_com_pressao_de_pagamentos"; recm="S.2: rastrear elo salario->fonte temporal"
+        if fonte_recebidos == "nao_localizada": cls="falha_extracao_recebidos_auditaveis"; causa="fonte_recebidos_auditaveis_nao_localizada"; recm="corrigir extracao diagnostica antes de inferir divergencia economica"
+        elif f_lac: cls="lacuna_integracao_temporal"; causa="salario_sem_materializacao_em_recebidos_e_inventario_com_pressao_de_pagamentos"; recm="S.2: rastrear elo salario->fonte temporal"
         elif f_sem: cls="diferenca_semantica_salarios_vs_inventario"; causa="salarios_representam_fluxo_distinto_do_inventario_materializado"; recm="S.2: explicitar fronteira semantica"
         elif f_ssa: cls="salario_sem_aporte_no_mes"; causa="salario_sem_evento_aporte_no_inventario"; recm="S.2: investigar regra de aporte"
         elif f_ssr: cls="salario_sem_recebido_auditavel_no_mes"; causa="salario_sem_linha_correspondente_em_recebidos_auditaveis"; recm="S.2: rastrear materializacao"
@@ -129,14 +152,18 @@ def main():
     tem_meses = len(mens) > 0
     tem_salarios = len(salarios) > 0
     tem_recebidos = len(recebidos) > 0
+    recebidos_localizados = fonte_recebidos != "nao_localizada"
     if not tem_meses:
         status_geral = "falha_decomposicao_diagnostica"
+    elif not recebidos_localizados:
+        status_geral = "falha_extracao_recebidos_auditaveis"
     elif tem_salarios and not tem_recebidos:
         status_geral = "divergencias_decompostas_sem_recebidos_auditaveis"
     else:
         status_geral = "divergencias_decompostas"
     print("=== AUDITORIA V17-F0-S.1 — DECOMPOSICAO SALARIOS X RECEBIDOS ===")
-    print("correcao_aplicada=V17-F0-S.1.3")
+    print("correcao_aplicada=V17-F0-S.1.4")
+    print(f"fonte_recebidos_auditaveis={fonte_recebidos}")
     print(f"qtd_salarios_canonicos={len(salarios)}")
     print(f"qtd_recebidos_auditaveis={len(recebidos)}")
     print(f"total_meses_auditados={len(dfm)}")
