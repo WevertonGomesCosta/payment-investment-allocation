@@ -120,10 +120,11 @@ def main():
             cls='classificacao_indefinida'; causa='indefinida'; acao='revisar_dados'; sev='media'; cad=tmp=sem=False; mot=False; obs=''
             if fonte_rec=='nao_localizada': cls='classificacao_indefinida'; causa='fonte_recebidos_nao_localizada'; acao='corrigir_extracao'; sev='alta'; obs='falha_extracao_fonte_essencial'
             elif s>0 and r==0 and a==0: cls='salario_sem_recebido_e_sem_aporte'; causa='sem_materializacao'; acao='rastrear salario->recebido->aporte'; sev='alta'; cad=True
-            elif pre_aplicacao_linha: cls='recebido_materializado_com_uso_pre_aplicacao'; causa='uso_pre_aplicacao'; acao='auditar_janela_temporal'; sev='alta'; tmp=True
             elif pay_sc: cls='pagamento_sem_fonte_temporal_no_mes'; causa='sem_cobertura'; acao='decompor_fonte_temporal'; sev='alta'; tmp=True
+            elif pre_aplicacao_linha: cls='recebido_materializado_com_uso_pre_aplicacao'; causa='uso_pre_aplicacao_com_vinculo_explicito'; acao='auditar_janela_temporal'; sev='alta'; tmp=True
             elif s>0 and r>0 and a==0: cls='salario_com_recebido_mas_sem_aporte'; causa='recebido_sem_aporte'; acao='validar regra aporte'; sev='alta'; tmp=True
             elif s>0 and r==0 and a>0: cls='salario_com_aporte_mas_sem_recebido'; causa='aporte_sem_recebido'; acao='reconciliar_semantica'; sev='media'; sem=True
+            elif has_pre: cls='uso_pre_aplicacao_no_mes_sem_vinculo_linha'; causa='pre_aplicacao_mensal_sem_chave_linha'; acao='auditar_vinculo_recebido_salario_lote'; sev='media'; tmp=True
             elif s>0 and r==0: cls='salario_sem_recebido_auditavel'; causa='salario_sem_recebido'; acao='rastrear materializacao'; sev='alta'; cad=True
             elif s>0 and a==0: cls='salario_sem_aporte'; causa='salario_sem_aporte'; acao='validar inventario'; sev='media'; cad=True
             elif r>0 and s==0: cls='recebido_sem_salario_mesmo_mes'; causa='recebido_sem_salario'; acao='mapear origem'; sev='media'; sem=True
@@ -139,7 +140,7 @@ def main():
     df.to_csv(OUT,index=False)
     cnt=Counter(df['classe_lacuna']) if not df.empty else Counter()
     principal=cnt.most_common(1)[0][0] if cnt else 'nenhuma'
-    classes_lacuna={"salario_sem_recebido_auditavel","salario_sem_aporte","salario_sem_recebido_e_sem_aporte","salario_com_recebido_mas_sem_aporte","salario_com_aporte_mas_sem_recebido","recebido_sem_salario_mesmo_mes","recebido_materializado_com_uso_pre_aplicacao","aporte_sem_vinculo_salarial_explicito","pagamento_sem_fonte_temporal_no_mes","divergencia_mensal_salarios_vs_recebidos","divergencia_mensal_salarios_vs_aportes","divergencia_mensal_recebidos_vs_aportes","diferenca_semantica_salarios_vs_inventario"}
+    classes_lacuna={"salario_sem_recebido_auditavel","salario_sem_aporte","salario_sem_recebido_e_sem_aporte","salario_com_recebido_mas_sem_aporte","salario_com_aporte_mas_sem_recebido","recebido_sem_salario_mesmo_mes","recebido_materializado_com_uso_pre_aplicacao","uso_pre_aplicacao_no_mes_sem_vinculo_linha","aporte_sem_vinculo_salarial_explicito","pagamento_sem_fonte_temporal_no_mes","divergencia_mensal_salarios_vs_recebidos","divergencia_mensal_salarios_vs_aportes","divergencia_mensal_recebidos_vs_aportes","diferenca_semantica_salarios_vs_inventario"}
     meses_com_lacuna = int(df.loc[df['classe_lacuna'].isin(classes_lacuna),'mes'].nunique()) if not df.empty else 0
     if not df.empty:
         df_mensal=df.drop_duplicates(subset=['mes'])[['mes','salario_mes_total','recebidos_mes_total','aportes_mes_total','pagamentos_historicos_mes_total','pagamentos_futuros_mes_total','pagamentos_futuros_sem_cobertura_total']]
@@ -149,7 +150,7 @@ def main():
     elif df.empty: status='lacuna_integracao_sem_linhas'
     else: status='lacuna_integracao_decomposta'
     print('=== AUDITORIA V17-F0-S.2 — LACUNA INTEGRACAO TEMPORAL ===')
-    print('correcao_aplicada=V17-F0-S.4.1')
+    print('correcao_aplicada=V17-F0-S.6.2')
     print(f'qtd_salarios_canonicos={len(salarios)}')
     print(f'qtd_recebidos_auditaveis={len(recebidos)}')
     print(f'qtd_lotes_inventario={len(inventario)}')
@@ -164,6 +165,7 @@ def main():
     print(f'linhas_classe_salario_sem_recebido_e_sem_aporte={int((df.classe_lacuna=="salario_sem_recebido_e_sem_aporte").sum()) if not df.empty else 0}')
     print(f'linhas_classe_pagamento_sem_fonte_temporal_no_mes={int((df.classe_lacuna=="pagamento_sem_fonte_temporal_no_mes").sum()) if not df.empty else 0}')
     print(f'linhas_classe_uso_pre_aplicacao={int((df.classe_lacuna=="recebido_materializado_com_uso_pre_aplicacao").sum()) if not df.empty else 0}')
+    print(f'linhas_classe_uso_pre_aplicacao_sem_vinculo={int((df.classe_lacuna=="uso_pre_aplicacao_no_mes_sem_vinculo_linha").sum()) if not df.empty else 0}')
     print(f'linhas_classe_diferenca_semantica={int((df.classe_lacuna=="diferenca_semantica_salarios_vs_inventario").sum()) if not df.empty else 0}')
     print(f'principal_classe_lacuna={principal}')
     print(f'status_geral={status}')
