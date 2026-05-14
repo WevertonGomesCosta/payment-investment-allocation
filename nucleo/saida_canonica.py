@@ -2044,7 +2044,32 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
                 return float(n)
         return float(fallback)
 
-    ativos_por_lote = {_norm(l.get('Lote')): l for l in list(lotes_ativos or []) if _norm(l.get('Lote'))}
+    pos_ids = {_norm(x.get('lote_id')) for _, x in pos_df.iterrows() if _norm(x.get('lote_id'))}
+    ativos_nao_pos = []
+    ativos_pos_agrupados: dict[str, list[dict[str, Any]]] = {}
+    for l in list(lotes_ativos or []):
+        lid = _norm(l.get('Lote'))
+        if lid in pos_ids:
+            ativos_pos_agrupados.setdefault(lid, []).append(dict(l))
+        else:
+            ativos_nao_pos.append(dict(l))
+
+    def _sum_field(rows, campo):
+        vals=[_round_monetario(r.get(campo), None) for r in rows]
+        vals=[float(v) for v in vals if v not in (None,'')]
+        return _round_monetario(sum(vals), None) if vals else None
+
+    ativos_por_lote: dict[str, dict[str, Any]] = {}
+    qtd_lotes_pos_ativos_duplicados_consolidados = 0
+    for lid, rows in ativos_pos_agrupados.items():
+        base = dict(rows[0])
+        if len(rows) > 1:
+            qtd_lotes_pos_ativos_duplicados_consolidados += 1
+            for c in ['Bruto','Líquido','Saldo rem','Patr. líq.']:
+                sv = _sum_field(rows, c)
+                if sv not in (None,''):
+                    base[c] = sv
+        ativos_por_lote[lid] = base
     pos_saldos: dict[str, dict[str, float]] = {}
     uso_val_prev = 0
     lotes_pos_duplicados: set[str] = set()
@@ -2133,11 +2158,10 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
         preench_sa += 1 if saldo_antes not in ('', None) else 0
         preench_sr += 1 if saldo_rem not in ('', None) else 0
 
-    novos_ativos = []
+    novos_ativos = list(ativos_nao_pos)
     novos_exauridos = list(lotes_exauridos)
     ex = at = 0
-    for l in lotes_ativos:
-        lid = _norm(l.get('Lote'))
+    for lid, l in ativos_por_lote.items():
         if lid not in pos_saldos:
             novos_ativos.append(l)
             continue
@@ -2162,6 +2186,10 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
             novos_ativos.append(nl)
             at += 1
 
+
+    ids_saida = [_norm(x.get('Lote')) for x in (novos_ativos + novos_exauridos) if _norm(x.get('Lote')) in pos_ids]
+    duplic_emit = len(ids_saida) - len(set(ids_saida))
+
     base_aud.update({
         'qtd_pagamentos_passados_pos_detectados': int(sum(len(v) for v in consumo_por_lote.values())),
         'qtd_pagamentos_passados_pos_com_saldo_antes_preenchido': int(preench_sa),
@@ -2174,7 +2202,10 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
         'qtd_lotes_pos_duplicados_consolidados': int(len(lotes_pos_duplicados)),
         'qtd_pagamentos_com_fonte_repetida': int(qtd_fonte_repetida),
         'status_geral_q5c': 'valoracao_pos_preservada' if (preench_sa > 0 and preench_sr > 0) else 'integracao_parcial',
+        'qtd_lotes_pos_ativos_duplicados_emitidos': int(duplic_emit),
+        'status_geral_q5e': 'ativos_pos_duplicados_consolidados',
         'status_geral_q5d': 'rateio_multifonte_e_duplicidade_pos_protegidos',
+        'qtd_lotes_pos_ativos_duplicados_consolidados': int(qtd_lotes_pos_ativos_duplicados_consolidados),
     })
     return extrato_passado, novos_ativos, novos_exauridos, base_aud
 
