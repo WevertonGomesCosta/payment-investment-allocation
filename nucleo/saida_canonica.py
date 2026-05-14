@@ -2006,6 +2006,179 @@ def _construir_lotes_situacao(
     return lotes_ativos, lotes_exauridos
 
 
+def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
+    contexto: Any,
+    extrato_passado: list[dict[str, Any]],
+    lotes_ativos: list[dict[str, Any]],
+    lotes_exauridos: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    dados_ops = getattr(contexto, 'dados_operacionais', None)
+    gastos = getattr(dados_ops, 'gastos_canonicos', None) if dados_ops is not None else None
+    pos_df = getattr(dados_ops, 'lotes_pos_switching_normalizados', None) if dados_ops is not None else None
+    limiar = obter_limiar_residuo_resolvido(contexto.pacote_config.conteudo)
+
+    base_aud = {
+        'qtd_pagamentos_passados_pos_detectados': 0,
+        'qtd_pagamentos_passados_pos_com_saldo_antes_preenchido': 0,
+        'qtd_pagamentos_passados_pos_com_saldo_remanescente_preenchido': 0,
+        'qtd_despesas_multifonte_pos': 0,
+        'qtd_lotes_pos_exauridos_apos_consumo': 0,
+        'qtd_lotes_pos_ativos_com_saldo_abatido': 0,
+        'qtd_lotes_pos_com_valoracao_previa_usada': 0,
+        'status_geral_q5c': 'diagnostico_inconclusivo',
+    }
+    if not isinstance(gastos, pd.DataFrame) or gastos.empty or not isinstance(pos_df, pd.DataFrame) or pos_df.empty:
+        return extrato_passado, lotes_ativos, lotes_exauridos, base_aud
+
+    def _norm(v: Any) -> str:
+        return str(v or '').strip().lower()
+
+    def _parts(txt: Any) -> list[str]:
+        return [_norm(x) for x in str(txt or '').split('+') if _norm(x)]
+
+    def _pick_num(linha: dict[str, Any], chaves: list[str], fallback: float) -> float:
+        for c in chaves:
+            v = linha.get(c)
+            n = _round_monetario(v, None)
+            if n is not None and n != '':
+                return float(n)
+        return float(fallback)
+
+    ativos_por_lote = {_norm(l.get('Lote')): l for l in list(lotes_ativos or []) if _norm(l.get('Lote'))}
+    pos_saldos: dict[str, dict[str, float]] = {}
+    uso_val_prev = 0
+    lotes_pos_duplicados: set[str] = set()
+    for _, r in pos_df.iterrows():
+        lid = _norm(r.get('lote_id'))
+        if not lid:
+            continue
+        valor_original = float(_round_monetario(r.get('valor_original'), 0.0) or 0.0)
+        linha_ativa = ativos_por_lote.get(lid)
+        if linha_ativa:
+            saldo_liq = _pick_num(linha_ativa, ['Líquido', 'Liq. atual', 'Valor líquido', 'Patr. líq.', 'Saldo rem'], valor_original)
+            saldo_bruto = _pick_num(linha_ativa, ['Bruto', 'Bruto atual', 'Valor bruto'], saldo_liq)
+            uso_val_prev += 1
+        else:
+            saldo_liq = valor_original
+            saldo_bruto = valor_original
+        if lid not in pos_saldos:
+            pos_saldos[lid] = {'saldo_liq': float(saldo_liq), 'bruto_ref': float(saldo_bruto), 'liq_ref': float(saldo_liq), 'qtd_linhas': 1.0}
+        else:
+            lotes_pos_duplicados.add(lid)
+            pos_saldos[lid]['saldo_liq'] += float(saldo_liq)
+            pos_saldos[lid]['bruto_ref'] += float(saldo_bruto)
+            pos_saldos[lid]['liq_ref'] += float(saldo_liq)
+            pos_saldos[lid]['qtd_linhas'] += 1.0
+
+    gastos_ok = gastos[(gastos.get('pago') == True) & (gastos.get('passado_pago_ate_data_referencia') == True)].copy()
+    if 'data' in gastos_ok.columns:
+        gastos_ok = gastos_ok.sort_values(['data', 'despesa_id'], kind='stable')
+
+    consumo_por_lote: dict[str, list[dict[str, Any]]] = {k: [] for k in pos_saldos.keys()}
+    qtd_multifonte_misto = 0
+    qtd_fonte_repetida = 0
+    for _, g in gastos_ok.iterrows():
+        desp = str(g.get('despesa_id') or '').strip()
+        if not desp:
+            continue
+        fontes_raw = _parts(g.get('lote_usado_1')) + _parts(g.get('lote_usado_2'))
+        fontes_all = [f for f in fontes_raw if f]
+        if not fontes_all:
+            continue
+        fontes_distintas = list(dict.fromkeys(fontes_all))
+        if len(fontes_distintas) < len(fontes_all):
+            qtd_fonte_repetida += 1
+        fontes_pos = [x for x in fontes_distintas if x in consumo_por_lote]
+        if not fontes_pos:
+            continue
+        if len(fontes_distintas) > len(fontes_pos):
+            qtd_multifonte_misto += 1
+        valor = float(_round_monetario(g.get('valor'), 0.0) or 0.0)
+        valor_rateio = valor / max(len(fontes_distintas), 1)
+        for l in fontes_pos:
+            consumo_por_lote[l].append({'despesa_id': desp, 'valor': valor_rateio})
+
+    aggr_por_despesa: dict[str, dict[str, Any]] = {}
+    for lote_id, itens in consumo_por_lote.items():
+        saldo = float(pos_saldos.get(lote_id, {}).get('saldo_liq', 0.0) or 0.0)
+        for it in itens:
+            desp = it['despesa_id']
+            valor = float(it['valor'] or 0.0)
+            saldo_antes = float(_round_monetario(saldo, 0.0) or 0.0)
+            saldo = float(_round_monetario(saldo - valor, 0.0) or 0.0)
+            saldo_rem = 0.0 if saldo <= limiar else float(_round_monetario(saldo, 0.0) or 0.0)
+            rec = aggr_por_despesa.setdefault(desp, {'soma_saldo_antes_pos': 0.0, 'soma_saldo_rem_pos': 0.0, 'qtd_fontes_pos': 0, 'lotes': set()})
+            rec['soma_saldo_antes_pos'] += saldo_antes
+            rec['soma_saldo_rem_pos'] += saldo_rem
+            rec['qtd_fontes_pos'] += 1
+            rec['lotes'].add(lote_id)
+        pos_saldos[lote_id]['saldo_liq'] = saldo
+
+    idx_por_despesa = {str(x.get('Despesa ID') or '').strip(): i for i, x in enumerate(extrato_passado)}
+    preench_sa = preench_sr = 0
+    multi = 0
+    for desp, rec in aggr_por_despesa.items():
+        i = idx_por_despesa.get(desp)
+        if i is None:
+            continue
+        linha = dict(extrato_passado[i])
+        saldo_antes = _round_monetario(rec['soma_saldo_antes_pos'], 0.0)
+        saldo_rem = _round_monetario(rec['soma_saldo_rem_pos'], 0.0)
+        linha['Saldo Antes'] = saldo_antes
+        linha['Saldo Remanescente'] = saldo_rem
+        if int(rec['qtd_fontes_pos']) > 1:
+            linha['Multifonte POS'] = 'sim'
+            multi += 1
+        extrato_passado[i] = linha
+        preench_sa += 1 if saldo_antes not in ('', None) else 0
+        preench_sr += 1 if saldo_rem not in ('', None) else 0
+
+    novos_ativos = []
+    novos_exauridos = list(lotes_exauridos)
+    ex = at = 0
+    for l in lotes_ativos:
+        lid = _norm(l.get('Lote'))
+        if lid not in pos_saldos:
+            novos_ativos.append(l)
+            continue
+        saldo_final = float(pos_saldos[lid]['saldo_liq'] or 0.0)
+        bruto_ref = float(pos_saldos[lid]['bruto_ref'] or saldo_final)
+        liq_ref = float(pos_saldos[lid]['liq_ref'] or saldo_final)
+        nl = dict(l)
+        if saldo_final <= limiar:
+            nl['Bruto'] = 0.0
+            nl['Líquido'] = 0.0
+            nl['Saldo rem'] = 0.0
+            nl['Status'] = 'exaurido_por_saque_pos_switching'
+            novos_exauridos.append(nl)
+            ex += 1
+        else:
+            ratio = (saldo_final / liq_ref) if liq_ref > 0 else 1.0
+            bruto_final = _round_monetario(bruto_ref * ratio, saldo_final) if liq_ref > 0 else _round_monetario(saldo_final, 0.0)
+            nl['Bruto'] = bruto_final
+            nl['Líquido'] = _round_monetario(saldo_final, 0.0)
+            nl['Saldo rem'] = _round_monetario(saldo_final, 0.0)
+            nl['Status'] = 'ativo_pos_switching'
+            novos_ativos.append(nl)
+            at += 1
+
+    base_aud.update({
+        'qtd_pagamentos_passados_pos_detectados': int(sum(len(v) for v in consumo_por_lote.values())),
+        'qtd_pagamentos_passados_pos_com_saldo_antes_preenchido': int(preench_sa),
+        'qtd_pagamentos_passados_pos_com_saldo_remanescente_preenchido': int(preench_sr),
+        'qtd_despesas_multifonte_pos': int(multi),
+        'qtd_lotes_pos_exauridos_apos_consumo': int(ex),
+        'qtd_lotes_pos_ativos_com_saldo_abatido': int(at),
+        'qtd_lotes_pos_com_valoracao_previa_usada': int(uso_val_prev),
+        'qtd_pagamentos_multifonte_misto_pos_nao_pos_auditados': int(qtd_multifonte_misto),
+        'qtd_lotes_pos_duplicados_consolidados': int(len(lotes_pos_duplicados)),
+        'qtd_pagamentos_com_fonte_repetida': int(qtd_fonte_repetida),
+        'status_geral_q5c': 'valoracao_pos_preservada' if (preench_sa > 0 and preench_sr > 0) else 'integracao_parcial',
+        'status_geral_q5d': 'rateio_multifonte_e_duplicidade_pos_protegidos',
+    })
+    return extrato_passado, novos_ativos, novos_exauridos, base_aud
+
+
 def _construir_origens_migradas_por_switching_auditoria(
     *,
     extrato_passado: list[dict[str, Any]],
@@ -2181,6 +2354,12 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     destinos_pos_switching_passivos = list(ledger_result.get('destinos_pos_switching_materializados_passivos', []))
     vinculos_origem_destino_pos_switching = list(ledger_result.get('vinculos_origem_destino_pos_switching', []))
     lotes_ativos, lotes_exauridos = _construir_lotes_situacao(contexto, destinos_pos_switching_passivos)
+    extrato_passado, lotes_ativos, lotes_exauridos, auditoria_consumo_pos_q5b = _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
+        contexto,
+        extrato_passado,
+        lotes_ativos,
+        lotes_exauridos,
+    )
     origens_migradas_por_switching, reconciliacao_origens_migradas = _construir_origens_migradas_por_switching_auditoria(
         extrato_passado=extrato_passado,
         destinos_pos_switching_passivos=destinos_pos_switching_passivos,
@@ -2197,6 +2376,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'qtd_switchings': len(switchings),
         'qtd_lotes_ativos': len(lotes_ativos),
         'qtd_lotes_exauridos': len(lotes_exauridos),
+        'auditoria_consumo_pos_q5b': auditoria_consumo_pos_q5b,
         'qtd_futuro_sem_cobertura_integral': sum(1 for item in extrato_futuro if item.get('Cobertura integral') != 'sim'),
         'qtd_futuro_multifonte': sum(1 for item in extrato_futuro if '+' in str(item.get('Lote sugerido') or '')),
         'fifo_candidatos_avaliados': fifo_candidatos_avaliados,
