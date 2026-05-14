@@ -22,6 +22,10 @@ import pandas as pd
 
 from nucleo.carteira_canonica import PacoteCarteiraCanonica, normalizar_nome_produto
 from nucleo.leitor_planilha import PacotePlanilha, resolver_coluna
+from nucleo.inventario_lotes_expandido_pos_switching import (
+    construir_inventario_lotes_expandido,
+    normalizar_lotes_pos_switching_para_schema_inventario,
+)
 from nucleo.utilitarios_neutros import (
     escolher_melhor_correspondencia_textual,
     limpar_texto,
@@ -48,6 +52,9 @@ class PacoteDadosOperacionaisCanonicos:
     switching_canonico: Optional[pd.DataFrame] = None
     auditoria_salarios: Optional[dict[str, Any]] = None
     auditoria_switching: Optional[dict[str, Any]] = None
+    inventario_lotes_expandido: Optional[pd.DataFrame] = None
+    lotes_pos_switching_normalizados: Optional[pd.DataFrame] = None
+    auditoria_inventario_expandido: Optional[dict[str, Any]] = None
 
 
 
@@ -739,6 +746,17 @@ def carregar_dados_operacionais_canonicos(
         config,
         data_referencia=data_referencia,
     )
+    lotes_pos_switching_normalizados, auditoria_pos = normalizar_lotes_pos_switching_para_schema_inventario(
+        switching_canonico,
+        config,
+        data_referencia=data_referencia,
+        carteira_canonica=carteira_canonica,
+    )
+    inventario_lotes_expandido, auditoria_expandido = construir_inventario_lotes_expandido(
+        inventario_canonico,
+        lotes_pos_switching_normalizados,
+    )
+    auditoria_expandido = {**auditoria_expandido, **auditoria_pos}
     return PacoteDadosOperacionaisCanonicos(
         nome_aba_lotes=nome_aba_lotes,
         nome_aba_despesas=nome_aba_despesas,
@@ -752,4 +770,7 @@ def carregar_dados_operacionais_canonicos(
         switching_canonico=switching_canonico,
         auditoria_salarios=auditoria_salarios,
         auditoria_switching=auditoria_switching,
+        inventario_lotes_expandido=inventario_lotes_expandido,
+        lotes_pos_switching_normalizados=lotes_pos_switching_normalizados,
+        auditoria_inventario_expandido=auditoria_expandido,
     )
