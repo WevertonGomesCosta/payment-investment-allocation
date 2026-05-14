@@ -2047,6 +2047,7 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
     ativos_por_lote = {_norm(l.get('Lote')): l for l in list(lotes_ativos or []) if _norm(l.get('Lote'))}
     pos_saldos: dict[str, dict[str, float]] = {}
     uso_val_prev = 0
+    lotes_pos_duplicados: set[str] = set()
     for _, r in pos_df.iterrows():
         lid = _norm(r.get('lote_id'))
         if not lid:
@@ -2060,24 +2061,41 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
         else:
             saldo_liq = valor_original
             saldo_bruto = valor_original
-        pos_saldos[lid] = {'saldo_liq': float(saldo_liq), 'bruto_ref': float(saldo_bruto), 'liq_ref': float(saldo_liq)}
+        if lid not in pos_saldos:
+            pos_saldos[lid] = {'saldo_liq': float(saldo_liq), 'bruto_ref': float(saldo_bruto), 'liq_ref': float(saldo_liq), 'qtd_linhas': 1.0}
+        else:
+            lotes_pos_duplicados.add(lid)
+            pos_saldos[lid]['saldo_liq'] += float(saldo_liq)
+            pos_saldos[lid]['bruto_ref'] += float(saldo_bruto)
+            pos_saldos[lid]['liq_ref'] += float(saldo_liq)
+            pos_saldos[lid]['qtd_linhas'] += 1.0
 
     gastos_ok = gastos[(gastos.get('pago') == True) & (gastos.get('passado_pago_ate_data_referencia') == True)].copy()
     if 'data' in gastos_ok.columns:
         gastos_ok = gastos_ok.sort_values(['data', 'despesa_id'], kind='stable')
 
     consumo_por_lote: dict[str, list[dict[str, Any]]] = {k: [] for k in pos_saldos.keys()}
+    qtd_multifonte_misto = 0
+    qtd_fonte_repetida = 0
     for _, g in gastos_ok.iterrows():
         desp = str(g.get('despesa_id') or '').strip()
         if not desp:
             continue
-        lotes = _parts(g.get('lote_usado_1')) + _parts(g.get('lote_usado_2'))
-        lotes = [x for x in lotes if x in consumo_por_lote]
-        if not lotes:
+        fontes_raw = _parts(g.get('lote_usado_1')) + _parts(g.get('lote_usado_2'))
+        fontes_all = [f for f in fontes_raw if f]
+        if not fontes_all:
             continue
+        fontes_distintas = list(dict.fromkeys(fontes_all))
+        if len(fontes_distintas) < len(fontes_all):
+            qtd_fonte_repetida += 1
+        fontes_pos = [x for x in fontes_distintas if x in consumo_por_lote]
+        if not fontes_pos:
+            continue
+        if len(fontes_distintas) > len(fontes_pos):
+            qtd_multifonte_misto += 1
         valor = float(_round_monetario(g.get('valor'), 0.0) or 0.0)
-        valor_rateio = valor / max(len(lotes), 1)
-        for l in lotes:
+        valor_rateio = valor / max(len(fontes_distintas), 1)
+        for l in fontes_pos:
             consumo_por_lote[l].append({'despesa_id': desp, 'valor': valor_rateio})
 
     aggr_por_despesa: dict[str, dict[str, Any]] = {}
@@ -2152,7 +2170,11 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
         'qtd_lotes_pos_exauridos_apos_consumo': int(ex),
         'qtd_lotes_pos_ativos_com_saldo_abatido': int(at),
         'qtd_lotes_pos_com_valoracao_previa_usada': int(uso_val_prev),
+        'qtd_pagamentos_multifonte_misto_pos_nao_pos_auditados': int(qtd_multifonte_misto),
+        'qtd_lotes_pos_duplicados_consolidados': int(len(lotes_pos_duplicados)),
+        'qtd_pagamentos_com_fonte_repetida': int(qtd_fonte_repetida),
         'status_geral_q5c': 'valoracao_pos_preservada' if (preench_sa > 0 and preench_sr > 0) else 'integracao_parcial',
+        'status_geral_q5d': 'rateio_multifonte_e_duplicidade_pos_protegidos',
     })
     return extrato_passado, novos_ativos, novos_exauridos, base_aud
 
