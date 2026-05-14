@@ -22,8 +22,8 @@ def main():
  exaur=[x for x in s.lotes_exauridos if str(x.get('Lote') or '').strip().lower() in {'lote 190 mai','lote 3120 mai'}]
  r={'qtd_lotes_pos_normalizados':len(getattr(ctx.dados_operacionais,'lotes_pos_switching_normalizados',pd.DataFrame())),
     'qtd_pagamentos_passados_pos_detectados':len(ex),
-    'qtd_pagamentos_passados_pos_com_saldo_antes_preenchido':sum(1 for x in ex if str(x.get('Saldo Antes') or '').strip()!=''),
-    'qtd_pagamentos_passados_pos_com_saldo_remanescente_preenchido':sum(1 for x in ex if str(x.get('Saldo Remanescente') or '').strip()!=''),
+    'qtd_pagamentos_passados_pos_com_saldo_antes_preenchido':sum(1 for x in ex if x.get('Saldo Antes') is not None and str(x.get('Saldo Antes')).strip()!=''),
+    'qtd_pagamentos_passados_pos_com_saldo_remanescente_preenchido':sum(1 for x in ex if x.get('Saldo Remanescente') is not None and str(x.get('Saldo Remanescente')).strip()!=''),
     'qtd_lotes_pos_exauridos_apos_consumo':len(exaur),
     'qtd_lotes_pos_ativos_com_saldo_abatido':sum(1 for x in ativos if float(x.get('Saldo rem') or 0)<float(x.get('Valor original') or 0)),
     'status_geral_q5b':'consumo_pos_switching_integrado' if len(ex)==2 and len(exaur)>=1 else 'integracao_parcial'}
