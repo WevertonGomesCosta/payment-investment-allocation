@@ -76,16 +76,27 @@ def _carregar_s6_df() -> pd.DataFrame:
     return pd.read_csv(CSV_S6)
 
 
+def _resolver_coluna_classe_s6(s6_df: pd.DataFrame) -> str:
+    for col in ("classe_s6", "classe_temporal_s6", "classe_politica_s6"):
+        if col in s6_df.columns:
+            return col
+    return ""
+
+
 def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None):
     saida = construir_saida_canonica_com_switching_v17_c7(contexto, versao=VERSAO_BASELINE)
     data_ref = str(data_referencia or saida.data_referencia)
 
     s6_df = _carregar_s6_df()
     classe_counts = {}
-    if not s6_df.empty and "classe_s6" in s6_df.columns:
-        col = "classe_s6" if "classe_s6" in s6_df.columns else ("classe_temporal_s6" if "classe_temporal_s6" in s6_df.columns else ("classe_politica_s6" if "classe_politica_s6" in s6_df.columns else ""))
-        if col:
-            classe_counts = s6_df[col].astype(str).value_counts().to_dict()
+    coluna_classe_s6_usada = "nao_aplicavel_sem_csv_s6"
+    if not s6_df.empty:
+        col = _resolver_coluna_classe_s6(s6_df)
+        if not col:
+            raise ValueError("erro_coluna_classe_s6_nao_encontrada")
+        coluna_classe_s6_usada = col
+        serie = s6_df[col].astype(str).str.strip().str.lower()
+        classe_counts = serie.value_counts().to_dict()
 
     registros: list[dict[str, Any]] = []
 
@@ -110,6 +121,7 @@ def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None)
                 "status_ciclo": "ativo_pos_switching" if "ativo_pos_switching" in status_field else "ativo",
                 "status_switching": status_sw,
                 "fonte_normativa": "S.6+Q.FINAL",
+                "coluna_classe_s6_usada": coluna_classe_s6_usada,
             }
         )
 
@@ -125,8 +137,14 @@ def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None)
                 "fonte_futura": "nao",
                 "saldo_observado": float(lote.get("Saldo rem") or lote.get("Líquido") or 0.0),
                 "status_ciclo": "migrado_por_switching" if "migrado" in _norm_txt(lote.get("Status")) else "exaurido",
-                "status_switching": "pos_switching" if "pos-switching" in _norm_txt(lote.get("fonte_detalhada")) else "nao",
+                "status_switching": "pos_switching"
+                if any(
+                    "switching" in _norm_txt(lote.get(chave))
+                    for chave in ("Status", "fonte_detalhada", "Origem migrada", "Evento switching ID")
+                )
+                else "nao",
                 "fonte_normativa": "S.6+Q.FINAL",
+                "coluna_classe_s6_usada": coluna_classe_s6_usada,
             }
         )
 
@@ -150,6 +168,7 @@ def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None)
                     "status_ciclo": "nao_lote",
                     "status_switching": "nao",
                     "fonte_normativa": "S.6",
+                    "coluna_classe_s6_usada": coluna_classe_s6_usada,
                 }
             )
 

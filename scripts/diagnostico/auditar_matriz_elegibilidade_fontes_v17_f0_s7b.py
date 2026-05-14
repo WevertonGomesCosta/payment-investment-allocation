@@ -24,7 +24,13 @@ def main() -> int:
         incluir_benchmark_runner_futuro_shadow=False,
         incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
     )
-    df = construir_matriz_elegibilidade_fontes_s7b(ctx)
+    try:
+        df = construir_matriz_elegibilidade_fontes_s7b(ctx)
+    except ValueError as exc:
+        if "erro_coluna_classe_s6_nao_encontrada" in str(exc):
+            print("status_geral_s7b=erro_coluna_classe_s6_nao_encontrada")
+            return 2
+        raise
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)
 
@@ -34,9 +40,10 @@ def main() -> int:
     qtd = len(df)
     elegiveis = int((df["elegivel_para_pagamento"] == "sim").sum())
     bloqueadas = int((df["elegivel_para_pagamento"] == "nao").sum())
-    prev = int((df["classe_temporal_s6"] == "salario_previsto_futuro_nao_materializado").sum())
-    lac = int((df["classe_temporal_s6"] == "lacuna_real_de_integracao").sum())
-    pre = int((df["classe_temporal_s6"] == "uso_pre_aplicacao_no_mes_sem_vinculo_linha").sum())
+    bloqueada = (df["elegivel_para_pagamento"] == "nao") & (df["pode_ser_lote_sugerido"] == "nao")
+    prev = int(((df["classe_temporal_s6"] == "salario_previsto_futuro_nao_materializado") & bloqueada).sum())
+    lac = int(((df["classe_temporal_s6"] == "lacuna_real_de_integracao") & bloqueada).sum())
+    pre = int(((df["classe_temporal_s6"] == "uso_pre_aplicacao_no_mes_sem_vinculo_linha") & bloqueada).sum())
     exauridos = int((df["motivo_bloqueio"] == "lote_exaurido").sum())
     migrados = int((df["motivo_bloqueio"] == "lote_migrado_por_switching").sum())
     pos_elegiveis = int(((df["status_ciclo"] == "ativo_pos_switching") & (df["elegivel_para_pagamento"] == "sim")).sum())
@@ -56,6 +63,7 @@ def main() -> int:
     print(f"qtd_lotes_migrados_bloqueados={migrados}")
     print(f"qtd_lotes_pos_switching_elegiveis={pos_elegiveis}")
     print(f"qtd_fontes_com_saldo_temporal_insuficiente={saldo_insuf}")
+    print(f"coluna_classe_s6_usada={df['coluna_classe_s6_usada'].iloc[0] if 'coluna_classe_s6_usada' in df.columns and not df.empty else 'indisponivel'}")
     print(f"sentinela_lote_190_nao_elegivel={'sim' if (not s190.empty and (s190['elegivel_para_pagamento'] == 'nao').all()) else 'nao'}")
     print(f"sentinela_lote_3120_ativo_pos={'sim' if (not s3120.empty and (s3120['status_ciclo'] == 'ativo_pos_switching').any()) else 'nao'}")
     print("status_geral_s7b=matriz_elegibilidade_fontes_construida")
