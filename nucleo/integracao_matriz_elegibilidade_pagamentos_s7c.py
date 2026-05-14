@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 import re
+from copy import deepcopy
 
 
 def _norm(v: Any) -> str:
@@ -88,4 +89,19 @@ def aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz_
         row["lote_sugerido_pos_matriz"] = row.get("Lote sugerido") or ""
         audit.append({"idx": i, **row})
 
+    s6_df = matriz_elegibilidade[matriz_elegibilidade.get("tipo_fonte", "") == "classe_s6"] if "tipo_fonte" in matriz_elegibilidade.columns else matriz_elegibilidade.iloc[0:0]
+    qtd_s6_total = int(len(s6_df))
+    qtd_s6_link = int((s6_df.get("linkavel_ao_fluxo", "nao") == "sim").sum()) if qtd_s6_total else 0
+    qtd_s6_nlink = qtd_s6_total - qtd_s6_link
+    qtd_bloq_diag_nlink = int((s6_df.get("elegivel_para_pagamento", "sim") == "nao").sum()) if qtd_s6_total else 0
+    resumo = {
+        "qtd_registros_s6_total": qtd_s6_total,
+        "qtd_registros_s6_linkaveis_ao_fluxo": qtd_s6_link,
+        "qtd_registros_s6_nao_linkaveis_ao_fluxo": qtd_s6_nlink,
+        "qtd_bloqueios_s6_aplicados_no_fluxo": 0,
+        "qtd_bloqueios_s6_diagnosticos_nao_linkaveis": qtd_bloq_diag_nlink,
+        "qtd_fonte_id_sintetico_usado_para_lookup": 0,
+    }
+    for r in audit:
+        r["s7c_resumo"] = deepcopy(resumo)
     return saida_canonica, audit

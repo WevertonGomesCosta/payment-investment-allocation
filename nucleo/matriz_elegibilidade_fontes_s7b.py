@@ -11,6 +11,8 @@ from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_
 VERSAO_BASELINE = "V225"
 CSV_S6 = Path("saidas/diagnostico/auditoria_separacao_previsao_materializacao_v17_f0_s6.csv")
 SCRIPT_S6 = Path("scripts/diagnostico/auditar_separacao_previsao_materializacao_v17_f0_s6.py")
+SCRIPT_S2 = Path("scripts/diagnostico/auditar_lacuna_integracao_temporal_v17_f0_s2.py")
+SCRIPT_S4 = Path("scripts/diagnostico/auditar_amostras_salario_sem_recebido_e_sem_aporte_v17_f0_s4.py")
 
 
 def _norm_txt(v: Any) -> str:
@@ -69,13 +71,17 @@ def _classificar_regra_base(reg: dict[str, Any]) -> dict[str, Any]:
 
 
 def _carregar_s6_df() -> pd.DataFrame:
+    s6_origem = "csv_existente"
     if not CSV_S6.exists():
-        if not SCRIPT_S6.exists():
-            raise RuntimeError("erro_csv_s6_indisponivel_para_matriz_elegibilidade")
+        scripts = [SCRIPT_S2, SCRIPT_S4, SCRIPT_S6]
+        if any(not p.exists() for p in scripts):
+            raise RuntimeError("erro_recomposicao_cadeia_s6_indisponivel")
+        s6_origem = "recomposta"
         try:
-            subprocess.run(["python", str(SCRIPT_S6)], check=True)
+            for p in scripts:
+                subprocess.run(["python", str(p)], check=True)
         except subprocess.CalledProcessError as exc:
-            raise RuntimeError("erro_s6_csv_nao_produzido") from exc
+            raise RuntimeError("erro_recomposicao_cadeia_s6_falhou") from exc
     if not CSV_S6.exists():
         raise RuntimeError("erro_s6_csv_nao_produzido")
     df = pd.read_csv(CSV_S6)
@@ -87,6 +93,8 @@ def _carregar_s6_df() -> pd.DataFrame:
     serie = df[col].astype(str).str.strip().str.lower()
     if serie.eq("").all():
         raise RuntimeError("erro_csv_s6_vazio_para_matriz_elegibilidade")
+    df["_s6_origem"] = s6_origem
+    df["_coluna_classe_s6_usada"] = col
     return df
 
 
@@ -167,13 +175,28 @@ def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None)
         "uso_pre_aplicacao_no_mes_sem_vinculo_linha",
     ]:
         qtd = int(classe_counts.get(classe, 0))
-        for i in range(qtd):
+        subset = s6_df[serie == classe].copy()
+        for i, (_, row_s6) in enumerate(subset.iterrows(), start=1):
+            fonte_id_real = str(row_s6.get("salario_id") or row_s6.get("descricao_salario") or "").strip()
+            data_s6 = str(row_s6.get("data_recebimento_salario") or "").strip()
+            valor_s6 = row_s6.get("valor_liquido_salario")
+            chave_op = "|".join([fonte_id_real, data_s6, str(valor_s6)])
+            linkavel = "sim" if fonte_id_real else "nao"
             registros.append(
                 {
                     "data_referencia": data_ref,
-                    "fonte_id": f"{classe}_{i+1}",
+                    "registro_s6_id": f"{classe}_{i}",
+                    "fonte_id": chave_op if chave_op.strip("|") else f"s6_diag::{classe}::{i}",
+                    "fonte_id_real": fonte_id_real,
+                    "chave_operacional_s6": chave_op,
                     "tipo_fonte": "classe_s6",
                     "classe_temporal_s6": classe,
+                    "classe_politica_s6": str(row_s6.get("classe_politica_s6") or classe),
+                    "data_recebimento_s6": data_s6,
+                    "origem_s6": str(row_s6.get("camada_temporal_s6") or ""),
+                    "valor_s6": valor_s6,
+                    "linkavel_ao_fluxo": linkavel,
+                    "motivo_nao_linkavel": "" if linkavel == "sim" else "sem_chave_operacional_s6",
                     "origem_materializacao": "nao_materializada" if "materializado" in classe else "diagnostico",
                     "materializada": "nao",
                     "fonte_futura": "sim" if classe == "salario_previsto_futuro_nao_materializado" else "nao",
@@ -181,7 +204,9 @@ def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None)
                     "status_ciclo": "nao_lote",
                     "status_switching": "nao",
                     "fonte_normativa": "S.6",
+                    "s6_origem": str(row_s6.get("_s6_origem") or "csv_existente"),
                     "coluna_classe_s6_usada": coluna_classe_s6_usada,
+                    "fonte_id_sintetico_s6": "nao" if linkavel == "sim" else "sim",
                 }
             )
 

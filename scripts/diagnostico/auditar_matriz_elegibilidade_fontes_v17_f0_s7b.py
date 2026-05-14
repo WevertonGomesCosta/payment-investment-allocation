@@ -58,6 +58,11 @@ def main() -> int:
     migrados = int((df["motivo_bloqueio"] == "lote_migrado_por_switching").sum())
     pos_elegiveis = int(((df["status_ciclo"] == "ativo_pos_switching") & (df["elegivel_para_pagamento"] == "sim")).sum())
     saldo_insuf = int((df["motivo_bloqueio_cumulativo"] == "nao_disponivel_sem_motor").sum())
+    s6_total = int((df["tipo_fonte"] == "classe_s6").sum())
+    s6_link = int(((df["tipo_fonte"] == "classe_s6") & (df.get("linkavel_ao_fluxo", "nao") == "sim")).sum())
+    s6_nlink = int(((df["tipo_fonte"] == "classe_s6") & (df.get("linkavel_ao_fluxo", "nao") != "sim")).sum())
+    sint_total = int((df.get("fonte_id_sintetico_s6", "nao") == "sim").sum())
+    sint_lookup = 0
 
     s190 = df[df["fonte_id"].astype(str).str.contains("190 mai", case=False, na=False)]
     s3120 = df[df["fonte_id"].astype(str).str.contains("3120 mai", case=False, na=False)]
@@ -73,6 +78,13 @@ def main() -> int:
     print(f"qtd_lotes_migrados_bloqueados={migrados}")
     print(f"qtd_lotes_pos_switching_elegiveis={pos_elegiveis}")
     print(f"qtd_fontes_com_saldo_temporal_insuficiente={saldo_insuf}")
+    print(f"s6_origem={df['s6_origem'].dropna().iloc[0] if 's6_origem' in df.columns and not df['s6_origem'].dropna().empty else 'csv_existente'}")
+    print(f"qtd_registros_s6_total={s6_total}")
+    print(f"qtd_registros_s6_linkaveis_ao_fluxo={s6_link}")
+    print(f"qtd_registros_s6_nao_linkaveis_ao_fluxo={s6_nlink}")
+    print(f"qtd_fonte_id_sintetico_s6={sint_total}")
+    print(f"qtd_fonte_id_sintetico_usado_para_lookup={sint_lookup}")
+    print(f"status_vinculo_s6_fluxo={'parcial_sem_exposicao' if s6_nlink>0 else 'linkavel'}")
     print(f"coluna_classe_s6_usada={df['coluna_classe_s6_usada'].iloc[0] if 'coluna_classe_s6_usada' in df.columns and not df.empty else 'indisponivel'}")
     print(f"sentinela_lote_190_nao_elegivel={'sim' if (not s190.empty and (s190['elegivel_para_pagamento'] == 'nao').all()) else 'nao'}")
     print(f"sentinela_lote_3120_ativo_pos={'sim' if (not s3120.empty and (s3120['status_ciclo'] == 'ativo_pos_switching').any()) else 'nao'}")
