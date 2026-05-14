@@ -26,10 +26,20 @@ def main() -> int:
     )
     try:
         df = construir_matriz_elegibilidade_fontes_s7b(ctx)
-    except ValueError as exc:
-        if "erro_coluna_classe_s6_nao_encontrada" in str(exc):
+    except (ValueError, RuntimeError) as exc:
+        msg = str(exc)
+        if "erro_coluna_classe_s6_nao_encontrada" in msg:
             print("status_geral_s7b=erro_coluna_classe_s6_nao_encontrada")
             return 2
+        if "erro_csv_s6_indisponivel_para_matriz_elegibilidade" in msg:
+            print("status_geral_s7b=erro_csv_s6_indisponivel_para_matriz_elegibilidade")
+            return 3
+        if "erro_s6_csv_nao_produzido" in msg:
+            print("status_geral_s7b=erro_s6_csv_nao_produzido")
+            return 4
+        if "erro_csv_s6_vazio_para_matriz_elegibilidade" in msg:
+            print("status_geral_s7b=erro_csv_s6_vazio_para_matriz_elegibilidade")
+            return 5
         raise
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)

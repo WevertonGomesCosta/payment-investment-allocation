@@ -69,11 +69,25 @@ def _classificar_regra_base(reg: dict[str, Any]) -> dict[str, Any]:
 
 
 def _carregar_s6_df() -> pd.DataFrame:
-    if not CSV_S6.exists() and SCRIPT_S6.exists():
-        subprocess.run(["python", str(SCRIPT_S6)], check=False)
     if not CSV_S6.exists():
-        return pd.DataFrame()
-    return pd.read_csv(CSV_S6)
+        if not SCRIPT_S6.exists():
+            raise RuntimeError("erro_csv_s6_indisponivel_para_matriz_elegibilidade")
+        try:
+            subprocess.run(["python", str(SCRIPT_S6)], check=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError("erro_s6_csv_nao_produzido") from exc
+    if not CSV_S6.exists():
+        raise RuntimeError("erro_s6_csv_nao_produzido")
+    df = pd.read_csv(CSV_S6)
+    if df.empty:
+        raise RuntimeError("erro_csv_s6_vazio_para_matriz_elegibilidade")
+    col = _resolver_coluna_classe_s6(df)
+    if not col:
+        raise RuntimeError("erro_coluna_classe_s6_nao_encontrada")
+    serie = df[col].astype(str).str.strip().str.lower()
+    if serie.eq("").all():
+        raise RuntimeError("erro_csv_s6_vazio_para_matriz_elegibilidade")
+    return df
 
 
 def _resolver_coluna_classe_s6(s6_df: pd.DataFrame) -> str:
@@ -90,13 +104,12 @@ def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None)
     s6_df = _carregar_s6_df()
     classe_counts = {}
     coluna_classe_s6_usada = "nao_aplicavel_sem_csv_s6"
-    if not s6_df.empty:
-        col = _resolver_coluna_classe_s6(s6_df)
-        if not col:
-            raise ValueError("erro_coluna_classe_s6_nao_encontrada")
-        coluna_classe_s6_usada = col
-        serie = s6_df[col].astype(str).str.strip().str.lower()
-        classe_counts = serie.value_counts().to_dict()
+    col = _resolver_coluna_classe_s6(s6_df)
+    if not col:
+        raise ValueError("erro_coluna_classe_s6_nao_encontrada")
+    coluna_classe_s6_usada = col
+    serie = s6_df[col].astype(str).str.strip().str.lower()
+    classe_counts = serie.value_counts().to_dict()
 
     registros: list[dict[str, Any]] = []
 

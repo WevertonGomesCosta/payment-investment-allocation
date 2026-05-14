@@ -20,7 +20,14 @@ def main() -> int:
     ctx = carregar_contexto_baseline(raiz_repositorio=RAIZ, instalar_automaticamente=False, incluir_resolver_hibrido_5p_shadow=False, incluir_benchmark_agrupado_individual_shadow=False, incluir_benchmark_runner_futuro_shadow=False, incluir_auditoria_primeira_quebra_runner_futuro_shadow=False)
     saida = construir_saida_canonica_com_switching_v17_c7(ctx, versao="V225")
     antes = [str(r.get("Lote sugerido") or "").strip() for r in saida.extrato_futuro]
-    matriz = construir_matriz_elegibilidade_fontes_s7b(ctx, data_referencia=saida.data_referencia)
+    try:
+        matriz = construir_matriz_elegibilidade_fontes_s7b(ctx, data_referencia=saida.data_referencia)
+    except Exception as exc:
+        msg = str(exc)
+        if any(k in msg for k in ("erro_csv_s6_indisponivel_para_matriz_elegibilidade", "erro_s6_csv_nao_produzido", "erro_csv_s6_vazio_para_matriz_elegibilidade", "erro_coluna_classe_s6_nao_encontrada")):
+            print(f"status_geral_s7c={msg}")
+            return 2
+        raise
     saida, audit = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida, matriz)
     df = pd.DataFrame(audit)
     CSV.parent.mkdir(parents=True, exist_ok=True)
@@ -30,8 +37,8 @@ def main() -> int:
     promov_pos = int((df["lote_sugerido_pos_matriz"].astype(str).str.strip() != "").sum())
     bloqueadas = int((df["acao_s7c"] == "bloqueado_por_matriz").sum())
     nao_encontradas = int((df["acao_s7c"] == "fonte_nao_encontrada_na_matriz").sum())
-    compostas = int(df["componentes_fonte"].astype(str).str.contains("\+", regex=True).sum())
-    compostas_bloq = int(((df["componentes_fonte"].astype(str).str.contains("\+", regex=True)) & (df["lote_sugerido_pos_matriz"].astype(str).str.strip()=="")).sum())
+    compostas = int(df["componentes_fonte"].astype(str).str.contains(r"\+", regex=True).sum())
+    compostas_bloq = int(((df["componentes_fonte"].astype(str).str.contains(r"\+", regex=True)) & (df["lote_sugerido_pos_matriz"].astype(str).str.strip()=="")).sum())
     sal_prev_bloq = int(df["componentes_bloqueados_ou_ausentes"].astype(str).str.contains("salario_previsto_futuro_nao_materializado").sum())
     pre_sem_vinc = int(df["componentes_bloqueados_ou_ausentes"].astype(str).str.contains("uso_pre_aplicacao_no_mes_sem_vinculo_linha").sum())
     exaurido_bloq = int(df["componentes_bloqueados_ou_ausentes"].astype(str).str.contains("lote_exaurido").sum())
