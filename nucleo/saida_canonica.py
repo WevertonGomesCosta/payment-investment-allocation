@@ -2006,6 +2006,77 @@ def _construir_lotes_situacao(
     return lotes_ativos, lotes_exauridos
 
 
+def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
+    contexto: Any,
+    extrato_passado: list[dict[str, Any]],
+    lotes_ativos: list[dict[str, Any]],
+    lotes_exauridos: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    dados_ops = getattr(contexto, 'dados_operacionais', None)
+    gastos = getattr(dados_ops, 'gastos_canonicos', None) if dados_ops is not None else None
+    pos_df = getattr(dados_ops, 'lotes_pos_switching_normalizados', None) if dados_ops is not None else None
+    limiar = obter_limiar_residuo_resolvido(contexto.pacote_config.conteudo)
+    if not isinstance(gastos, pd.DataFrame) or gastos.empty or not isinstance(pos_df, pd.DataFrame) or pos_df.empty:
+        return extrato_passado, lotes_ativos, lotes_exauridos, {'qtd_pagamentos_passados_pos_detectados':0,'qtd_lotes_pos_exauridos_apos_consumo':0,'qtd_lotes_pos_ativos_com_saldo_abatido':0}
+
+    pos_saldos = {}
+    for _, r in pos_df.iterrows():
+        lid = str(r.get('lote_id') or '').strip()
+        if not lid:
+            continue
+        pos_saldos[lid.lower()] = float(_round_monetario(r.get('valor_original'), 0.0) or 0.0)
+
+    def _parts(txt):
+        return [str(x).strip().lower() for x in str(txt or '').split('+') if str(x).strip()]
+
+    gastos_ok = gastos[(gastos.get('pago') == True) & (gastos.get('passado_pago_ate_data_referencia') == True)].copy()
+    if 'data' in gastos_ok.columns:
+        gastos_ok = gastos_ok.sort_values(['data','despesa_id'], kind='stable')
+
+    consumo_por_lote = {k: [] for k in pos_saldos.keys()}
+    for _, g in gastos_ok.iterrows():
+        lotes = _parts(g.get('lote_usado_1')) + _parts(g.get('lote_usado_2'))
+        lotes = [x for x in lotes if x in consumo_por_lote]
+        if not lotes:
+            continue
+        valor = float(_round_monetario(g.get('valor'), 0.0) or 0.0)
+        valor_rateio = valor / max(len(lotes),1)
+        for l in lotes:
+            consumo_por_lote[l].append({'despesa_id': str(g.get('despesa_id') or '').strip(), 'valor': valor_rateio})
+
+    idx_por_despesa = {str(x.get('Despesa ID') or '').strip(): i for i,x in enumerate(extrato_passado)}
+    for lote_id, itens in consumo_por_lote.items():
+        saldo = float(pos_saldos.get(lote_id, 0.0) or 0.0)
+        for it in itens:
+            desp = it['despesa_id']
+            if not desp or desp not in idx_por_despesa:
+                continue
+            i = idx_por_despesa[desp]
+            linha = dict(extrato_passado[i])
+            saldo_antes = _round_monetario(saldo, 0.0)
+            saldo = float(_round_monetario(saldo - float(it['valor'] or 0.0), 0.0) or 0.0)
+            saldo_rem = 0.0 if saldo <= limiar else _round_monetario(saldo, 0.0)
+            linha['Saldo Antes'] = saldo_antes
+            linha['Saldo Remanescente'] = saldo_rem
+            extrato_passado[i] = linha
+        pos_saldos[lote_id] = saldo
+
+    novos_ativos=[]; novos_exauridos=list(lotes_exauridos)
+    ex=0; at=0
+    for l in lotes_ativos:
+        lid = str(l.get('Lote') or '').strip().lower()
+        if lid in pos_saldos:
+            saldo = float(pos_saldos[lid] or 0.0)
+            if saldo <= limiar:
+                nl = dict(l); nl['Bruto']=0.0; nl['Líquido']=0.0; nl['Saldo rem']=0.0; nl['Status']='exaurido_por_saque_pos_switching'; novos_exauridos.append(nl); ex+=1
+            else:
+                nl=dict(l); nl['Bruto']=_round_monetario(saldo,0.0); nl['Líquido']=_round_monetario(saldo,0.0); nl['Saldo rem']=_round_monetario(saldo,0.0); nl['Status']='ativo_pos_switching'; novos_ativos.append(nl); at+=1
+        else:
+            novos_ativos.append(l)
+    audit={'qtd_pagamentos_passados_pos_detectados': int(sum(len(v) for v in consumo_por_lote.values())),'qtd_lotes_pos_exauridos_apos_consumo':ex,'qtd_lotes_pos_ativos_com_saldo_abatido':at}
+    return extrato_passado, novos_ativos, novos_exauridos, audit
+
+
 def _construir_origens_migradas_por_switching_auditoria(
     *,
     extrato_passado: list[dict[str, Any]],
@@ -2181,6 +2252,12 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     destinos_pos_switching_passivos = list(ledger_result.get('destinos_pos_switching_materializados_passivos', []))
     vinculos_origem_destino_pos_switching = list(ledger_result.get('vinculos_origem_destino_pos_switching', []))
     lotes_ativos, lotes_exauridos = _construir_lotes_situacao(contexto, destinos_pos_switching_passivos)
+    extrato_passado, lotes_ativos, lotes_exauridos, auditoria_consumo_pos_q5b = _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
+        contexto,
+        extrato_passado,
+        lotes_ativos,
+        lotes_exauridos,
+    )
     origens_migradas_por_switching, reconciliacao_origens_migradas = _construir_origens_migradas_por_switching_auditoria(
         extrato_passado=extrato_passado,
         destinos_pos_switching_passivos=destinos_pos_switching_passivos,
@@ -2197,6 +2274,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'qtd_switchings': len(switchings),
         'qtd_lotes_ativos': len(lotes_ativos),
         'qtd_lotes_exauridos': len(lotes_exauridos),
+        'auditoria_consumo_pos_q5b': auditoria_consumo_pos_q5b,
         'qtd_futuro_sem_cobertura_integral': sum(1 for item in extrato_futuro if item.get('Cobertura integral') != 'sim'),
         'qtd_futuro_multifonte': sum(1 for item in extrato_futuro if '+' in str(item.get('Lote sugerido') or '')),
         'fifo_candidatos_avaliados': fifo_candidatos_avaliados,
