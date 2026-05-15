@@ -76,10 +76,11 @@ def main():
     out["qtd_pagamentos_com_alerta_operacional_explicito"] = int((df["tipo_alerta_operacional"] == "explicito").sum())
     out["qtd_pagamentos_com_alerta_operacional_inferido"] = int((df["tipo_alerta_operacional"] == "inferido").sum())
     out["qtd_pagamentos_sem_lote_sugerido"] = int(df["lote_recomendado"].fillna("").astype(str).str.strip().eq("").sum())
-    out["qtd_pagamentos_sem_lote_sugerido_sem_alerta_explicito"] = int(
-        (df["lote_recomendado"].fillna("").astype(str).str.strip().eq("")) &
-        (df["tipo_alerta_operacional"] != "explicito")
+    mask_sem_lote_sem_alerta_explicito = (
+        df["lote_recomendado"].fillna("").astype(str).str.strip().eq("")
+        & (df["tipo_alerta_operacional"] != "explicito")
     )
+    out["qtd_pagamentos_sem_lote_sugerido_sem_alerta_explicito"] = int(mask_sem_lote_sem_alerta_explicito.sum())
 
     out["qtd_pagamentos_com_saldo_temporal_insuficiente"] = int(
         df["status_operacional"].astype(str).str.contains("saldo_temporal_insuficiente|alerta_operacional_justificado", na=False).sum()
