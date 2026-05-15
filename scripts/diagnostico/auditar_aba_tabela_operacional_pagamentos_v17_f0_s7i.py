@@ -15,6 +15,7 @@ CSV_S7G = RAIZ / "saidas" / "diagnostico" / "tabela_operacional_pagamentos_v17_f
 ABA_PRIORITARIA = "Tabela Operacional Pagamentos"
 ABA_ALTERNATIVA = "Pagamentos Operacionais"
 ABAS_OFICIAIS = ["Extrato passado", "Extrato futuro", "Switching", "Carteira", "Situação atual"]
+QTD_LINHAS_ESPERADA = 159
 COLS_MIN = ["data","conta","valor","lote_recomendado","fontes_componentes","qtd_fontes_componentes","fonte_principal","fonte_reserva","status_recomendacao_original","status_operacional","acao_recomendada","motivo","saldo_liquido_disponivel","valor_liquido_necessario","saldo_pos_pagamento","saldo_pos_pagamento_origem","patrimonio_liquido_fonte","usa_lote_pos_switching","qtd_componentes_pos_switching","alerta_operacional","tipo_alerta_operacional","problema_operacional","motivo_operacional","saldo_temporal_insuficiente_tipo","estado_terminal_bloqueante","fonte_aprovada_para_pagamento"]
 
 
@@ -84,12 +85,14 @@ def _avaliar_tabela_operacional(df: pd.DataFrame, comparacao_csv: bool = True) -
     out["qtd_colunas_obrigatorias_ausentes"] = len(faltantes)
     out["colunas_obrigatorias_ausentes"] = ",".join(faltantes) if faltantes else "nenhuma"
 
+    out["qtd_linhas_csv_s7g"] = "nao_disponivel"
     out["comparacao_csv_s7g_xlsx"] = "nao_disponivel"
     out["qtd_linhas_divergentes_csv_xlsx"] = -1
     out["qtd_valores_saldo_pos_divergentes_csv_xlsx"] = -1
     out["qtd_status_operacional_divergentes_csv_xlsx"] = -1
     if comparacao_csv and CSV_S7G.exists():
         csv = pd.read_csv(CSV_S7G)
+        out["qtd_linhas_csv_s7g"] = int(len(csv))
         cols = [c for c in ["data", "conta", "valor", "saldo_pos_pagamento", "status_operacional"] if c in csv.columns and c in df.columns]
         if cols:
             a = csv[cols].fillna("").astype(str).reset_index(drop=True)
@@ -125,6 +128,8 @@ def _avaliar_tabela_operacional(df: pd.DataFrame, comparacao_csv: bool = True) -
     out["sentinela_condominio_2026_06_20_alerta_explicito_ok"] = _sentinela_alerta(df, "2026-06-20", "Condomínio")
 
     out["status_geral_s7i"] = "tabela_operacional_integrada_xlsx" if (
+        out["qtd_linhas_aba_tabela_operacional"] == QTD_LINHAS_ESPERADA and
+        out["qtd_linhas_csv_s7g"] == QTD_LINHAS_ESPERADA and
         out["qtd_colunas_obrigatorias_ausentes"] == 0 and
         out["comparacao_csv_s7g_xlsx"] == "sim" and
         out["qtd_linhas_divergentes_csv_xlsx"] == 0 and
@@ -146,6 +151,7 @@ def main() -> int:
     print(f"xlsx_oficial={XLSX}")
     if not XLSX.exists():
         print("aba_tabela_operacional_presente=nao")
+        print("qtd_linhas_csv_s7g=nao_disponivel")
         print("nome_aba_tabela_operacional=ausente")
         print("abas_encontradas_xlsx=nenhuma")
         print("abas_oficiais_preservadas=nao")
@@ -156,6 +162,11 @@ def main() -> int:
         print("teste_negativo_keyerror=nao")
         print("teste_negativo_coluna_ausente_detectada=sim")
         print("teste_negativo_status_controlado=falha_integracao_tabela_operacional_xlsx")
+        print("teste_negativo_rowcount_linha_removida=nao_disponivel")
+        print("teste_negativo_rowcount_original=nao_disponivel")
+        print("teste_negativo_rowcount_truncado=nao_disponivel")
+        print("teste_negativo_rowcount_detectado=sim")
+        print("teste_negativo_rowcount_status_controlado=falha_integracao_tabela_operacional_xlsx")
         return 1
 
     xls = pd.ExcelFile(XLSX)
@@ -190,11 +201,17 @@ def main() -> int:
         print("teste_negativo_keyerror=nao")
         print("teste_negativo_coluna_ausente_detectada=sim")
         print("teste_negativo_status_controlado=falha_integracao_tabela_operacional_xlsx")
+        print("teste_negativo_rowcount_linha_removida=nao_disponivel")
+        print("teste_negativo_rowcount_original=nao_disponivel")
+        print("teste_negativo_rowcount_truncado=nao_disponivel")
+        print("teste_negativo_rowcount_detectado=sim")
+        print("teste_negativo_rowcount_status_controlado=falha_integracao_tabela_operacional_xlsx")
         return 1
 
     df = pd.read_excel(XLSX, sheet_name=nome_aba)
     out = _avaliar_tabela_operacional(df, comparacao_csv=True)
     print(f"qtd_linhas_aba_tabela_operacional={out['qtd_linhas_aba_tabela_operacional']}")
+    print(f"qtd_linhas_csv_s7g={out['qtd_linhas_csv_s7g']}")
     print(f"qtd_colunas_aba_tabela_operacional={out['qtd_colunas_aba_tabela_operacional']}")
     print(f"qtd_colunas_obrigatorias_ausentes={out['qtd_colunas_obrigatorias_ausentes']}")
     print(f"colunas_obrigatorias_ausentes={out['colunas_obrigatorias_ausentes']}")
@@ -217,13 +234,27 @@ def main() -> int:
         print("teste_negativo_keyerror=nao")
         print(f"teste_negativo_coluna_ausente_detectada={'sim' if 'status_operacional' in out_neg['colunas_obrigatorias_ausentes'].split(',') else 'nao'}")
         print(f"teste_negativo_status_controlado={out_neg['status_geral_s7i']}")
+
+        sentinelas = {
+            ("2026-05-15","Internet"),("2026-05-20","Cartão Azul"),("2026-05-20","Condomínio"),("2026-05-30","Implante Velt"),("2026-06-02","Cartão NU"),("2026-06-12","Aluguel"),("2026-06-20","Condomínio")
+        }
+        mask_keep = ~df[["data","conta"]].astype(str).apply(tuple, axis=1).isin(sentinelas) if {"data","conta"}.issubset(df.columns) else pd.Series([True]*len(df), index=df.index)
+        idx = df[mask_keep].index[0] if mask_keep.any() else (df.index[-1] if len(df)>0 else None)
+        df_row = df.drop(index=idx) if idx is not None else df.copy()
+        out_row = _avaliar_tabela_operacional(df_row, comparacao_csv=False)
+        linha_removida = str(idx) if idx is not None else "nao_disponivel"
+        print(f"teste_negativo_rowcount_linha_removida={linha_removida}")
+        print(f"teste_negativo_rowcount_original={len(df)}")
+        print(f"teste_negativo_rowcount_truncado={len(df_row)}")
+        print(f"teste_negativo_rowcount_detectado={'sim' if len(df_row) == QTD_LINHAS_ESPERADA - 1 and out_row['status_geral_s7i']=='falha_integracao_tabela_operacional_xlsx' else 'nao'}")
+        print(f"teste_negativo_rowcount_status_controlado={out_row['status_geral_s7i']}")
     except KeyError:
         print("teste_negativo_coluna_removida=status_operacional")
         print("teste_negativo_keyerror=sim")
         print("teste_negativo_coluna_ausente_detectada=nao")
         print("teste_negativo_status_controlado=falha_integracao_tabela_operacional_xlsx")
 
-    status_final = "tabela_operacional_integrada_xlsx" if (not ausentes and out["status_geral_s7i"] == "tabela_operacional_integrada_xlsx") else "falha_integracao_tabela_operacional_xlsx"
+    status_final = "tabela_operacional_integrada_xlsx" if (not ausentes and out["status_geral_s7i"] == "tabela_operacional_integrada_xlsx" and out["qtd_linhas_aba_tabela_operacional"] == QTD_LINHAS_ESPERADA and out["qtd_linhas_csv_s7g"] == QTD_LINHAS_ESPERADA) else "falha_integracao_tabela_operacional_xlsx"
     print(f"status_geral_s7i={status_final}")
     return 0 if status_final == "tabela_operacional_integrada_xlsx" else 1
 
