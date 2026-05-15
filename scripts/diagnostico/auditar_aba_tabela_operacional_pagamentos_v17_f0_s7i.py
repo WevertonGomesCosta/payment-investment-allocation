@@ -1,8 +1,9 @@
 from __future__ import annotations
-
 import sys
 from pathlib import Path
 import subprocess
+import unicodedata
+import re
 import pandas as pd
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -14,15 +15,26 @@ CSV_S7G = RAIZ / "saidas" / "diagnostico" / "tabela_operacional_pagamentos_v17_f
 ABA_PRIORITARIA = "Tabela Operacional Pagamentos"
 ABA_ALTERNATIVA = "Pagamentos Operacionais"
 ABAS_OFICIAIS = ["Extrato passado", "Extrato futuro", "Switching", "Carteira", "Situação atual"]
-COLS_MIN = [
-    "data","conta","valor","lote_recomendado","fontes_componentes","qtd_fontes_componentes",
-    "fonte_principal","fonte_reserva","status_recomendacao_original","status_operacional",
-    "acao_recomendada","motivo","saldo_liquido_disponivel","valor_liquido_necessario",
-    "saldo_pos_pagamento","saldo_pos_pagamento_origem","patrimonio_liquido_fonte",
-    "usa_lote_pos_switching","qtd_componentes_pos_switching","alerta_operacional",
-    "tipo_alerta_operacional","problema_operacional","motivo_operacional",
-    "saldo_temporal_insuficiente_tipo","estado_terminal_bloqueante","fonte_aprovada_para_pagamento"
-]
+COLS_MIN = ["data","conta","valor","lote_recomendado","fontes_componentes","qtd_fontes_componentes","fonte_principal","fonte_reserva","status_recomendacao_original","status_operacional","acao_recomendada","motivo","saldo_liquido_disponivel","valor_liquido_necessario","saldo_pos_pagamento","saldo_pos_pagamento_origem","patrimonio_liquido_fonte","usa_lote_pos_switching","qtd_componentes_pos_switching","alerta_operacional","tipo_alerta_operacional","problema_operacional","motivo_operacional","saldo_temporal_insuficiente_tipo","estado_terminal_bloqueante","fonte_aprovada_para_pagamento"]
+
+
+def _normalizar_aba(nome: str) -> str:
+    s = unicodedata.normalize("NFD", str(nome or ""))
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    s = re.sub(r"\s+", " ", s.strip())
+    return s.casefold()
+
+
+def _garantir_xlsx() -> None:
+    if XLSX.exists():
+        return
+    try:
+        subprocess.run([sys.executable, str(RAIZ / "aplicacao" / "principal.py")], check=True)
+    except Exception:
+        try:
+            subprocess.run([sys.executable, str(RAIZ / "nucleo" / "gerar_planilha_operacional.py")], check=True)
+        except Exception:
+            pass
 
 
 def _to_float(v):
@@ -34,11 +46,7 @@ def _sentinela_saldo(df, data, conta, valor, saldo, origem):
     if m.empty:
         return False
     r = m.iloc[0]
-    return (
-        abs(_to_float(r.get("valor")) - valor) < 0.01
-        and abs(_to_float(r.get("saldo_pos_pagamento")) - saldo) < 0.01
-        and str(r.get("saldo_pos_pagamento_origem", "")) == origem
-    )
+    return abs(_to_float(r.get("valor")) - valor) < 0.01 and abs(_to_float(r.get("saldo_pos_pagamento")) - saldo) < 0.01 and str(r.get("saldo_pos_pagamento_origem", "")) == origem
 
 
 def _sentinela_alerta(df, data, conta):
@@ -46,65 +54,64 @@ def _sentinela_alerta(df, data, conta):
     if m.empty:
         return False
     r = m.iloc[0]
-    return (
-        str(r.get("status_operacional", "")) == "alerta_operacional_justificado"
-        and str(r.get("problema_operacional", "")) == "sem_saldo_temporal_auditavel"
-        and str(r.get("motivo_operacional", "")) == "saldo_temporal_insuficiente_cumulativo"
-        and str(r.get("tipo_alerta_operacional", "")) == "explicito"
-        and str(r.get("saldo_temporal_insuficiente_tipo", "")) == "explicito"
-    )
+    return str(r.get("status_operacional", "")) == "alerta_operacional_justificado" and str(r.get("problema_operacional", "")) == "sem_saldo_temporal_auditavel" and str(r.get("motivo_operacional", "")) == "saldo_temporal_insuficiente_cumulativo" and str(r.get("tipo_alerta_operacional", "")) == "explicito" and str(r.get("saldo_temporal_insuficiente_tipo", "")) == "explicito"
 
 
 def main() -> int:
-    subprocess.run([sys.executable, str(RAIZ / "aplicacao" / "principal.py")], check=True)
+    _garantir_xlsx()
+    print(f"xlsx_oficial={XLSX}")
     if not XLSX.exists():
-        print(f"xlsx_oficial={XLSX}")
+        print("aba_tabela_operacional_presente=nao")
+        print("nome_aba_tabela_operacional=ausente")
         print("status_geral_s7i=falha_integracao_tabela_operacional_xlsx")
         return 1
 
     xls = pd.ExcelFile(XLSX)
     nome_aba = ABA_PRIORITARIA if ABA_PRIORITARIA in xls.sheet_names else ABA_ALTERNATIVA if ABA_ALTERNATIVA in xls.sheet_names else ""
-    presente = nome_aba != ""
-
-    print(f"xlsx_oficial={XLSX}")
+    presente = bool(nome_aba)
     print(f"aba_tabela_operacional_presente={'sim' if presente else 'nao'}")
     print(f"nome_aba_tabela_operacional={nome_aba or 'ausente'}")
-
+    print(f"abas_encontradas_xlsx={','.join(xls.sheet_names)}")
     if not presente:
         print("status_geral_s7i=falha_integracao_tabela_operacional_xlsx")
         return 1
 
+    norm_encontradas = {_normalizar_aba(a): a for a in xls.sheet_names}
+    esperadas_norm = [_normalizar_aba(a) for a in ABAS_OFICIAIS]
+    ausentes = []
+    mapa = []
+    for exp in ABAS_OFICIAIS:
+        ne = _normalizar_aba(exp)
+        real = norm_encontradas.get(ne)
+        if real is None:
+            ausentes.append(exp)
+        else:
+            mapa.append(f"{exp}->{real}")
+
+    print(f"abas_oficiais_esperadas_normalizadas={','.join(esperadas_norm)}")
+    print(f"abas_oficiais_encontradas_normalizadas={','.join(sorted(norm_encontradas.keys()))}")
+    print(f"mapa_abas_oficiais={';'.join(mapa) if mapa else 'nenhum'}")
+
     df = pd.read_excel(XLSX, sheet_name=nome_aba)
     faltantes = [c for c in COLS_MIN if c not in df.columns]
-    abas_ausentes = [a for a in ABAS_OFICIAIS if a not in xls.sheet_names]
-
     print(f"qtd_linhas_aba_tabela_operacional={len(df)}")
     print(f"qtd_colunas_aba_tabela_operacional={len(df.columns)}")
     print(f"qtd_colunas_obrigatorias_ausentes={len(faltantes)}")
     print(f"colunas_obrigatorias_ausentes={','.join(faltantes) if faltantes else 'nenhuma'}")
-    print(f"abas_oficiais_preservadas={'sim' if not abas_ausentes else 'nao'}")
-    print(f"abas_oficiais_ausentes={','.join(abas_ausentes) if abas_ausentes else 'nenhuma'}")
+    print(f"abas_oficiais_preservadas={'sim' if not ausentes else 'nao'}")
+    print(f"abas_oficiais_ausentes={','.join(ausentes) if ausentes else 'nenhuma'}")
 
-    comparacao = "nao_disponivel"
-    linhas_div = saldo_div = status_div = -1
+    comparacao = "nao_disponivel"; linhas_div = -1; saldo_div = -1; status_div = -1
     if CSV_S7G.exists():
         comparacao = "sim"
         csv = pd.read_csv(CSV_S7G)
-        cols_comp = [c for c in ["data", "conta", "valor", "saldo_pos_pagamento", "status_operacional"] if c in csv.columns and c in df.columns]
-        a = csv[cols_comp].copy().fillna("").astype(str)
-        b = df[cols_comp].copy().fillna("").astype(str)
-        n = min(len(a), len(b))
-        a = a.head(n).reset_index(drop=True)
-        b = b.head(n).reset_index(drop=True)
+        cols = [c for c in ["data", "conta", "valor", "saldo_pos_pagamento", "status_operacional"] if c in csv.columns and c in df.columns]
+        a = csv[cols].fillna("").astype(str).reset_index(drop=True)
+        b = df[cols].fillna("").astype(str).reset_index(drop=True)
+        n = min(len(a), len(b)); a = a.head(n); b = b.head(n)
         linhas_div = int((a != b).any(axis=1).sum()) + abs(len(csv) - len(df))
-        if "saldo_pos_pagamento" in cols_comp:
-            saldo_div = int((a["saldo_pos_pagamento"] != b["saldo_pos_pagamento"]).sum())
-        else:
-            saldo_div = 0
-        if "status_operacional" in cols_comp:
-            status_div = int((a["status_operacional"] != b["status_operacional"]).sum())
-        else:
-            status_div = 0
+        saldo_div = int((a["saldo_pos_pagamento"] != b["saldo_pos_pagamento"]).sum()) if "saldo_pos_pagamento" in cols else 0
+        status_div = int((a["status_operacional"] != b["status_operacional"]).sum()) if "status_operacional" in cols else 0
 
     print(f"comparacao_csv_s7g_xlsx={comparacao}")
     print(f"qtd_linhas_divergentes_csv_xlsx={linhas_div}")
@@ -119,7 +126,6 @@ def main() -> int:
     print(f"qtd_componentes_lote_pos_switching_validos={int(pd.to_numeric(df['qtd_componentes_pos_switching'], errors='coerce').fillna(0).sum())}")
     print(f"qtd_pagamentos_multifonte={int((pd.to_numeric(df['qtd_fontes_componentes'], errors='coerce') > 1).sum())}")
     print(f"qtd_componentes_multifonte_total={int(pd.to_numeric(df.loc[pd.to_numeric(df['qtd_fontes_componentes'], errors='coerce') > 1, 'qtd_fontes_componentes'], errors='coerce').fillna(0).sum())}")
-
     print("qtd_lotes_sugeridos_alterados=0")
     print("qtd_status_recomendacao_alterados=0")
 
@@ -131,12 +137,9 @@ def main() -> int:
     print(f"sentinela_aluguel_alerta_explicito_ok={'sim' if _sentinela_alerta(df,'2026-06-12','Aluguel') else 'nao'}")
     print(f"sentinela_condominio_2026_06_20_alerta_explicito_ok={'sim' if _sentinela_alerta(df,'2026-06-20','Condomínio') else 'nao'}")
 
-    ok = (
-        len(df) == 159 and not faltantes and not abas_ausentes
-    )
+    ok = (not ausentes and len(df) == 159 and not faltantes and comparacao == 'sim' and linhas_div == 0 and saldo_div == 0 and status_div == 0)
     print(f"status_geral_s7i={'tabela_operacional_integrada_xlsx' if ok else 'falha_integracao_tabela_operacional_xlsx'}")
     return 0 if ok else 1
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main())
