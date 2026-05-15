@@ -108,6 +108,21 @@ def somar_valores_sacados_por_lote(contexto, saida=None) -> dict[str, dict[str, 
             )
 
     if saida is not None:
+        for row in (getattr(saida, 'extrato_passado', []) or []):
+            lote_id = str(row.get('Lotes usados') or row.get('Lote') or '').strip()
+            if not lote_id:
+                continue
+
+            bruto_ref = para_float(row.get('Bruto'))
+            liquido_ref = para_float(row.get('Líquido') if 'Líquido' in row else row.get('Liquido'))
+
+            if bruto_ref <= 0 and liquido_ref <= 0:
+                continue
+
+            atual = somas.setdefault(lote_id, {'bruto_sacado': 0.0, 'liquido_sacado': 0.0})
+            atual['bruto_sacado'] = round(max(atual['bruto_sacado'], bruto_ref), 2)
+            atual['liquido_sacado'] = round(max(atual['liquido_sacado'], liquido_ref), 2)
+
         for recebido in (getattr(saida, 'recebidos_atuais', []) or []):
             lote_id = str(recebido.get('Lote origem') or '').strip()
             if not lote_id:
