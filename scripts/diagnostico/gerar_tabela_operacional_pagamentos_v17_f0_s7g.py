@@ -23,9 +23,17 @@ def parse_componentes(lote):
 
 
 def to_float(v):
-    s = str(v).strip().replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".")
-    if s == "" or s.lower() == "nan":
+    if isinstance(v, (int, float)):
+        return float(v)
+    s0 = str(v).strip().replace("R$", "").replace(" ", "")
+    if s0 == "" or s0.lower() == "nan":
         return 0.0
+    if "," in s0 and "." in s0:
+        s = s0.replace(".", "").replace(",", ".")
+    elif "," in s0:
+        s = s0.replace(",", ".")
+    else:
+        s = s0
     try:
         return float(s)
     except Exception:
@@ -46,6 +54,9 @@ def main() -> int:
     for _, r in extrato.iterrows():
         lote = str(r.get("Lote sugerido") or "").strip()
         status = str(r.get("Status recomendação") or "").strip()
+        motivo_bloqueio = str(r.get("Motivo bloqueio lote") or "").strip()
+        alerta = n(status) in ALERTAS or n(motivo_bloqueio) in ALERTAS
+        saldo_temporal_insuf_alerta = ("saldo_temporal_insuficiente_cumulativo" in n(status) or "saldo_temporal_insuficiente_cumulativo" in n(motivo_bloqueio))
         valor = to_float(r.get("Valor", 0))
         comps = parse_componentes(lote)
         fonte_principal = comps[0] if comps else ""
@@ -71,7 +82,6 @@ def main() -> int:
 
         saldo_disp = sum(saldos) if saldos else to_float(r.get("saldo_liquido_disponivel", 0))
         saldo_pos = saldo_disp - valor if comps else 0.0
-        alerta = status in ALERTAS
         usa_pos = comp_pos_count > 0
         if usa_pos:
             q_pay_pos += 1
@@ -80,6 +90,9 @@ def main() -> int:
         if not lote:
             q_sem_lote += 1
             if alerta:
+                q_alert += 1
+                if saldo_temporal_insuf_alerta:
+                    q_saldo_insuf += 1
                 status_op = "alerta_operacional_justificado"
                 acao = "revisar_alerta_de_saldo_temporal"
             else:
@@ -87,6 +100,8 @@ def main() -> int:
                 acao = "aguardar_definicao_de_fonte"
         elif alerta:
             q_alert += 1
+            if saldo_temporal_insuf_alerta:
+                q_saldo_insuf += 1
             status_op = "alerta_operacional_justificado"
             acao = "revisar_alerta_de_saldo_temporal"
         elif saldo_pos < 0:
@@ -128,7 +143,7 @@ def main() -> int:
             "patrimonio_liquido_fonte": " | ".join(pats) if pats else "nao_determinado",
             "usa_lote_pos_switching": "sim" if usa_pos else "nao",
             "qtd_componentes_pos_switching": comp_pos_count,
-            "alerta_operacional": status if alerta else "",
+            "alerta_operacional": (status if n(status) in ALERTAS else motivo_bloqueio) if alerta else "",
             "fonte_aprovada_para_pagamento": fonte_aprov,
         })
 
