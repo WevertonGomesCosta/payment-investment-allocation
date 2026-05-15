@@ -27,15 +27,58 @@ def _normalizar_aba(nome: str) -> str:
 
 
 def _garantir_xlsx() -> None:
+    """
+    Garante, de forma controlada, que o XLSX oficial esteja disponível.
+
+    Regra S.7-I.4:
+    - se o XLSX já existe, não executa geração;
+    - se o XLSX não existe, tenta apenas o caminho canônico aplicacao/principal.py;
+    - se principal.py falhar, registra fallback secundário indisponível;
+    - nunca executa diretamente entrypoint inseguro do núcleo como script;
+    - emite indicadores explícitos para auditoria.
+    """
     if XLSX.exists():
+        print("tentativa_geracao_xlsx_principal=nao_necessaria")
+        print("tentativa_geracao_xlsx_principal_status=nao_executada")
+        print("tentativa_geracao_xlsx_fallback=nao_necessaria")
+        print("tentativa_geracao_xlsx_fallback_status=nao_executada")
+        print("fallback_xlsx_secundario=nao_necessario")
+        print("fallback_xlsx_secundario_motivo=xlsx_oficial_ja_existente")
+        print("fallback_direto_nucleo_removido=sim")
         return
+
+    print("tentativa_geracao_xlsx_principal=executada")
+
     try:
-        subprocess.run([sys.executable, str(RAIZ / "aplicacao" / "principal.py")], check=True)
-    except Exception:
-        try:
-            subprocess.run([sys.executable, str(RAIZ / "nucleo" / "gerar_planilha_operacional.py")], check=True)
-        except Exception:
-            pass
+        subprocess.run(
+            [sys.executable, str(RAIZ / "aplicacao" / "principal.py")],
+            check=True,
+        )
+    except Exception as exc:
+        print("tentativa_geracao_xlsx_principal_status=falha")
+        print("tentativa_geracao_xlsx_fallback=indisponivel_controlado")
+        print("tentativa_geracao_xlsx_fallback_status=falha_controlada")
+        print("fallback_xlsx_secundario=indisponivel_controlado")
+        print("fallback_xlsx_secundario_motivo=entrypoint_secundario_nao_seguro_para_execucao_direta")
+        print("fallback_direto_nucleo_removido=sim")
+        print(f"erro_geracao_xlsx_principal={type(exc).__name__}")
+        return
+
+    if XLSX.exists():
+        print("tentativa_geracao_xlsx_principal_status=ok")
+        print("tentativa_geracao_xlsx_fallback=nao_necessaria")
+        print("tentativa_geracao_xlsx_fallback_status=nao_executada")
+        print("fallback_xlsx_secundario=nao_necessario")
+        print("fallback_xlsx_secundario_motivo=xlsx_gerado_por_principal")
+        print("fallback_direto_nucleo_removido=sim")
+        return
+
+    print("tentativa_geracao_xlsx_principal_status=falha")
+    print("tentativa_geracao_xlsx_fallback=indisponivel_controlado")
+    print("tentativa_geracao_xlsx_fallback_status=falha_controlada")
+    print("fallback_xlsx_secundario=indisponivel_controlado")
+    print("fallback_xlsx_secundario_motivo=principal_executou_mas_xlsx_nao_foi_localizado")
+    print("fallback_direto_nucleo_removido=sim")
 
 
 def _serie_coluna(df: pd.DataFrame, nome: str, default="") -> pd.Series:
