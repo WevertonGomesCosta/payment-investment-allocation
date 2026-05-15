@@ -240,6 +240,33 @@ def _apply_table_style(
     return header_row + len(rows)
 
 
+def _adicionar_aba_tabela_operacional_pagamentos(wb) -> tuple[str, int, int]:
+    nome_aba = 'Tabela Operacional Pagamentos'
+    caminho_csv = RAIZ / 'saidas' / 'diagnostico' / 'tabela_operacional_pagamentos_v17_f0_s7g.csv'
+    if not caminho_csv.exists():
+        return nome_aba, 0, 0
+
+    import pandas as pd
+
+    df = pd.read_csv(caminho_csv)
+    colunas = [
+        'data','conta','valor','lote_recomendado','fontes_componentes','qtd_fontes_componentes',
+        'fonte_principal','fonte_reserva','status_recomendacao_original','status_operacional',
+        'acao_recomendada','motivo','saldo_liquido_disponivel','valor_liquido_necessario',
+        'saldo_pos_pagamento','saldo_pos_pagamento_origem','patrimonio_liquido_fonte',
+        'usa_lote_pos_switching','qtd_componentes_pos_switching','alerta_operacional',
+        'tipo_alerta_operacional','problema_operacional','motivo_operacional',
+        'saldo_temporal_insuficiente_tipo','estado_terminal_bloqueante','fonte_aprovada_para_pagamento',
+    ]
+    cols_presentes = [c for c in colunas if c in df.columns]
+    if cols_presentes:
+        df = df[cols_presentes]
+
+    ws = wb.create_sheet(nome_aba)
+    _apply_table_style(ws, list(df.columns), df.fillna('').values.tolist(), freeze=True)
+    return nome_aba, len(df), len(df.columns)
+
+
 def _adicionar_abas_ranking(wb, contexto) -> None:
     ranking = getattr(contexto, 'ranking_carteira', None)
     if ranking is None:
@@ -391,6 +418,7 @@ def main(*, contexto=None, saida=None) -> Path:
     _adicionar_abas_ranking(wb, contexto)
     _adicionar_situacao_atual(wb, contexto, saida)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
+    _adicionar_aba_tabela_operacional_pagamentos(wb)
     _adicionar_aba_auditoria_fontes(wb, contexto, saida)
     if _usar_abas_diagnosticas(contexto):
         _adicionar_aba_auditoria_fifo(wb, contexto, saida)
