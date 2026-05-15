@@ -11,7 +11,14 @@ from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 
 CSV = RAIZ / "saidas" / "diagnostico" / "tabela_operacional_pagamentos_v17_f0_s7g.csv"
-ALERTAS = {"saldo_temporal_insuficiente_cumulativo", "sem_saldo_temporal_auditavel"}
+ALERTAS_EXPLICITOS = {
+    "saldo_temporal_insuficiente_cumulativo",
+    "sem_saldo_temporal_auditavel",
+    "sem_fonte_auditavel",
+    "switch_then_pay_sem_materializacao",
+    "fonte_pos_switching_nao_materializada",
+}
+SALDO_COLS = ["Saldo Remanescente", "Rem.", "Remanescente", "Saldo pós-pagamento", "saldo_remanescente", "saldo_pos_pagamento"]
 
 
 def n(v):
@@ -40,6 +47,33 @@ def to_float(v):
         return 0.0
 
 
+def detectar_alerta_explicito(r):
+    campos = ["problema", "motivo", "Status recomendação", "Motivo bloqueio lote", "problema_operacional", "motivo_operacional"]
+    txt = " | ".join(str(r.get(c, "")) for c in campos if str(r.get(c, "")).strip())
+    txt_n = n(txt)
+    for a in ALERTAS_EXPLICITOS:
+        if a in txt_n:
+            problema = "sem_saldo_temporal_auditavel" if "sem_saldo_temporal_auditavel" in txt_n else ("sem_fonte_auditavel" if "sem_fonte_auditavel" in txt_n else "estado_terminal_operacional")
+            motivo = "saldo_temporal_insuficiente_cumulativo" if "saldo_temporal_insuficiente_cumulativo" in txt_n else a
+            return True, problema, motivo, txt_n
+    return False, "", "", txt_n
+
+
+def extrair_saldo_pos(r, saldo_disp, valor):
+    for c in SALDO_COLS:
+        if c in r and str(r.get(c)).strip() != "":
+            if c == "Saldo Remanescente":
+                origem = "extrato_futuro_saldo_remanescente"
+            elif c == "Rem.":
+                origem = "extrato_futuro_rem"
+            else:
+                origem = "saida_canonica"
+            return to_float(r.get(c)), origem
+    if saldo_disp or valor:
+        return saldo_disp - valor, "calculado_fallback"
+    return 0.0, "nao_disponivel"
+
+
 def main() -> int:
     ctx = carregar_contexto_baseline(raiz_repositorio=RAIZ, instalar_automaticamente=False, incluir_resolver_hibrido_5p_shadow=False, incluir_benchmark_agrupado_individual_shadow=False, incluir_benchmark_runner_futuro_shadow=False, incluir_auditoria_primeira_quebra_runner_futuro_shadow=False)
     saida = construir_saida_canonica_com_switching_v17_c7(ctx, versao="V225")
@@ -49,26 +83,22 @@ def main() -> int:
 
     linhas = []
     q_aprov = q_aprov_multi = q_alert = q_sem_lote = q_bloq = q_saldo_insuf = 0
+    q_alert_exp = q_alert_inf = q_sem_lote_sem_alerta_exp = 0
+    q_saldo_insuf_exp = q_saldo_insuf_inf = 0
+    q_estado_terminal_exp = q_sem_fonte_auditavel = q_switch_then_pay_sem_materializacao = q_fonte_pos_switching_nao_materializada = 0
     q_pay_pos = q_comp_pos = q_pay_multi = q_comp_multi = 0
 
     for _, r in extrato.iterrows():
         lote = str(r.get("Lote sugerido") or "").strip()
         status = str(r.get("Status recomendação") or "").strip()
-        motivo_bloqueio = str(r.get("Motivo bloqueio lote") or "").strip()
-        alerta = n(status) in ALERTAS or n(motivo_bloqueio) in ALERTAS
-        saldo_temporal_insuf_alerta = ("saldo_temporal_insuficiente_cumulativo" in n(status) or "saldo_temporal_insuficiente_cumulativo" in n(motivo_bloqueio))
         valor = to_float(r.get("Valor", 0))
         comps = parse_componentes(lote)
-        fonte_principal = comps[0] if comps else ""
-        fonte_reserva = " + ".join(comps[1:]) if len(comps) > 1 else ""
+
         if len(comps) > 1:
             q_pay_multi += 1
             q_comp_multi += len(comps)
 
-        info_comps = []
-        saldos = []
-        pats = []
-        comp_pos_count = 0
+        info_comps, saldos, pats, comp_pos_count = [], [], [], 0
         for c in comps:
             lr = idx_lotes.get(n(c), {})
             st_c = str(lr.get("Status", "nao_determinado"))
@@ -81,48 +111,62 @@ def main() -> int:
             pats.append(f"{c}:{patr:.2f}")
 
         saldo_disp = sum(saldos) if saldos else to_float(r.get("saldo_liquido_disponivel", 0))
-        saldo_pos = saldo_disp - valor if comps else 0.0
+        saldo_pos, saldo_pos_origem = extrair_saldo_pos(r, saldo_disp, valor)
+
         usa_pos = comp_pos_count > 0
         if usa_pos:
             q_pay_pos += 1
             q_comp_pos += comp_pos_count
 
+        alerta_exp, problema_op, motivo_op, txt_alerta = detectar_alerta_explicito(r)
+        if alerta_exp:
+            q_estado_terminal_exp += 1
+            if "sem_fonte_auditavel" in txt_alerta:
+                q_sem_fonte_auditavel += 1
+            if "switch_then_pay_sem_materializacao" in txt_alerta:
+                q_switch_then_pay_sem_materializacao += 1
+            if "fonte_pos_switching_nao_materializada" in txt_alerta:
+                q_fonte_pos_switching_nao_materializada += 1
+        alerta_inf = (not alerta_exp) and (not lote) and (n(status) != "ok")
+        tipo_alerta = "explicito" if alerta_exp else ("inferido" if alerta_inf else "sem_alerta")
+        alerta_operacional = "sim" if (alerta_exp or alerta_inf) else "nao"
+
         if not lote:
             q_sem_lote += 1
-            if alerta:
+            if alerta_exp:
                 q_alert += 1
-                if saldo_temporal_insuf_alerta:
-                    q_saldo_insuf += 1
-                status_op = "alerta_operacional_justificado"
-                acao = "revisar_alerta_de_saldo_temporal"
+                q_alert_exp += 1
+                status_op, acao = "alerta_operacional_justificado", "revisar_alerta_de_saldo_temporal"
+            elif alerta_inf:
+                q_alert += 1
+                q_alert_inf += 1
+                status_op, acao = "alerta_operacional_justificado", "aguardar_definicao_de_fonte"
             else:
-                status_op = "sem_lote_sugerido"
-                acao = "aguardar_definicao_de_fonte"
-        elif alerta:
+                q_sem_lote_sem_alerta_exp += 1
+                status_op, acao = "sem_lote_sugerido", "aguardar_definicao_de_fonte"
+        elif alerta_exp:
             q_alert += 1
-            if saldo_temporal_insuf_alerta:
-                q_saldo_insuf += 1
-            status_op = "alerta_operacional_justificado"
-            acao = "revisar_alerta_de_saldo_temporal"
+            q_alert_exp += 1
+            status_op, acao = "alerta_operacional_justificado", "revisar_alerta_de_saldo_temporal"
         elif saldo_pos < 0:
-            q_saldo_insuf += 1
-            status_op = "saldo_temporal_insuficiente"
-            acao = "revisar_alerta_de_saldo_temporal"
+            status_op, acao = "saldo_temporal_insuficiente", "revisar_alerta_de_saldo_temporal"
         elif len(comps) > 1:
             q_aprov_multi += 1
-            status_op = "aprovado_multifonte"
-            acao = "pagar_com_fontes_componentes"
+            status_op, acao = "aprovado_multifonte", "pagar_com_fontes_componentes"
         elif len(comps) == 1:
             q_aprov += 1
-            status_op = "aprovado_para_pagamento"
-            acao = "pagar_com_lote_sugerido"
+            status_op, acao = "aprovado_para_pagamento", "pagar_com_lote_sugerido"
         else:
-            status_op = "nao_determinado"
-            acao = "revisar_recomendacao"
+            status_op, acao = "nao_determinado", "revisar_recomendacao"
 
-        fonte_aprov = "sim" if status_op in {"aprovado_para_pagamento", "aprovado_multifonte"} else ("alerta_operacional" if alerta else "nao")
-        if status_op == "fonte_bloqueada":
-            q_bloq += 1
+        saldo_insuf_exp = alerta_exp and ("saldo_temporal_insuficiente_cumulativo" in n(motivo_op) or "sem_saldo_temporal_auditavel" in n(problema_op))
+        saldo_insuf_inf = (not alerta_exp) and (status_op == "saldo_temporal_insuficiente")
+        if saldo_insuf_exp or saldo_insuf_inf:
+            q_saldo_insuf += 1
+            if saldo_insuf_exp:
+                q_saldo_insuf_exp += 1
+            if saldo_insuf_inf:
+                q_saldo_insuf_inf += 1
 
         linhas.append({
             "data": r.get("Data", ""),
@@ -131,20 +175,26 @@ def main() -> int:
             "lote_recomendado": lote,
             "fontes_componentes": " + ".join(comps),
             "qtd_fontes_componentes": len(comps),
-            "fonte_principal": fonte_principal,
-            "fonte_reserva": fonte_reserva,
+            "fonte_principal": comps[0] if comps else "",
+            "fonte_reserva": " + ".join(comps[1:]) if len(comps) > 1 else "",
             "status_recomendacao_original": status,
             "status_operacional": status_op,
             "acao_recomendada": acao,
-            "motivo": " | ".join(info_comps) if info_comps else ("alerta_sem_fonte" if alerta else "sem_fonte"),
+            "motivo": " | ".join(info_comps) if info_comps else ("alerta_sem_fonte" if tipo_alerta != "sem_alerta" else "sem_fonte"),
             "saldo_liquido_disponivel": round(saldo_disp, 2),
             "valor_liquido_necessario": round(valor, 2),
             "saldo_pos_pagamento": round(saldo_pos, 2),
+            "saldo_pos_pagamento_origem": saldo_pos_origem,
             "patrimonio_liquido_fonte": " | ".join(pats) if pats else "nao_determinado",
             "usa_lote_pos_switching": "sim" if usa_pos else "nao",
             "qtd_componentes_pos_switching": comp_pos_count,
-            "alerta_operacional": (status if n(status) in ALERTAS else motivo_bloqueio) if alerta else "",
-            "fonte_aprovada_para_pagamento": fonte_aprov,
+            "alerta_operacional": alerta_operacional,
+            "tipo_alerta_operacional": tipo_alerta,
+            "problema_operacional": problema_op if alerta_exp else "",
+            "motivo_operacional": motivo_op if alerta_exp else "",
+            "saldo_temporal_insuficiente_tipo": "explicito" if saldo_insuf_exp else ("inferido" if saldo_insuf_inf else "nao_aplicavel"),
+            "estado_terminal_bloqueante": "sim" if alerta_exp else "nao",
+            "fonte_aprovada_para_pagamento": "sim" if status_op in {"aprovado_para_pagamento", "aprovado_multifonte"} else ("alerta_operacional" if tipo_alerta != "sem_alerta" else "nao"),
         })
 
     out = pd.DataFrame(linhas)
@@ -155,9 +205,18 @@ def main() -> int:
     print(f"qtd_pagamentos_aprovados_para_pagamento={q_aprov}")
     print(f"qtd_pagamentos_aprovados_multifonte={q_aprov_multi}")
     print(f"qtd_pagamentos_com_alerta_operacional_justificado={q_alert}")
+    print(f"qtd_pagamentos_com_alerta_operacional_explicito={q_alert_exp}")
+    print(f"qtd_pagamentos_com_alerta_operacional_inferido={q_alert_inf}")
     print(f"qtd_pagamentos_sem_lote_sugerido={q_sem_lote}")
+    print(f"qtd_pagamentos_sem_lote_sugerido_sem_alerta_explicito={q_sem_lote_sem_alerta_exp}")
     print(f"qtd_pagamentos_com_fonte_bloqueada={q_bloq}")
     print(f"qtd_pagamentos_com_saldo_temporal_insuficiente={q_saldo_insuf}")
+    print(f"qtd_pagamentos_com_saldo_temporal_insuficiente_explicito={q_saldo_insuf_exp}")
+    print(f"qtd_pagamentos_com_saldo_temporal_insuficiente_inferido={q_saldo_insuf_inf}")
+    print(f"qtd_pagamentos_com_estado_terminal_bloqueante_explicito={q_estado_terminal_exp}")
+    print(f"qtd_pagamentos_sem_fonte_auditavel={q_sem_fonte_auditavel}")
+    print(f"qtd_pagamentos_switch_then_pay_sem_materializacao={q_switch_then_pay_sem_materializacao}")
+    print(f"qtd_pagamentos_fonte_pos_switching_nao_materializada={q_fonte_pos_switching_nao_materializada}")
     print(f"qtd_pagamentos_com_lote_pos_switching_valido={q_pay_pos}")
     print(f"qtd_componentes_lote_pos_switching_validos={q_comp_pos}")
     print(f"qtd_pagamentos_multifonte={q_pay_multi}")
