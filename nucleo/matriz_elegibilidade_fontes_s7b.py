@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-import subprocess
-
 import pandas as pd
 
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
@@ -73,17 +71,7 @@ def _classificar_regra_base(reg: dict[str, Any]) -> dict[str, Any]:
 def _carregar_s6_df() -> pd.DataFrame:
     s6_origem = "csv_existente"
     if not CSV_S6.exists():
-        scripts = [SCRIPT_S2, SCRIPT_S4, SCRIPT_S6]
-        if any(not p.exists() for p in scripts):
-            raise RuntimeError("erro_recomposicao_cadeia_s6_indisponivel")
-        s6_origem = "recomposta"
-        try:
-            for p in scripts:
-                subprocess.run(["python", str(p)], check=True)
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError("erro_recomposicao_cadeia_s6_falhou") from exc
-    if not CSV_S6.exists():
-        raise RuntimeError("erro_s6_csv_nao_produzido")
+        raise RuntimeError("erro_csv_s6_ausente_sem_recomposicao_segura")
     df = pd.read_csv(CSV_S6)
     if df.empty:
         raise RuntimeError("erro_csv_s6_vazio_para_matriz_elegibilidade")

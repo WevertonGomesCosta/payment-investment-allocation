@@ -40,6 +40,9 @@ def main() -> int:
         if "erro_csv_s6_vazio_para_matriz_elegibilidade" in msg:
             print("status_geral_s7b=erro_csv_s6_vazio_para_matriz_elegibilidade")
             return 5
+        if "erro_csv_s6_ausente_sem_recomposicao_segura" in msg:
+            print("status_geral_s7b=erro_csv_s6_ausente_sem_recomposicao_segura")
+            return 6
         raise
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)

@@ -24,7 +24,7 @@ def main() -> int:
         matriz = construir_matriz_elegibilidade_fontes_s7b(ctx, data_referencia=saida.data_referencia)
     except Exception as exc:
         msg = str(exc)
-        if any(k in msg for k in ("erro_csv_s6_indisponivel_para_matriz_elegibilidade", "erro_s6_csv_nao_produzido", "erro_csv_s6_vazio_para_matriz_elegibilidade", "erro_coluna_classe_s6_nao_encontrada")):
+        if any(k in msg for k in ("erro_csv_s6_indisponivel_para_matriz_elegibilidade", "erro_s6_csv_nao_produzido", "erro_csv_s6_vazio_para_matriz_elegibilidade", "erro_coluna_classe_s6_nao_encontrada", "erro_csv_s6_ausente_sem_recomposicao_segura")):
             print(f"status_geral_s7c={msg}")
             return 2
         raise
