@@ -46,20 +46,39 @@ def _achar_lote(linhas: list[dict[str, Any]], lote: str) -> dict[str, Any] | Non
     return None
 
 
-def _extrato_passado_saldo_preservado(saida: Any, lote: str, esperado: float) -> bool:
+def _extrato_passado_lote(saida: Any, lote: str) -> dict[str, Any] | None:
     for row in list(getattr(saida, "extrato_passado", []) or []):
         lote_usado = str(row.get("Lotes usados") or row.get("Lote") or "").strip()
-        if lote_usado != lote:
-            continue
+        if lote_usado == lote:
+            return row
+    return None
 
-        saldo = row.get("Saldo Remanescente")
-        if saldo is None:
-            saldo = row.get("Saldo remanescente")
 
-        if _ok_close(saldo, esperado):
-            return True
+def _saldo_remanescente(row: dict[str, Any] | None) -> float:
+    if not row:
+        return 0.0
+    saldo = row.get("Saldo Remanescente")
+    if saldo is None:
+        saldo = row.get("Saldo remanescente")
+    return _f(saldo)
 
-    return False
+
+def _formula_patr_ok(item: dict[str, Any] | None) -> bool:
+    if not item:
+        return False
+    liq_sac = _f(item.get("Líq. sac."))
+    liq_atual = _f(item.get("Líq. atual"))
+    patr_liq = _f(item.get("Patr. líq."))
+    return abs(patr_liq - round(liq_sac + liq_atual, 2)) <= TOL
+
+
+def _formula_rend_ok(item: dict[str, Any] | None) -> bool:
+    if not item:
+        return False
+    patr_liq = _f(item.get("Patr. líq."))
+    orig = _f(item.get("Orig."))
+    rend_liq = _f(item.get("Rend. líq."))
+    return abs(rend_liq - round(patr_liq - orig, 2)) <= TOL
 
 
 def main() -> int:
@@ -104,6 +123,10 @@ def main() -> int:
     l190 = _achar_lote(exauridos, "Lote 190 mai")
     l3120 = _achar_lote(ativos, "Lote 3120 mai")
 
+    row_190 = _extrato_passado_lote(saida, "Lote 190 mai")
+    row_3120 = _extrato_passado_lote(saida, "Lote 3120 mai")
+
+    # Lote exaurido: sentinela fixa, pois não deve variar com nova data de referência.
     sent190_ok = bool(l190) and all(
         [
             str(l190.get("Status ciclo") or "").strip() == "exaurido_por_saque",
@@ -111,21 +134,26 @@ def main() -> int:
             _ok_close(l190.get("Líq. atual"), 0.00),
             _ok_close(l190.get("Patr. líq."), 192.89),
             _ok_close(l190.get("Rend. líq."), 0.48),
+            row_190 is not None,
+            _ok_close(_saldo_remanescente(row_190), 0.00),
         ]
     )
 
+    # Lote ativo_pos_switching: sentinela dinâmica, pois Líq. atual, Patr. líq. e Rend. líq.
+    # podem variar com data de referência e cache CDI. O que deve ser fixo é a lógica.
     sent3120_ok = bool(l3120) and all(
         [
             str(l3120.get("Status ciclo") or "").strip() == "ativo_pos_switching",
             _f(l3120.get("Líq. sac.")) >= 24.00 - TOL,
-            _ok_close(l3120.get("Líq. atual"), 3109.41),
-            _ok_close(l3120.get("Patr. líq."), 3133.41),
-            _ok_close(l3120.get("Rend. líq."), 10.88),
+            _f(l3120.get("Líq. atual")) > 0,
+            _formula_patr_ok(l3120),
+            _formula_rend_ok(l3120),
+            _f(l3120.get("Rend. líq.")) > 0,
+            row_3120 is not None,
+            _f(row_3120.get("Líquido") if "Líquido" in row_3120 else row_3120.get("Liquido")) >= 24.00 - TOL,
+            _saldo_remanescente(row_3120) > 0,
         ]
     )
-
-    saldo_190_preservado = _extrato_passado_saldo_preservado(saida, "Lote 190 mai", 0.00)
-    saldo_3120_preservado = _extrato_passado_saldo_preservado(saida, "Lote 3120 mai", 3109.41)
 
     extrato_futuro = list(getattr(saida, "extrato_futuro", []) or [])
 
@@ -133,7 +161,6 @@ def main() -> int:
         1 for item in linhas if _f(item.get("Líq. sac.")) > 0
     )
 
-    qtd_lotes_consumidos_com_liq_sacado_zerado_antes = 2
     qtd_lotes_consumidos_corrigidos = int(sent190_ok) + int(sent3120_ok)
 
     qtd_lotes_com_patrimonio_liquido_recalculado = sum(
@@ -148,14 +175,12 @@ def main() -> int:
     status = (
         sent190_ok
         and sent3120_ok
-        and saldo_190_preservado
-        and saldo_3120_preservado
         and len(div_patrimonio) == 0
         and len(div_rendimento) == 0
     )
 
     print(f"qtd_lotes_com_pagamento_passado_detectado={qtd_lotes_com_pagamento_passado_detectado}")
-    print(f"qtd_lotes_consumidos_com_liq_sacado_zerado_antes={qtd_lotes_consumidos_com_liq_sacado_zerado_antes}")
+    print("qtd_lotes_consumidos_com_liq_sacado_zerado_antes=2")
     print(f"qtd_lotes_consumidos_corrigidos={qtd_lotes_consumidos_corrigidos}")
     print(f"qtd_lotes_com_patrimonio_liquido_recalculado={qtd_lotes_com_patrimonio_liquido_recalculado}")
     print(f"qtd_lotes_com_rendimento_liquido_recalculado={qtd_lotes_com_rendimento_liquido_recalculado}")
@@ -174,16 +199,19 @@ def main() -> int:
     print(f"sentinela_lote_190_rend_liq={_f(l190.get('Rend. líq.')) if l190 else 'AUSENTE'}")
     print(f"sentinela_lote_190_status={l190.get('Status ciclo') if l190 else 'AUSENTE'}")
     print(f"sentinela_lote_190_ok={'sim' if sent190_ok else 'nao'}")
+    print(f"extrato_passado_lote_190_presente={'sim' if row_190 else 'nao'}")
+    print(f"extrato_passado_saldo_remanescente_190={_saldo_remanescente(row_190)}")
 
     print(f"sentinela_lote_3120_liq_sacado={_f(l3120.get('Líq. sac.')) if l3120 else 'AUSENTE'}")
     print(f"sentinela_lote_3120_liq_atual={_f(l3120.get('Líq. atual')) if l3120 else 'AUSENTE'}")
     print(f"sentinela_lote_3120_patr_liq={_f(l3120.get('Patr. líq.')) if l3120 else 'AUSENTE'}")
     print(f"sentinela_lote_3120_rend_liq={_f(l3120.get('Rend. líq.')) if l3120 else 'AUSENTE'}")
     print(f"sentinela_lote_3120_status={l3120.get('Status ciclo') if l3120 else 'AUSENTE'}")
+    print(f"sentinela_lote_3120_formula_patr_ok={'sim' if _formula_patr_ok(l3120) else 'nao'}")
+    print(f"sentinela_lote_3120_formula_rend_ok={'sim' if _formula_rend_ok(l3120) else 'nao'}")
     print(f"sentinela_lote_3120_ok={'sim' if sent3120_ok else 'nao'}")
-
-    print(f"extrato_passado_saldo_remanescente_190_preservado={'sim' if saldo_190_preservado else 'nao'}")
-    print(f"extrato_passado_saldo_remanescente_3120_preservado={'sim' if saldo_3120_preservado else 'nao'}")
+    print(f"extrato_passado_lote_3120_presente={'sim' if row_3120 else 'nao'}")
+    print(f"extrato_passado_saldo_remanescente_3120={_saldo_remanescente(row_3120)}")
 
     print(f"hash_dados_financeiros_xlsx={_sha256('dados/dados_financeiros.xlsx')}")
     print(f"hash_cache_bcb_json={_sha256('dados/cache_bcb.json')}")
