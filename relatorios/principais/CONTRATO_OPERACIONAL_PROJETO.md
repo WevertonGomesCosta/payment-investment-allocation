@@ -370,34 +370,75 @@ Rótulos de auditoria, contagens transitórias, nomes de versões, scripts diagn
 
 Eles podem servir como evidência para testar o contrato e o modelo, mas não podem substituir a formulação geral aqui definida.
 
-## 7-E. Arquitetura sequencial obrigatória do pipeline operacional
+## 7-E. Arquitetura macro obrigatória do pipeline operacional
 
-### 7-E.1. Ordem lógica obrigatória
+### 7-E.1. Ordem lógica macro obrigatória
 
-O projeto deve seguir uma arquitetura sequencial em camadas, com ordem lógica obrigatória:
+O projeto deve seguir uma arquitetura macro em camadas, com a seguinte ordem lógica obrigatória:
 
-1. configuração e planilha bruta;
+1. entrada bruta e configuração;
 2. validação pré-execução;
-3. dados operacionais canônicos;
-4. ranking e definição do universo de produtos;
-5. estado inicial temporal;
-6. motor temporal conjunto;
-7. ledger temporal canônico, estado temporal final e decisões econômicas finais;
-8. validação do estado temporal;
-9. construção da saída canônica;
-10. saída canônica única;
-11. validação da saída canônica;
-12. renderização de console e planilha operacional;
-13. validação de renderização;
-14. artefatos finais.
+3. dados operacionais e universo econômico canônico;
+4. estado temporal inicial;
+5. motor temporal conjunto;
+6. ledger canônico do pacote escolhido;
+7. gates de validação de núcleo;
+8. saída canônica validada;
+9. renderização oficial unificada;
+10. validação de paridade da renderização;
+11. limpeza e depreciação controlada, com retorno à etapa 1.
+
+O fluxograma macro oficial é:
+
+```mermaid
+flowchart TD
+    A["1. Entrada bruta e configuração"] --> B["2. Validação pré-execução"]
+
+    B --> C["3. Dados operacionais e universo econômico canônico"]
+
+    C --> D["4. Estado temporal inicial"]
+
+    D --> E["5. Motor temporal conjunto"]
+
+    C -. "universo econômico / ranking para switchings" .-> E
+
+    E --> F["6. Ledger canônico do pacote escolhido"]
+
+    F --> G["7. Gates de validação de núcleo"]
+
+    G --> H["8. Saída canônica validada"]
+
+    H --> I["9. Renderização oficial unificada"]
+
+    I --> I1["Console"]
+    I --> I2["XLSX"]
+
+    I1 --> J["10. Validação de paridade da renderização"]
+    I2 --> J
+
+    J --> K["11. Limpeza e depreciação controlada"]
+
+    K --> A
+```
 
 A implementação física pode ser refatorada em módulos, pacotes, funções ou scripts distintos, mas a ordem lógica, as responsabilidades e as proibições por camada são normativas.
 
 É vedado inverter essa ordem de modo que saída, console, planilha, ponte de renderização, relatório ou diagnóstico posterior passem a decidir, corrigir, inferir ou substituir o estado temporal canônico.
 
-### 7-E.2. Entrada, validação e canonização
+O fluxograma macro não detalha subetapas internas. O detalhamento de cada etapa deve ser feito em auditorias, mapas técnicos ou documentos próprios de cada camada, para evitar assimetria e excesso de granularidade no contrato macro.
 
-A camada de entrada deve ler configuração e planilha bruta, preservando a distinção entre dado bruto, dado ausente, dado inválido e dado canônico.
+### 7-E.2. Entrada bruta e configuração
+
+A camada de entrada deve ler configuração, planilha bruta, data de referência, cache e parâmetros operacionais, preservando a distinção entre:
+
+- dado bruto;
+- dado ausente;
+- dado inválido;
+- dado canônico.
+
+Esta camada não pode decidir pagamento, switching, aporte, resgate, ranking, estado temporal final ou saída operacional.
+
+### 7-E.3. Validação pré-execução
 
 Antes da construção dos dados operacionais canônicos, é obrigatório validar, no mínimo:
 
@@ -405,20 +446,48 @@ Antes da construção dos dados operacionais canônicos, é obrigatório validar
 - presença das colunas obrigatórias;
 - interpretabilidade mínima de datas;
 - interpretabilidade mínima de valores numéricos;
-- campos essenciais de produtos, pagamentos, lotes, recebidos e switching;
+- campos essenciais de produtos, pagamentos, lotes, recebidos, salários e switching;
 - inconsistências estruturais bloqueantes.
 
 A validação pré-execução não pode decidir pagamento, switching, aporte, resgate, ranking ou estado temporal final.
 
-A camada de dados operacionais canônicos pode normalizar nomes, aliases, datas, valores, tipos e identificadores, mas não pode executar decisão econômica, escolher fonte de pagamento, promover switching, materializar lote destino ou corrigir saldo temporal.
+A validação pré-execução também não deve ser usada como etapa de limpeza arquitetural rígida. Critérios rígidos de normalização, remoção de funções duplicadas ou depreciação de pontes devem ser reservados à etapa final de limpeza e depreciação controlada, quando houver substitutos canônicos implementados e validados.
 
-### 7-E.3. Ranking e estado inicial temporal
+### 7-E.4. Dados operacionais e universo econômico canônico
 
-A camada oficial de ranking deve ser executada antes do motor temporal conjunto.
+A camada de dados operacionais e universo econômico canônico deve transformar a planilha bruta e a configuração em artefatos canônicos utilizáveis pelo estado temporal e pelo motor.
 
-O ranking tem função de priorizar produtos, estruturar o universo de destinos e fornecer informações de elegibilidade e restrição ao motor temporal. Ele não substitui o motor temporal, não decide pacote do dia, não materializa switching, não liquida pagamento e não altera estado temporal.
+Esta camada pode normalizar nomes, aliases, datas, valores, tipos, identificadores, produtos e lotes, mas não pode executar decisão econômica, escolher fonte de pagamento, promover switching, liquidar pagamento, corrigir saldo temporal ou selecionar pacote do dia.
 
-Antes da execução do motor temporal conjunto, o projeto deve construir explicitamente o estado inicial temporal, contendo, no mínimo:
+Esta camada deve produzir, quando aplicável:
+
+- pagamentos canônicos;
+- recebidos ou salários canônicos;
+- switchings canônicos;
+- produtos canônicos;
+- ranking da Carteira;
+- universo de produtos elegíveis;
+- inventário completo de lotes.
+
+O inventário completo de lotes deve ser construído nesta camada, combinando, no mínimo:
+
+- a aba `Inventário de Lotes`;
+- a aba `Switching`;
+- lotes destino derivados ou materializáveis por switching;
+- reconciliação entre lotes destino já presentes no inventário e lotes derivados de switching;
+- prevenção de dupla contagem.
+
+Assim, não deve existir uma etapa macro separada apenas para construir lotes pós-switching. A criação, normalização ou reconciliação desses lotes pertence à canonização operacional e ao universo econômico canônico, respeitando o escopo desta camada.
+
+O ranking da `Carteira` pertence ao universo econômico canônico. Ele deve estruturar produtos, destinos elegíveis e informações usadas pelo motor, especialmente na avaliação de switchings. O ranking não substitui o motor temporal, não decide pacote do dia, não materializa switching, não liquida pagamento e não altera o estado temporal.
+
+### 7-E.5. Estado temporal inicial
+
+Antes da execução do motor temporal conjunto, o projeto deve construir explicitamente o estado temporal inicial.
+
+O estado temporal inicial deve consumir os dados financeiros canônicos e o inventário completo de lotes produzido na etapa anterior.
+
+O estado temporal inicial deve conter, no mínimo:
 
 - lotes ativos;
 - lotes exauridos;
@@ -431,7 +500,9 @@ Antes da execução do motor temporal conjunto, o projeto deve construir explici
 - switchings candidatos, promovidos ou previamente declarados;
 - restrições de liquidez, carência, vencimento e disponibilidade.
 
-### 7-E.4. Motor temporal conjunto
+O estado temporal inicial não depende diretamente do ranking para existir. A dependência direta do ranking ocorre principalmente no motor temporal conjunto, em especial na avaliação de switchings e destinos econômicos.
+
+### 7-E.6. Motor temporal conjunto
 
 O motor temporal conjunto é a única camada autorizada a decidir ou aplicar efeitos econômicos sobre:
 
@@ -449,6 +520,21 @@ O motor temporal conjunto é a única camada autorizada a decidir ou aplicar efe
 - pacotes do dia;
 - falhas de factibilidade temporal.
 
+O motor temporal conjunto deve consumir:
+
+- o estado temporal inicial;
+- os dados operacionais canônicos;
+- o inventário completo de lotes;
+- o universo econômico canônico;
+- o ranking da Carteira quando necessário à avaliação de switchings;
+- os parâmetros econômicos, fiscais e operacionais vigentes.
+
+Pagamentos e switchings devem ser resolvidos dentro do mesmo motor temporal, sobre o mesmo estado temporal canônico. É vedado calcular pagamentos e switchings em trilhas independentes e reconciliá-los posteriormente em saída, console, planilha, relatório ou CSV diagnóstico.
+
+A relação entre pagamentos e switchings é dependente: pagamentos podem alterar a atratividade ou factibilidade de switchings, e switchings podem alterar a disponibilidade, liquidez ou composição das fontes usadas em pagamentos. Essa dependência deve ser resolvida dentro da construção das trajetórias candidatas do motor e antes da comparação terminal dos pacotes.
+
+O FIFO pode ser usado inicialmente como candidato interno simples e auditável para seleção de fontes de pagamento, mas não deve ser tratado como etapa autônoma, regra final exclusiva ou promoção direta de diagnóstico. Outras metodologias podem ser adicionadas posteriormente como candidatas concorrentes dentro do próprio motor.
+
 O switching deve ser processado dentro do motor temporal conjunto. É vedado tratar switching apenas como ponte de renderização, anotação de saída ou aba informativa sem efeito no estado temporal.
 
 Quando um switching for materializado, o motor deve atualizar o estado temporal de forma auditável, incluindo, no mínimo:
@@ -460,49 +546,55 @@ Quando um switching for materializado, o motor deve atualizar o estado temporal 
 - impedimento de dupla contagem;
 - atualização da elegibilidade para pagamentos posteriores.
 
-### 7-E.5. Ledger, estado final e decisões
+### 7-E.7. Ledger canônico do pacote escolhido
 
-O motor temporal conjunto deve produzir como saídas primárias:
+O motor temporal conjunto deve produzir como saída primária um ledger canônico do pacote escolhido.
 
-- ledger temporal canônico;
-- estado temporal final;
-- decisões econômicas finais;
-- trilha de pagamentos;
-- trilha de switchings;
-- trilha de recebidos, aportes e resgates;
-- saldos e residuais;
-- bloqueios e falhas de factibilidade.
+Esse ledger deve conter, no mínimo:
 
-Esses objetos são a fonte oficial para construção da saída canônica e para validação do comportamento do projeto.
+- eventos de pagamentos;
+- eventos de switchings;
+- eventos de recebidos, aportes e resgates;
+- saldos antes e depois;
+- consumos por fonte;
+- impostos e valores líquidos;
+- residuais;
+- bloqueios;
+- status operacionais;
+- impacto terminal estimado;
+- vínculos entre data, conta, fonte, lote, produto e pacote.
+
+O ledger canônico do pacote escolhido é a fonte oficial para a validação de núcleo e para a construção da saída canônica.
 
 É vedado reconstruir o estado temporal a partir da planilha operacional, do console, de markdowns, de CSVs diagnósticos ou de artefatos renderizados.
 
-### 7-E.6. Validação do estado temporal
+### 7-E.8. Gates de validação de núcleo
 
-Após a execução do motor temporal, devem ser aplicados gates de validação sobre o ledger e o estado temporal final.
+Após a produção do ledger canônico do pacote escolhido, devem ser aplicados gates de validação de núcleo.
 
 Esses gates devem verificar, no mínimo:
 
-- fonte ou lote migrado por switching não pode pagar depois da materialização do switching, salvo se houver novo evento materializado que o torne novamente elegível;
-- fonte ou lote migrado por switching não pode permanecer como fonte ativa disponível sem status compatível;
-- destino materializado por switching deve existir no estado temporal ou estar explicitamente classificado como indeterminado por limitação de schema;
-- pagamento não pode ser parcial;
-- pagamento não pode ocorrer fora da data definida;
-- fonte sob carência impeditiva não pode ser usada;
-- fonte sem liquidez suficiente não pode ser usada;
-- fonte futura não pode ser usada antes da data de materialização;
-- saldos e residuais devem ser conservados;
-- falha temporal só pode ser emitida após tentativa de refactibilização no mesmo estado temporal canônico.
+- conservação de valor;
+- pagamento integral;
+- pagamento na data correta;
+- fonte materializada antes do uso;
+- liquidez e carência;
+- ausência de saldo negativo indevido;
+- impedimento de dupla contagem;
+- consistência entre switching materializado e lotes destino;
+- consistência entre pagamentos e fontes consumidas;
+- consistência de saldos e residuais;
+- aderência ao objetivo econômico terminal.
 
-Validações de estado devem operar sobre objetos internos do motor, não sobre a planilha renderizada como fonte primária.
+Esses gates devem operar sobre objetos internos do motor, ledger e estado temporal, não sobre planilha ou console como fonte primária.
 
-### 7-E.7. Construção e validação da saída canônica
+### 7-E.9. Saída canônica validada
 
-A saída canônica deve ser construída somente depois da aprovação do estado temporal pelo gate correspondente.
+A saída canônica deve ser construída somente depois da aprovação do ledger e do estado temporal pelos gates de núcleo.
 
-A construção da saída canônica deve consumir exclusivamente:
+A saída canônica deve consumir exclusivamente:
 
-- ledger temporal canônico;
+- ledger canônico do pacote escolhido;
 - estado temporal final;
 - decisões econômicas finais;
 - ranking oficial utilizado;
@@ -510,11 +602,18 @@ A construção da saída canônica deve consumir exclusivamente:
 
 A saída canônica pode organizar, nomear e estruturar informações para consumo humano ou operacional, mas não pode recalcular decisão econômica, trocar fonte de pagamento, materializar switching, corrigir saldo temporal ou alterar o estado final.
 
-Antes da renderização final, a saída canônica deve ser validada contra o ledger e o estado temporal final.
+Antes da renderização oficial, a saída canônica deve estar validada contra o ledger e o estado temporal final.
 
-### 7-E.8. Renderização de console e planilha operacional
+### 7-E.10. Renderização oficial unificada
 
-Console e planilha operacional são camadas finais de renderização.
+Console e planilha operacional são camadas finais de renderização da mesma saída canônica validada.
+
+A renderização oficial unificada deve gerar, no mínimo:
+
+- console;
+- XLSX.
+
+Console e XLSX devem representar a mesma saída canônica validada, cada um em formato adequado ao seu uso operacional.
 
 Essas camadas podem formatar, ordenar, filtrar visualmente, agrupar, resumir e apresentar informações da saída canônica, mas não podem:
 
@@ -528,29 +627,48 @@ Essas camadas podem formatar, ordenar, filtrar visualmente, agrupar, resumir e a
 - corrigir falha de factibilidade;
 - criar evidência econômica não presente na saída canônica.
 
-A planilha operacional e o console não são fontes normativas autônomas. Eles são representações renderizadas da saída canônica.
+A planilha operacional e o console não são fontes normativas autônomas. Eles são representações renderizadas da saída canônica validada.
 
-### 7-E.9. Validação de renderização
+### 7-E.11. Validação de paridade da renderização
 
-Após a geração do console, planilha e demais artefatos finais, devem ser aplicados gates de renderização.
+Após a geração do console e da planilha operacional, deve ser aplicada validação de paridade da renderização.
 
-Esses gates devem verificar se os artefatos finais representam fielmente a saída canônica, incluindo:
+Essa validação deve verificar se console e XLSX representam fielmente a mesma saída canônica validada, incluindo:
 
-- presença das abas ou blocos esperados;
-- correspondência de métricas;
-- correspondência de pagamentos;
-- correspondência de switchings;
-- correspondência de saldos;
-- correspondência de status;
+- pagamentos;
+- switchings;
+- saldos;
+- fontes;
+- lotes;
+- status;
+- métricas relevantes;
 - ausência de alterações semânticas introduzidas pela renderização.
 
-A validação de renderização não pode substituir a validação do estado temporal.
+A validação de paridade não pode substituir a validação de núcleo, nem pode reinterpretar decisão econômica. Divergências de paridade devem ser tratadas como problemas de renderização, não como justificativa para alterar decisão em camada de saída.
 
-### 7-E.10. Papel dos diagnósticos
+### 7-E.12. Limpeza e depreciação controlada
 
-Diagnósticos devem funcionar como gates do pipeline, e não como motores auxiliares.
+A limpeza e depreciação controlada ocorre após a validação de paridade da renderização.
 
-Os diagnósticos podem ocorrer em cinco pontos:
+Essa etapa pode tratar:
+
+- pontes transitórias;
+- scripts diagnósticos substituídos;
+- CSVs diagnósticos usados como ponte;
+- funções equivalentes legadas;
+- nomenclaturas antigas;
+- abas auxiliares redundantes;
+- imports não canônicos.
+
+Critérios rígidos de normalização, remoção de duplicidades e depreciação só devem ser aplicados nesta etapa, quando houver substitutos canônicos implementados e validados.
+
+A limpeza e depreciação controlada não encerra o pipeline. Após qualquer remoção, depreciação, normalização ou substituição estrutural, o processo deve retornar à etapa 1, exigindo nova execução integral do pipeline.
+
+### 7-E.13. Papel dos diagnósticos
+
+Diagnósticos devem funcionar como instrumentos de validação, rastreabilidade e migração, e não como motores auxiliares ou fontes decisórias autônomas.
+
+Diagnósticos podem ocorrer em cinco pontos:
 
 1. pré-execução;
 2. pós-canonização;
@@ -558,33 +676,38 @@ Os diagnósticos podem ocorrer em cinco pontos:
 4. pós-saída canônica;
 5. pós-renderização.
 
-Diagnósticos que leem a planilha final podem ser usados para validar fidelidade de renderização, mas não podem substituir diagnósticos sobre o ledger temporal canônico e o estado temporal final.
+Diagnósticos que leem a planilha final podem ser usados para validar fidelidade de renderização, mas não podem substituir diagnósticos sobre o ledger canônico e o estado temporal final.
 
 É vedado usar diagnóstico pós-planilha como mecanismo principal para decidir se switching foi aplicado corretamente ao estado temporal.
 
-### 7-E.11. Vedação a pontes de renderização com efeito econômico
+### 7-E.14. Vedação a pontes de renderização com efeito econômico
 
 Pontes, adaptadores ou wrappers de saída podem existir apenas como mecanismos transitórios de apresentação, desde que não alterem a decisão econômica nem sejam tratados como integração funcional do motor.
 
 Qualquer integração com efeito econômico deve ocorrer antes da construção da saída canônica, dentro do motor temporal conjunto ou de camada explicitamente subordinada a ele.
 
-É vedado considerar como funcionalmente integrado um switching que apenas aparece no console, na planilha ou em campo de saída, mas não altera o ledger temporal canônico e o estado temporal final.
+É vedado considerar como funcionalmente integrado um switching que apenas aparece no console, na planilha ou em campo de saída, mas não altera o ledger canônico e o estado temporal final.
 
-### 7-E.12. Critério para refatoração estrutural
+### 7-E.15. Critério para refatoração estrutural
 
-Sempre que um script ou função acumular responsabilidades de mais de uma camada, deve ser priorizada refatoração para separar:
+Sempre que um script ou função acumular responsabilidades de mais de uma camada, deve ser priorizada refatoração progressiva para separar:
 
 - leitura;
 - validação;
 - canonização;
-- ranking;
+- universo econômico;
+- estado temporal;
 - motor temporal;
+- ledger;
+- gates de validação;
 - construção da saída canônica;
 - renderização;
-- diagnóstico.
+- diagnóstico;
+- limpeza e depreciação.
 
 Scripts de saída não devem conter regra decisória. Scripts diagnósticos não devem conter regra econômica substitutiva. Scripts de renderização não devem corrigir estado temporal.
 
+A normalização de funções e nomenclaturas deve ser tratada como diretriz transversal durante as etapas funcionais e como critério rígido apenas na etapa de limpeza e depreciação controlada.
 ## 8. Regras obrigatórias de pagamento
 
 ### 8.1. Data correta
