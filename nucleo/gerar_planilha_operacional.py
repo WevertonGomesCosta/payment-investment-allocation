@@ -267,6 +267,188 @@ def _adicionar_aba_tabela_operacional_pagamentos(wb) -> tuple[str, int, int]:
     return nome_aba, len(df), len(df.columns)
 
 
+def _u7_norm_str(valor: Any) -> str:
+    if valor is None:
+        return ''
+    return str(valor).strip()
+
+
+def _u7_flag_sim(valor: Any) -> bool:
+    return _u7_norm_str(valor).lower() in {'sim', 's', 'true', '1', 'yes'}
+
+
+def _u7_flag_nao(valor: Any) -> bool:
+    return _u7_norm_str(valor).lower() in {'nao', 'não', 'n', 'false', '0', 'no'}
+
+
+def _u7_cols(df, colunas: list[str]) -> list[str]:
+    proibidas = {'saldo_fonte_considerado', 'saldo_remanescente_diagnostico'}
+    return [c for c in colunas if c in df.columns and c not in proibidas]
+
+
+def _u7_df_para_aba(wb, nome_aba: str, df, colunas: list[str] | None = None) -> tuple[str, int, int]:
+    if colunas is not None:
+        cols = _u7_cols(df, colunas)
+        if cols:
+            df = df[cols].copy()
+    else:
+        proibidas = {'saldo_fonte_considerado', 'saldo_remanescente_diagnostico'}
+        df = df[[c for c in df.columns if c not in proibidas]].copy()
+
+    ws = wb.create_sheet(nome_aba)
+    _apply_table_style(ws, list(df.columns), df.fillna('').values.tolist(), freeze=True)
+    return nome_aba, len(df), len(df.columns)
+
+
+def _adicionar_abas_saida_operacional_pagamentos_u7(wb) -> dict[str, Any]:
+    import pandas as pd
+
+    dir_diag = RAIZ / 'saidas' / 'diagnostico'
+    arq_pagamentos = dir_diag / 'saida_operacional_pagamentos_v17_f0_u3_pagamentos.csv'
+    arq_linhas = dir_diag / 'saida_operacional_pagamentos_v17_f0_u3_linhas.csv'
+    arq_resumo = dir_diag / 'saida_operacional_pagamentos_v17_f0_u3_resumo.csv'
+
+    status_ok = 'saida_operacional_integrada_ao_xlsx_oficial_sem_promover_saldos'
+    status_ausente = 'saida_operacional_u7_nao_integrada_csvs_ausentes'
+
+    faltantes = [str(p.relative_to(RAIZ)) for p in [arq_pagamentos, arq_linhas, arq_resumo] if not p.exists()]
+
+    if faltantes:
+        ws = wb.create_sheet('Pagamentos Metadados')
+        rows = [
+            ['microetapa', 'V17-F0-U.7'],
+            ['baseline', 'main pós-merge PR #337'],
+            ['status_integracao_u7', status_ausente],
+            ['arquivos_ausentes', ';'.join(faltantes)],
+            ['campos_saldo_promovidos', 'nao'],
+            ['saldo_fonte_considerado', 'nao_integrado_na_u7'],
+            ['saldo_remanescente_diagnostico', 'nao_integrado_na_u7'],
+            ['fifo_promovido', 'nao'],
+            ['pendencias_convertidas_em_recomendacoes', 'nao'],
+        ]
+        _apply_table_style(ws, ['metrica', 'valor'], rows, freeze=True)
+        return {'status_integracao_u7': status_ausente, 'arquivos_ausentes': faltantes}
+
+    pagamentos = pd.read_csv(arq_pagamentos)
+    linhas = pd.read_csv(arq_linhas)
+    resumo_u3 = pd.read_csv(arq_resumo)
+
+    col_pagamentos = [
+        'pagamento_idx',
+        'chave_pagamento',
+        'data',
+        'conta',
+        'valor_pagamento',
+        'qtd_linhas_operacionais',
+        'tipo_pagamento_operacional_u3',
+        'soma_resgates_pagamento_u3',
+        'diferenca_cobertura_u3',
+        'executavel_operacionalmente_u3',
+        'bloqueio_u3',
+        'nao_auditavel_u3',
+        'motivo_bloqueio_u3',
+    ]
+
+    col_linhas = [
+        'pagamento_idx',
+        'chave_pagamento',
+        'data',
+        'conta',
+        'valor_pagamento',
+        'status_operacional_original',
+        'tipo_pagamento_operacional_u3',
+        'origem_linha_u3',
+        'ordem_fonte_no_pagamento',
+        'fonte',
+        'tipo_fonte',
+        'valor_resgate_operacional_u3',
+        'soma_resgates_pagamento_u3',
+        'diferenca_cobertura_u3',
+        'cobertura_pagamento_u3',
+        'executavel_operacionalmente_u3',
+        'bloqueio_u3',
+        'motivo_bloqueio_u3',
+        'classe_operacional_u1',
+        'classe_linha_u2',
+        'classe_pagamento_u2',
+        'fonte_aprovada_para_pagamento',
+        'candidato_fifo_detectado',
+        'pendencia_sem_lote_sugerido',
+        'observacao_u3',
+    ]
+
+    _u7_df_para_aba(wb, 'Pagamentos Operacionais', pagamentos, col_pagamentos)
+    _u7_df_para_aba(wb, 'Fontes Pagamento', linhas, col_linhas)
+
+    if 'origem_linha_u3' in linhas.columns:
+        mask_multifonte = linhas['origem_linha_u3'].astype(str).str.strip().eq('fonte_multifonte_decomposta_u2')
+    elif 'classe_linha_u2' in linhas.columns:
+        mask_multifonte = linhas['classe_linha_u2'].astype(str).str.lower().str.contains('multifonte', na=False)
+    else:
+        mask_multifonte = pd.Series([False] * len(linhas))
+
+    multifonte = linhas.loc[mask_multifonte].copy()
+    _u7_df_para_aba(wb, 'Multifonte Resgates', multifonte, col_linhas)
+
+    mask_pend = pd.Series([False] * len(pagamentos))
+    if 'bloqueio_u3' in pagamentos.columns:
+        mask_pend = mask_pend | pagamentos['bloqueio_u3'].map(_u7_flag_sim)
+    if 'executavel_operacionalmente_u3' in pagamentos.columns:
+        mask_pend = mask_pend | pagamentos['executavel_operacionalmente_u3'].map(_u7_flag_nao)
+    if 'motivo_bloqueio_u3' in pagamentos.columns:
+        motivo = pagamentos['motivo_bloqueio_u3']
+        motivo_norm = motivo.astype(str).str.strip().str.lower()
+        motivo_real_bloqueio = (
+            motivo.notna()
+            & motivo_norm.ne('')
+            & ~motivo_norm.str.startswith('sem_bloqueio_operacional')
+            & ~motivo_norm.isin({'nan', 'none', 'n/d', 'nd', 'nao', 'não'})
+        )
+        mask_pend = mask_pend | motivo_real_bloqueio
+
+    pendencias = pagamentos.loc[mask_pend].copy()
+    _u7_df_para_aba(wb, 'Pendencias Pagamentos', pendencias, col_pagamentos)
+
+    qtd_pagamentos_operacionais = int(len(pagamentos))
+    qtd_linhas_fontes_pagamento = int(len(linhas))
+    qtd_linhas_multifonte = int(len(multifonte))
+    qtd_pagamentos_multifonte = int(multifonte['chave_pagamento'].nunique()) if 'chave_pagamento' in multifonte.columns else 0
+    qtd_pendencias = int(len(pendencias))
+
+    metadados = [
+        ['microetapa', 'V17-F0-U.7'],
+        ['baseline', 'main pós-merge PR #337'],
+        ['fonte_pagamentos', str(arq_pagamentos.relative_to(RAIZ))],
+        ['fonte_linhas', str(arq_linhas.relative_to(RAIZ))],
+        ['fonte_resumo', str(arq_resumo.relative_to(RAIZ))],
+        ['qtd_pagamentos_operacionais', qtd_pagamentos_operacionais],
+        ['qtd_linhas_fontes_pagamento', qtd_linhas_fontes_pagamento],
+        ['qtd_linhas_multifonte', qtd_linhas_multifonte],
+        ['qtd_pagamentos_multifonte', qtd_pagamentos_multifonte],
+        ['qtd_pendencias', qtd_pendencias],
+        ['campos_saldo_promovidos', 'nao'],
+        ['saldo_fonte_considerado', 'excluido_na_u7_nao_oficial'],
+        ['saldo_remanescente_diagnostico', 'excluido_na_u7_nao_oficial'],
+        ['fifo_promovido', 'nao'],
+        ['pendencias_convertidas_em_recomendacoes', 'nao'],
+        ['decisao_saldos_u7pre', 'saldos_nao_aprovados_para_promocao'],
+        ['status_integracao_u7', status_ok],
+    ]
+
+    ws = wb.create_sheet('Pagamentos Metadados')
+    _apply_table_style(ws, ['metrica', 'valor'], metadados, freeze=True)
+
+    return {
+        'status_integracao_u7': status_ok,
+        'qtd_pagamentos_operacionais': qtd_pagamentos_operacionais,
+        'qtd_linhas_fontes_pagamento': qtd_linhas_fontes_pagamento,
+        'qtd_linhas_multifonte': qtd_linhas_multifonte,
+        'qtd_pagamentos_multifonte': qtd_pagamentos_multifonte,
+        'qtd_pendencias': qtd_pendencias,
+        'campos_saldo_promovidos': 'nao',
+    }
+
+
 def _adicionar_abas_ranking(wb, contexto) -> None:
     ranking = getattr(contexto, 'ranking_carteira', None)
     if ranking is None:
@@ -419,6 +601,7 @@ def main(*, contexto=None, saida=None) -> Path:
     _adicionar_situacao_atual(wb, contexto, saida)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
     _adicionar_aba_tabela_operacional_pagamentos(wb)
+    _adicionar_abas_saida_operacional_pagamentos_u7(wb)
     _adicionar_aba_auditoria_fontes(wb, contexto, saida)
     if _usar_abas_diagnosticas(contexto):
         _adicionar_aba_auditoria_fifo(wb, contexto, saida)
