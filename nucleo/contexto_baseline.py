@@ -30,6 +30,7 @@ from nucleo.microplanejamento_conjunto_bloco_critico_v2 import carregar_micropla
 from nucleo.recomputacao_sequencial_central_v1 import carregar_recomputacao_sequencial_central_v1
 from nucleo.motor_recomendacao_pagamentos_switching_v1 import carregar_motor_recomendacao_pagamentos_switching_v1
 from nucleo.config_utils import obter_config
+from nucleo.validacao_pre_execucao import PacoteValidacaoPreExecucao, validar_pre_execucao
 from nucleo.caixa_recebidos_auditaveis import (
     materializar_fontes_elegiveis_pagamento,
     materializar_recebidos_auditaveis,
@@ -44,6 +45,7 @@ class ContextoBaseline:
     execucao: ContextoExecucao
     calendario_financeiro: Any
     pacote_planilha: PacotePlanilha
+    validacao_pre_execucao: PacoteValidacaoPreExecucao
     carteira_canonica: Any
     dados_operacionais: Any
     recebidos_auditaveis: Any
@@ -106,6 +108,14 @@ def carregar_contexto_baseline(
     )
     calendario_financeiro = construir_calendario_financeiro(pacote_config.conteudo, data_referencia=contexto_execucao.data_referencia)
     pacote_planilha = carregar_planilha(pacote_config.conteudo, raiz_repositorio=pacote_config.raiz_repositorio)
+    validacao_pre_execucao = validar_pre_execucao(
+        pacote_config,
+        contexto_execucao,
+        pacote_planilha,
+    )
+    if not validacao_pre_execucao.ok:
+        detalhes = "\n - ".join(validacao_pre_execucao.erros_bloqueantes)
+        raise RuntimeError(f"Validação pré-execução reprovada:\n - {detalhes}")
     carteira_canonica = carregar_carteira_canonica(pacote_planilha, pacote_config.conteudo)
     dados_operacionais = carregar_dados_operacionais_canonicos(
         pacote_planilha,
@@ -324,6 +334,7 @@ def carregar_contexto_baseline(
         execucao=contexto_execucao,
         calendario_financeiro=calendario_financeiro,
         pacote_planilha=pacote_planilha,
+        validacao_pre_execucao=validacao_pre_execucao,
         carteira_canonica=carteira_canonica,
         dados_operacionais=dados_operacionais,
         recebidos_auditaveis=recebidos_auditaveis,
