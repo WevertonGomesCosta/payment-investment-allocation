@@ -11,7 +11,7 @@ Proibições:
 - não baixa planilha;
 - não carrega planilha;
 - não abre workbook;
-- não resolve colunas;
+- não resolve colunas para uso operacional;
 - não canoniza colunas;
 - não transforma dados;
 - não decide pagamento, switching, ranking ou saída.
@@ -22,6 +22,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+import math
+import unicodedata
+
+import pandas as pd
 
 from nucleo.ambiente import ContextoExecucao
 from nucleo.carregador_config import PacoteConfig
@@ -35,6 +39,35 @@ ABAS_OPERACIONAIS_OBRIGATORIAS: tuple[str, ...] = (
     "switching",
     "lotes",
 )
+
+COLUNAS_CRITICAS_OBRIGATORIAS: dict[str, tuple[str, ...]] = {
+    "carteira": ("nome", "taxa_base"),
+    "salarios": ("data_recebimento", "valor_bruto"),
+    "despesas": ("data", "descricao", "valor", "pago"),
+    "switching": (
+        "lote_id_antes",
+        "lote_id_depois",
+        "data_aplicacao",
+        "valor_liquido_migrado",
+        "investimento",
+    ),
+    "lotes": ("lote_id", "data_aplicacao", "valor_original", "produto_id"),
+}
+
+COLUNAS_DATA_CRITICAS: dict[str, tuple[str, ...]] = {
+    "salarios": ("data_recebimento",),
+    "despesas": ("data",),
+    "switching": ("data_aplicacao",),
+    "lotes": ("data_aplicacao",),
+}
+
+COLUNAS_NUMERICAS_CRITICAS: dict[str, tuple[str, ...]] = {
+    "carteira": ("taxa_base",),
+    "salarios": ("valor_bruto",),
+    "despesas": ("valor",),
+    "switching": ("valor_liquido_migrado",),
+    "lotes": ("valor_original",),
+}
 
 
 @dataclass(slots=True)
@@ -58,6 +91,163 @@ def _path_existe(valor: Any) -> bool:
         return Path(valor).exists()
     except Exception:
         return False
+
+
+def _normalizar_token(valor: Any) -> str:
+    texto = str(valor or "").strip().lower()
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(ch for ch in texto if not unicodedata.combining(ch))
+    texto = texto.replace("_", " ")
+    texto = " ".join(texto.split())
+    return texto
+
+
+def _serie_nao_vazia(serie: pd.Series) -> pd.Series:
+    if serie is None:
+        return pd.Series(dtype=object)
+    mascara = serie.notna()
+    valores = serie.loc[mascara]
+    if valores.empty:
+        return valores
+    texto = valores.astype(str).str.strip()
+    return valores.loc[~texto.isin(("", "nan", "None", "NaT"))]
+
+
+def _mapear_colunas_por_alias(
+    quadro: pd.DataFrame,
+    aliases_secao: dict[str, Any],
+    chaves: tuple[str, ...],
+) -> tuple[dict[str, str], dict[str, list[str]], list[str]]:
+    colunas_reais = list(getattr(quadro, "columns", []))
+    lookup = {_normalizar_token(col): str(col) for col in colunas_reais}
+
+    encontradas: dict[str, str] = {}
+    aliases_testados: dict[str, list[str]] = {}
+    ausentes: list[str] = []
+
+    for chave in chaves:
+        aliases = aliases_secao.get(chave)
+        if not isinstance(aliases, list) or not aliases:
+            aliases_testados[chave] = []
+            ausentes.append(chave)
+            continue
+
+        aliases_texto = [str(alias) for alias in aliases]
+        aliases_testados[chave] = aliases_texto
+
+        coluna_encontrada = None
+        for alias in aliases_texto:
+            coluna_encontrada = lookup.get(_normalizar_token(alias))
+            if coluna_encontrada is not None:
+                break
+
+        if coluna_encontrada is None:
+            ausentes.append(chave)
+        else:
+            encontradas[chave] = coluna_encontrada
+
+    return encontradas, aliases_testados, ausentes
+
+
+def _converter_numero_validacao(valor: Any) -> float | None:
+    if valor is None:
+        return None
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        try:
+            if math.isnan(float(valor)):
+                return None
+        except Exception:
+            pass
+        return float(valor)
+
+    texto = str(valor).strip()
+    if not texto or texto.lower() in {"nan", "none", "nat"}:
+        return None
+
+    texto = texto.replace("R$", "").replace("%", "").strip()
+    texto = texto.replace(" ", "")
+
+    if "," in texto and "." in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    elif "," in texto:
+        texto = texto.replace(",", ".")
+
+    try:
+        return float(texto)
+    except Exception:
+        return None
+
+
+def _validar_datas_minimas(
+    bloco: str,
+    quadro: pd.DataFrame,
+    colunas_encontradas: dict[str, str],
+    erros: list[str],
+    avisos: list[str],
+    evidencias: dict[str, Any],
+) -> None:
+    for chave in COLUNAS_DATA_CRITICAS.get(bloco, ()):
+        coluna = colunas_encontradas.get(chave)
+        if not coluna:
+            continue
+
+        serie = _serie_nao_vazia(quadro[coluna])
+        total = int(len(serie))
+        if total == 0:
+            _registrar_erro(erros, f"Campo crítico de data vazio em {bloco}/{chave}: coluna {coluna}")
+            evidencias[f"{bloco}_{chave}_datas_parseaveis"] = 0
+            evidencias[f"{bloco}_{chave}_datas_total"] = 0
+            continue
+
+        datas = pd.to_datetime(serie, errors="coerce", dayfirst=True)
+        parseaveis = int(datas.notna().sum())
+
+        evidencias[f"{bloco}_{chave}_datas_parseaveis"] = parseaveis
+        evidencias[f"{bloco}_{chave}_datas_total"] = total
+
+        if parseaveis == 0:
+            _registrar_erro(erros, f"Nenhum valor de data interpretável em {bloco}/{chave}: coluna {coluna}")
+        elif parseaveis < total:
+            _registrar_aviso(
+                avisos,
+                f"Há valores de data não interpretáveis em {bloco}/{chave}: {total - parseaveis}/{total}",
+            )
+
+
+def _validar_numeros_minimos(
+    bloco: str,
+    quadro: pd.DataFrame,
+    colunas_encontradas: dict[str, str],
+    erros: list[str],
+    avisos: list[str],
+    evidencias: dict[str, Any],
+) -> None:
+    for chave in COLUNAS_NUMERICAS_CRITICAS.get(bloco, ()):
+        coluna = colunas_encontradas.get(chave)
+        if not coluna:
+            continue
+
+        serie = _serie_nao_vazia(quadro[coluna])
+        total = int(len(serie))
+        if total == 0:
+            _registrar_erro(erros, f"Campo crítico numérico vazio em {bloco}/{chave}: coluna {coluna}")
+            evidencias[f"{bloco}_{chave}_numeros_parseaveis"] = 0
+            evidencias[f"{bloco}_{chave}_numeros_total"] = 0
+            continue
+
+        convertidos = serie.map(_converter_numero_validacao)
+        parseaveis = int(convertidos.notna().sum())
+
+        evidencias[f"{bloco}_{chave}_numeros_parseaveis"] = parseaveis
+        evidencias[f"{bloco}_{chave}_numeros_total"] = total
+
+        if parseaveis == 0:
+            _registrar_erro(erros, f"Nenhum valor numérico interpretável em {bloco}/{chave}: coluna {coluna}")
+        elif parseaveis < total:
+            _registrar_aviso(
+                avisos,
+                f"Há valores numéricos não interpretáveis em {bloco}/{chave}: {total - parseaveis}/{total}",
+            )
 
 
 def _validar_pacote_config(pacote_config: PacoteConfig, erros: list[str], evidencias: dict[str, Any]) -> None:
@@ -187,6 +377,7 @@ def _validar_pacote_planilha(
 
     conteudo = getattr(pacote_config, "conteudo", {}) if pacote_config is not None else {}
     abas_cfg = conteudo.get("abas", {}) if isinstance(conteudo, dict) else {}
+    colunas_cfg = conteudo.get("colunas", {}) if isinstance(conteudo, dict) else {}
 
     abas_obrigatorias: dict[str, str] = {}
     for chave in ABAS_OPERACIONAIS_OBRIGATORIAS:
@@ -196,9 +387,9 @@ def _validar_pacote_planilha(
 
     evidencias["abas_obrigatorias"] = dict(abas_obrigatorias)
 
-    for chave, nome_aba in abas_obrigatorias.items():
+    for bloco, nome_aba in abas_obrigatorias.items():
         if nome_aba not in nomes_abas:
-            _registrar_erro(erros, f"Aba obrigatória ausente na planilha: {chave} -> {nome_aba}")
+            _registrar_erro(erros, f"Aba obrigatória ausente na planilha: {bloco} -> {nome_aba}")
             continue
 
         quadro = quadros_brutos.get(nome_aba)
@@ -207,7 +398,7 @@ def _validar_pacote_planilha(
             continue
 
         shape = getattr(quadro, "shape", None)
-        evidencias[f"aba_{chave}_shape"] = tuple(shape) if shape is not None else None
+        evidencias[f"aba_{bloco}_shape"] = tuple(shape) if shape is not None else None
 
         if not shape or len(shape) != 2:
             _registrar_erro(erros, f"Quadro bruto sem shape tabular válido para aba: {nome_aba}")
@@ -218,6 +409,28 @@ def _validar_pacote_planilha(
             _registrar_erro(erros, f"Aba obrigatória sem colunas: {nome_aba}")
         if n_linhas <= 0:
             _registrar_erro(erros, f"Aba obrigatória sem linhas: {nome_aba}")
+
+        aliases_secao = colunas_cfg.get(bloco)
+        if not isinstance(aliases_secao, dict):
+            _registrar_erro(erros, f"Config sem aliases válidos para bloco {bloco}.")
+            continue
+
+        colunas_criticas = COLUNAS_CRITICAS_OBRIGATORIAS.get(bloco, ())
+        encontradas, aliases_testados, ausentes = _mapear_colunas_por_alias(
+            quadro,
+            aliases_secao,
+            colunas_criticas,
+        )
+
+        evidencias[f"{bloco}_colunas_criticas_encontradas"] = dict(encontradas)
+        evidencias[f"{bloco}_colunas_criticas_ausentes"] = list(ausentes)
+        evidencias[f"{bloco}_aliases_testados"] = dict(aliases_testados)
+
+        for chave_ausente in ausentes:
+            _registrar_erro(erros, f"Coluna crítica ausente em {bloco}/{chave_ausente} na aba {nome_aba}.")
+
+        _validar_datas_minimas(bloco, quadro, encontradas, erros, avisos, evidencias)
+        _validar_numeros_minimos(bloco, quadro, encontradas, erros, avisos, evidencias)
 
 
 def validar_pre_execucao(
