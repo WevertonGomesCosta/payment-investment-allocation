@@ -22,7 +22,6 @@
   },
   "bootstrap": {
     "config_preferido": "config_atualizado.json",
-    "config_fallback": "config.json",
     "parametros_5p_default_nome": "melhores_parametros_5p"
   },
   "rede": {
@@ -36,7 +35,9 @@
   "abas": {
     "carteira": "Carteira",
     "despesas": "Todos os Gastos",
-    "lotes": "Inventário de Lotes"
+    "lotes": "Inventário de Lotes",
+    "salarios": "Salários",
+    "switching": "Switching"
   },
   "colunas": {
     "carteira": {
@@ -353,6 +354,174 @@
       "lote_encontrado": [
         "lote_encontrado",
         "Lote_Encontrado"
+      ]
+    },
+    "salarios": {
+      "data_recebimento": [
+        "data_recebimento",
+        "data recebimento",
+        "Data Recebimento",
+        "data",
+        "Data"
+      ],
+      "valor_bruto": [
+        "valor_bruto",
+        "valor bruto",
+        "Valor Bruto",
+        "valor",
+        "Valor"
+      ],
+      "valor_liquido": [
+        "valor_liquido",
+        "valor líquido",
+        "valor liquido",
+        "Valor Líquido",
+        "Valor Liquido"
+      ],
+      "descricao": [
+        "descricao",
+        "descrição",
+        "Descrição",
+        "Descricao"
+      ],
+      "status": [
+        "status",
+        "Status"
+      ],
+      "entrada_id": [
+        "entrada_id",
+        "salario_id",
+        "salário_id",
+        "id",
+        "ID"
+      ]
+    },
+    "switching": {
+      "lote_id_antes": [
+        "lote_id_antes",
+        "lote antes",
+        "Lote Antes",
+        "lote (id) antes",
+        "Lote (ID) Antes",
+        "lote origem",
+        "Lote origem",
+        "Lote Origem",
+        "lote origem switching",
+        "Lote origem switching",
+        "Lote origem do switching",
+        "lote (id) origem",
+        "Lote (ID) Origem"
+      ],
+      "lote_id_depois": [
+        "lote_id_depois",
+        "lote depois",
+        "Lote Depois",
+        "lote (id) depois",
+        "Lote (ID) Depois",
+        "lote destino",
+        "Lote destino",
+        "Lote Destino",
+        "lote destino switching",
+        "Lote destino switching",
+        "Lote destino do switching",
+        "lote (id) destino",
+        "Lote (ID) Destino",
+        "novo lote",
+        "Novo lote",
+        "lote pós-switching",
+        "lote pos-switching",
+        "Lote pós-switching",
+        "Lote pos-switching"
+      ],
+      "data_recebimento": [
+        "data_recebimento",
+        "data recebimento",
+        "Data Recebimento",
+        "data origem",
+        "Data origem",
+        "Data Origem"
+      ],
+      "data_aplicacao": [
+        "data_aplicacao",
+        "data aplicação",
+        "data aplicacao",
+        "Data Aplicação",
+        "Data Aplicacao",
+        "data sugerida",
+        "Data sugerida",
+        "Data Sugerida",
+        "data sugerida switching",
+        "Data sugerida switching",
+        "data switching",
+        "Data switching",
+        "Data Switching",
+        "data migração",
+        "data migracao",
+        "Data Migração",
+        "Data Migracao",
+        "data execução",
+        "data execucao",
+        "Data Execução",
+        "Data Execucao"
+      ],
+      "valor_liquido_migrado": [
+        "valor_liquido_migrado",
+        "valor líquido migrado",
+        "valor liquido migrado",
+        "Valor Líquido Migrado",
+        "Valor Liquido Migrado",
+        "valor migrado",
+        "Valor migrado",
+        "Valor Migrado",
+        "valor líquido origem",
+        "valor liquido origem",
+        "Valor líquido origem",
+        "Valor liquido origem",
+        "Valor Líquido Origem",
+        "Valor Liquido Origem",
+        "valor líquido do switching",
+        "valor liquido do switching",
+        "Valor Líquido do Switching",
+        "Valor Liquido do Switching"
+      ],
+      "investimento": [
+        "investimento",
+        "Investimento",
+        "produto destino",
+        "Produto Destino",
+        "produto_destino",
+        "produto destino switching",
+        "Produto destino switching",
+        "Produto Destino Switching",
+        "investimento destino",
+        "Investimento destino",
+        "Investimento Destino",
+        "produto depois",
+        "Produto depois",
+        "Produto Depois",
+        "investimento depois",
+        "Investimento depois",
+        "Investimento Depois",
+        "destino",
+        "Destino"
+      ],
+      "produto_origem": [
+        "produto origem",
+        "Produto Origem",
+        "produto antes",
+        "Produto Antes",
+        "investimento antes",
+        "Investimento Antes",
+        "investimento origem",
+        "Investimento origem",
+        "Investimento Origem",
+        "produto origem switching",
+        "Produto origem switching",
+        "Produto Origem Switching"
+      ],
+      "status": [
+        "status",
+        "Status"
       ]
     }
   },
