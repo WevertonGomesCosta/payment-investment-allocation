@@ -28,7 +28,7 @@ Em termos operacionais, isso significa que:
 - pagamentos não devem ser avaliados de forma isolada dos switchings;
 - switchings não devem ser avaliados de forma isolada dos pagamentos;
 - fontes, lotes, saldos, eventos e saídas devem derivar de uma fonte única de verdade temporal;
-- console, planilhas e relatórios devem apenas apresentar resultados da simulação, não reconstruir decisões.
+- console e planilhas devem apenas apresentar resultados da simulação, não reconstruir decisões.
 
 ## Entrada operacional
 
@@ -46,17 +46,69 @@ A base financeira principal fica em:
 dados/dados_financeiros.xlsx
 ```
 
-As abas operacionais usadas pelo projeto são:
+As abas operacionais mínimas usadas pelo projeto são:
 
 - `Carteira`
 - `Todos os Gastos`
 - `Inventário de Lotes`
+- `Salários`
+- `Switching`
+
+A aba `Switching` pode aparecer na base com variações de grafia aceitas pelo contrato, como `Switiching` ou `Swtiching`, mas a entidade interna canônica deve ser tratada como `switching`.
 
 A configuração principal fica em:
 
 ```text
 dados/config_atualizado.json
 ```
+
+## Fluxograma macro do pipeline operacional
+
+O pipeline oficial do projeto deve ser interpretado como um processo contínuo, organizado em camadas canônicas.
+
+O fluxograma macro não detalha subetapas internas. O detalhamento de cada etapa deve ser feito em auditorias ou documentos técnicos específicos.
+
+```mermaid
+flowchart TD
+    A["1. Entrada bruta e configuração"] --> B["2. Validação pré-execução"]
+
+    B --> C["3. Dados operacionais e universo econômico canônico"]
+
+    C --> D["4. Estado temporal inicial"]
+
+    D --> E["5. Motor temporal conjunto"]
+
+    C -. "universo econômico / ranking para switchings" .-> E
+
+    E --> F["6. Ledger canônico do pacote escolhido"]
+
+    F --> G["7. Gates de validação de núcleo"]
+
+    G --> H["8. Saída canônica validada"]
+
+    H --> I["9. Renderização oficial unificada"]
+
+    I --> I1["Console"]
+    I --> I2["XLSX"]
+
+    I1 --> J["10. Validação de paridade da renderização"]
+    I2 --> J
+
+    J --> K["11. Limpeza e depreciação controlada"]
+
+    K --> A
+```
+
+Leitura operacional do fluxograma:
+
+- a etapa 3 constrói os dados operacionais canônicos e o universo econômico canônico;
+- o inventário completo de lotes deve ser produzido na etapa 3, combinando `Inventário de Lotes` e `Switching`;
+- o ranking da `Carteira` pertence ao universo econômico canônico;
+- o estado temporal inicial depende dos dados financeiros canônicos e do inventário completo, mas não depende diretamente do ranking;
+- o motor temporal conjunto depende do estado temporal inicial e também do universo econômico/ranking para avaliar switchings;
+- pagamentos e switchings devem ser resolvidos conjuntamente dentro do motor temporal;
+- console e XLSX são renderizações sincronizadas da mesma saída canônica validada;
+- a limpeza e depreciação controlada retorna à etapa 1, exigindo nova execução integral do pipeline.
 
 ## Saídas esperadas
 
