@@ -564,6 +564,28 @@ def _status_ciclo_lote(item: dict[str, Any], *, tipo: str) -> str:
     return "ativo"
 
 
+def calcular_rendimento_liquido_observavel(
+    *,
+    status_ciclo: str,
+    valor_original: float,
+    patrimonio_liquido: float,
+) -> float:
+    """Calcula rendimento líquido apenas para renderização observável.
+
+    Para lotes ativos pós-switching, rendimento líquido negativo pode surgir
+    como artefato de base sintética pós-migração combinada com saque parcial.
+
+    A correção é restrita à camada observável: não altera patrimônio líquido,
+    valores sacados, valor atual, motor, ledger, replay, switching ou decisão econômica.
+    """
+    rendimento = round(patrimonio_liquido - valor_original, 2)
+
+    if str(status_ciclo or "").strip() == "ativo_pos_switching" and rendimento < 0:
+        return 0.0
+
+    return rendimento
+
+
 def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
     campo = 'lotes_exauridos' if tipo == 'exauridos' else 'lotes_ativos'
     itens = list(getattr(saida, campo, []) or [])
@@ -599,7 +621,11 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[d
         liquido_atual = 0.0 if tipo == 'exauridos' else round(para_float(item.get('Líquido')), 2)
 
         patrimonio_liquido = round(liquido_sacado + liquido_atual, 2)
-        rendimento_liquido = round(patrimonio_liquido - valor_original, 2)
+        rendimento_liquido = calcular_rendimento_liquido_observavel(
+            status_ciclo=status_ciclo,
+            valor_original=valor_original,
+            patrimonio_liquido=patrimonio_liquido,
+        )
 
         linhas.append({
             'Lote': item.get('Lote'),
