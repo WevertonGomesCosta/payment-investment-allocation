@@ -32,7 +32,7 @@ def _resolver_produto_canonico_local(valor_produto: str, carteira: Optional[Paco
     return {'produto_key': None,'produto_nome_canonico': valor_produto,'produto_nome_norm': valor_norm,'produto_encontrado': False,'tipo_match_produto': 'nao_encontrado','score_match_produto': 0.0,'referencia_match_produto': ''}
 
 COLUNAS_SCHEMA = [
-    'ordem_planilha','origem_registro','lote_id_raw','lote_id','data_recebimento','data_aplicacao','valor_original',
+    'lote_id','lote_id_raw','ordem_planilha_lote','origem_registro','data_recebimento','data_aplicacao','valor_original',
     'data_base_fiscal','data_base_fiscal_inferida','status_lote_informado','investimento_bruto','produto_informado',
     'situacao_investimento','aportado','nao_aportado_disponivel','nao_aportado_exaurido','recebido_futuro_nao_disponivel',
     'disponivel_na_data_referencia','produto_key','produto_nome_canonico','produto_nome_norm','produto_encontrado',
@@ -54,6 +54,8 @@ def normalizar_lotes_pos_switching_para_schema_inventario(
             'qtd_lotes_pos_com_schema_valido': 0,
             'qtd_lotes_pos_sem_produto_destino': 0,
             'qtd_lotes_pos_sem_valor': 0,
+            'qtd_lotes_pos_sem_data_recebimento': 0,
+            'qtd_lotes_pos_sem_data_aplicacao': 0,
         }
 
     for idx, row in switching_canonico.iterrows():
@@ -61,20 +63,26 @@ def normalizar_lotes_pos_switching_para_schema_inventario(
         lote_id = normalizar_identificador(lote_destino_raw)
         if not lote_id:
             continue
-        data_sw = para_data(row.get('data_switching'))
+
+        data_recebimento = para_data(row.get('data_recebimento')) or para_data(row.get('data_switching')) or para_data(row.get('data_aplicacao'))
+        data_aplicacao = para_data(row.get('data_aplicacao')) or para_data(row.get('data_switching')) or data_recebimento
+        data_base_fiscal = data_aplicacao
+
         valor = para_float_monetario(row.get('valor_liquido_origem'), 0.0)
         produto_destino = limpar_texto(row.get('produto_destino'))
 
         produto_resolvido = _resolver_produto_canonico_local(produto_destino, carteira_canonica)
+        data_disponibilidade = data_recebimento or data_aplicacao
+
         registros.append({
-            'ordem_planilha': int(idx) + 1,
-            'origem_registro': 'lote_pos_switching_normalizado',
-            'lote_id_raw': lote_destino_raw,
             'lote_id': lote_id,
-            'data_recebimento': data_sw,
-            'data_aplicacao': data_sw,
+            'lote_id_raw': lote_destino_raw,
+            'ordem_planilha_lote': int(row.get('ordem_planilha_switching') or idx + 1),
+            'origem_registro': 'lote_pos_switching_normalizado',
+            'data_recebimento': data_recebimento,
+            'data_aplicacao': data_aplicacao,
             'valor_original': valor,
-            'data_base_fiscal': data_sw,
+            'data_base_fiscal': data_base_fiscal,
             'data_base_fiscal_inferida': True,
             'status_lote_informado': limpar_texto(row.get('status')),
             'investimento_bruto': produto_destino,
@@ -84,7 +92,7 @@ def normalizar_lotes_pos_switching_para_schema_inventario(
             'nao_aportado_disponivel': False,
             'nao_aportado_exaurido': False,
             'recebido_futuro_nao_disponivel': False,
-            'disponivel_na_data_referencia': bool(data_sw is None or data_sw <= data_referencia),
+            'disponivel_na_data_referencia': bool(data_disponibilidade is None or data_disponibilidade <= data_referencia),
             **produto_resolvido,
         })
 
@@ -94,6 +102,10 @@ def normalizar_lotes_pos_switching_para_schema_inventario(
         'qtd_lotes_pos_com_schema_valido': int(len(df)),
         'qtd_lotes_pos_sem_produto_destino': int((df['produto_informado'].fillna('') == '').sum()) if len(df) else 0,
         'qtd_lotes_pos_sem_valor': int((pd.to_numeric(df['valor_original'], errors='coerce').fillna(0.0) <= 0).sum()) if len(df) else 0,
+        'qtd_lotes_pos_sem_data_recebimento': int(df['data_recebimento'].isna().sum()) if len(df) else 0,
+        'qtd_lotes_pos_sem_data_aplicacao': int(df['data_aplicacao'].isna().sum()) if len(df) else 0,
+        'qtd_lotes_pos_sem_data_base_fiscal': int(df['data_base_fiscal'].isna().sum()) if len(df) else 0,
+        'qtd_lotes_pos_com_produto_resolvido': int(df['produto_encontrado'].fillna(False).astype(bool).sum()) if len(df) else 0,
     }
     return df, auditoria
 

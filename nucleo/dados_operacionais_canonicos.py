@@ -609,6 +609,8 @@ def carregar_switching_canonico(
         "switching_id",
         "ordem_planilha_switching",
         "origem_registro",
+        "data_recebimento",
+        "data_aplicacao",
         "data_switching",
         "lote_origem",
         "lote_destino",
@@ -625,7 +627,16 @@ def carregar_switching_canonico(
         auditoria["resumo"] = {"total_switchings": 0, "valor_liquido_origem_total": 0.0}
         return nome_aba, quadro, auditoria
 
-    col_data = _resolver_coluna_por_alias_local(df, [
+    col_data_recebimento = _resolver_coluna_por_alias_local(df, [
+        "data_recebimento", "data recebimento", "Data Recebimento",
+        "recebimento", "Recebimento",
+    ])
+    col_data_aplicacao = _resolver_coluna_por_alias_local(df, [
+        "data_aplicacao", "data aplicação", "data aplicacao",
+        "Data Aplicação", "Data Aplicacao",
+        "aplicação", "aplicacao", "Aplicação", "Aplicacao",
+    ])
+    col_data_switching = _resolver_coluna_por_alias_local(df, [
         "data_switching", "data switching", "Data Switching",
         "data sugerida", "Data sugerida", "Data Sugerida",
         "data", "Data",
@@ -633,11 +644,13 @@ def carregar_switching_canonico(
     col_lote_origem = _resolver_coluna_por_alias_local(df, [
         "lote_origem", "lote origem", "Lote origem", "Lote Origem",
         "lote_id_antes", "lote antes", "Lote antes",
+        "Lote (ID) Antes", "lote (id) antes",
     ])
     col_lote_destino = _resolver_coluna_por_alias_local(df, [
         "lote_destino", "lote destino", "Lote destino", "Lote Destino",
         "lote_pos_switching", "lote pós switching", "lote pos switching",
         "lote_id_depois", "lote depois", "Lote depois",
+        "Lote (ID) Depois", "lote (id) depois",
     ])
     col_produto_origem = _resolver_coluna_por_alias_local(df, [
         "produto_origem", "produto origem", "Produto origem", "Produto Origem",
@@ -655,12 +668,15 @@ def carregar_switching_canonico(
     col_valor = _resolver_coluna_por_alias_local(df, [
         "valor_liquido_origem", "valor líquido origem", "Valor líquido origem", "Valor Liquido Origem",
         "valor_liquido_migrado", "valor líquido migrado", "Valor líquido migrado", "Valor Liquido Migrado",
+        "Valor Líquido Migrado",
         "valor", "Valor",
     ])
     col_status = _resolver_coluna_por_alias_local(df, ["status", "Status"])
 
     auditoria["colunas_resolvidas"] = {
-        "data_switching": col_data,
+        "data_recebimento": col_data_recebimento,
+        "data_aplicacao": col_data_aplicacao,
+        "data_switching": col_data_switching,
         "lote_origem": col_lote_origem,
         "lote_destino": col_lote_destino,
         "produto_origem": col_produto_origem,
@@ -672,13 +688,31 @@ def carregar_switching_canonico(
 
     registros = []
     for idx, row in df.iterrows():
-        data_switching = para_data(row.get(col_data)) if col_data else None
+        data_recebimento = para_data(row.get(col_data_recebimento)) if col_data_recebimento else None
+        data_aplicacao = para_data(row.get(col_data_aplicacao)) if col_data_aplicacao else None
+        data_switching_legacy = para_data(row.get(col_data_switching)) if col_data_switching else None
+
+        if data_aplicacao is None:
+            data_aplicacao = data_switching_legacy
+        if data_recebimento is None:
+            data_recebimento = data_switching_legacy or data_aplicacao
+
+        data_switching = data_aplicacao or data_switching_legacy or data_recebimento
+
         lote_origem = normalizar_identificador(row.get(col_lote_origem)) if col_lote_origem else ""
         lote_destino = normalizar_identificador(row.get(col_lote_destino)) if col_lote_destino else ""
         produto_destino = limpar_texto(row.get(col_produto_destino)) if col_produto_destino else ""
         valor_liquido = para_float_monetario(row.get(col_valor), 0.0) if col_valor else 0.0
 
-        if data_switching is None and not lote_origem and not lote_destino and not produto_destino and valor_liquido <= 0:
+        if (
+            data_recebimento is None
+            and data_aplicacao is None
+            and data_switching is None
+            and not lote_origem
+            and not lote_destino
+            and not produto_destino
+            and valor_liquido <= 0
+        ):
             auditoria["linhas_descartadas"].append({"idx": int(idx), "motivo": "linha_vazia"})
             continue
 
@@ -686,6 +720,8 @@ def carregar_switching_canonico(
             "switching_id": f"switching_auto_{len(registros) + 1:05d}",
             "ordem_planilha_switching": para_int(idx, 0) + 1,
             "origem_registro": "switching",
+            "data_recebimento": data_recebimento,
+            "data_aplicacao": data_aplicacao,
             "data_switching": data_switching,
             "lote_origem": lote_origem,
             "lote_destino": lote_destino,
@@ -700,6 +736,10 @@ def carregar_switching_canonico(
     validacao = {"ok": True, "erros": [], "avisos": []}
     if len(quadro) == 0:
         validacao["avisos"].append("switching_canonico_vazio")
+    if len(quadro) > 0 and quadro["data_recebimento"].isna().any():
+        validacao["avisos"].append("existem_switchings_sem_data_recebimento")
+    if len(quadro) > 0 and quadro["data_aplicacao"].isna().any():
+        validacao["avisos"].append("existem_switchings_sem_data_aplicacao")
     if len(quadro) > 0 and quadro["data_switching"].isna().any():
         validacao["avisos"].append("existem_switchings_sem_data")
     if len(quadro) > 0 and (quadro["lote_origem"] == "").any():
@@ -711,6 +751,8 @@ def carregar_switching_canonico(
     auditoria["resumo"] = {
         "total_switchings": int(len(quadro)),
         "valor_liquido_origem_total": float(round(quadro["valor_liquido_origem"].sum(), 2)) if len(quadro) else 0.0,
+        "com_data_recebimento": int(quadro["data_recebimento"].notna().sum()) if len(quadro) else 0,
+        "com_data_aplicacao": int(quadro["data_aplicacao"].notna().sum()) if len(quadro) else 0,
         "com_lote_origem": int((quadro["lote_origem"] != "").sum()) if len(quadro) else 0,
         "com_lote_destino": int((quadro["lote_destino"] != "").sum()) if len(quadro) else 0,
         "com_produto_destino": int((quadro["produto_destino"] != "").sum()) if len(quadro) else 0,
@@ -725,7 +767,7 @@ def carregar_dados_operacionais_canonicos(
     data_referencia: date,
     carteira_canonica: Optional[PacoteCarteiraCanonica] = None,
 ) -> PacoteDadosOperacionaisCanonicos:
-    nome_aba_lotes, inventario_canonico, auditoria_inventario = carregar_inventario_canonico(
+    nome_aba_lotes, inventario_canonico_base, auditoria_inventario = carregar_inventario_canonico(
         pacote_planilha,
         config,
         data_referencia=data_referencia,
@@ -752,17 +794,60 @@ def carregar_dados_operacionais_canonicos(
         data_referencia=data_referencia,
         carteira_canonica=carteira_canonica,
     )
-    inventario_lotes_expandido, auditoria_expandido = construir_inventario_lotes_expandido(
-        inventario_canonico,
+    inventario_canonico_operacional, auditoria_expandido = construir_inventario_lotes_expandido(
+        inventario_canonico_base,
         lotes_pos_switching_normalizados,
     )
-    auditoria_expandido = {**auditoria_expandido, **auditoria_pos}
+
+    origem_ids = set()
+    if isinstance(switching_canonico, pd.DataFrame) and len(switching_canonico) and "lote_origem" in switching_canonico.columns:
+        origem_ids = {
+            normalizar_identificador(v)
+            for v in switching_canonico["lote_origem"].tolist()
+            if normalizar_identificador(v)
+        }
+
+    base_origens = pd.DataFrame()
+    if origem_ids and "lote_id" in inventario_canonico_base.columns:
+        base_origens = inventario_canonico_base[
+            inventario_canonico_base["lote_id"].astype(str).map(normalizar_identificador).isin(origem_ids)
+        ].copy()
+
+    qtd_origens_potencialmente_ativas = 0
+    if len(base_origens):
+        if "nao_aportado_exaurido" in base_origens.columns:
+            qtd_origens_potencialmente_ativas = int((~base_origens["nao_aportado_exaurido"].fillna(False).astype(bool)).sum())
+        else:
+            qtd_origens_potencialmente_ativas = int(len(base_origens))
+
+    auditoria_expandido = {
+        **auditoria_expandido,
+        **auditoria_pos,
+        "inventario_canonico_operacional_expandido": True,
+        "qtd_lotes_inventario_canonico_base": int(len(inventario_canonico_base)),
+        "qtd_lotes_destino_switching_integrados": int(len(lotes_pos_switching_normalizados)),
+        "qtd_lotes_inventario_canonico_operacional": int(len(inventario_canonico_operacional)),
+        "qtd_lotes_origem_switching_distintos": int(len(origem_ids)),
+        "qtd_lotes_origem_switching_encontrados_no_inventario": int(len(base_origens)),
+        "qtd_lotes_origem_switching_potencialmente_ativos": int(qtd_origens_potencialmente_ativas),
+        "risco_dupla_contagem_origem_switching": bool(qtd_origens_potencialmente_ativas > 0 and len(lotes_pos_switching_normalizados) > 0),
+        "neutralizacao_temporal_origem_switching": "nao_realizada_nesta_microetapa",
+    }
+
+    auditoria_inventario_operacional = {
+        **auditoria_inventario,
+        "inventario_canonico_operacional_expandido": True,
+        "qtd_lotes_inventario_canonico_base": int(len(inventario_canonico_base)),
+        "qtd_lotes_pos_switching_integrados": int(len(lotes_pos_switching_normalizados)),
+        "qtd_lotes_inventario_canonico_operacional": int(len(inventario_canonico_operacional)),
+    }
+
     return PacoteDadosOperacionaisCanonicos(
         nome_aba_lotes=nome_aba_lotes,
         nome_aba_despesas=nome_aba_despesas,
-        inventario_canonico=inventario_canonico,
+        inventario_canonico=inventario_canonico_operacional,
         gastos_canonicos=gastos_canonicos,
-        auditoria_inventario=auditoria_inventario,
+        auditoria_inventario=auditoria_inventario_operacional,
         auditoria_gastos=auditoria_gastos,
         nome_aba_salarios=nome_aba_salarios,
         nome_aba_switching=nome_aba_switching,
@@ -770,7 +855,8 @@ def carregar_dados_operacionais_canonicos(
         switching_canonico=switching_canonico,
         auditoria_salarios=auditoria_salarios,
         auditoria_switching=auditoria_switching,
-        inventario_lotes_expandido=inventario_lotes_expandido,
+        inventario_lotes_expandido=inventario_canonico_operacional,
         lotes_pos_switching_normalizados=lotes_pos_switching_normalizados,
         auditoria_inventario_expandido=auditoria_expandido,
     )
+
