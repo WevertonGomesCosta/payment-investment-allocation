@@ -65,6 +65,8 @@ class ContextoBaseline:
     saldo_disponivel_geral: Any
     decisao_local_v1: Any
     cache_cdi: PacoteCacheCDIDiario
+    pacote_entrada_resolvida: PacoteEntradaResolvida
+    auditoria_pacote_entrada_resolvida: AuditoriaPacoteEntradaResolvida
     pacote_entrada_resolvida_shadow: PacoteEntradaResolvida
     auditoria_pacote_entrada_resolvida_shadow: AuditoriaPacoteEntradaResolvida
     auditoria_temporal_decisao_local: Any
@@ -148,13 +150,15 @@ def carregar_contexto_baseline(
         data_referencia=contexto_execucao.data_referencia,
         raiz_repositorio=pacote_config.raiz_repositorio,
     )
-    pacote_entrada_resolvida_shadow = montar_pacote_entrada_resolvida(
+    pacote_entrada_resolvida = montar_pacote_entrada_resolvida(
         pacote_config=pacote_config,
         contexto_execucao=contexto_execucao,
         pacote_planilha=pacote_planilha,
         pacote_cache_cdi=cache_cdi,
         metadados={
-            'modo_shadow_contexto_baseline': True,
+            'modo_shadow_contexto_baseline': False,
+            'artefato_operacional_contexto_baseline': True,
+            'alias_shadow_preservado_temporariamente': True,
             'substitui_atributos_legados': False,
             'substitui_validacao_pre_execucao': True,
             'validacao_legada_preservada_shadow': True,
@@ -162,12 +166,14 @@ def carregar_contexto_baseline(
             'substitui_cache_cdi_operacional': False,
         },
     )
-    auditoria_pacote_entrada_resolvida_shadow = auditar_pacote_entrada_resolvida(
-        pacote_entrada_resolvida_shadow,
+    pacote_entrada_resolvida_shadow = pacote_entrada_resolvida
+    auditoria_pacote_entrada_resolvida = auditar_pacote_entrada_resolvida(
+        pacote_entrada_resolvida,
         exigir_cache_cdi=True,
     )
+    auditoria_pacote_entrada_resolvida_shadow = auditoria_pacote_entrada_resolvida
     validacao_pre_execucao = validar_pre_execucao_pacote_entrada_resolvida(
-        pacote_entrada_resolvida_shadow,
+        pacote_entrada_resolvida,
     )
     validacao_pre_execucao_pacote_entrada_resolvida_shadow = validacao_pre_execucao
     if not validacao_pre_execucao.ok:
@@ -384,6 +390,8 @@ def carregar_contexto_baseline(
         saldo_disponivel_geral=saldo_disponivel_geral,
         decisao_local_v1=decisao_local_v1,
         cache_cdi=cache_cdi,
+        pacote_entrada_resolvida=pacote_entrada_resolvida,
+        auditoria_pacote_entrada_resolvida=auditoria_pacote_entrada_resolvida,
         pacote_entrada_resolvida_shadow=pacote_entrada_resolvida_shadow,
         auditoria_pacote_entrada_resolvida_shadow=auditoria_pacote_entrada_resolvida_shadow,
         auditoria_temporal_decisao_local=auditoria_temporal_decisao_local,
