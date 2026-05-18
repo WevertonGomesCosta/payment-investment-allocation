@@ -20,7 +20,7 @@ except Exception:  # pragma: no cover
     requests = None  # type: ignore
 
 from nucleo.config_utils import obter_config as _cfg_get
-from nucleo.entrada_resolvida import MapaAbasResolvidas
+from nucleo.entrada_resolvida import MapaAbasResolvidas, MapaColunasResolvidas
 from nucleo.utilitarios_neutros import normalizar_texto
 
 
@@ -33,6 +33,7 @@ class PacotePlanilha:
     auditoria: dict[str, Any]
     validacao: dict[str, Any]
     mapa_abas_resolvidas: Optional[MapaAbasResolvidas] = None
+    mapa_colunas_resolvidas: Optional[MapaColunasResolvidas] = None
 
 
 def _montar_url_download_planilha(config: Mapping[str, Any]) -> Optional[str]:
@@ -240,6 +241,101 @@ def construir_mapa_abas_resolvidas(
     )
 
 
+def construir_mapa_colunas_resolvidas(
+    quadros_brutos: Mapping[str, pd.DataFrame],
+    mapa_abas_resolvidas: MapaAbasResolvidas,
+    config: Mapping[str, Any],
+) -> MapaColunasResolvidas:
+    """Constrói o mapa estrutural de colunas resolvidas da Etapa 1.
+
+    A função apenas explicita a correspondência entre campos configurados e
+    colunas físicas encontradas. Ela usa o mesmo critério de normalização de
+    aliases já usado por ``resolver_coluna`` e ``canonizar_colunas``, mas não
+    altera os DataFrames, não cria dados operacionais canônicos e não executa
+    validação pré-execução.
+    """
+
+    colunas_config = config.get("colunas", {}) if isinstance(config.get("colunas"), Mapping) else {}
+
+    colunas_por_bloco: dict[str, dict[str, str]] = {}
+    metadados_por_bloco: dict[str, Mapping[str, Any]] = {}
+    campos_ausentes_por_bloco: dict[str, list[str]] = {}
+
+    for bloco, aba_resolvida in mapa_abas_resolvidas.abas_por_bloco.items():
+        quadro = quadros_brutos.get(aba_resolvida)
+        aliases_por_campo = colunas_config.get(bloco, {}) if isinstance(colunas_config.get(bloco), Mapping) else {}
+
+        colunas_resolvidas: dict[str, str] = {}
+        metadados_campos: dict[str, Mapping[str, Any]] = {}
+        campos_ausentes: list[str] = []
+
+        if quadro is None:
+            campos_ausentes_por_bloco[str(bloco)] = [str(campo) for campo in aliases_por_campo]
+            metadados_por_bloco[str(bloco)] = {
+                "aba_resolvida": aba_resolvida,
+                "quadro_presente": False,
+                "campos": {},
+                "criterio_resolucao": "aliases_config_colunas_normalizados",
+            }
+            continue
+
+        colunas_reais = [str(coluna) for coluna in quadro.columns]
+        mapa_colunas_normalizadas = {normalizar_texto(coluna): coluna for coluna in colunas_reais}
+
+        for campo, aliases in aliases_por_campo.items():
+            campo_str = str(campo)
+            aliases_lista = [str(alias) for alias in aliases] if isinstance(aliases, list) else []
+            coluna_resolvida: Optional[str] = None
+            alias_resolvido: Optional[str] = None
+
+            for alias in aliases_lista:
+                alias_norm = normalizar_texto(alias)
+                if alias_norm in mapa_colunas_normalizadas:
+                    coluna_resolvida = str(mapa_colunas_normalizadas[alias_norm])
+                    alias_resolvido = alias
+                    break
+
+            if coluna_resolvida is not None:
+                colunas_resolvidas[campo_str] = coluna_resolvida
+            else:
+                campos_ausentes.append(campo_str)
+
+            metadados_campos[campo_str] = {
+                "aliases_configurados": aliases_lista,
+                "alias_resolvido": alias_resolvido,
+                "coluna_resolvida": coluna_resolvida,
+                "presente": coluna_resolvida is not None,
+            }
+
+        colunas_por_bloco[str(bloco)] = colunas_resolvidas
+        campos_ausentes_por_bloco[str(bloco)] = campos_ausentes
+        metadados_por_bloco[str(bloco)] = {
+            "aba_resolvida": aba_resolvida,
+            "quadro_presente": True,
+            "qtd_colunas_quadro": len(colunas_reais),
+            "qtd_campos_configurados": len(aliases_por_campo),
+            "qtd_campos_resolvidos": len(colunas_resolvidas),
+            "campos": metadados_campos,
+            "criterio_resolucao": "aliases_config_colunas_normalizados",
+        }
+
+    auditoria = {
+        "qtd_blocos_com_abas_resolvidas": len(mapa_abas_resolvidas.abas_por_bloco),
+        "qtd_blocos_com_colunas_resolvidas": len(colunas_por_bloco),
+        "campos_ausentes_por_bloco": campos_ausentes_por_bloco,
+        "criterio_resolucao": "aliases_config_colunas_normalizados",
+        "altera_colunas_dataframe": False,
+        "altera_leitura_planilha": False,
+        "altera_fluxo_operacional": False,
+    }
+
+    return MapaColunasResolvidas(
+        colunas_por_bloco=colunas_por_bloco,
+        metadados_por_bloco=metadados_por_bloco,
+        auditoria=auditoria,
+    )
+
+
 def resolver_caminho_planilha(
     config: Mapping[str, Any],
     *,
@@ -325,6 +421,12 @@ def carregar_planilha(
         mapa_alias = aliases_por_bloco.get(nome_bloco, {}) if nome_bloco else {}
         quadros_canonicos[nome_aba] = canonizar_colunas(quadro, mapa_alias=mapa_alias)
 
+    mapa_colunas_resolvidas = construir_mapa_colunas_resolvidas(
+        quadros_brutos,
+        mapa_abas_resolvidas,
+        config,
+    )
+
     auditoria = {
         'fonte_planilha': fonte_planilha,
         'fetch_status_planilha': fetch_status,
@@ -341,6 +443,7 @@ def carregar_planilha(
         auditoria=auditoria,
         validacao=validacao,
         mapa_abas_resolvidas=mapa_abas_resolvidas,
+        mapa_colunas_resolvidas=mapa_colunas_resolvidas,
     )
 
 
