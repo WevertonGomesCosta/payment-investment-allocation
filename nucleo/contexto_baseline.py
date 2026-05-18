@@ -56,6 +56,7 @@ class ContextoBaseline:
     calendario_financeiro: Any
     pacote_planilha: PacotePlanilha
     validacao_pre_execucao: PacoteValidacaoPreExecucao
+    validacao_pre_execucao_legada_shadow: PacoteValidacaoPreExecucao
     validacao_pre_execucao_pacote_entrada_resolvida_shadow: PacoteValidacaoPreExecucao
     carteira_canonica: Any
     dados_operacionais: Any
@@ -125,14 +126,11 @@ def carregar_contexto_baseline(
         raiz_repositorio=pacote_config.raiz_repositorio,
         data_referencia=contexto_execucao.data_referencia,
     )
-    validacao_pre_execucao = validar_pre_execucao(
+    validacao_pre_execucao_legada_shadow = validar_pre_execucao(
         pacote_config,
         contexto_execucao,
         pacote_planilha,
     )
-    if not validacao_pre_execucao.ok:
-        detalhes = "\n - ".join(validacao_pre_execucao.erros_bloqueantes)
-        raise RuntimeError(f"Validação pré-execução reprovada:\n - {detalhes}")
     carteira_canonica = carregar_carteira_canonica(pacote_planilha, pacote_config.conteudo)
     dados_operacionais = carregar_dados_operacionais_canonicos(
         pacote_planilha,
@@ -158,7 +156,8 @@ def carregar_contexto_baseline(
         metadados={
             'modo_shadow_contexto_baseline': True,
             'substitui_atributos_legados': False,
-            'substitui_validacao_pre_execucao': False,
+            'substitui_validacao_pre_execucao': True,
+            'validacao_legada_preservada_shadow': True,
             'substitui_dados_operacionais_canonicos': False,
             'substitui_cache_cdi_operacional': False,
         },
@@ -167,9 +166,13 @@ def carregar_contexto_baseline(
         pacote_entrada_resolvida_shadow,
         exigir_cache_cdi=True,
     )
-    validacao_pre_execucao_pacote_entrada_resolvida_shadow = validar_pre_execucao_pacote_entrada_resolvida(
+    validacao_pre_execucao = validar_pre_execucao_pacote_entrada_resolvida(
         pacote_entrada_resolvida_shadow,
     )
+    validacao_pre_execucao_pacote_entrada_resolvida_shadow = validacao_pre_execucao
+    if not validacao_pre_execucao.ok:
+        detalhes = "\n - ".join(validacao_pre_execucao.erros_bloqueantes)
+        raise RuntimeError(f"Validação pré-execução por PacoteEntradaResolvida reprovada:\n - {detalhes}")
     switching_shadow = carregar_switching_shadow_reconciliacao(dados_operacionais, carteira_canonica=carteira_canonica) if incluir_switching_shadow else None
     triagem_motor = carregar_triagem_motor(
         carteira_canonica,
@@ -372,6 +375,7 @@ def carregar_contexto_baseline(
         calendario_financeiro=calendario_financeiro,
         pacote_planilha=pacote_planilha,
         validacao_pre_execucao=validacao_pre_execucao,
+        validacao_pre_execucao_legada_shadow=validacao_pre_execucao_legada_shadow,
         validacao_pre_execucao_pacote_entrada_resolvida_shadow=validacao_pre_execucao_pacote_entrada_resolvida_shadow,
         carteira_canonica=carteira_canonica,
         dados_operacionais=dados_operacionais,
