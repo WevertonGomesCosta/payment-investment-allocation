@@ -353,9 +353,48 @@ def construir_mapa_colunas_resolvidas(
     )
 
 
+def _string_iso_yyyy_mm_dd(valor: str) -> bool:
+    texto = valor.strip()
+    return (
+        len(texto) == 10
+        and texto[4] == "-"
+        and texto[7] == "-"
+        and texto[:4].isdigit()
+        and texto[5:7].isdigit()
+        and texto[8:10].isdigit()
+    )
+
+
 def _normalizar_data_para_janela_cdi(valor: Any) -> Optional[date]:
-    if valor is None or pd.isna(valor):
+    if valor is None:
         return None
+    if isinstance(valor, date):
+        return valor
+    try:
+        if pd.isna(valor):
+            return None
+    except Exception:
+        pass
+
+    if isinstance(valor, str):
+        texto = valor.strip()
+        if not texto:
+            return None
+        if _string_iso_yyyy_mm_dd(texto):
+            try:
+                convertido_iso = pd.to_datetime(texto, errors="coerce", format="%Y-%m-%d")
+            except Exception:
+                convertido_iso = pd.NaT
+            if not pd.isna(convertido_iso):
+                return convertido_iso.date()
+        try:
+            convertido_br = pd.to_datetime(texto, errors="coerce", dayfirst=True)
+        except Exception:
+            return None
+        if pd.isna(convertido_br):
+            return None
+        return convertido_br.date()
+
     try:
         convertido = pd.to_datetime(valor, errors="coerce", dayfirst=True)
     except Exception:
@@ -401,8 +440,11 @@ def construir_janela_consulta_cdi(
             if coluna not in quadro.columns:
                 continue
 
-            serie_datas = pd.to_datetime(quadro[coluna], errors="coerce", dayfirst=True).dropna()
-            datas_coluna = [valor.date() for valor in serie_datas]
+            datas_coluna = [
+                data_normalizada
+                for valor in quadro[coluna]
+                if (data_normalizada := _normalizar_data_para_janela_cdi(valor)) is not None
+            ]
             if not datas_coluna:
                 continue
 
