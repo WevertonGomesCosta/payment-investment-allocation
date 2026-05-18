@@ -427,59 +427,284 @@ A implementação física pode ser refatorada em módulos, pacotes, funções ou
 
 O fluxograma macro não detalha subetapas internas. O detalhamento de cada etapa deve ser feito em auditorias, mapas técnicos ou documentos próprios de cada camada, para evitar assimetria e excesso de granularidade no contrato macro.
 
-### 7-E.2. Entrada bruta e configuração
+### 7-E.2. Ambiente, configuração, entrada bruta e insumos externos resolvidos
 
-A camada de entrada deve ler configuração, planilha bruta, data de referência, cache e parâmetros operacionais, preservando a distinção entre:
+A Etapa 1 deve ser tratada como a camada responsável por produzir um artefato único, auditável e consumível pelas etapas seguintes:
 
-- dado bruto;
-- dado ausente;
-- dado inválido;
-- dado canônico.
+`PacoteEntradaResolvida`
 
-Esta camada não pode decidir pagamento, switching, aporte, resgate, ranking, estado temporal final ou saída operacional.
+Essa camada não deve entregar conjuntos soltos de DataFrames, aliases, caminhos, cache ou metadados independentes. A função normativa da Etapa 1 é consolidar a entrada física e os insumos externos em um pacote resolvido, a ser validado pela Etapa 2 e consumido pela Etapa 3.
 
-### 7-E.3. Validação pré-execução
+A Etapa 1 deve abranger, conceitualmente:
 
-Antes da construção dos dados operacionais canônicos, é obrigatório validar, no mínimo:
+1. ambiente mínimo;
+2. configuração operacional única;
+3. ambiente final com data de referência;
+4. planilha operacional obtida por download ou fallback local;
+5. resolução estrutural de abas;
+6. leitura dos quadros brutos das cinco famílias operacionais;
+7. resolução estrutural de colunas;
+8. aplicação mecânica do mapa de colunas;
+9. produção de quadros estruturais resolvidos;
+10. derivação da janela bruta para CDI/BCB;
+11. carregamento e auditoria do cache CDI/BCB;
+12. consolidação do `PacoteEntradaResolvida`.
 
-- presença das abas obrigatórias;
-- presença das colunas obrigatórias;
-- interpretabilidade mínima de datas;
-- interpretabilidade mínima de valores numéricos;
-- campos essenciais de produtos, pagamentos, lotes, recebidos, salários e switching;
-- inconsistências estruturais bloqueantes.
+O `PacoteEntradaResolvida` contém, conceitualmente:
 
-A validação pré-execução não pode decidir pagamento, switching, aporte, resgate, ranking ou estado temporal final.
+- `PacoteConfig`;
+- `ContextoExecucao`;
+- `PacotePlanilha`;
+- `MapaAbasResolvidas`;
+- `MapaColunasResolvidas`;
+- `quadros_brutos`;
+- `quadros_estruturais_resolvidos`;
+- `JanelaConsultaCDI`;
+- `PacoteCacheCDIDiario`;
+- `AuditoriaEntradaBruta`;
+- `AuditoriaResolucaoEntrada`;
+- `AuditoriaCacheCDI`.
 
-A validação pré-execução também não deve ser usada como etapa de limpeza arquitetural rígida. Critérios rígidos de normalização, remoção de funções duplicadas ou depreciação de pontes devem ser reservados à etapa final de limpeza e depreciação controlada, quando houver substitutos canônicos implementados e validados.
+O `PacotePlanilha`, dentro do `PacoteEntradaResolvida`, contém as cinco famílias de entrada operacional em forma bruta e estruturalmente resolvida:
+
+1. `Carteira`;
+2. `Salários` / recebidos brutos;
+3. `Todos os Gastos` / despesas;
+4. `Inventário de Lotes`;
+5. `Switching` / switchings já realizados brutos.
+
+Esses quadros não são artefatos operacionais canônicos. Eles são entradas estruturais validáveis pela Etapa 2 e transformáveis pela Etapa 3.
+
+Na Etapa 1, `quadros_canonicos`, quando esse nome aparecer no código existente, deve ser interpretado conceitualmente como `quadros_estruturais_resolvidos`. Dados operacionais canônicos pertencem à Etapa 3. Assim, carteira canônica, gastos canônicos, salários canônicos, switching canônico e inventário canônico não pertencem à Etapa 1.
+
+A resolução de abas e colunas deve ocorrer uma única vez na Etapa 1, a partir do config operacional canônico. A Etapa 2 deve validar os mapas resolvidos, e a Etapa 3 deve consumir os quadros estruturais resolvidos sem recriar resolvedores locais de aliases e colunas quando o mapa resolvido já existir.
+
+O cache CDI/BCB entra na Etapa 1 como insumo externo bruto, cacheável e auditável. A Etapa 1 deve obter a série CDI, auditar sua origem, registrar fetch ou fallback, registrar a janela de consulta e registrar o status de atualização do cache. A Etapa 1 não deve usar essa série para cálculo de rendimento, replay, valoração ou decisão econômica. O uso econômico da série CDI pertence às etapas posteriores.
+
+A Etapa 1 pode:
+
+- resolver ambiente mínimo;
+- carregar config;
+- resolver data de referência definitiva;
+- obter planilha;
+- resolver abas;
+- resolver colunas;
+- produzir quadros estruturais resolvidos;
+- derivar janela bruta CDI;
+- carregar cache CDI;
+- registrar auditorias.
+
+A Etapa 1 não pode:
+
+- criar carteira canônica;
+- criar gastos canônicos;
+- criar salários canônicos;
+- criar switching canônico;
+- criar inventário canônico;
+- integrar inventário com switching;
+- calcular rendimento;
+- executar replay;
+- montar estado temporal;
+- decidir pagamento;
+- decidir switching;
+- gerar ledger;
+- gerar saída canônica;
+- gerar console;
+- gerar XLSX.
+
+### 7-E.3. Validação pré-execução do PacoteEntradaResolvida
+
+A Etapa 2 deve ser tratada como gate puro de validação pré-execução do `PacoteEntradaResolvida`.
+
+A Etapa 2 valida se a entrada resolvida produzida pela Etapa 1 está completa, coerente, auditável e minimamente interpretável para permitir a canonização operacional da Etapa 3.
+
+A entrada normativa da Etapa 2 é:
+
+`PacoteEntradaResolvida`
+
+A saída normativa da Etapa 2 é:
+
+`PacoteValidacaoPreExecucao`
+
+Composto por:
+
+- `ok`;
+- `erros`;
+- `avisos`;
+- `evidencias`.
+
+A Etapa 2 valida:
+
+1. `PacoteConfig`;
+2. `ContextoExecucao`;
+3. `PacotePlanilha`;
+4. `MapaAbasResolvidas`;
+5. `MapaColunasResolvidas`;
+6. `quadros_estruturais_resolvidos`;
+7. interpretabilidade mínima de datas e números;
+8. `JanelaConsultaCDI`;
+9. `PacoteCacheCDIDiario`;
+10. auditorias da Etapa 1.
+
+A Etapa 2 valida que o `PacotePlanilha` contém as cinco famílias operacionais:
+
+1. `carteira`;
+2. `salarios`;
+3. `despesas`;
+4. `lotes`;
+5. `switching`.
+
+A Etapa 2 valida mapas resolvidos. A Etapa 2 não reconstrói mapas.
+
+A Etapa 2 pode verificar parseabilidade mínima de datas e números, mas não transforma esses valores em entidades operacionais canônicas.
+
+A Etapa 2 valida a `JanelaConsultaCDI` e o `PacoteCacheCDIDiario`, mas não busca BCB, não salva cache, não substitui série e não calcula rendimento.
+
+A Etapa 2 pode:
+
+- validar presença de artefatos;
+- validar existência de caminhos;
+- validar consistência de config;
+- validar contexto de execução;
+- validar presença das cinco famílias operacionais;
+- validar mapas de abas resolvidas;
+- validar mapas de colunas resolvidas;
+- validar quadros estruturais resolvidos;
+- validar interpretabilidade mínima de datas;
+- validar interpretabilidade mínima de números;
+- validar janela CDI;
+- validar pacote cache CDI;
+- validar auditorias da Etapa 1;
+- emitir erros;
+- emitir avisos;
+- registrar evidências.
+
+A Etapa 2 não pode:
+
+- baixar planilha;
+- abrir workbook;
+- reler abas;
+- resolver aliases;
+- resolver colunas para uso operacional;
+- canonizar colunas;
+- criar quadros estruturais;
+- carregar cache BCB;
+- buscar BCB online;
+- salvar cache;
+- corrigir dados;
+- limpar dados;
+- normalizar dados operacionalmente;
+- criar carteira canônica;
+- criar gastos canônicos;
+- criar salários canônicos;
+- criar switching canônico;
+- criar inventário canônico;
+- integrar inventário com switching;
+- calcular rendimento;
+- executar replay;
+- montar estado temporal;
+- decidir pagamento;
+- decidir switching;
+- gerar ledger;
+- gerar saída canônica;
+- renderizar console;
+- gerar XLSX.
 
 ### 7-E.4. Dados operacionais e universo econômico canônico
 
-A camada de dados operacionais e universo econômico canônico deve transformar a planilha bruta e a configuração em artefatos canônicos utilizáveis pelo estado temporal e pelo motor.
+A Etapa 3 deve ser tratada como camada de canonização operacional do `PacoteEntradaResolvida` validado.
 
-Esta camada pode normalizar nomes, aliases, datas, valores, tipos, identificadores, produtos e lotes, mas não pode executar decisão econômica, escolher fonte de pagamento, promover switching, liquidar pagamento, corrigir saldo temporal ou selecionar pacote do dia.
+A Etapa 3 recebe:
 
-Esta camada deve produzir, quando aplicável:
+- `PacoteEntradaResolvida` validado;
+- `PacoteValidacaoPreExecucao`.
 
-- pagamentos canônicos;
-- recebidos ou salários canônicos;
-- switchings canônicos;
-- produtos canônicos;
-- ranking da Carteira;
-- universo de produtos elegíveis;
-- inventário completo de lotes.
+A Etapa 3 produz:
 
-O inventário completo de lotes deve ser construído nesta camada, combinando, no mínimo:
+- `PacoteDadosOperacionaisCanonicos`;
+- `UniversoEconomicoCanonico`.
 
-- a aba `Inventário de Lotes`;
-- a aba `Switching`;
-- lotes destino derivados ou materializáveis por switching;
-- reconciliação entre lotes destino já presentes no inventário e lotes derivados de switching;
-- prevenção de dupla contagem.
+A saída normativa da Etapa 3 contém:
 
-Assim, não deve existir uma etapa macro separada apenas para construir lotes pós-switching. A criação, normalização ou reconciliação desses lotes pertence à canonização operacional e ao universo econômico canônico, respeitando o escopo desta camada.
+- `carteira_canonica`;
+- `universo_economico_canonico`;
+- `gastos_canonicos`;
+- `salarios_canonicos`;
+- `switching_canonico`;
+- `inventario_canonico_base`;
+- `inventario_canonico_completo`;
+- auditorias;
+- validações.
 
-O ranking da `Carteira` pertence ao universo econômico canônico. Ele deve estruturar produtos, destinos elegíveis e informações usadas pelo motor, especialmente na avaliação de switchings. O ranking não substitui o motor temporal, não decide pacote do dia, não materializa switching, não liquida pagamento e não altera o estado temporal.
+O pacote final não deve expor como saída normativa independente:
+
+`lotes_destino_switchings_realizados_normalizados`
+
+Esse artefato pode existir internamente, mas apenas como artefato intermediário de construção e auditoria do `inventario_canonico_completo`.
+
+A Etapa 3 transforma o quadro estrutural resolvido de `carteira` em carteira canônica, produtos canônicos, mapa de produtos, universo econômico canônico, ranking da Carteira, auditoria da Carteira e validação da Carteira.
+
+A Etapa 3 transforma o quadro estrutural resolvido de `despesas` em gastos canônicos, pagamentos canônicos e auditoria de gastos.
+
+A Etapa 3 transforma o quadro estrutural resolvido de `salarios` em salários canônicos, recebidos canônicos e auditoria de salários.
+
+A Etapa 3 transforma o quadro estrutural resolvido de `switching` em `switching_canonico` e auditoria de switching. A aba `Switching` representa switchings já realizados/declarados na entrada operacional. Ela não representa switchings candidatos, recomendados, promovidos ou simulados pelo motor.
+
+A Etapa 3 pode gerar internamente lotes destino derivados desses switchings já realizados, mas esses lotes são apenas artefato intermediário de construção do `inventario_canonico_completo`.
+
+A Etapa 3 transforma o quadro estrutural resolvido de `lotes`, em conjunto com os switchings já realizados canônicos, em `inventario_canonico_base`, `inventario_canonico_completo`, auditoria de inventário e auditoria do inventário canônico completo.
+
+O nome técnico transitório atual `inventario_lotes_expandido` deve ser interpretado conceitualmente como:
+
+`inventario_canonico_completo`
+
+O inventário operacional entregue às etapas posteriores é único.
+
+Nenhuma etapa posterior deve consumir uma lista paralela de lotes destino de switching como fonte operacional independente.
+
+A Etapa 3 pode:
+
+- criar carteira canônica;
+- criar produtos canônicos;
+- criar universo econômico canônico;
+- criar ranking da Carteira;
+- criar gastos/pagamentos canônicos;
+- criar salários/recebidos canônicos;
+- criar switching canônico de switchings já realizados;
+- criar inventário canônico base;
+- gerar internamente lotes destino de switchings já realizados;
+- integrar esses lotes ao inventário canônico base;
+- criar inventário canônico completo;
+- resolver `produto_key` usando a Carteira canônica;
+- classificar minimamente lotes;
+- registrar auditorias e validações de canonização.
+
+A Etapa 3 não pode:
+
+- baixar planilha;
+- abrir workbook;
+- resolver abas físicas;
+- resolver aliases de colunas;
+- canonizar colunas estruturais;
+- buscar BCB online;
+- salvar cache BCB;
+- calcular rendimento;
+- executar replay passado;
+- montar estado temporal inicial;
+- normalizar vencimentos temporalmente;
+- decidir pagamento;
+- decidir switching candidato;
+- promover switching do motor;
+- materializar switching candidato;
+- executar pacote do dia;
+- gerar ledger;
+- aplicar gates de núcleo;
+- gerar saída canônica;
+- renderizar console;
+- gerar XLSX;
+- expor lotes destino de switching como fonte operacional paralela ao `inventario_canonico_completo`.
+
+A Etapa 4 deve receber os dados operacionais canônicos e construir o estado temporal inicial. A Etapa 3 não deve montar o estado temporal inicial.
 
 ### 7-E.5. Estado temporal inicial
 
