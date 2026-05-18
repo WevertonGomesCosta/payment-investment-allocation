@@ -10,6 +10,12 @@ from nucleo.calendario_financeiro import construir_calendario_financeiro
 from nucleo.carregador_config import PacoteConfig, carregar_config
 from nucleo.carteira_canonica import carregar_carteira_canonica
 from nucleo.dados_operacionais_canonicos import carregar_dados_operacionais_canonicos
+from nucleo.entrada_resolvida import (
+    AuditoriaPacoteEntradaResolvida,
+    PacoteEntradaResolvida,
+    auditar_pacote_entrada_resolvida,
+    montar_pacote_entrada_resolvida,
+)
 from nucleo.leitor_planilha import PacotePlanilha, carregar_planilha
 from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabela_iof, carregar_nucleo_financeiro_minimo
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
@@ -53,6 +59,8 @@ class ContextoBaseline:
     saldo_disponivel_geral: Any
     decisao_local_v1: Any
     cache_cdi: PacoteCacheCDIDiario
+    pacote_entrada_resolvida_shadow: PacoteEntradaResolvida
+    auditoria_pacote_entrada_resolvida_shadow: AuditoriaPacoteEntradaResolvida
     auditoria_temporal_decisao_local: Any
     reescolha_dinamica_pos_quebra: Any
     heuristica_conjunta_parcial_bloco_critico: Any
@@ -107,7 +115,11 @@ def carregar_contexto_baseline(
         instalar_automaticamente=instalar_automaticamente,
     )
     calendario_financeiro = construir_calendario_financeiro(pacote_config.conteudo, data_referencia=contexto_execucao.data_referencia)
-    pacote_planilha = carregar_planilha(pacote_config.conteudo, raiz_repositorio=pacote_config.raiz_repositorio)
+    pacote_planilha = carregar_planilha(
+        pacote_config.conteudo,
+        raiz_repositorio=pacote_config.raiz_repositorio,
+        data_referencia=contexto_execucao.data_referencia,
+    )
     validacao_pre_execucao = validar_pre_execucao(
         pacote_config,
         contexto_execucao,
@@ -132,6 +144,23 @@ def carregar_contexto_baseline(
         pacote_config.conteudo,
         data_referencia=contexto_execucao.data_referencia,
         raiz_repositorio=pacote_config.raiz_repositorio,
+    )
+    pacote_entrada_resolvida_shadow = montar_pacote_entrada_resolvida(
+        pacote_config=pacote_config,
+        contexto_execucao=contexto_execucao,
+        pacote_planilha=pacote_planilha,
+        pacote_cache_cdi=cache_cdi,
+        metadados={
+            'modo_shadow_contexto_baseline': True,
+            'substitui_atributos_legados': False,
+            'substitui_validacao_pre_execucao': False,
+            'substitui_dados_operacionais_canonicos': False,
+            'substitui_cache_cdi_operacional': False,
+        },
+    )
+    auditoria_pacote_entrada_resolvida_shadow = auditar_pacote_entrada_resolvida(
+        pacote_entrada_resolvida_shadow,
+        exigir_cache_cdi=True,
     )
     switching_shadow = carregar_switching_shadow_reconciliacao(dados_operacionais, carteira_canonica=carteira_canonica) if incluir_switching_shadow else None
     triagem_motor = carregar_triagem_motor(
@@ -342,6 +371,8 @@ def carregar_contexto_baseline(
         saldo_disponivel_geral=saldo_disponivel_geral,
         decisao_local_v1=decisao_local_v1,
         cache_cdi=cache_cdi,
+        pacote_entrada_resolvida_shadow=pacote_entrada_resolvida_shadow,
+        auditoria_pacote_entrada_resolvida_shadow=auditoria_pacote_entrada_resolvida_shadow,
         auditoria_temporal_decisao_local=auditoria_temporal_decisao_local,
         reescolha_dinamica_pos_quebra=reescolha_dinamica_pos_quebra,
         heuristica_conjunta_parcial_bloco_critico=heuristica_conjunta_parcial_bloco_critico,
