@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.entrada_resolvida import AuditoriaPacoteEntradaResolvida, PacoteEntradaResolvida
-
-ROOT = Path(__file__).resolve().parents[2]
 
 ATRIBUTOS_LEGADOS_OBRIGATORIOS = [
     "pacote_config",
