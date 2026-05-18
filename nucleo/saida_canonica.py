@@ -2370,6 +2370,18 @@ def _linhas_resumo_recebidos(contexto: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _pos_canonico_ativo(contexto: Any) -> bool:
+    """Detecta se POS pos-switching ja nasce no inventario_canonico."""
+    dados_ops = getattr(contexto, 'dados_operacionais', None)
+    inventario = getattr(dados_ops, 'inventario_canonico', None) if dados_ops is not None else None
+    if not isinstance(inventario, pd.DataFrame) or len(inventario) == 0:
+        return False
+    if 'origem_registro' not in inventario.columns:
+        return False
+    origem = inventario['origem_registro'].fillna('').astype(str).str.strip().str.lower()
+    return bool(origem.eq('lote_pos_switching_normalizado').any())
+
+
 def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSaidaCanonica:
     extrato_passado = _construir_extrato_passado(contexto)
     extrato_futuro = _construir_extrato_futuro(contexto)
@@ -2383,8 +2395,15 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
     mapa_central = _mapa_pagamentos_central(contexto)
     ledger_result = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto) or {}
     destinos_pos_switching_passivos = list(ledger_result.get('destinos_pos_switching_materializados_passivos', []))
+    pos_canonico_ativo = _pos_canonico_ativo(contexto)
+    destinos_pos_switching_passivos_para_situacao = (
+        [] if pos_canonico_ativo else destinos_pos_switching_passivos
+    )
     vinculos_origem_destino_pos_switching = list(ledger_result.get('vinculos_origem_destino_pos_switching', []))
-    lotes_ativos, lotes_exauridos = _construir_lotes_situacao(contexto, destinos_pos_switching_passivos)
+    lotes_ativos, lotes_exauridos = _construir_lotes_situacao(
+        contexto,
+        destinos_pos_switching_passivos_para_situacao,
+    )
     extrato_passado, lotes_ativos, lotes_exauridos, auditoria_consumo_pos_q5b = _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
         contexto,
         extrato_passado,
@@ -2412,6 +2431,10 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'qtd_futuro_multifonte': sum(1 for item in extrato_futuro if '+' in str(item.get('Lote sugerido') or '')),
         'fifo_candidatos_avaliados': fifo_candidatos_avaliados,
         'qtd_eventos_ledger': len(eventos_ledger),
+        'pos_canonico_ativo': bool(pos_canonico_ativo),
+        'ponte_passiva_pos_desativada_por_pos_canonico': bool(pos_canonico_ativo and len(destinos_pos_switching_passivos) > 0),
+        'destinos_pos_switching_passivos_para_situacao_total': len(destinos_pos_switching_passivos_para_situacao),
+        'destinos_pos_switching_passivos_preservados_auditoria_total': len(destinos_pos_switching_passivos),
         **({k: v for k, v in ledger_result.items() if (str(k).startswith('pay_only_diario_shadow_') or str(k).startswith('d2a_') or str(k).startswith('d2a2_') or str(k).startswith('d2b0_') or str(k).startswith('d2b1_') or str(k).startswith('d2c_') or str(k).startswith('d3_') or str(k).startswith('d3b_') or str(k).startswith('d3c_') or str(k).startswith('d3d_') or str(k).startswith('d3e_') or str(k).startswith('d3f_') or str(k).startswith('d31_') or str(k).startswith('d31b_') or str(k).startswith('d31c_') or str(k).startswith('d31d_') or str(k).startswith('d31e_') or str(k).startswith('d31f_') or str(k).startswith('d32a_') or str(k).startswith('saldo_temporal_') or str(k).startswith('comparativo_') or str(k).startswith('recebidos_') or str(k).startswith('recebidos_shadow_') or str(k).startswith('shadow_recebidos_') or str(k).startswith('valor_recebidos_') or str(k).startswith('alocacao_') or str(k).startswith('pagamentos_rebaixados_') or str(k).startswith('pagamentos_') or str(k).startswith('extrato_futuro_') or str(k).startswith('divergencias_') or str(k).startswith('pre_invariante_') or str(k).startswith('sombra_')) and not isinstance(v, (list, dict, tuple, set))}),
         'pay_only_diario_shadow_por_data': ledger_result.get('pay_only_diario_shadow_por_data', []),
         'plano_pay_only_diario_v1_por_pagamento': ledger_result.get('plano_pay_only_diario_v1_por_pagamento', []),
