@@ -20,6 +20,7 @@ except Exception:  # pragma: no cover
 
 from nucleo.config_utils import obter_config as _cfg_get
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
+from nucleo.entrada_resolvida import JanelaConsultaCDI
 from nucleo.utilitarios_neutros import para_data, para_float_monetario
 
 
@@ -53,6 +54,32 @@ def _datas_relevantes(dados_operacionais: PacoteDadosOperacionaisCanonicos, data
         pass
     data_min = min(datas) if datas else data_referencia
     return _primeiro_dia_do_mes(data_min), data_referencia
+
+
+def _datas_relevantes_por_janela_cdi(
+    janela_consulta_cdi: Optional[JanelaConsultaCDI],
+    data_referencia: date,
+) -> Optional[tuple[date, date]]:
+    """Resolve datas do cache a partir da JanelaConsultaCDI da Etapa 1.
+
+    Esta função não consulta BCB, não lê cache e não calcula rendimento. Ela
+    apenas traduz a janela estrutural da entrada resolvida para a janela usada
+    pelo cache, quando a janela está completa.
+    """
+
+    if janela_consulta_cdi is None:
+        return None
+    data_inicial = janela_consulta_cdi.data_inicial_consulta
+    data_final = janela_consulta_cdi.data_final_consulta
+    if data_inicial is None or data_final is None:
+        return None
+    if not isinstance(data_inicial, date) or not isinstance(data_final, date):
+        return None
+    data_ini = _primeiro_dia_do_mes(data_inicial)
+    data_fim = max(data_final, data_referencia)
+    if data_fim < data_ini:
+        return None
+    return data_ini, data_fim
 
 
 def _parse_data_bcb_estrita(valor: Any) -> Optional[date]:
@@ -203,8 +230,16 @@ def carregar_cache_cdi_diario(
     *,
     data_referencia: date,
     raiz_repositorio: Path,
+    janela_consulta_cdi: Optional[JanelaConsultaCDI] = None,
 ) -> PacoteCacheCDIDiario:
-    data_ini, data_fim = _datas_relevantes(dados_operacionais, data_referencia)
+    janela_resolvida = _datas_relevantes_por_janela_cdi(janela_consulta_cdi, data_referencia)
+    if janela_resolvida is not None:
+        data_ini, data_fim = janela_resolvida
+        origem_janela_consulta = 'janela_consulta_cdi'
+    else:
+        data_ini, data_fim = _datas_relevantes(dados_operacionais, data_referencia)
+        origem_janela_consulta = 'dados_operacionais_legado'
+
     caminho_cache = raiz_repositorio / str(_cfg_get(config, 'arquivos', 'cache_bcb', padrao='cache_bcb.json'))
     convencao = int(_cfg_get(config, 'execucao', 'convencao_dias_ano', 'cdi', padrao=252) or 252)
 
@@ -232,6 +267,7 @@ def carregar_cache_cdi_diario(
                     'data_final': data_fim.isoformat(),
                     'taxa_projecao': _cfg_get(config, 'premissas_mercado', 'cdi_diario_projecao', padrao=0.0),
                     'data_atualizacao': data_referencia.isoformat(),
+                    'origem_janela_consulta': origem_janela_consulta,
                 })
                 data_atualizacao_cache = data_referencia
                 cache_atualizado = True
@@ -242,6 +278,8 @@ def carregar_cache_cdi_diario(
     auditoria = {
         'data_inicial_consulta': data_ini,
         'data_final_consulta': data_fim,
+        'origem_janela_consulta': origem_janela_consulta,
+        'janela_consulta_cdi_informada': janela_consulta_cdi is not None,
         'fonte_serie_cdi': fonte,
         'fetch_status': fetch_status,
         'qtd_datas_serie_cdi': len(serie),
