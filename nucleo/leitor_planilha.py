@@ -8,6 +8,7 @@ implementa derivação financeira profunda.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 import tempfile
 from typing import Any, Iterable, Mapping, Optional
@@ -20,7 +21,7 @@ except Exception:  # pragma: no cover
     requests = None  # type: ignore
 
 from nucleo.config_utils import obter_config as _cfg_get
-from nucleo.entrada_resolvida import MapaAbasResolvidas, MapaColunasResolvidas
+from nucleo.entrada_resolvida import JanelaConsultaCDI, MapaAbasResolvidas, MapaColunasResolvidas
 from nucleo.utilitarios_neutros import normalizar_texto
 
 
@@ -35,6 +36,7 @@ class PacotePlanilha:
     mapa_abas_resolvidas: Optional[MapaAbasResolvidas] = None
     mapa_colunas_resolvidas: Optional[MapaColunasResolvidas] = None
     quadros_estruturais_resolvidos: Optional[dict[str, pd.DataFrame]] = None
+    janela_consulta_cdi: Optional[JanelaConsultaCDI] = None
 
 
 def _montar_url_download_planilha(config: Mapping[str, Any]) -> Optional[str]:
@@ -351,6 +353,93 @@ def construir_mapa_colunas_resolvidas(
     )
 
 
+def _normalizar_data_para_janela_cdi(valor: Any) -> Optional[date]:
+    if valor is None or pd.isna(valor):
+        return None
+    try:
+        convertido = pd.to_datetime(valor, errors="coerce", dayfirst=True)
+    except Exception:
+        return None
+    if pd.isna(convertido):
+        return None
+    return convertido.date()
+
+
+def construir_janela_consulta_cdi(
+    quadros_estruturais_resolvidos: Mapping[str, pd.DataFrame],
+    mapa_abas_resolvidas: MapaAbasResolvidas,
+    mapa_colunas_resolvidas: MapaColunasResolvidas,
+    *,
+    data_referencia: Optional[date] = None,
+) -> JanelaConsultaCDI:
+    """Deriva a janela bruta de consulta CDI a partir da entrada resolvida.
+
+    A função apenas identifica datas interpretáveis em campos resolvidos cujo
+    nome estrutural contém ``data`` ou ``vencimento``. Ela não consulta BCB,
+    não carrega cache, não calcula rendimento e não altera DataFrames.
+    """
+
+    datas: list[date] = []
+    fontes_datas: dict[str, list[str]] = {}
+
+    if data_referencia is not None:
+        data_ref_norm = _normalizar_data_para_janela_cdi(data_referencia)
+        if data_ref_norm is not None:
+            datas.append(data_ref_norm)
+            fontes_datas["data_referencia"] = [data_ref_norm.isoformat()]
+
+    for bloco, aba_resolvida in mapa_abas_resolvidas.abas_por_bloco.items():
+        quadro = quadros_estruturais_resolvidos.get(aba_resolvida)
+        colunas_bloco = mapa_colunas_resolvidas.colunas_por_bloco.get(str(bloco), {})
+        if quadro is None or not colunas_bloco:
+            continue
+
+        for campo, coluna in colunas_bloco.items():
+            campo_normalizado = normalizar_texto(campo)
+            if "data" not in campo_normalizado and "vencimento" not in campo_normalizado:
+                continue
+            if coluna not in quadro.columns:
+                continue
+
+            serie_datas = pd.to_datetime(quadro[coluna], errors="coerce", dayfirst=True).dropna()
+            datas_coluna = [valor.date() for valor in serie_datas]
+            if not datas_coluna:
+                continue
+
+            datas.extend(datas_coluna)
+            chave_fonte = f"{bloco}.{campo}"
+            fontes_datas[chave_fonte] = sorted({valor.isoformat() for valor in datas_coluna})
+
+    if not datas:
+        return JanelaConsultaCDI(
+            data_inicial_consulta=None,
+            data_final_consulta=None,
+            metadados={
+                "qtd_datas_identificadas": 0,
+                "fontes_datas": fontes_datas,
+                "criterio_resolucao": "campos_resolvidos_com_data_ou_vencimento",
+                "inclui_data_referencia": data_referencia is not None,
+                "altera_cache_cdi": False,
+                "altera_rendimento": False,
+                "altera_fluxo_operacional": False,
+            },
+        )
+
+    return JanelaConsultaCDI(
+        data_inicial_consulta=min(datas),
+        data_final_consulta=max(datas),
+        metadados={
+            "qtd_datas_identificadas": len(datas),
+            "fontes_datas": fontes_datas,
+            "criterio_resolucao": "campos_resolvidos_com_data_ou_vencimento",
+            "inclui_data_referencia": data_referencia is not None,
+            "altera_cache_cdi": False,
+            "altera_rendimento": False,
+            "altera_fluxo_operacional": False,
+        },
+    )
+
+
 def resolver_caminho_planilha(
     config: Mapping[str, Any],
     *,
@@ -386,6 +475,7 @@ def carregar_planilha(
     raiz_repositorio: Optional[Path] = None,
     caminho_explicito: Optional[str | Path] = None,
     carregar_todas_as_abas: bool = True,
+    data_referencia: Optional[date] = None,
 ) -> PacotePlanilha:
     fonte_planilha = 'caminho_explicito' if caminho_explicito is not None else 'fallback_local'
     fetch_status: Optional[str] = None
@@ -444,6 +534,13 @@ def carregar_planilha(
         config,
     )
 
+    janela_consulta_cdi = construir_janela_consulta_cdi(
+        quadros_estruturais_resolvidos,
+        mapa_abas_resolvidas,
+        mapa_colunas_resolvidas,
+        data_referencia=data_referencia,
+    )
+
     auditoria = {
         'fonte_planilha': fonte_planilha,
         'fetch_status_planilha': fetch_status,
@@ -462,6 +559,7 @@ def carregar_planilha(
         mapa_abas_resolvidas=mapa_abas_resolvidas,
         mapa_colunas_resolvidas=mapa_colunas_resolvidas,
         quadros_estruturais_resolvidos=quadros_estruturais_resolvidos,
+        janela_consulta_cdi=janela_consulta_cdi,
     )
 
 
