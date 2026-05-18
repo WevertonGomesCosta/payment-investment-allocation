@@ -2382,6 +2382,111 @@ def _pos_canonico_ativo(contexto: Any) -> bool:
     return bool(origem.eq('lote_pos_switching_normalizado').any())
 
 
+def _valor_monetario_situacao(linha: dict[str, Any]) -> float:
+    """Extrai valor monetario de uma linha observavel da Situacao Atual."""
+    for chave in ('Patr. líq.', 'Patrimônio líquido', 'Líq. atual', 'Líquido'):
+        valor = linha.get(chave) if isinstance(linha, dict) else None
+        try:
+            if valor in (None, '', 'n/d'):
+                continue
+            return round(float(valor), 2)
+        except Exception:
+            continue
+    return 0.0
+
+
+def _neutralizar_origens_migradas_situacao(
+    lotes_ativos: list[dict[str, Any]],
+    lotes_exauridos: list[dict[str, Any]],
+    origens_migradas_por_switching: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """Remove da camada ativa origens ja migradas por switching.
+
+    A neutralizacao e observavel: preserva auditoria, historico e destinos POS,
+    mas impede que a origem migrada continue contribuindo como ativo comum.
+    """
+    origens_norm: dict[str, dict[str, Any]] = {}
+    for item in origens_migradas_por_switching or []:
+        lote = str(item.get('lote_origem') or '').strip()
+        if lote:
+            origens_norm[_norm(lote)] = item
+
+    if not origens_norm:
+        return lotes_ativos, lotes_exauridos, {
+            'origens_migradas_neutralizadas_situacao_total': 0,
+            'origens_migradas_neutralizadas_situacao': [],
+            'patrimonio_liquido_ativo_neutralizado_origens_migradas': 0.0,
+            'origens_migradas_ativas_remanescentes_total': 0,
+            'origens_migradas_ativas_remanescentes': [],
+        }
+
+    exauridos_norm = {
+        _norm(x.get('Lote'))
+        for x in lotes_exauridos
+        if isinstance(x, dict) and _norm(x.get('Lote'))
+    }
+
+    novos_ativos: list[dict[str, Any]] = []
+    novos_exauridos: list[dict[str, Any]] = list(lotes_exauridos)
+    neutralizadas: list[dict[str, Any]] = []
+    patrimonio_neutralizado = 0.0
+
+    for linha in lotes_ativos:
+        lote_norm = _norm(linha.get('Lote')) if isinstance(linha, dict) else ''
+        if lote_norm not in origens_norm:
+            novos_ativos.append(linha)
+            continue
+
+        info_origem = origens_norm.get(lote_norm, {})
+        patrimonio = _valor_monetario_situacao(linha)
+        patrimonio_neutralizado = round(patrimonio_neutralizado + patrimonio, 2)
+
+        status_anterior = linha.get('Status ciclo') or linha.get('Status') or 'ativo'
+        lote_origem = linha.get('Lote') or info_origem.get('lote_origem')
+
+        neutralizadas.append({
+            'lote_origem': lote_origem,
+            'status_anterior': status_anterior,
+            'status_final': 'migrado_por_switching',
+            'patrimonio_liquido_ativo_removido': patrimonio,
+            'motivo': 'origem_migrada_por_switching_nao_deve_permanecer_ativa',
+            'destinos_vinculados': info_origem.get('destinos_vinculados'),
+        })
+
+        if lote_norm not in exauridos_norm:
+            linha_exaurida = dict(linha)
+            linha_exaurida['Status ciclo'] = 'migrado_por_switching'
+            linha_exaurida['Status'] = 'migrado_por_switching'
+            linha_exaurida['Bruto atual'] = 0.0
+            linha_exaurida['Líq. atual'] = 0.0
+            linha_exaurida['Líquido'] = 0.0
+            linha_exaurida['Saldo rem'] = 0.0
+            linha_exaurida['Origem migrada'] = 'sim'
+            linha_exaurida['Status materialização'] = 'origem_neutralizada_v36f'
+            novos_exauridos.append(linha_exaurida)
+            exauridos_norm.add(lote_norm)
+
+    remanescentes: list[dict[str, Any]] = []
+    for linha in novos_ativos:
+        lote_norm = _norm(linha.get('Lote')) if isinstance(linha, dict) else ''
+        if lote_norm in origens_norm:
+            remanescentes.append({
+                'lote_origem': linha.get('Lote'),
+                'status_ativo': linha.get('Status ciclo') or linha.get('Status'),
+                'patrimonio_liquido_ativo': _valor_monetario_situacao(linha),
+            })
+
+    auditoria_neutralizacao = {
+        'origens_migradas_neutralizadas_situacao_total': len(neutralizadas),
+        'origens_migradas_neutralizadas_situacao': neutralizadas,
+        'patrimonio_liquido_ativo_neutralizado_origens_migradas': round(patrimonio_neutralizado, 2),
+        'origens_migradas_ativas_remanescentes_total': len(remanescentes),
+        'origens_migradas_ativas_remanescentes': remanescentes,
+    }
+
+    return novos_ativos, novos_exauridos, auditoria_neutralizacao
+
+
 def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSaidaCanonica:
     extrato_passado = _construir_extrato_passado(contexto)
     extrato_futuro = _construir_extrato_futuro(contexto)
@@ -2414,6 +2519,11 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         extrato_passado=extrato_passado,
         destinos_pos_switching_passivos=destinos_pos_switching_passivos,
         vinculos_origem_destino_pos_switching=vinculos_origem_destino_pos_switching,
+    )
+    lotes_ativos, lotes_exauridos, auditoria_neutralizacao_origens_migradas = _neutralizar_origens_migradas_situacao(
+        lotes_ativos,
+        lotes_exauridos,
+        origens_migradas_por_switching,
     )
     recebidos_atuais = _construir_recebidos_atuais(contexto)
     eventos_ledger = list(ledger_result.get('eventos', []))
@@ -2473,6 +2583,7 @@ def construir_saida_canonica(contexto: Any, *, versao: str = 'V203') -> PacoteSa
         'origens_migradas_por_switching': origens_migradas_por_switching,
         'origens_migradas_por_switching_total': len(origens_migradas_por_switching),
         'reconciliacao_patrimonial_origens_migradas': reconciliacao_origens_migradas,
+        **auditoria_neutralizacao_origens_migradas,
         **(_PRE_INVARIANTE_EXTRATO_FUTURO or {}),
         **(_SOMBRA_DIVERGENCIAS_LEDGER or {}),
     }
