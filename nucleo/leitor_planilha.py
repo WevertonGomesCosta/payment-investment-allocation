@@ -20,6 +20,7 @@ except Exception:  # pragma: no cover
     requests = None  # type: ignore
 
 from nucleo.config_utils import obter_config as _cfg_get
+from nucleo.entrada_resolvida import MapaAbasResolvidas
 from nucleo.utilitarios_neutros import normalizar_texto
 
 
@@ -31,6 +32,7 @@ class PacotePlanilha:
     quadros_canonicos: dict[str, pd.DataFrame]
     auditoria: dict[str, Any]
     validacao: dict[str, Any]
+    mapa_abas_resolvidas: Optional[MapaAbasResolvidas] = None
 
 
 def _montar_url_download_planilha(config: Mapping[str, Any]) -> Optional[str]:
@@ -97,6 +99,7 @@ def _tentar_baixar_planilha(config: Mapping[str, Any], destino: Path) -> tuple[b
         if detalhe:
             return False, f'falha_download_planilha:{exc.__class__.__name__}:{detalhe}'
         return False, f'falha_download_planilha:{exc.__class__.__name__}'
+
 
 def construir_mapa_alias(mapa_alias: Mapping[str, Iterable[str]]) -> dict[str, str]:
     mapa: dict[str, str] = {}
@@ -182,6 +185,61 @@ def resolver_coluna(
     return None
 
 
+def construir_mapa_abas_resolvidas(
+    nomes_abas: Iterable[str],
+    config: Mapping[str, Any],
+) -> MapaAbasResolvidas:
+    """Constrói o mapa estrutural de abas resolvidas da Etapa 1.
+
+    Esta função apenas explicita a correspondência atualmente usada entre
+    blocos canônicos e abas físicas configuradas. Ela não altera a leitura da
+    planilha, não cria dados operacionais canônicos e não resolve aliases de
+    colunas.
+    """
+
+    nomes_abas_lista = [str(nome_aba) for nome_aba in nomes_abas]
+    nomes_abas_set = set(nomes_abas_lista)
+    abas_config = config.get("abas", {}) if isinstance(config.get("abas"), Mapping) else {}
+
+    abas_por_bloco: dict[str, str] = {}
+    metadados_por_bloco: dict[str, Mapping[str, Any]] = {}
+    blocos_ausentes: list[str] = []
+
+    for nome_bloco, nome_aba_cfg in abas_config.items():
+        bloco = str(nome_bloco)
+        aba_configurada = str(nome_aba_cfg)
+        presente = aba_configurada in nomes_abas_set
+        aba_resolvida = aba_configurada if presente else None
+
+        if presente and aba_resolvida is not None:
+            abas_por_bloco[bloco] = aba_resolvida
+        else:
+            blocos_ausentes.append(bloco)
+
+        metadados_por_bloco[bloco] = {
+            "aba_configurada": aba_configurada,
+            "aba_resolvida": aba_resolvida,
+            "presente": presente,
+            "criterio_resolucao": "config_abas_correspondencia_exata",
+        }
+
+    auditoria = {
+        "qtd_abas_planilha": len(nomes_abas_lista),
+        "qtd_blocos_configurados": len(abas_config),
+        "qtd_blocos_resolvidos": len(abas_por_bloco),
+        "blocos_ausentes": blocos_ausentes,
+        "criterio_resolucao": "config_abas_correspondencia_exata",
+        "altera_leitura_planilha": False,
+        "altera_fluxo_operacional": False,
+    }
+
+    return MapaAbasResolvidas(
+        abas_por_bloco=abas_por_bloco,
+        metadados_por_bloco=metadados_por_bloco,
+        auditoria=auditoria,
+    )
+
+
 def resolver_caminho_planilha(
     config: Mapping[str, Any],
     *,
@@ -250,6 +308,7 @@ def carregar_planilha(
     abas_alvo = list(excel.sheet_names) if carregar_todas_as_abas else []
     abas_config = config.get("abas", {}) if isinstance(config.get("abas"), Mapping) else {}
     aliases_por_bloco = config.get("colunas", {}) if isinstance(config.get("colunas"), Mapping) else {}
+    mapa_abas_resolvidas = construir_mapa_abas_resolvidas(excel.sheet_names, config)
 
     for nome_bloco, nome_aba in abas_config.items():
         if nome_aba in excel.sheet_names and nome_aba not in abas_alvo:
@@ -281,6 +340,7 @@ def carregar_planilha(
         quadros_canonicos=quadros_canonicos,
         auditoria=auditoria,
         validacao=validacao,
+        mapa_abas_resolvidas=mapa_abas_resolvidas,
     )
 
 
