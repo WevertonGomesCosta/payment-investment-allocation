@@ -34,6 +34,7 @@ class PacotePlanilha:
     validacao: dict[str, Any]
     mapa_abas_resolvidas: Optional[MapaAbasResolvidas] = None
     mapa_colunas_resolvidas: Optional[MapaColunasResolvidas] = None
+    quadros_estruturais_resolvidos: Optional[dict[str, pd.DataFrame]] = None
 
 
 def _montar_url_download_planilha(config: Mapping[str, Any]) -> Optional[str]:
@@ -138,6 +139,20 @@ def canonizar_colunas(
         destinos_usados.add(destino)
 
     return quadro_canonico.rename(columns=renomear)
+
+
+def materializar_quadros_estruturais_resolvidos(
+    quadros_canonicos: Mapping[str, pd.DataFrame],
+) -> dict[str, pd.DataFrame]:
+    """Materializa o nome normativo dos quadros estruturais resolvidos.
+
+    No código legado, esses quadros ainda são chamados de ``quadros_canonicos``.
+    Na arquitetura da Etapa 1, o nome normativo é
+    ``quadros_estruturais_resolvidos``. Esta função não altera DataFrames, não
+    copia dados internamente e não muda consumidores existentes.
+    """
+
+    return dict(quadros_canonicos)
 
 
 def aliases_coluna(config: Mapping[str, Any], secao: str, chave: str) -> list[str]:
@@ -421,6 +436,8 @@ def carregar_planilha(
         mapa_alias = aliases_por_bloco.get(nome_bloco, {}) if nome_bloco else {}
         quadros_canonicos[nome_aba] = canonizar_colunas(quadro, mapa_alias=mapa_alias)
 
+    quadros_estruturais_resolvidos = materializar_quadros_estruturais_resolvidos(quadros_canonicos)
+
     mapa_colunas_resolvidas = construir_mapa_colunas_resolvidas(
         quadros_brutos,
         mapa_abas_resolvidas,
@@ -444,6 +461,7 @@ def carregar_planilha(
         validacao=validacao,
         mapa_abas_resolvidas=mapa_abas_resolvidas,
         mapa_colunas_resolvidas=mapa_colunas_resolvidas,
+        quadros_estruturais_resolvidos=quadros_estruturais_resolvidos,
     )
 
 
