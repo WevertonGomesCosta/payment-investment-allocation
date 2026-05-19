@@ -36,18 +36,26 @@ def _norm_data(valor: Any) -> str:
             return ""
     except Exception:
         pass
-    if hasattr(valor, "isoformat"):
-        try:
-            return valor.isoformat()
-        except Exception:
-            pass
     try:
         dt = pd.to_datetime(valor, errors="coerce")
         if pd.isna(dt):
             return _txt(valor)
         return dt.date().isoformat()
     except Exception:
-        return _txt(valor)
+        pass
+    if hasattr(valor, "date") and not isinstance(valor, str):
+        try:
+            data = valor.date()
+            if hasattr(data, "isoformat"):
+                return data.isoformat()
+        except Exception:
+            pass
+    if hasattr(valor, "isoformat"):
+        try:
+            return valor.isoformat()
+        except Exception:
+            pass
+    return _txt(valor)
 
 
 def _norm_valor(valor: Any) -> str:
