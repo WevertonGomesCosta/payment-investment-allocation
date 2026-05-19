@@ -104,7 +104,11 @@ def main() -> int:
     parser.add_argument("--sem-csv", action="store_true", help="Não grava CSV diagnóstico")
     args = parser.parse_args()
 
-    contexto = carregar_contexto_baseline(raiz_repositorio=args.raiz, instalar_automaticamente=False)
+    contexto = carregar_contexto_baseline(
+        raiz_repositorio=args.raiz,
+        instalar_automaticamente=False,
+        incluir_benchmark_agrupado_individual_shadow=False,
+    )
     quadro_futuro = _quadro_futuro_preferencial(contexto)
     mapa_central = _mapa_pagamentos_central(contexto)
 
