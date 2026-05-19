@@ -556,12 +556,37 @@ def _origens_migradas_auditoria(saida: Any) -> list[dict[str, Any]]:
 
 
 def _status_ciclo_lote(item: dict[str, Any], *, tipo: str) -> str:
-    status_item = str(item.get("Status") or "").strip()
+    status_item = str(item.get("Status ciclo") or item.get("Status") or "").strip()
     if tipo == "exauridos":
+        if status_item == "migrado_por_switching":
+            return "migrado_por_switching"
         return "exaurido_por_saque"
     if status_item == "ativo_pos_switching":
         return "ativo_pos_switching"
     return "ativo"
+
+
+def _lotes_origens_migradas_set(saida: Any) -> set[str]:
+    return {
+        str(item.get("lote_origem") or "").strip()
+        for item in _origens_migradas_auditoria(saida)
+        if str(item.get("lote_origem") or "").strip()
+    }
+
+
+def _remover_origens_migradas_dos_exauridos_consolidados(
+    linhas: list[dict[str, Any]],
+    saida: Any,
+) -> list[dict[str, Any]]:
+    """Evita duplicidade observável entre exaurido_por_saque e migrado_por_switching."""
+    origens_migradas = _lotes_origens_migradas_set(saida)
+    if not origens_migradas:
+        return linhas
+    return [
+        linha
+        for linha in linhas
+        if str(linha.get("Lote") or "").strip() not in origens_migradas
+    ]
 
 
 def calcular_rendimento_liquido_observavel(
@@ -654,8 +679,12 @@ def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str) -> list[dict[
         linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo)
     elif tipo == 'exauridos':
         headers = COLS_LOTES_EXAURIDOS_ID_CURTAS
+        linhas_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
+            construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo),
+            saida,
+        )
         linhas_base = (
-            construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo)
+            linhas_consolidadas
             + construir_linhas_lotes_encerrados_por_switching(contexto, saida)
         )
     else:
@@ -675,6 +704,7 @@ def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str) -> list[
         # Mantém alinhamento visual entre a tabela de identificação e a tabela de valores.
         # As origens migradas por switching entram apenas como linhas observáveis
         # e NÃO são usadas por construir_resumo_patrimonio_total_lotes(...).
+        linhas_base = _remover_origens_migradas_dos_exauridos_consolidados(linhas_base, saida)
         linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida)
 
     return [
@@ -845,7 +875,14 @@ def _valor_total_recebidos_brutos(saida) -> float:
 
 
 def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, Any]]:
-    linhas_exauridos = construir_linhas_lotes_consolidados(contexto, saida, tipo='exauridos')
+    linhas_exauridos_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
+        construir_linhas_lotes_consolidados(contexto, saida, tipo='exauridos'),
+        saida,
+    )
+    linhas_exauridos = (
+        linhas_exauridos_consolidadas
+        + construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida)
+    )
     linhas_ativos = construir_linhas_lotes_consolidados(contexto, saida, tipo='ativos')
     linhas = linhas_exauridos + linhas_ativos
 
@@ -875,8 +912,16 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, A
     valor_liquido_migrado_pos_switching = rec_origens['valor_liquido_migrado_total']
     valor_bruto_sacado_origens_migradas = rec_origens['valor_bruto_sacado_historico_total']
     valor_liquido_sacado_origens_migradas = rec_origens['valor_liquido_sacado_historico_total']
+    origens_migradas = _lotes_origens_migradas_set(saida)
+    origens_migradas_incluidas_no_resumo = any(
+        str(item.get('Lote') or '').strip() in origens_migradas
+        for item in linhas_exauridos
+    )
+
     patrimonio_liquido_reconciliado = round(
-        patrimonio_liquido_atual + valor_liquido_sacado_origens_migradas,
+        patrimonio_liquido_atual
+        if origens_migradas_incluidas_no_resumo
+        else patrimonio_liquido_atual + valor_liquido_sacado_origens_migradas,
         2,
     )
 
