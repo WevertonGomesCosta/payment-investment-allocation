@@ -44,7 +44,8 @@ A Etapa 3 recebe:
 A Etapa 3 produz:
 
 - `PacoteDadosOperacionaisCanonicos`;
-- `UniversoEconomicoCanonico`.
+- `UniversoEconomicoCanonico`;
+- `PacoteAuditoriaCanonizacaoOperacional`.
 
 ---
 
@@ -75,16 +76,19 @@ A Etapa 3 também consome o `PacoteValidacaoPreExecucao` como evidência de vali
 
 ## 5. Saída normativa da Etapa 3
 
-A saída principal da Etapa 3 é:
+As saídas normativas da Etapa 3 são:
 
-`PacoteDadosOperacionaisCanonicos`
+- `PacoteDadosOperacionaisCanonicos`;
+- `UniversoEconomicoCanonico`;
+- `PacoteAuditoriaCanonizacaoOperacional`.
 
-Composição normativa:
+Composição normativa do `PacoteDadosOperacionaisCanonicos`:
 
 - `carteira_canonica`;
 - `universo_economico_canonico`;
 - `gastos_canonicos`;
 - `salarios_canonicos`;
+- `recebidos_canonicos`;
 - `switching_canonico`;
 - `inventario_canonico_base`;
 - `inventario_canonico_completo`;
@@ -250,10 +254,15 @@ A Etapa 3 deve registrar auditorias de:
 - carteira;
 - gastos;
 - salários;
+- recebidos;
 - switching;
 - inventário;
 - inventário canônico completo;
 - universo econômico.
+
+As auditorias e validações da Etapa 3 são consolidadas em:
+
+`PacoteAuditoriaCanonizacaoOperacional`
 
 A auditoria do inventário canônico completo deve registrar, quando aplicável:
 
@@ -387,69 +396,108 @@ Esta microetapa não implementa nenhuma dessas refatorações.
 
 ---
 
-## 12. Fluxograma da Etapa 3 — Canonização operacional
+## 12. Fluxograma da Etapa 3 — Canonização operacional final
+
+O fluxograma abaixo descreve a Etapa 3 normativa final. Os nomes de funções e scripts representam interfaces finais desejadas da canonização operacional e podem ser implementados por adaptação, renomeação ou encapsulamento das funções atualmente existentes.
 
 ```mermaid
 flowchart TD
 
-    A["Entrada da Etapa 3<br/>PacoteEntradaResolvida validado<br/>+ PacoteValidacaoPreExecucao"] --> B["ETAPA 3<br/>Dados operacionais e universo econômico canônico"]
+    %% =====================================================
+    %% ENTRADA FORMAL DA ETAPA 3
+    %% =====================================================
 
-    B --> C["Arquivo principal atual<br/>nucleo/dados_operacionais_canonicos.py<br/>carregar_dados_operacionais_canonicos(...)"]
+    IN["Entrada formal da Etapa 3<br/>PacoteEntradaResolvida validado<br/>PacoteValidacaoPreExecucao aprovado"]
 
-    C --> V0["3A. Confirmar entrada validada<br/>Consome evidências da Etapa 2<br/>Não corrige entrada"]
+    %% =====================================================
+    %% FUNÇÕES FINAIS DA ETAPA 3
+    %% =====================================================
 
-    C --> P0["3B. Carteira canônica e universo econômico<br/>nucleo/carteira_canonica.py"]
-    P0 --> P1["Funções atuais:<br/>normalizar_carteira_bruta(...)<br/>normalizar_nome_produto(...)<br/>gerar_produto_key(...)"]
-    P1 --> P2["Entrada:<br/>quadros_estruturais_resolvidos['carteira']<br/>MapaColunasResolvidas['carteira']<br/>PacoteConfig"]
-    P2 --> P3["Saída normativa:<br/>carteira_canonica<br/>produtos_canonicos<br/>mapa_produtos<br/>universo_economico_canonico<br/>ranking_carteira<br/>auditoria_carteira"]
+    subgraph E3["Etapa 3 — Canonização operacional"]
 
-    C --> G0["3C. Gastos / pagamentos canônicos"]
-    G0 --> G1["Função atual:<br/>carregar_gastos_canonicos(...)"]
-    G1 --> G2["Entrada:<br/>quadros_estruturais_resolvidos['despesas']<br/>MapaColunasResolvidas['despesas']<br/>data_referencia"]
-    G2 --> G3["Saída normativa:<br/>gastos_canonicos<br/>pagamentos canônicos<br/>auditoria_gastos"]
+        F0["construir_pacote_canonizacao_operacional(...)<br/><br/>Função orquestradora final da Etapa 3"]
 
-    C --> S0["3D. Salários / recebidos canônicos"]
-    S0 --> S1["Função atual:<br/>carregar_salarios_canonicos(...)"]
-    S1 --> S2["Entrada:<br/>quadros_estruturais_resolvidos['salarios']<br/>MapaColunasResolvidas['salarios']<br/>data_referencia"]
-    S2 --> S3["Saída normativa:<br/>salarios_canonicos<br/>recebidos canônicos<br/>auditoria_salarios"]
+        F1["canonizar_carteira(...)<br/><br/>Entrada:<br/>quadros_estruturais_resolvidos/carteira<br/><br/>Saída:<br/>carteira_canonica<br/>mapa_produtos<br/>auditoria_carteira"]
 
-    C --> SW0["3E. Switchings já realizados canônicos<br/>dados_operacionais_canonicos.py<br/>inventario_lotes_expandido_pos_switching.py"]
-    SW0 --> SW1["Funções atuais:<br/>carregar_switching_canonico(...)<br/>normalizar_lotes_pos_switching_para_schema_inventario(...)"]
-    SW1 --> SW2["Entrada:<br/>quadros_estruturais_resolvidos['switching']<br/>MapaColunasResolvidas['switching']<br/>carteira_canonica<br/>data_referencia"]
-    SW2 --> SW3["Saída normativa:<br/>switching_canonico<br/>auditoria_switching"]
-    SW3 --> SW4["Artefato intermediário interno:<br/>lotes_destino_switchings_realizados_normalizados<br/>Usado apenas para construir e auditar<br/>inventario_canonico_completo"]
-    SW4 --> SW5["Regra:<br/>Switching = eventos já realizados/declarados<br/>não candidatos do motor"]
+        F2["canonizar_recebidos(...)<br/><br/>Entrada:<br/>quadros_estruturais_resolvidos/salarios<br/><br/>Saída:<br/>recebidos_canonicos<br/>salarios_canonicos<br/>auditoria_recebidos"]
 
-    C --> I0["3F. Inventário de Lotes canônico completo"]
-    I0 --> I1["Funções atuais:<br/>carregar_inventario_canonico(...)<br/>construir_inventario_lotes_expandido(...)"]
-    I1 --> I2["Entrada:<br/>quadros_estruturais_resolvidos['lotes']<br/>MapaColunasResolvidas['lotes']<br/>carteira_canonica<br/>data_referencia<br/>artefato intermediário de lotes destino"]
-    I2 --> I3["Saída normativa:<br/>inventario_canonico_base<br/>inventario_canonico_completo<br/>auditoria_inventario<br/>auditoria_inventario_canonico_completo"]
-    I3 --> I4["Nome técnico transitório:<br/>inventario_lotes_expandido<br/><br/>Nome normativo:<br/>inventario_canonico_completo"]
+        F3["canonizar_gastos(...)<br/><br/>Entrada:<br/>quadros_estruturais_resolvidos/despesas<br/><br/>Saída:<br/>gastos_canonicos<br/>contas_pagas_canonicas<br/>contas_futuras_canonicas<br/>auditoria_gastos"]
 
-    P3 --> U0["3G. Universo econômico canônico"]
-    G3 --> U0
-    S3 --> U0
-    SW3 --> U0
-    I3 --> U0
-    U0 --> U1["Artefatos:<br/>produtos_canonicos<br/>mapa_produtos<br/>elegibilidade básica<br/>ranking_carteira<br/>auditoria_universo_economico"]
+        F4["canonizar_switching(...)<br/><br/>Entrada:<br/>quadros_estruturais_resolvidos/switching<br/><br/>Saída:<br/>switching_canonico<br/>vinculos_origem_destino<br/>auditoria_switching"]
 
-    P3 --> AUD["3H. Auditorias e validações da Etapa 3"]
-    G3 --> AUD
-    S3 --> AUD
-    SW3 --> AUD
-    I3 --> AUD
-    U1 --> AUD
+        F5["canonizar_inventario_base(...)<br/><br/>Entrada:<br/>quadros_estruturais_resolvidos/lotes<br/>carteira_canonica<br/><br/>Saída:<br/>inventario_canonico_base<br/>auditoria_inventario_base"]
 
-    P3 --> OUT["3I. Saída da Etapa 3<br/>PacoteDadosOperacionaisCanonicos"]
-    G3 --> OUT
-    S3 --> OUT
-    SW3 --> OUT
-    I3 --> OUT
-    U1 --> OUT
-    AUD --> OUT
+        F6["normalizar_destinos_pos_switching(...)<br/><br/>Entrada:<br/>switching_canonico<br/>carteira_canonica<br/><br/>Saída:<br/>lotes_pos_switching_normalizados<br/>auditoria_pos_switching"]
 
-    OUT --> OUT1["Conteúdo normativo final:<br/>carteira_canonica<br/>universo_economico_canonico<br/>gastos_canonicos<br/>salarios_canonicos<br/>switching_canonico<br/>inventario_canonico_base<br/>inventario_canonico_completo<br/>auditorias<br/>validacoes"]
+        F7["classificar_origens_migradas_switching(...)<br/><br/>Entrada:<br/>inventario_canonico_base<br/>switching_canonico<br/>vinculos_origem_destino<br/><br/>Saída:<br/>origens_migradas_canonicas<br/>auditoria_origens_migradas"]
 
-    OUT1 --> E4["Destino<br/>Etapa 4 — Estado temporal inicial"]
+        F8["construir_inventario_canonico_completo(...)<br/><br/>Entrada:<br/>inventario_canonico_base<br/>lotes_pos_switching_normalizados<br/>origens_migradas_canonicas<br/><br/>Saída:<br/>inventario_canonico<br/>inventario_lotes_expandido<br/>auditoria_inventario_completo"]
+
+        F9["construir_universo_economico_canonico(...)<br/><br/>Entrada:<br/>carteira_canonica<br/>recebidos_canonicos<br/>gastos_canonicos<br/>switching_canonico<br/>inventario_canonico<br/><br/>Saída:<br/>UniversoEconomicoCanonico"]
+
+        F10["auditar_canonizacao_operacional(...)<br/><br/>Entrada:<br/>todos os artefatos canônicos da Etapa 3<br/><br/>Saída:<br/>PacoteAuditoriaCanonizacaoOperacional"]
+
+        F11["montar_pacote_dados_operacionais_canonicos(...)<br/><br/>Entrada:<br/>artefatos canônicos auditados<br/><br/>Saída:<br/>PacoteDadosOperacionaisCanonicos"]
+
+        F0 --> F1
+        F0 --> F2
+        F0 --> F3
+        F0 --> F4
+        F0 --> F5
+
+        F1 --> F5
+        F1 --> F6
+
+        F4 --> F6
+        F4 --> F7
+
+        F5 --> F7
+        F5 --> F8
+        F6 --> F8
+        F7 --> F8
+
+        F1 --> F9
+        F2 --> F9
+        F3 --> F9
+        F4 --> F9
+        F8 --> F9
+
+        F1 --> F10
+        F2 --> F10
+        F3 --> F10
+        F4 --> F10
+        F8 --> F10
+        F9 --> F10
+
+        F10 --> F11
+    end
+
+    %% =====================================================
+    %% SCRIPTS FINAIS DE AUDITORIA DA ETAPA 3
+    %% =====================================================
+
+    subgraph SCRIPTS["Scripts finais de auditoria da Etapa 3"]
+
+        S1["scripts/diagnostico/auditar_etapa3_canonizacao_operacional.py<br/><br/>Verifica:<br/>presença dos artefatos canônicos<br/>shapes mínimos<br/>IDs obrigatórios<br/>datas obrigatórias<br/>valores monetários<br/>auditorias da Etapa 3"]
+
+        S2["scripts/diagnostico/auditar_fluxograma_etapa3_canonizacao_operacional.py<br/><br/>Verifica:<br/>entrada formal<br/>funções finais<br/>saídas formais<br/>ausência de replay/ledger/saída no interior da Etapa 3"]
+
+        S3["scripts/diagnostico/auditar_pos_switching_etapa3.py<br/><br/>Verifica:<br/>destinos POS<br/>origens migradas<br/>vínculos origem-destino<br/>inventário base vs inventário completo"]
+
+        S4["scripts/diagnostico/auditar_contrato_universo_economico_canonico.py<br/><br/>Verifica:<br/>fontes canônicas<br/>produtos canônicos<br/>lotes canônicos<br/>eventos estruturais<br/>relações origem-destino"]
+
+        S1 --> S2
+        S2 --> S3
+        S3 --> S4
+    end
+
+    %% =====================================================
+    %% SAÍDAS FORMAIS DA ETAPA 3
+    %% =====================================================
+
+    OUT["Saída formal da Etapa 3<br/>PacoteDadosOperacionaisCanonicos<br/>UniversoEconomicoCanonico<br/>PacoteAuditoriaCanonizacaoOperacional"]
+
+    IN --> F0
+    F11 --> OUT
+    OUT -. "auditado por" .-> S1
 ```
-
