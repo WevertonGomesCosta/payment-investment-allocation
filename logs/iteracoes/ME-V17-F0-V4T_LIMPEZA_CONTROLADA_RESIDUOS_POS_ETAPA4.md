@@ -8,3 +8,5 @@
 - Validação informativa da interface Etapa 4 → Etapa 5 adicionada em V4T.
 - Decisão: Etapa 5 permanece fechada (`etapa5_pode_abrir_agora=False`).
 - Próximos passos V4U/V4V/V4W/V4X permanecem no fechamento da Etapa 4.
+
+- Nota curta (ajuste cirúrgico): bloco Etapa 4 → Etapa 5 corrigido para o padrão real da V4Q; imports inexistentes removidos; falhas de validação agora registradas em `erro_validacao_etapa4_etapa5`/`componentes_etapa4_etapa5_faltantes`; Etapa 5 permanece fechada; V4U/V4V/V4W/V4X seguem no fechamento arquitetural da Etapa 4.
