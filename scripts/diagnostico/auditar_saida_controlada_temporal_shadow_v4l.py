@@ -8,20 +8,13 @@ from typing import Any
 
 import pandas as pd
 
-def _resolver_raiz_repositorio() -> Path:
-    atual = Path(__file__).resolve()
-    for pai in atual.parents:
-        if (pai / "nucleo").is_dir() and (pai / "scripts").is_dir():
-            return pai
-    raise RuntimeError("raiz_repositorio_nao_encontrada")
-
-
-ROOT = _resolver_raiz_repositorio()
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.saida_canonica import construir_saida_canonica
+from nucleo.saida_canonica_controlada_v4l import construir_saida_canonica_controlada_v4l
 from nucleo.saida_canonica_temporal_shadow_v4k import CHAVE_AUDITORIA_TEMPORAL_SHADOW_V4K
 
 
@@ -61,7 +54,7 @@ def _linhas_resumo(resultado: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Audita parâmetro incluir_temporal_shadow na saída canônica oficial.")
+    parser = argparse.ArgumentParser(description="Audita caminho controlado V4L da saída com temporal shadow opcional.")
     parser.add_argument("--raiz", type=Path, default=ROOT)
     parser.add_argument("--sem-csv", action="store_true")
     args = parser.parse_args()
@@ -73,41 +66,44 @@ def main() -> int:
     )
 
     saida_padrao = construir_saida_canonica(contexto)
-    saida_false = construir_saida_canonica(contexto, incluir_temporal_shadow=False)
-    saida_true = construir_saida_canonica(contexto, incluir_temporal_shadow=True)
+    saida_controlada_desligada = construir_saida_canonica_controlada_v4l(contexto, incluir_temporal_shadow=False)
+    saida_controlada_ligada = construir_saida_canonica_controlada_v4l(contexto, incluir_temporal_shadow=True)
 
     auditoria_padrao = dict(saida_padrao.auditoria or {})
-    auditoria_true_sem_bloco = _auditoria_sem_bloco_temporal(saida_true.auditoria or {})
-    bloco = (saida_true.auditoria or {}).get(CHAVE_AUDITORIA_TEMPORAL_SHADOW_V4K, {})
+    auditoria_ligada_sem_bloco = _auditoria_sem_bloco_temporal(saida_controlada_ligada.auditoria or {})
+    bloco = (saida_controlada_ligada.auditoria or {}).get(CHAVE_AUDITORIA_TEMPORAL_SHADOW_V4K, {})
 
     resultado = {
-        "adaptador": "saida_canonica::construir_saida_canonica",
-        "saida_padrao_identica": _iguais(saida_padrao, saida_false),
-        "saida_parametro_false_identica": _iguais(saida_padrao, saida_false),
-        "saida_parametro_true_tem_bloco": CHAVE_AUDITORIA_TEMPORAL_SHADOW_V4K in (saida_true.auditoria or {}),
-        "auditoria_existente_preservada": _iguais(auditoria_padrao, auditoria_true_sem_bloco),
-        "auditoria_acrescida_apenas_bloco_temporal_shadow": len(saida_true.auditoria or {}) == len(auditoria_padrao) + 1,
-        "extrato_passado_identico": _iguais(saida_padrao.extrato_passado, saida_true.extrato_passado),
-        "extrato_futuro_identico": _iguais(saida_padrao.extrato_futuro, saida_true.extrato_futuro),
-        "switchings_identico": _iguais(saida_padrao.switchings, saida_true.switchings),
-        "ranking_amostra_identico": _iguais(saida_padrao.ranking_amostra, saida_true.ranking_amostra),
-        "lotes_ativos_identico": _iguais(saida_padrao.lotes_ativos, saida_true.lotes_ativos),
-        "lotes_exauridos_identico": _iguais(saida_padrao.lotes_exauridos, saida_true.lotes_exauridos),
-        "recebidos_atuais_identico": _iguais(saida_padrao.recebidos_atuais, saida_true.recebidos_atuais),
-        "fechamento_atual_identico": _iguais(saida_padrao.fechamento_atual, saida_true.fechamento_atual),
-        "resumo_recebidos_identico": _iguais(saida_padrao.resumo_recebidos, saida_true.resumo_recebidos),
+        "adaptador": "saida_canonica_controlada_v4l",
+        "saida_padrao_identica": _iguais(saida_padrao, saida_controlada_desligada),
+        "saida_com_shadow_temporal_tem_bloco": CHAVE_AUDITORIA_TEMPORAL_SHADOW_V4K in (saida_controlada_ligada.auditoria or {}),
+        "auditoria_existente_preservada": _iguais(auditoria_padrao, auditoria_ligada_sem_bloco),
+        "auditoria_acrescida_apenas_bloco_temporal_shadow": len(saida_controlada_ligada.auditoria or {}) == len(auditoria_padrao) + 1,
+        "extrato_passado_identico": _iguais(saida_padrao.extrato_passado, saida_controlada_ligada.extrato_passado),
+        "extrato_futuro_identico": _iguais(saida_padrao.extrato_futuro, saida_controlada_ligada.extrato_futuro),
+        "switchings_identico": _iguais(saida_padrao.switchings, saida_controlada_ligada.switchings),
+        "ranking_amostra_identico": _iguais(saida_padrao.ranking_amostra, saida_controlada_ligada.ranking_amostra),
+        "lotes_ativos_identico": _iguais(saida_padrao.lotes_ativos, saida_controlada_ligada.lotes_ativos),
+        "lotes_exauridos_identico": _iguais(saida_padrao.lotes_exauridos, saida_controlada_ligada.lotes_exauridos),
+        "recebidos_atuais_identico": _iguais(saida_padrao.recebidos_atuais, saida_controlada_ligada.recebidos_atuais),
+        "fechamento_atual_identico": _iguais(saida_padrao.fechamento_atual, saida_controlada_ligada.fechamento_atual),
+        "resumo_recebidos_identico": _iguais(saida_padrao.resumo_recebidos, saida_controlada_ligada.resumo_recebidos),
+        "versao_identica": saida_padrao.versao == saida_controlada_ligada.versao,
+        "data_referencia_identica": saida_padrao.data_referencia == saida_controlada_ligada.data_referencia,
         "bloco_temporal_ok": bool(bloco.get("ok")),
         "bloco_validacao_agregador_ok": bool(bloco.get("validacao_agregador_ok")),
         "bloco_erros_bloqueantes_total": int(bloco.get("erros_bloqueantes_agregador_total") or 0),
+        "bloco_extrato_passado_identico": bool(bloco.get("extrato_passado_identico")),
+        "bloco_extrato_futuro_identico": bool(bloco.get("extrato_futuro_identico")),
+        "bloco_lotes_normalizados_identicos": bool(bloco.get("lotes_normalizados_identicos")),
         "bloco_fonte_primaria_switching_ledger": bloco.get("fonte_primaria_switching_ledger"),
         "bloco_usa_planilha_bruta_como_fonte_primaria": bloco.get("usa_planilha_bruta_como_fonte_primaria"),
-        "sem_alteracao_observavel_padrao": _iguais(saida_padrao, saida_false),
+        "sem_alteracao_observavel_padrao": _iguais(saida_padrao, saida_controlada_desligada),
     }
 
-    resultado["validacao_v4n_ok"] = all([
+    resultado["validacao_v4l_ok"] = all([
         resultado["saida_padrao_identica"],
-        resultado["saida_parametro_false_identica"],
-        resultado["saida_parametro_true_tem_bloco"],
+        resultado["saida_com_shadow_temporal_tem_bloco"],
         resultado["auditoria_existente_preservada"],
         resultado["auditoria_acrescida_apenas_bloco_temporal_shadow"],
         resultado["extrato_passado_identico"],
@@ -119,15 +115,20 @@ def main() -> int:
         resultado["recebidos_atuais_identico"],
         resultado["fechamento_atual_identico"],
         resultado["resumo_recebidos_identico"],
+        resultado["versao_identica"],
+        resultado["data_referencia_identica"],
         resultado["bloco_temporal_ok"],
         resultado["bloco_validacao_agregador_ok"],
         resultado["bloco_erros_bloqueantes_total"] == 0,
+        resultado["bloco_extrato_passado_identico"],
+        resultado["bloco_extrato_futuro_identico"],
+        resultado["bloco_lotes_normalizados_identicos"],
         resultado["bloco_fonte_primaria_switching_ledger"] == "switching_canonico",
         resultado["bloco_usa_planilha_bruta_como_fonte_primaria"] is False,
         resultado["sem_alteracao_observavel_padrao"],
     ])
 
-    print("=== AUDITORIA PARAMETRO TEMPORAL SHADOW V4N ===")
+    print("=== AUDITORIA SAIDA CANONICA CONTROLADA TEMPORAL SHADOW V4L ===")
     for linha in _linhas_resumo(resultado):
         print(f"{linha['metrica']}: {linha['valor']}")
 
@@ -135,11 +136,11 @@ def main() -> int:
         saida_dir = args.raiz / "saidas" / "diagnostico"
         saida_dir.mkdir(parents=True, exist_ok=True)
         pd.DataFrame(_linhas_resumo(resultado)).to_csv(
-            saida_dir / "auditoria_saida_canonica_parametro_temporal_shadow_v4n_resumo.csv",
+            saida_dir / "auditoria_saida_controlada_temporal_shadow_v4l_resumo.csv",
             index=False,
         )
 
-    return 0 if resultado["validacao_v4n_ok"] else 1
+    return 0 if resultado["validacao_v4l_ok"] else 1
 
 
 if __name__ == "__main__":

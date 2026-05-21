@@ -8,15 +8,7 @@ from typing import Any, Mapping
 
 import pandas as pd
 
-def _resolver_raiz_repositorio() -> Path:
-    atual = Path(__file__).resolve()
-    for pai in atual.parents:
-        if (pai / "nucleo").is_dir() and (pai / "scripts").is_dir():
-            return pai
-    raise RuntimeError("raiz_repositorio_nao_encontrada")
-
-
-ROOT = _resolver_raiz_repositorio()
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
