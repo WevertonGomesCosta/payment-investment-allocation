@@ -690,6 +690,7 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[d
         origem_exaurida_com_saldo_replay = (
             tipo == 'ativos'
             and lote_id in lotes_exauridos_ids
+            and lote_id not in lotes_ativos_ids
             and _lote_deve_ser_ativo_observavel_por_replay(
                 lote_id,
                 item,
