@@ -136,7 +136,7 @@ def inventariar_shadows_e_v4() -> dict[str, Any]:
     shadow_arquivos = [str(p.relative_to(ROOT)) for p in py_files if "shadow" in p.stem.lower()]
 
     caminhos_shadow_explicitos = {
-        "PacoteReplayPassado shadow": "nucleo/pacote_replay_passado_shadow.py",
+        "PacoteReplayPassado shadow": "nucleo/pacote_replay_passado.py",
         "PacoteLedgerTemporalOperacional shadow": "nucleo/pacote_ledger_temporal_operacional.py",
         "PacoteEstadoTemporal shadow": "nucleo/pacote_estado_temporal.py",
         "PacoteAuditoriaTemporal shadow": "nucleo/pacote_auditoria_temporal.py",
@@ -144,6 +144,14 @@ def inventariar_shadows_e_v4() -> dict[str, Any]:
         "bloco temporal shadow na auditoria da saída": "nucleo/saida_canonica_temporal_shadow_v4k.py",
         "parâmetro incluir_temporal_shadow": "nucleo/saida_canonica.py",
     }
+    caminhos_shadow_explicitos_status = {}
+    for rotulo, rel in caminhos_shadow_explicitos.items():
+        existe = (ROOT / rel).exists()
+        caminhos_shadow_explicitos_status[rotulo] = {
+            "path": rel,
+            "existe": existe,
+            "tipo": "existente" if existe else "conceitual_ou_nao_existente",
+        }
 
     diag_v4 = sorted((ROOT / "scripts" / "diagnostico").glob("*v4*.py"))
     class_tecnica = {k: [] for k in CATEGORIAS_TECNICAS_V4}
@@ -163,7 +171,7 @@ def inventariar_shadows_e_v4() -> dict[str, Any]:
 
     return {
         "caminhos_shadow_ainda_necessarios_por_arquivo": shadow_arquivos,
-        "caminhos_shadow_classificacao_explicita": caminhos_shadow_explicitos,
+        "caminhos_shadow_classificacao_explicita": caminhos_shadow_explicitos_status,
         "diagnosticos_v4_classificacao_tecnica": class_tecnica,
         "diagnosticos_v4_classificacao_operacional": class_operacional,
     }
@@ -204,7 +212,7 @@ def main() -> int:
     varredura_generica = set(inventario["funcoes_iter_dict"]) | set(inventario["funcoes_iter_df_generico"])
     dups_pres = any(bool(v) for v in inventario["duplicidades_potenciais"].values())
     qtd_diag = sum(len(v) for v in inventario["diagnosticos_v4_classificacao_tecnica"].values())
-    qtd_shadow = len(inventario["caminhos_shadow_ainda_necessarios_por_arquivo"]) + len(inventario["caminhos_shadow_classificacao_explicita"])
+    qtd_shadow = len(inventario["caminhos_shadow_ainda_necessarios_por_arquivo"]) + sum(1 for v in inventario["caminhos_shadow_classificacao_explicita"].values() if v.get("existe"))
 
     inventario.update({
         "execucao_v4s_concluida": True,

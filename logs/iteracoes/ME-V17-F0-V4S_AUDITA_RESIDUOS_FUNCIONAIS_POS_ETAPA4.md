@@ -131,3 +131,10 @@ Nenhuma remoção automática foi realizada nesta microetapa.
 - Não houve abertura da Etapa 5.
 - Não houve remoção automática de resíduos.
 - Falhas informativas não foram usadas como condição de parada.
+
+
+## Nota de ajuste final (comentário Codex: caminho shadow inexistente)
+- O mapeamento explícito de **PacoteReplayPassado shadow** foi corrigido.
+- O caminho agora aponta para o módulo existente `nucleo/pacote_replay_passado.py`.
+- O comentário do Codex sobre caminho inexistente foi endereçado.
+- A contagem de `qtd_caminhos_shadow_classificados` considera apenas caminhos explícitos existentes; caminhos conceituais/não existentes não inflacionam a métrica.
