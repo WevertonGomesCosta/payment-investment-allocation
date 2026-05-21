@@ -566,6 +566,53 @@ def _status_ciclo_lote(item: dict[str, Any], *, tipo: str) -> str:
     return "ativo"
 
 
+
+def _mapa_saldo_final_replay_por_lote(contexto: Any) -> dict[str, float]:
+    replay = getattr(contexto, 'replay_passado', None)
+    log = getattr(replay, 'log_passado', None) if replay is not None else None
+    mapa: dict[str, tuple[str, float, int, float]] = {}
+    if log is None or not hasattr(log, 'iterrows') or 'Lote' not in getattr(log, 'columns', []):
+        return {}
+
+    for idx, row in enumerate(log.iterrows()):
+        _, registro = row
+        lote_id = str(registro.get('Lote') or '').strip()
+        if not lote_id:
+            continue
+
+        saldo = round(
+            para_float(
+                registro.get('Saldo Remanescente')
+                if 'Saldo Remanescente' in registro
+                else registro.get('Saldo_remanescente')
+            ),
+            2,
+        )
+        data_txt = _fmt_data_observavel(registro.get('Data'), padrao='')
+        seq = para_float(registro.get('Sequencia Saque') if 'Sequencia Saque' in registro else registro.get('sequencia_saque'))
+        chave = (data_txt, seq, idx)
+        atual = mapa.get(lote_id)
+        if atual is None or chave > (atual[0], atual[1], atual[2]):
+            mapa[lote_id] = (data_txt, seq, idx, saldo)
+
+    return {lote: dados[3] for lote, dados in mapa.items()}
+
+
+def _lote_deve_ser_ativo_observavel_por_replay(
+    lote_id: str,
+    item: dict[str, Any],
+    mapa_saldo_final_replay: dict[str, float],
+    *,
+    minimo_positivo: float = 0.20,
+) -> bool:
+    if not lote_id:
+        return False
+    status = _status_ciclo_lote(item, tipo='exauridos')
+    if 'migrado' in str(status).lower():
+        return False
+    saldo_final = round(para_float(mapa_saldo_final_replay.get(lote_id)), 2)
+    return saldo_final > minimo_positivo
+
 def _lotes_origens_migradas_set(saida: Any) -> set[str]:
     return {
         str(item.get("lote_origem") or "").strip()
@@ -614,14 +661,52 @@ def calcular_rendimento_liquido_observavel(
 def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
     campo = 'lotes_exauridos' if tipo == 'exauridos' else 'lotes_ativos'
     itens = list(getattr(saida, campo, []) or [])
+    mapa_saldo_final_replay = _mapa_saldo_final_replay_por_lote(contexto)
+    lotes_exauridos = list(getattr(saida, 'lotes_exauridos', []) or [])
+    lotes_exauridos_ids = {str(item.get('Lote') or '').strip() for item in lotes_exauridos}
+    lotes_ativos_ids = {str(item.get('Lote') or '').strip() for item in list(getattr(saida, 'lotes_ativos', []) or [])}
     somas = somar_valores_sacados_por_lote(contexto, saida)
     mapa_termino = _mapa_ultimo_uso_lotes_saida(saida)
     linhas: list[dict[str, Any]] = []
 
-    for item in itens:
+    itens_iteracao = list(itens)
+    if tipo == 'ativos':
+        for item_exaurido in lotes_exauridos:
+            lote_id_exaurido = str(item_exaurido.get('Lote') or '').strip()
+            if (
+                lote_id_exaurido
+                and lote_id_exaurido not in lotes_ativos_ids
+                and _lote_deve_ser_ativo_observavel_por_replay(
+                    lote_id_exaurido,
+                    item_exaurido,
+                    mapa_saldo_final_replay,
+                )
+            ):
+                itens_iteracao.append(item_exaurido)
+
+    for item in itens_iteracao:
         lote_id = str(item.get('Lote') or '').strip()
+        saldo_final_replay = round(para_float(mapa_saldo_final_replay.get(lote_id)), 2)
+        origem_exaurida_com_saldo_replay = (
+            tipo == 'ativos'
+            and lote_id in lotes_exauridos_ids
+            and _lote_deve_ser_ativo_observavel_por_replay(
+                lote_id,
+                item,
+                mapa_saldo_final_replay,
+            )
+        )
+        if (
+            tipo == 'exauridos'
+            and _lote_deve_ser_ativo_observavel_por_replay(
+                lote_id,
+                item,
+                mapa_saldo_final_replay,
+            )
+        ):
+            continue
         sacado = somas.get(lote_id, {})
-        status_ciclo = _status_ciclo_lote(item, tipo=tipo)
+        status_ciclo = 'ativo' if origem_exaurida_com_saldo_replay else _status_ciclo_lote(item, tipo=tipo)
 
         data_aplicacao = item.get('Aplicação')
         data_termino = 'n/d'
@@ -644,6 +729,9 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[d
 
         bruto_atual = 0.0 if tipo == 'exauridos' else round(para_float(item.get('Bruto')), 2)
         liquido_atual = 0.0 if tipo == 'exauridos' else round(para_float(item.get('Líquido')), 2)
+        if origem_exaurida_com_saldo_replay:
+            bruto_atual = saldo_final_replay
+            liquido_atual = saldo_final_replay
 
         patrimonio_liquido = round(liquido_sacado + liquido_atual, 2)
         rendimento_liquido = calcular_rendimento_liquido_observavel(
