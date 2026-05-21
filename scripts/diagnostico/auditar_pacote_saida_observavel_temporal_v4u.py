@@ -39,6 +39,12 @@ def main() -> int:
       'lote_3120_mai_presente_ativos': a.get('lote_3120_mai_presente_ativos_snapshot', False),
       'lote_3120_mai_presente_exauridos': a.get('lote_3120_mai_presente_exauridos_snapshot', False),
       'lote_3120_mai_saldo_final': a.get('lote_3120_mai_saldo_final', 0.0),
+
+      "pagamentos_replay_sem_colisao": a.get("pagamentos_replay_sem_colisao", False),
+      "qtd_colisoes_chave_pagamento": a.get("qtd_colisoes_chave_pagamento", 0),
+      "qtd_pagamentos_replay_linhas": a.get("qtd_pagamentos_replay_linhas", 0),
+      "qtd_pagamentos_replay_chaves_unicas": a.get("qtd_pagamentos_replay_chaves_unicas", 0),
+      "valor_sacado_lote_3120_mai": a.get("valor_sacado_lote_3120_mai", 0.0),
       'sem_duplicidade_ativos_exauridos': 'lotes_duplicados_ativos_exauridos' not in v.get('erros_bloqueantes', []),
       'mapas_substitutivos_criados': all([len(p.saldos_finais_replay_por_lote)>0,len(p.pagamentos_replay_por_chave)>0]),
       'pacote_pronto_para_migracao_v4v': bool(a.get('prepara_migracao_v4v', False)),

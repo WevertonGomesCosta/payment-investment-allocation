@@ -50,6 +50,21 @@ def _iter_rows(obj: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _valor_primeiro(row: dict[str, Any], nomes: list[str]) -> Any:
+    for n in nomes:
+        if n in row and row.get(n) not in (None, ""):
+            return row.get(n)
+    return None
+
+
+def _num_primeiro(row: dict[str, Any], nomes: list[str]) -> float:
+    return _f(_valor_primeiro(row, nomes))
+
+
+def _txt_primeiro(row: dict[str, Any], nomes: list[str]) -> str:
+    return _txt(_valor_primeiro(row, nomes))
+
+
 @dataclass
 class PacoteSaidaObservavelTemporal:
     versao: str
@@ -86,24 +101,34 @@ def construir_pacote_saida_observavel_temporal(
     replay = getattr(pacotes, "pacote_replay_passado", None)
     log = _iter_rows(getattr(replay, "log_movimentos_passados", []))
 
-    rows_ordenadas = sorted(list(enumerate(log)), key=lambda x: (_data_ord(x[1].get("Data")), x[0]))
+    rows_ordenadas = sorted(list(enumerate(log)), key=lambda x: (_data_ord(_valor_primeiro(x[1], ["Data"])), x[0]))
     saldos_finais: dict[str, float] = {}
     pagamentos: dict[str, dict[str, Any]] = {}
     valores_sacados: dict[str, dict[str, float]] = {}
+    colisoes = 0
     for ordem_original, r in rows_ordenadas:
-        lote = _txt(r.get("Lote"))
+        lote = _txt_primeiro(r, ["Lote"])
         if lote:
-            saldos_finais[lote] = _f(r.get("Saldo Remanescente"))
-        chave = "|".join([
-            _data_ord(r.get("Data"))[1],
-            _txt(r.get("Descrição") or r.get("Historico") or r.get("Histórico")).lower(),
-            f"{_f(r.get('Valor')):.2f}",
-            _lote_norm(lote),
-        ])
+            saldos_finais[lote] = _num_primeiro(r, ["Saldo Remanescente", "Saldo remanescente", "Remanescente"])
+
+        data_iso = _data_ord(_valor_primeiro(r, ["Data"]))[1]
+        conta = _txt_primeiro(r, ["Conta", "Descrição", "Descricao", "Histórico", "Historico"]).lower()
+        valor_conta = _num_primeiro(r, ["Valor Conta", "Líquido", "Liquido", "Valor"])
+        despesa_id = _txt_primeiro(r, ["Despesa ID", "despesa_id"])
+        partes = [data_iso, conta, f"{valor_conta:.2f}", _lote_norm(lote)]
+        if despesa_id:
+            partes.append(despesa_id)
+        partes.append(str(ordem_original))
+        chave = "|".join(partes)
+
+        if chave in pagamentos:
+            colisoes += 1
         pagamentos[chave] = {"ordem_original": ordem_original, **r}
+
         if lote:
             acc = valores_sacados.setdefault(lote, {"valor_sacado_total": 0.0, "qtd_movimentos": 0.0})
-            acc["valor_sacado_total"] = round(acc["valor_sacado_total"] + abs(_f(r.get("Valor"))), 2)
+            valor_saque = _num_primeiro(r, ["Valor Conta", "Líquido", "Liquido", "Valor"])
+            acc["valor_sacado_total"] = round(acc["valor_sacado_total"] + abs(valor_saque), 2)
             acc["qtd_movimentos"] = round(acc["qtd_movimentos"] + 1.0, 2)
 
     origem = "snapshot_observavel_consolidado"
@@ -136,6 +161,7 @@ def construir_pacote_saida_observavel_temporal(
     ativos_set = {_lote_norm(r.get("Lote")) for r in lotes_ativos}
     ex_set = {_lote_norm(r.get("Lote")) for r in lotes_exauridos}
     saldo_3120 = saldos_finais.get(lote_alvo, 0.0)
+    valor_sacado_lote_3120 = float((valores_sacados.get(lote_alvo) or {}).get("valor_sacado_total", 0.0))
 
     erros = []
     if not saldos_finais: erros.append("saldos_finais_replay_por_lote_vazio")
@@ -147,6 +173,8 @@ def construir_pacote_saida_observavel_temporal(
     if abs(saldo_3120 - 50.52) > TOL: erros.append("lote_3120_mai_saldo_final_incompativel")
     if ativos_set & ex_set: erros.append("lotes_duplicados_ativos_exauridos")
     if origem != "snapshot_observavel_consolidado": erros.append("origem_lotes_ativos_exauridos_fallback")
+    if colisoes != 0: erros.append("colisoes_chave_pagamento_replay")
+    if valor_sacado_lote_3120 <= 0: erros.append("valor_sacado_lote_3120_mai_nao_positivo")
 
     validacao = {
         "ok": len(erros) == 0,
@@ -169,10 +197,15 @@ def construir_pacote_saida_observavel_temporal(
         "nao_altera_ledger_efetivo": True,
         "qtd_saldos_finais_replay_por_lote": len(saldos_finais),
         "qtd_pagamentos_replay_por_chave": len(pagamentos),
+        "qtd_pagamentos_replay_linhas": len(log),
+        "qtd_pagamentos_replay_chaves_unicas": len(pagamentos),
+        "pagamentos_replay_sem_colisao": colisoes == 0,
+        "qtd_colisoes_chave_pagamento": colisoes,
         "qtd_aplicacoes_por_lote": len(aplic),
         "qtd_produtos_por_lote": len(prod),
         "qtd_valores_originais_por_lote": len(orig),
         "qtd_valores_sacados_por_lote": len(valores_sacados),
+        "valor_sacado_lote_3120_mai": valor_sacado_lote_3120,
         "qtd_lotes_ativos_observaveis": len(lotes_ativos),
         "qtd_lotes_exauridos_observaveis": len(lotes_exauridos),
         "qtd_pagamentos_realizados_observaveis": len(pagamentos_realizados),
