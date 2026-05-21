@@ -153,15 +153,19 @@ def construir_pacote_saida_observavel_temporal(
         lote = _txt(r.get("Lote"))
         if not lote:
             continue
-        aplic[lote] = r.get("Aplicação") or r.get("Aplicacao")
+        aplic[lote] = _txt_primeiro(r, ["Aplic.", "Aplicação", "Aplicacao", "aplicacao"])
         prod[lote] = _txt(r.get("Produto") or r.get("Carteira"))
-        orig[lote] = _f(r.get("Valor Original") or r.get("Bruto atual") or r.get("Líq. atual"))
+        orig[lote] = _num_primeiro(r, ["Orig.", "Orig", "Valor Original", "Valor original"])
 
     lote_alvo = "Lote 3120 mai"
     ativos_set = {_lote_norm(r.get("Lote")) for r in lotes_ativos}
     ex_set = {_lote_norm(r.get("Lote")) for r in lotes_exauridos}
     saldo_3120 = saldos_finais.get(lote_alvo, 0.0)
     valor_sacado_lote_3120 = float((valores_sacados.get(lote_alvo) or {}).get("valor_sacado_total", 0.0))
+    qtd_aplic_preenchidas = sum(1 for v in aplic.values() if _txt(v) != "")
+    qtd_orig_positivos = sum(1 for v in orig.values() if _f(v) > 0)
+    aplic_sem_vazios = qtd_aplic_preenchidas == len(aplic)
+    orig_validos = qtd_orig_positivos == len(orig)
 
     erros = []
     if not saldos_finais: erros.append("saldos_finais_replay_por_lote_vazio")
@@ -175,6 +179,8 @@ def construir_pacote_saida_observavel_temporal(
     if origem != "snapshot_observavel_consolidado": erros.append("origem_lotes_ativos_exauridos_fallback")
     if colisoes != 0: erros.append("colisoes_chave_pagamento_replay")
     if valor_sacado_lote_3120 <= 0: erros.append("valor_sacado_lote_3120_mai_nao_positivo")
+    if not aplic_sem_vazios: erros.append("aplicacoes_por_lote_com_vazios")
+    if not orig_validos: erros.append("valores_originais_por_lote_invalidos")
 
     validacao = {
         "ok": len(erros) == 0,
@@ -202,8 +208,12 @@ def construir_pacote_saida_observavel_temporal(
         "pagamentos_replay_sem_colisao": colisoes == 0,
         "qtd_colisoes_chave_pagamento": colisoes,
         "qtd_aplicacoes_por_lote": len(aplic),
+        "qtd_aplicacoes_por_lote_preenchidas": qtd_aplic_preenchidas,
+        "aplicacoes_por_lote_sem_vazios": aplic_sem_vazios,
         "qtd_produtos_por_lote": len(prod),
         "qtd_valores_originais_por_lote": len(orig),
+        "qtd_valores_originais_por_lote_positivos": qtd_orig_positivos,
+        "valores_originais_por_lote_validos": orig_validos,
         "qtd_valores_sacados_por_lote": len(valores_sacados),
         "valor_sacado_lote_3120_mai": valor_sacado_lote_3120,
         "qtd_lotes_ativos_observaveis": len(lotes_ativos),

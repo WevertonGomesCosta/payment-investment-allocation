@@ -9,3 +9,5 @@
 - Próxima microetapa permanece V17-F0-V.4V.
 
 - Nota curta: comentário Codex P1 endereçado; pacote agora lê campos reais do replay (incluindo Conta e Valor Conta), chave de pagamentos inclui ordem_original para evitar sobrescrita de eventos repetidos e valores_sacados_por_lote não depende apenas de "Valor"; Etapa 5 permanece fechada; V4V segue como próxima microetapa.
+
+- Nota curta: comentário Codex P1 sobre campos dos snapshots consolidados foi endereçado; `Aplic.` e `Orig.` agora são reconhecidos; `valores_originais_por_lote` não recua para saldo atual quando `Orig.` está disponível; Etapa 5 permanece fechada; V4V continua como próxima microetapa.
