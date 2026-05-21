@@ -110,7 +110,12 @@ def inventariar_saida_observavel(path: Path) -> dict[str, Any]:
             if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute) and sub.func.attr in {"iterrows", "itertuples", "to_dict"}:
                 funcoes_iter_df_generico.append(nome)
 
-        if _contains_any(corpo, ["replay", "corrig", "reconst", "observ"]):
+        tem_replay = "replay" in corpo
+        tem_acao_reconstrucao = _contains_any(
+            corpo,
+            ["corrig", "reconst", "saldo", "remanesc", "pagamento", "lote", "mapa"],
+        )
+        if tem_replay and tem_acao_reconstrucao:
             funcoes_reconstroem_observavel_com_replay.append(nome)
 
         for chave, tokens in ALVOS_DUPLICIDADE.items():

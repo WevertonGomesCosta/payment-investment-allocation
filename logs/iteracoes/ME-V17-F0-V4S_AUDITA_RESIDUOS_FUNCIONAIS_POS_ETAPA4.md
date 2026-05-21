@@ -138,3 +138,9 @@ Nenhuma remoção automática foi realizada nesta microetapa.
 - O caminho agora aponta para o módulo existente `nucleo/pacote_replay_passado.py`.
 - O comentário do Codex sobre caminho inexistente foi endereçado.
 - A contagem de `qtd_caminhos_shadow_classificados` considera apenas caminhos explícitos existentes; caminhos conceituais/não existentes não inflacionam a métrica.
+
+
+## Nota de ajuste final (comentário Codex: falso positivo em funcoes_reconstroem_observavel_com_replay)
+- O comentário Codex sobre falso positivo em `funcoes_reconstroem_observavel_com_replay` foi endereçado.
+- A classificação agora exige evidência conjunta de `replay` e ação de reconstrução.
+- `observ` não é mais usado como critério isolado.
