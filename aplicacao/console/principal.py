@@ -34,8 +34,8 @@ from nucleo.saida_observavel import (
 
 
 
-def _render_amostras_pagamentos_operacionais(saida_canonica) -> None:
-    amostras = construir_amostras_pagamentos_operacionais(saida_canonica, limite=5)
+def _render_amostras_pagamentos_operacionais(contexto_baseline, saida_canonica) -> None:
+    amostras = construir_amostras_pagamentos_operacionais(saida_canonica, limite=5, contexto=contexto_baseline)
     amostras.pop('recebidos_futuros', None)
 
     _imprimir_titulo(amostras['titulo'])
@@ -286,7 +286,7 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
         abas_auxiliares=abas_auxiliares,
     )
 
-    _render_amostras_pagamentos_operacionais(saida_canonica)
+    _render_amostras_pagamentos_operacionais(contexto_baseline, saida_canonica)
 
     _render_secao_ranking_oficial(contexto_baseline, saida_canonica)
     _render_secao_switchings_oficiais(contexto_baseline, saida_canonica)
