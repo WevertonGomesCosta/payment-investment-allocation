@@ -127,7 +127,7 @@ def construir_pacote_saida_observavel_temporal(
 
         if lote:
             acc = valores_sacados.setdefault(lote, {"valor_sacado_total": 0.0, "qtd_movimentos": 0.0})
-            valor_saque = _num_primeiro(r, ["Valor Conta", "Líquido", "Liquido", "Valor"])
+            valor_saque = _num_primeiro(r, ["Líquido", "Liquido", "Valor Líquido", "Valor Liquido", "Valor"])
             acc["valor_sacado_total"] = round(acc["valor_sacado_total"] + abs(valor_saque), 2)
             acc["qtd_movimentos"] = round(acc["qtd_movimentos"] + 1.0, 2)
 
@@ -216,6 +216,8 @@ def construir_pacote_saida_observavel_temporal(
         "valores_originais_por_lote_validos": orig_validos,
         "qtd_valores_sacados_por_lote": len(valores_sacados),
         "valor_sacado_lote_3120_mai": valor_sacado_lote_3120,
+        "campo_valor_sacado_preferencial": "Líquido/Liquido/Valor Líquido/Valor Liquido/Valor",
+        "usa_valor_conta_para_saque_por_lote": False,
         "qtd_lotes_ativos_observaveis": len(lotes_ativos),
         "qtd_lotes_exauridos_observaveis": len(lotes_exauridos),
         "qtd_pagamentos_realizados_observaveis": len(pagamentos_realizados),

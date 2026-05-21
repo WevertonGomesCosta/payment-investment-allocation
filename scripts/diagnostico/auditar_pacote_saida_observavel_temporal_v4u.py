@@ -45,6 +45,8 @@ def main() -> int:
       "qtd_pagamentos_replay_linhas": a.get("qtd_pagamentos_replay_linhas", 0),
       "qtd_pagamentos_replay_chaves_unicas": a.get("qtd_pagamentos_replay_chaves_unicas", 0),
       "valor_sacado_lote_3120_mai": a.get("valor_sacado_lote_3120_mai", 0.0),
+      "campo_valor_sacado_preferencial": a.get("campo_valor_sacado_preferencial"),
+      "usa_valor_conta_para_saque_por_lote": a.get("usa_valor_conta_para_saque_por_lote"),
       'sem_duplicidade_ativos_exauridos': 'lotes_duplicados_ativos_exauridos' not in v.get('erros_bloqueantes', []),
       'mapas_substitutivos_criados': all([len(p.saldos_finais_replay_por_lote)>0,len(p.pagamentos_replay_por_chave)>0]),
       'pacote_pronto_para_migracao_v4v': bool(a.get('prepara_migracao_v4v', False)),
