@@ -1270,7 +1270,118 @@ COLS_ESTADO_POS_SWITCHING_LOTES = [
 ]
 
 
-def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dict[str, object]:
+
+def _normalizar_chave_pagamento(valor: Any) -> str:
+    txt = str(valor or "").strip().lower()
+    for a, b in [
+        ("á", "a"), ("à", "a"), ("ã", "a"), ("â", "a"),
+        ("é", "e"), ("ê", "e"),
+        ("í", "i"),
+        ("ó", "o"), ("ô", "o"), ("õ", "o"),
+        ("ú", "u"),
+        ("ç", "c"),
+    ]:
+        txt = txt.replace(a, b)
+    return " ".join(txt.split())
+
+
+def _chave_pagamento_replay(row: Any) -> tuple[str, str, str, float]:
+    data = _fmt_data_observavel(row.get("Data"), padrao="")
+    descricao = _normalizar_chave_pagamento(
+        row.get("Conta")
+        or row.get("Descrição")
+        or row.get("Descricao")
+        or ""
+    )
+    lote = str(row.get("Lote") or row.get("Lotes usados") or "").strip()
+    liquido = round(
+        para_float(
+            row.get("Líquido")
+            if "Líquido" in row
+            else row.get("Liquido")
+        ),
+        2,
+    )
+    return data, descricao, lote, liquido
+
+
+def _chave_pagamento_console(row: dict[str, Any]) -> tuple[str, str, str, float]:
+    data = _fmt_data_observavel(row.get("Data"), padrao="")
+    descricao = _normalizar_chave_pagamento(
+        row.get("Descrição")
+        or row.get("Descricao")
+        or row.get("Conta")
+        or ""
+    )
+    lote = str(row.get("Lotes usados") or row.get("Lote") or "").strip()
+    liquido = round(
+        para_float(
+            row.get("Líquido")
+            if "Líquido" in row
+            else row.get("Liquido") or row.get("Valor")
+        ),
+        2,
+    )
+    return data, descricao, lote, liquido
+
+
+def _mapa_pagamentos_replay_por_chave(contexto: Any) -> dict[tuple[str, str, str, float], dict[str, Any]]:
+    replay = getattr(contexto, "replay_passado", None)
+    log = getattr(replay, "log_passado", None) if replay is not None else None
+    mapa: dict[tuple[str, str, str, float], dict[str, Any]] = {}
+
+    if log is None or not hasattr(log, "iterrows"):
+        return mapa
+
+    for _, row in log.iterrows():
+        lote = str(row.get("Lote") or "").strip()
+        if not lote:
+            continue
+        chave = _chave_pagamento_replay(row)
+        if not chave[0] or not chave[1] or not chave[2]:
+            continue
+        mapa[chave] = {
+            "Saldo Antes": row.get("Saldo Antes"),
+            "Bruto": row.get("Bruto"),
+            "Imposto": row.get("Imposto"),
+            "Líquido": row.get("Líquido") if "Líquido" in row else row.get("Liquido"),
+            "Saldo Remanescente": row.get("Saldo Remanescente"),
+        }
+
+    return mapa
+
+
+def corrigir_pagamentos_realizados_console_com_replay(
+    contexto: Any,
+    linhas: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Normaliza a amostra observável de pagamentos realizados usando o replay.
+
+    Não altera `saida.extrato_passado`, replay, ledger ou regras econômicas.
+    Apenas corrige a renderização da amostra do console quando a linha observável
+    diverge da linha auditável do replay para o mesmo pagamento/lote.
+    """
+    mapa_replay = _mapa_pagamentos_replay_por_chave(contexto)
+    if not mapa_replay:
+        return list(linhas)
+
+    corrigidas: list[dict[str, Any]] = []
+    for linha in linhas:
+        nova = dict(linha)
+        chave = _chave_pagamento_console(nova)
+        ref = mapa_replay.get(chave)
+        if ref:
+            nova["Saldo Antes"] = ref.get("Saldo Antes")
+            nova["Bruto"] = ref.get("Bruto")
+            nova["Imposto"] = ref.get("Imposto")
+            nova["Líquido"] = ref.get("Líquido")
+            nova["Valor"] = ref.get("Líquido")
+            nova["Saldo Remanescente"] = ref.get("Saldo Remanescente")
+        corrigidas.append(nova)
+
+    return corrigidas
+
+def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None) -> dict[str, object]:
     """Constrói as amostras operacionais de pagamentos para o console.
 
     Fonte dos dados:
@@ -1285,7 +1396,10 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5) -> dic
         'realizados': {
             'rotulo': 'últimos 5 pagamentos já realizados',
             'headers': list(COLS_PAGAMENTOS_REALIZADOS_CONSOLE),
-            'linhas': saida.pagamentos_realizados_console(limite=limite),
+            'linhas': corrigir_pagamentos_realizados_console_com_replay(
+                contexto,
+                saida.pagamentos_realizados_console(limite=limite),
+            ) if contexto is not None else saida.pagamentos_realizados_console(limite=limite),
             'limite': limite,
         },
         'recebidos_futuros': {
