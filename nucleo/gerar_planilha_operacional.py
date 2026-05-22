@@ -576,7 +576,7 @@ def main(*, contexto=None, saida=None) -> Path:
     headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
     _apply_table_style(ws_futuro, headers_futuro, _rows(saida.extrato_futuro, headers_futuro), freeze=True)
 
-    lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos")
+    lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos", modo_bootstrap_pacote=True)
     pacote_semente = construir_pacote_saida_observavel_temporal(contexto, saida, lotes_ativos_observaveis=lotes_ativos_observaveis)
     lotes_exauridos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="exauridos", pacote_saida_observavel_temporal=pacote_semente)
     pacote_consolidado = construir_pacote_saida_observavel_temporal(
