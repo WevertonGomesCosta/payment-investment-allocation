@@ -64,6 +64,15 @@ def _f(v: Any) -> float:
 
 
 def _auditar_cache_bcb() -> dict[str, Any]:
+    if not ARQ_CACHE_BCB.exists():
+        return {
+            "data_referencia": "2026-05-22",
+            "cache_bcb_registrado": False,
+            "cache_bcb_atualizado_para_referencia": False,
+            "data_atualizacao_cache": "",
+            "ultima_data_com_fator_no_cache": "",
+            "status_obtencao_cdi_bcb": "cache_bcb_ausente",
+        }
     blob = json.loads(ARQ_CACHE_BCB.read_text(encoding="utf-8"))
     meta = dict(blob.get("meta") or {})
     registros = list(blob.get("registros") or [])
@@ -71,7 +80,7 @@ def _auditar_cache_bcb() -> dict[str, Any]:
     atualizacao = str(meta.get("data_atualizacao") or blob.get("data_atualizacao") or "")
     return {
         "data_referencia": "2026-05-22",
-        "cache_bcb_registrado": ARQ_CACHE_BCB.exists(),
+        "cache_bcb_registrado": True,
         "cache_bcb_atualizado_para_referencia": atualizacao == "2026-05-22" and ultima_data == "2026-05-21",
         "data_atualizacao_cache": atualizacao,
         "ultima_data_com_fator_no_cache": ultima_data,
@@ -144,7 +153,18 @@ def main() -> int:
     ok_v4w, out_v4w = _run([sys.executable, "scripts/diagnostico/auditar_limpeza_saida_observavel_residuos_v4w.py", "--sem-csv"])
     ok_principal, out_principal = _run([sys.executable, "-B", "aplicacao/principal.py"])
     kv_v4u, kv_v4v = _parse_key_values(out_v4u), _parse_key_values(out_v4v)
-    v4w = json.loads(out_v4w[out_v4w.find("{"): out_v4w.rfind("}") + 1]) if "{" in out_v4w else {}
+    v4w = {}
+    v4w_parse_ok = True
+    v4w_parse_erro = ""
+    try:
+        if "{" in out_v4w and "}" in out_v4w:
+            v4w = json.loads(out_v4w[out_v4w.find("{"): out_v4w.rfind("}") + 1])
+        else:
+            raise ValueError("json_v4w_nao_encontrado_no_output")
+    except Exception as exc:
+        v4w_parse_ok = False
+        v4w_parse_erro = str(exc)
+        v4w = {}
 
     principal_ambiente = "erro_csv_s6_ausente_sem_recomposicao_segura" in out_principal
     cache = _auditar_cache_bcb()
@@ -154,7 +174,9 @@ def main() -> int:
     res = {
         "v4u_validada": ok_v4u and bool(kv_v4u.get("validacao_v4u_ok", False)),
         "v4v_validada": ok_v4v and bool(kv_v4v.get("validacao_v4v_ok", False)),
-        "v4w_validada": ok_v4w and bool(v4w.get("validacao_v4w_ok", False)),
+        "v4w_validada": ok_v4w and v4w_parse_ok and bool(v4w.get("validacao_v4w_ok", False)),
+        "v4w_parse_ok": v4w_parse_ok,
+        "v4w_parse_erro": v4w_parse_erro,
         "principal_py_ok": ok_principal,
         "principal_py_falha_ambiente": principal_ambiente,
         "principal_py_erro": "erro_csv_s6_ausente_sem_recomposicao_segura" if principal_ambiente else "",

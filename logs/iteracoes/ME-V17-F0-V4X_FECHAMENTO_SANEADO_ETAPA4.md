@@ -8,6 +8,8 @@ Executar validação final da Etapa 4 (V4U/V4V/V4W + cache BCB de 2026-05-22) re
 - Referência: pós PR #352 e commit `57b3e7d` (cache BCB para 2026-05-22).
 
 ## Ajustes aplicados no V4X
+- Robustez P2: `_auditar_cache_bcb()` agora trata ausência de `dados/cache_bcb.json` sem abortar (retorna status `cache_bcb_ausente`).
+- Robustez P2: parse do output do V4W protegido com `try/except`, expondo `v4w_parse_ok` e `v4w_parse_erro` sem interromper V4X.
 - Correção do cálculo do Lote 3120 via saída observável consolidada com pacote (campos `Bruto sac.`, `Líq. sac.`, `Líq. atual`), eliminando falso negativo de bruto sacado.
 - Substituição de varredura textual por auditoria AST/estrutural para distinguir ocorrência funcional ativa de comentário/string.
 - Classificação explícita da falha de `aplicacao/principal.py` por ambiente (`erro_csv_s6_ausente_sem_recomposicao_segura`) sem marcar regressão funcional da V4X.
@@ -61,6 +63,7 @@ Executar validação final da Etapa 4 (V4U/V4V/V4W + cache BCB de 2026-05-22) re
   - `somar_valores_sacados_por_lote`
 
 ## Decisão técnica
+- Observação: o bloqueio atual é **real** por resíduos funcionais remanescentes detectados por AST, e não apenas falso positivo textual.
 - `etapa4_fechamento_saneado_ok=false`
 - `etapa5_pode_abrir=false`
 - `proxima_etapa_recomendada=V17-F0-V.4X-ajuste`
