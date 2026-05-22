@@ -126,10 +126,20 @@ def construir_pacote_saida_observavel_temporal(
         pagamentos[chave] = {"ordem_original": ordem_original, **r}
 
         if lote:
-            acc = valores_sacados.setdefault(lote, {"valor_sacado_total": 0.0, "qtd_movimentos": 0.0})
-            valor_saque = _num_primeiro(r, ["Líquido", "Liquido", "Valor Líquido", "Valor Liquido", "Valor"])
-            acc["valor_sacado_total"] = round(acc["valor_sacado_total"] + abs(valor_saque), 2)
+            acc = valores_sacados.setdefault(
+                lote,
+                {"bruto_sacado": 0.0, "liquido_sacado": 0.0, "imposto_sacado": 0.0, "valor_sacado_total": 0.0, "qtd_movimentos": 0.0},
+            )
+            bruto_saque = _num_primeiro(r, ["Bruto"])
+            liquido_saque = _num_primeiro(r, ["Líquido", "Liquido", "Valor Líquido", "Valor Liquido", "Valor"])
+            imposto_saque = _num_primeiro(r, ["Imposto"])
+            acc["bruto_sacado"] = round(acc["bruto_sacado"] + abs(bruto_saque), 2)
+            acc["liquido_sacado"] = round(acc["liquido_sacado"] + abs(liquido_saque), 2)
+            acc["imposto_sacado"] = round(acc["imposto_sacado"] + abs(imposto_saque), 2)
             acc["qtd_movimentos"] = round(acc["qtd_movimentos"] + 1.0, 2)
+            acc["valor_sacado_total"] = round(acc["liquido_sacado"], 2)
+            if acc["imposto_sacado"] <= 0 and acc["bruto_sacado"] > 0 and acc["liquido_sacado"] > 0:
+                acc["imposto_sacado"] = round(max(acc["bruto_sacado"] - acc["liquido_sacado"], 0.0), 2)
 
     origem = "snapshot_observavel_consolidado"
     if lotes_ativos_observaveis is None:
@@ -162,6 +172,8 @@ def construir_pacote_saida_observavel_temporal(
     ex_set = {_lote_norm(r.get("Lote")) for r in lotes_exauridos}
     saldo_3120 = saldos_finais.get(lote_alvo, 0.0)
     valor_sacado_lote_3120 = float((valores_sacados.get(lote_alvo) or {}).get("valor_sacado_total", 0.0))
+    bruto_sacado_lote_3120 = float((valores_sacados.get(lote_alvo) or {}).get("bruto_sacado", 0.0))
+    liquido_sacado_lote_3120 = float((valores_sacados.get(lote_alvo) or {}).get("liquido_sacado", 0.0))
     qtd_aplic_preenchidas = sum(1 for v in aplic.values() if _txt(v) != "")
     qtd_orig_positivos = sum(1 for v in orig.values() if _f(v) > 0)
     aplic_sem_vazios = qtd_aplic_preenchidas == len(aplic)
@@ -258,6 +270,14 @@ def construir_pacote_saida_observavel_temporal(
         "qtd_valores_originais_por_lote_positivos": qtd_orig_positivos,
         "valores_originais_por_lote_validos": orig_validos,
         "qtd_valores_sacados_por_lote": len(valores_sacados),
+        "valores_sacados_por_lote_tem_bruto_liquido": all(
+            ("bruto_sacado" in v and "liquido_sacado" in v) for v in valores_sacados.values()
+        ) if valores_sacados else False,
+        "qtd_lotes_com_bruto_sacado": sum(1 for v in valores_sacados.values() if _f(v.get("bruto_sacado")) > 0),
+        "qtd_lotes_com_liquido_sacado": sum(1 for v in valores_sacados.values() if _f(v.get("liquido_sacado")) > 0),
+        "soma_bruto_sacado_lote_3120_mai": bruto_sacado_lote_3120,
+        "soma_liquido_sacado_lote_3120_mai": liquido_sacado_lote_3120,
+        "separacao_bruto_liquido_preservada": bruto_sacado_lote_3120 >= liquido_sacado_lote_3120,
         "valor_sacado_lote_3120_mai": valor_sacado_lote_3120,
         "campo_valor_sacado_preferencial": "Líquido/Liquido/Valor Líquido/Valor Liquido/Valor",
         "usa_valor_conta_para_saque_por_lote": False,

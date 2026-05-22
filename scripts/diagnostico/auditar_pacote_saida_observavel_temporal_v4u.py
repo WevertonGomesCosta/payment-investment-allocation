@@ -18,13 +18,13 @@ def main() -> int:
     ctx = carregar_contexto_baseline(raiz_repositorio=ROOT, instalar_automaticamente=False, incluir_benchmark_agrupado_individual_shadow=False)
     saida = construir_saida_canonica(ctx)
     pacotes = construir_pacotes_temporais_agregados_saida_shadow(ctx)
-    ativos = construir_linhas_lotes_consolidados(ctx, saida, tipo='ativos')
-    exauridos = construir_linhas_lotes_consolidados(ctx, saida, tipo='exauridos')
-    am = construir_amostras_pagamentos_operacionais(saida, limite=1000, contexto=ctx)
+    p_seed = construir_pacote_saida_observavel_temporal(ctx, saida, pacotes_temporais=pacotes)
+    ativos = construir_linhas_lotes_consolidados(ctx, saida, tipo='ativos', pacote_saida_observavel_temporal=p_seed)
+    exauridos = construir_linhas_lotes_consolidados(ctx, saida, tipo='exauridos', pacote_saida_observavel_temporal=p_seed)
+    am = construir_amostras_pagamentos_operacionais(saida, limite=1000, contexto=ctx, pacote_saida_observavel_temporal=p_seed)
     realizados = list((am.get('realizados') or {}).get('linhas') or [])
 
-    p = construir_pacote_saida_observavel_temporal(ctx, saida, pacotes_temporais=pacotes,
-        lotes_ativos_observaveis=ativos, lotes_exauridos_observaveis=exauridos, pagamentos_realizados_observaveis=realizados)
+    p = construir_pacote_saida_observavel_temporal(ctx, saida, pacotes_temporais=pacotes, lotes_ativos_observaveis=ativos, lotes_exauridos_observaveis=exauridos, pagamentos_realizados_observaveis=realizados)
     a, v = p.auditoria_saida_observavel_temporal, p.validacao_saida_observavel_temporal
     validacao_generica_pacote_ok = bool(a.get('validacao_generica_pacote_ok', v.get('ok', False)))
     lote_3120_presente_ativos = bool(a.get('lote_3120_mai_presente_ativos_snapshot', False))

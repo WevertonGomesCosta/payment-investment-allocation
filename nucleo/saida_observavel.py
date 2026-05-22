@@ -83,75 +83,6 @@ def para_float(valor: Any) -> float:
         return 0.0
 
 
-def somar_valores_sacados_por_lote(contexto, saida=None) -> dict[str, dict[str, float]]:
-    """Soma valores sacados por lote usando replay + auditoria de recebidos.
-
-    O replay é a fonte principal. Para lotes não aplicados/exauridos, a
-    auditoria de recebidos complementa a soma, pois alguns desses lotes podem
-    ter sido usados diretamente em pagamento e aparecer subcontados no log.
-    """
-    replay = getattr(contexto, 'replay_passado', None)
-    log = getattr(replay, 'log_passado', None) if replay is not None else None
-    somas: dict[str, dict[str, float]] = {}
-
-    if log is not None and hasattr(log, 'iterrows') and len(log) and 'Lote' in getattr(log, 'columns', []):
-        for _, row in log.iterrows():
-            lote_id = str(row.get('Lote') or '').strip()
-            if not lote_id:
-                continue
-
-            atual = somas.setdefault(lote_id, {'bruto_sacado': 0.0, 'liquido_sacado': 0.0})
-            atual['bruto_sacado'] = round(atual['bruto_sacado'] + para_float(row.get('Bruto')), 2)
-            atual['liquido_sacado'] = round(
-                atual['liquido_sacado'] + para_float(row.get('Liquido') if 'Liquido' in row else row.get('Líquido')),
-                2,
-            )
-
-    if saida is not None:
-        for row in (getattr(saida, 'extrato_passado', []) or []):
-            lote_id = str(row.get('Lotes usados') or row.get('Lote') or '').strip()
-            if not lote_id:
-                continue
-
-            bruto_ref = para_float(row.get('Bruto'))
-            liquido_ref = para_float(row.get('Líquido') if 'Líquido' in row else row.get('Liquido'))
-
-            if bruto_ref <= 0 and liquido_ref <= 0:
-                continue
-
-            atual = somas.setdefault(lote_id, {'bruto_sacado': 0.0, 'liquido_sacado': 0.0})
-            atual['bruto_sacado'] = round(max(atual['bruto_sacado'], bruto_ref), 2)
-            atual['liquido_sacado'] = round(max(atual['liquido_sacado'], liquido_ref), 2)
-
-        for recebido in (getattr(saida, 'recebidos_atuais', []) or []):
-            lote_id = str(recebido.get('Lote origem') or '').strip()
-            if not lote_id:
-                continue
-
-            status = str(recebido.get('Status') or '').strip().lower()
-            destino = str(recebido.get('Destino') or '').strip().lower()
-
-            usar_recebido = (
-                status in {'exaurido', 'uso_pre_aplicacao_com_aporte_posterior'}
-                or destino in {'pagamento', 'pagamento_e_aplicacao'}
-            )
-            if not usar_recebido:
-                continue
-
-            valor_vinculado = para_float(recebido.get('Valor vinculado'))
-            valor_liquido = para_float(recebido.get('Valor líquido'))
-            valor_bruto = para_float(recebido.get('Valor bruto'))
-
-            liquido_ref = valor_vinculado if valor_vinculado > 0 else valor_liquido
-            bruto_ref = max(valor_vinculado, valor_bruto if status == 'exaurido' else 0.0, liquido_ref)
-
-            atual = somas.setdefault(lote_id, {'bruto_sacado': 0.0, 'liquido_sacado': 0.0})
-            atual['bruto_sacado'] = round(max(atual['bruto_sacado'], bruto_ref), 2)
-            atual['liquido_sacado'] = round(max(atual['liquido_sacado'], liquido_ref), 2)
-
-    return somas
-
-
 def _vazio_observavel(valor: Any) -> bool:
     return valor is None or str(valor).strip() in {"", "n/d", "nan", "NaT"}
 
@@ -231,72 +162,6 @@ def _registrar_aplicacao(mapa: dict[str, Any], lote_id: Any, data_aplicacao: Any
     mapa.setdefault(lote, data)
 
 
-def _mapa_aplicacao_por_lote(contexto: Any, saida: Any) -> dict[str, Any]:
-    mapa: dict[str, Any] = {}
-
-    for item in list(getattr(saida, "lotes_ativos", []) or []) + list(getattr(saida, "lotes_exauridos", []) or []):
-        _registrar_aplicacao(mapa, item.get("Lote"), item.get("Aplicação"))
-
-    replay = getattr(contexto, "replay_passado", None)
-    for attr in [
-        "lotes_apos_replay",
-        "lotes_antes_replay",
-        "lotes_replay",
-        "lotes_originais",
-        "lotes",
-    ]:
-        lotes = getattr(replay, attr, None) if replay is not None else None
-        if not lotes:
-            continue
-        try:
-            iter_lotes = list(lotes)
-        except Exception:
-            continue
-        for lote_obj in iter_lotes:
-            lote_id = (
-                getattr(lote_obj, "id", None)
-                or getattr(lote_obj, "lote_id", None)
-                or getattr(lote_obj, "nome", None)
-            )
-            data_aplicacao = (
-                getattr(lote_obj, "data_aplicacao", None)
-                or getattr(lote_obj, "data_aplicação", None)
-                or getattr(lote_obj, "data_base_fiscal", None)
-            )
-            _registrar_aplicacao(mapa, lote_id, data_aplicacao)
-
-    # Varredura leve em DataFrames anexados ao contexto/pacotes, sem depender
-    # do nome interno exato do pacote de dados.
-    fila = [contexto]
-    vistos: set[int] = set()
-    while fila and len(vistos) < 200:
-        obj = fila.pop(0)
-        if obj is None or id(obj) in vistos:
-            continue
-        vistos.add(id(obj))
-
-        cols = getattr(obj, "columns", None)
-        if cols is not None and hasattr(obj, "iterrows"):
-            colunas = list(cols)
-            col_lote = next((c for c in colunas if str(c).strip().lower() in {"lote (id)", "lote", "lote id", "lote_id", "lote origem"}), None)
-            col_data = next((c for c in colunas if str(c).strip().lower() in {"data aplicação", "data aplicacao", "aplicação", "aplicacao", "data_aplicacao"}), None)
-            if col_lote is not None and col_data is not None:
-                try:
-                    for _, row in obj.iterrows():
-                        _registrar_aplicacao(mapa, row.get(col_lote), row.get(col_data))
-                except Exception:
-                    pass
-            continue
-
-        dct = getattr(obj, "__dict__", None)
-        if isinstance(dct, dict):
-            for val in dct.values():
-                if id(val) not in vistos:
-                    fila.append(val)
-
-    return mapa
-
-
 def _produto_preenchido_observavel(valor: Any) -> bool:
     txt = str(valor or "").strip()
     return txt not in {"", "-", "n/d", "nd", "não determinado", "nao determinado", "None", "nan", "NaT", "produto_origem_nao_encontrado"}
@@ -309,223 +174,12 @@ def _registrar_produto_lote(mapa: dict[str, Any], lote_id: Any, produto: Any) ->
     mapa.setdefault(lote, str(produto).strip())
 
 
-def _mapa_produto_por_lote(contexto: Any, saida: Any) -> dict[str, Any]:
-    """Busca produto/carteira do lote em estruturas já carregadas.
-
-    Não decide switching, não altera motor e não altera ledger.
-    É apenas enriquecimento observável para console/planilha.
-    """
-    mapa: dict[str, Any] = {}
-
-    for item in list(getattr(saida, "lotes_ativos", []) or []) + list(getattr(saida, "lotes_exauridos", []) or []):
-        _registrar_produto_lote(
-            mapa,
-            item.get("Lote"),
-            item.get("Produto") or item.get("Carteira") or item.get("Investimento"),
-        )
-
-    for item in list(getattr(saida, "recebidos_atuais", []) or []):
-        _registrar_produto_lote(
-            mapa,
-            item.get("Lote origem") or item.get("Recebido"),
-            item.get("Carteira") or item.get("Produto") or item.get("Investimento"),
-        )
-
-    replay = getattr(contexto, "replay_passado", None)
-    for attr in [
-        "lotes_apos_replay",
-        "lotes_antes_replay",
-        "lotes_replay",
-        "lotes_originais",
-        "lotes",
-    ]:
-        lotes = getattr(replay, attr, None) if replay is not None else None
-        if not lotes:
-            continue
-        try:
-            iter_lotes = list(lotes)
-        except Exception:
-            continue
-
-        for lote_obj in iter_lotes:
-            lote_id = (
-                getattr(lote_obj, "id", None)
-                or getattr(lote_obj, "lote_id", None)
-                or getattr(lote_obj, "nome", None)
-            )
-            produto = (
-                getattr(lote_obj, "produto", None)
-                or getattr(lote_obj, "produto_nome", None)
-                or getattr(lote_obj, "produto_nome_canonico", None)
-                or getattr(lote_obj, "investimento", None)
-                or getattr(lote_obj, "carteira", None)
-            )
-            _registrar_produto_lote(mapa, lote_id, produto)
-
-    # Varredura leve de DataFrames no contexto para capturar Inventário de Lotes,
-    # carteiras intermediárias e auditorias canônicas sem depender de nomes internos.
-    fila = [contexto]
-    vistos: set[int] = set()
-    while fila and len(vistos) < 250:
-        obj = fila.pop(0)
-        if obj is None or id(obj) in vistos:
-            continue
-        vistos.add(id(obj))
-
-        cols = getattr(obj, "columns", None)
-        if cols is not None and hasattr(obj, "iterrows"):
-            colunas = list(cols)
-            cols_norm = {str(c).strip().lower(): c for c in colunas}
-
-            candidatos_lote = [
-                "lote (id)",
-                "lote",
-                "lote id",
-                "lote_id",
-                "lote origem",
-                "lote_origem",
-                "lote origem switching",
-                "lote_origem_switching",
-            ]
-            candidatos_produto = [
-                "investimento",
-                "produto",
-                "produto origem",
-                "produto_origem",
-                "produto origem switching",
-                "produto_origem_switching",
-                "produto_nome",
-                "produto_nome_canonico",
-                "carteira",
-            ]
-
-            col_lote = next((cols_norm[c] for c in candidatos_lote if c in cols_norm), None)
-            col_prod = next((cols_norm[c] for c in candidatos_produto if c in cols_norm), None)
-
-            if col_lote is not None and col_prod is not None:
-                try:
-                    for _, row in obj.iterrows():
-                        _registrar_produto_lote(mapa, row.get(col_lote), row.get(col_prod))
-                except Exception:
-                    pass
-            continue
-
-        dct = getattr(obj, "__dict__", None)
-        if isinstance(dct, dict):
-            for val in dct.values():
-                if id(val) not in vistos:
-                    fila.append(val)
-
-    return mapa
-
-
-
 def _registrar_valor_original_lote(mapa: dict[str, float], lote_id: Any, valor_original: Any) -> None:
     lote = str(lote_id or "").strip()
     valor = round(para_float(valor_original), 2)
     if not lote or valor <= 0:
         return
     mapa.setdefault(lote, valor)
-
-
-def _mapa_valor_original_por_lote(contexto: Any, saida: Any) -> dict[str, float]:
-    """Busca o valor original do lote em estruturas já carregadas.
-
-    Usado apenas para renderização observável de origens migradas por switching.
-    Não altera motor, ledger, ranking nem totais patrimoniais.
-    """
-    mapa: dict[str, float] = {}
-
-    for item in list(getattr(saida, "lotes_ativos", []) or []) + list(getattr(saida, "lotes_exauridos", []) or []):
-        _registrar_valor_original_lote(
-            mapa,
-            item.get("Lote"),
-            item.get("Valor original") or item.get("Orig."),
-        )
-
-    for item in list(getattr(saida, "recebidos_atuais", []) or []):
-        _registrar_valor_original_lote(
-            mapa,
-            item.get("Lote origem") or item.get("Recebido"),
-            item.get("Valor bruto") or item.get("Valor líquido") or item.get("Valor"),
-        )
-
-    replay = getattr(contexto, "replay_passado", None)
-    for attr in [
-        "lotes_apos_replay",
-        "lotes_antes_replay",
-        "lotes_replay",
-        "lotes_originais",
-        "lotes",
-    ]:
-        lotes = getattr(replay, attr, None) if replay is not None else None
-        if not lotes:
-            continue
-        try:
-            iter_lotes = list(lotes)
-        except Exception:
-            continue
-
-        for lote_obj in iter_lotes:
-            lote_id = (
-                getattr(lote_obj, "id", None)
-                or getattr(lote_obj, "lote_id", None)
-                or getattr(lote_obj, "nome", None)
-            )
-            valor = (
-                getattr(lote_obj, "valor_original", None)
-                or getattr(lote_obj, "valor", None)
-                or getattr(lote_obj, "principal", None)
-            )
-            _registrar_valor_original_lote(mapa, lote_id, valor)
-
-    fila = [contexto]
-    vistos: set[int] = set()
-    while fila and len(vistos) < 250:
-        obj = fila.pop(0)
-        if obj is None or id(obj) in vistos:
-            continue
-        vistos.add(id(obj))
-
-        cols = getattr(obj, "columns", None)
-        if cols is not None and hasattr(obj, "iterrows"):
-            colunas = list(cols)
-            cols_norm = {str(c).strip().lower(): c for c in colunas}
-
-            candidatos_lote = [
-                "lote (id)",
-                "lote",
-                "lote id",
-                "lote_id",
-                "lote origem",
-                "lote_origem",
-            ]
-            candidatos_valor = [
-                "valor original",
-                "valor_original",
-                "valor bruto",
-                "valor_bruto",
-            ]
-
-            col_lote = next((cols_norm[c] for c in candidatos_lote if c in cols_norm), None)
-            col_valor = next((cols_norm[c] for c in candidatos_valor if c in cols_norm), None)
-
-            if col_lote is not None and col_valor is not None:
-                try:
-                    for _, row in obj.iterrows():
-                        _registrar_valor_original_lote(mapa, row.get(col_lote), row.get(col_valor))
-                except Exception:
-                    pass
-            continue
-
-        dct = getattr(obj, "__dict__", None)
-        if isinstance(dct, dict):
-            for val in dct.values():
-                if id(val) not in vistos:
-                    fila.append(val)
-
-    return mapa
-
 
 
 def _valor_nominal_extraido_do_id_lote(lote_id: Any) -> float:
@@ -566,52 +220,6 @@ def _status_ciclo_lote(item: dict[str, Any], *, tipo: str) -> str:
     return "ativo"
 
 
-
-def _mapa_saldo_final_replay_por_lote(contexto: Any) -> dict[str, float]:
-    replay = getattr(contexto, 'replay_passado', None)
-    log = getattr(replay, 'log_passado', None) if replay is not None else None
-    mapa: dict[str, tuple[str, float, int, float]] = {}
-    if log is None or not hasattr(log, 'iterrows') or 'Lote' not in getattr(log, 'columns', []):
-        return {}
-
-    for idx, row in enumerate(log.iterrows()):
-        _, registro = row
-        lote_id = str(registro.get('Lote') or '').strip()
-        if not lote_id:
-            continue
-
-        saldo = round(
-            para_float(
-                registro.get('Saldo Remanescente')
-                if 'Saldo Remanescente' in registro
-                else registro.get('Saldo_remanescente')
-            ),
-            2,
-        )
-        data_txt = _fmt_data_observavel(registro.get('Data'), padrao='')
-        seq = para_float(registro.get('Sequencia Saque') if 'Sequencia Saque' in registro else registro.get('sequencia_saque'))
-        chave = (data_txt, seq, idx)
-        atual = mapa.get(lote_id)
-        if atual is None or chave > (atual[0], atual[1], atual[2]):
-            mapa[lote_id] = (data_txt, seq, idx, saldo)
-
-    return {lote: dados[3] for lote, dados in mapa.items()}
-
-
-def _lote_deve_ser_ativo_observavel_por_replay(
-    lote_id: str,
-    item: dict[str, Any],
-    mapa_saldo_final_replay: dict[str, float],
-    *,
-    minimo_positivo: float = 0.20,
-) -> bool:
-    if not lote_id:
-        return False
-    status = _status_ciclo_lote(item, tipo='exauridos')
-    if 'migrado' in str(status).lower():
-        return False
-    saldo_final = round(para_float(mapa_saldo_final_replay.get(lote_id)), 2)
-    return saldo_final > minimo_positivo
 
 def _lotes_origens_migradas_set(saida: Any) -> set[str]:
     return {
@@ -658,14 +266,24 @@ def calcular_rendimento_liquido_observavel(
     return rendimento
 
 
-def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
+def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
     campo = 'lotes_exauridos' if tipo == 'exauridos' else 'lotes_ativos'
     itens = list(getattr(saida, campo, []) or [])
-    mapa_saldo_final_replay = _mapa_saldo_final_replay_por_lote(contexto)
+    mapa_saldo_final_replay = dict(getattr(pacote_saida_observavel_temporal, "saldos_finais_replay_por_lote", {}) or {})
     lotes_exauridos = list(getattr(saida, 'lotes_exauridos', []) or [])
     lotes_exauridos_ids = {str(item.get('Lote') or '').strip() for item in lotes_exauridos}
     lotes_ativos_ids = {str(item.get('Lote') or '').strip() for item in list(getattr(saida, 'lotes_ativos', []) or [])}
-    somas = somar_valores_sacados_por_lote(contexto, saida)
+    if pacote_saida_observavel_temporal is not None and getattr(pacote_saida_observavel_temporal, "valores_sacados_por_lote", None):
+        somas = {}
+        for lote_id, dados in (getattr(pacote_saida_observavel_temporal, "valores_sacados_por_lote", {}) or {}).items():
+            tem_campos_compat = "bruto_sacado" in (dados or {}) or "liquido_sacado" in (dados or {})
+            if not tem_campos_compat:
+                continue
+            bruto = para_float((dados or {}).get("bruto_sacado"))
+            liquido = para_float((dados or {}).get("liquido_sacado"))
+            somas[str(lote_id)] = {"bruto_sacado": round(bruto, 2), "liquido_sacado": round(liquido, 2)}
+    else:
+        somas = {}
     mapa_termino = _mapa_ultimo_uso_lotes_saida(saida)
     linhas: list[dict[str, Any]] = []
 
@@ -676,11 +294,7 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[d
             if (
                 lote_id_exaurido
                 and lote_id_exaurido not in lotes_ativos_ids
-                and _lote_deve_ser_ativo_observavel_por_replay(
-                    lote_id_exaurido,
-                    item_exaurido,
-                    mapa_saldo_final_replay,
-                )
+                and round(para_float(mapa_saldo_final_replay.get(lote_id_exaurido)), 2) > 0.20
             ):
                 itens_iteracao.append(item_exaurido)
 
@@ -691,19 +305,11 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[d
             tipo == 'ativos'
             and lote_id in lotes_exauridos_ids
             and lote_id not in lotes_ativos_ids
-            and _lote_deve_ser_ativo_observavel_por_replay(
-                lote_id,
-                item,
-                mapa_saldo_final_replay,
-            )
+            and round(para_float(mapa_saldo_final_replay.get(lote_id)), 2) > 0.20
         )
         if (
             tipo == 'exauridos'
-            and _lote_deve_ser_ativo_observavel_por_replay(
-                lote_id,
-                item,
-                mapa_saldo_final_replay,
-            )
+            and round(para_float(mapa_saldo_final_replay.get(lote_id)), 2) > 0.20
         ):
             continue
         sacado = somas.get(lote_id, {})
@@ -762,23 +368,23 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[d
     return linhas
 
 
-def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
+def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
     if tipo == 'ativos':
         headers = COLS_LOTES_ATIVOS_ID_CURTAS
-        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo)
+        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
     elif tipo == 'exauridos':
         headers = COLS_LOTES_EXAURIDOS_ID_CURTAS
         linhas_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
-            construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo),
+            construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
             saida,
         )
         linhas_base = (
             linhas_consolidadas
-            + construir_linhas_lotes_encerrados_por_switching(contexto, saida)
+            + construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
         )
     else:
         headers = COLS_LOTES_ID_CURTAS
-        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo)
+        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
 
     return [
         {chave: item.get(chave) for chave in headers}
@@ -786,15 +392,15 @@ def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str) -> list[dict[
     ]
 
 
-def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
-    linhas_base = list(construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo))
+def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    linhas_base = list(construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal))
 
     if tipo == 'exauridos':
         # Mantém alinhamento visual entre a tabela de identificação e a tabela de valores.
         # As origens migradas por switching entram apenas como linhas observáveis
         # e NÃO são usadas por construir_resumo_patrimonio_total_lotes(...).
         linhas_base = _remover_origens_migradas_dos_exauridos_consolidados(linhas_base, saida)
-        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida)
+        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
 
     return [
         {chave: item.get(chave) for chave in COLS_LOTES_VALORES_CURTAS}
@@ -802,9 +408,9 @@ def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str) -> list[
     ]
 
 
-def construir_linhas_lotes_encerrados_por_switching(contexto, saida) -> list[dict[str, Any]]:
-    aplicacoes = _mapa_aplicacao_por_lote(contexto, saida)
-    produtos = _mapa_produto_por_lote(contexto, saida)
+def construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    aplicacoes = dict(getattr(pacote_saida_observavel_temporal, "aplicacoes_por_lote", {}) or {})
+    produtos = dict(getattr(pacote_saida_observavel_temporal, "produtos_por_lote", {}) or {})
     linhas: list[dict[str, Any]] = []
 
     for item in _origens_migradas_auditoria(saida):
@@ -834,7 +440,7 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida) -> list[dic
 
 
 
-def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida) -> list[dict[str, Any]]:
+def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
     """Valores observáveis das origens migradas por switching.
 
     Essas linhas existem para alinhar a renderização das tabelas:
@@ -843,7 +449,7 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida) -> 
     - não são somadas no resumo patrimonial, pois o resumo continua usando
       construir_linhas_lotes_consolidados(...).
     """
-    valores_originais = _mapa_valor_original_por_lote(contexto, saida)
+    valores_originais = dict(getattr(pacote_saida_observavel_temporal, "valores_originais_por_lote", {}) or {})
     linhas: list[dict[str, Any]] = []
 
     for item in _origens_migradas_auditoria(saida):
@@ -876,8 +482,8 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida) -> 
 
 
 
-def construir_linhas_origens_migradas_por_switching(contexto, saida) -> list[dict[str, Any]]:
-    aplicacoes = _mapa_aplicacao_por_lote(contexto, saida)
+def construir_linhas_origens_migradas_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    aplicacoes = dict(getattr(pacote_saida_observavel_temporal, "aplicacoes_por_lote", {}) or {})
     linhas: list[dict[str, Any]] = []
 
     for item in _origens_migradas_auditoria(saida):
@@ -906,13 +512,13 @@ def construir_linhas_origens_migradas_por_switching(contexto, saida) -> list[dic
     return linhas
 
 
-def construir_switchings_observaveis(contexto, saida) -> list[dict[str, Any]]:
+def construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
     """Switchings enriquecidos para console e planilha.
 
     Mantém a decisão de switching intacta e apenas preenche campos observáveis
     ausentes, especialmente Produto origem.
     """
-    produtos = _mapa_produto_por_lote(contexto, saida)
+    produtos = dict(getattr(pacote_saida_observavel_temporal, "produtos_por_lote", {}) or {})
     linhas: list[dict[str, Any]] = []
 
     for item in list(getattr(saida, "switchings", []) or []):
@@ -1325,35 +931,10 @@ def _chave_pagamento_console(row: dict[str, Any]) -> tuple[str, str, str, float]
     return data, descricao, lote, liquido
 
 
-def _mapa_pagamentos_replay_por_chave(contexto: Any) -> dict[tuple[str, str, str, float], dict[str, Any]]:
-    replay = getattr(contexto, "replay_passado", None)
-    log = getattr(replay, "log_passado", None) if replay is not None else None
-    mapa: dict[tuple[str, str, str, float], dict[str, Any]] = {}
-
-    if log is None or not hasattr(log, "iterrows"):
-        return mapa
-
-    for _, row in log.iterrows():
-        lote = str(row.get("Lote") or "").strip()
-        if not lote:
-            continue
-        chave = _chave_pagamento_replay(row)
-        if not chave[0] or not chave[1] or not chave[2]:
-            continue
-        mapa[chave] = {
-            "Saldo Antes": row.get("Saldo Antes"),
-            "Bruto": row.get("Bruto"),
-            "Imposto": row.get("Imposto"),
-            "Líquido": row.get("Líquido") if "Líquido" in row else row.get("Liquido"),
-            "Saldo Remanescente": row.get("Saldo Remanescente"),
-        }
-
-    return mapa
-
-
-def corrigir_pagamentos_realizados_console_com_replay(
+def corrigir_pagamentos_realizados_console_com_pacote(
     contexto: Any,
     linhas: list[dict[str, Any]],
+    pacote_saida_observavel_temporal: Any | None = None,
 ) -> list[dict[str, Any]]:
     """Normaliza a amostra observável de pagamentos realizados usando o replay.
 
@@ -1361,7 +942,17 @@ def corrigir_pagamentos_realizados_console_com_replay(
     Apenas corrige a renderização da amostra do console quando a linha observável
     diverge da linha auditável do replay para o mesmo pagamento/lote.
     """
-    mapa_replay = _mapa_pagamentos_replay_por_chave(contexto)
+    mapa_replay: dict[tuple[str, str, str, float], dict[str, Any]] = {}
+    for row in (getattr(pacote_saida_observavel_temporal, "pagamentos_replay_por_chave", {}) or {}).values():
+        chave = _chave_pagamento_replay(row)
+        if chave[0] and chave[1] and chave[2]:
+            mapa_replay[chave] = {
+                "Saldo Antes": row.get("Saldo Antes"),
+                "Bruto": row.get("Bruto"),
+                "Imposto": row.get("Imposto"),
+                "Líquido": row.get("Líquido") if "Líquido" in row else row.get("Liquido"),
+                "Saldo Remanescente": row.get("Saldo Remanescente"),
+            }
     if not mapa_replay:
         return list(linhas)
 
@@ -1381,7 +972,7 @@ def corrigir_pagamentos_realizados_console_com_replay(
 
     return corrigidas
 
-def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None) -> dict[str, object]:
+def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None, pacote_saida_observavel_temporal: Any | None = None) -> dict[str, object]:
     """Constrói as amostras operacionais de pagamentos para o console.
 
     Fonte dos dados:
@@ -1396,9 +987,10 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contex
         'realizados': {
             'rotulo': 'últimos 5 pagamentos já realizados',
             'headers': list(COLS_PAGAMENTOS_REALIZADOS_CONSOLE),
-            'linhas': corrigir_pagamentos_realizados_console_com_replay(
+            'linhas': corrigir_pagamentos_realizados_console_com_pacote(
                 contexto,
                 saida.pagamentos_realizados_console(limite=limite),
+                pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
             ) if contexto is not None else saida.pagamentos_realizados_console(limite=limite),
             'limite': limite,
         },
