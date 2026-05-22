@@ -145,13 +145,18 @@ def _auditar_lote_3120() -> dict[str, Any]:
     pacote = construir_pacote_saida_observavel_temporal(ctx, saida, lotes_ativos_observaveis=ativos, lotes_exauridos_observaveis=exauridos, pagamentos_realizados_observaveis=realizados)
     ativos_pkg = construir_linhas_lotes_consolidados(ctx, saida, tipo="ativos", pacote_saida_observavel_temporal=pacote)
     ex_pkg = construir_linhas_lotes_consolidados(ctx, saida, tipo="exauridos", pacote_saida_observavel_temporal=pacote)
-    alvo = next((r for r in ativos_pkg if str(r.get("Lote") or "").strip().lower().replace('.', '') == "lote 3120 mai"), {})
+    chave_lote = "lote 3120 mai"
+    alvo = next((r for r in ativos_pkg if str(r.get("Lote") or "").strip().lower().replace('.', '') == chave_lote), {})
+    pagamentos = list((getattr(pacote, "pagamentos_replay_por_chave", {}) or {}).values())
+    pagamentos_lote = [r for r in pagamentos if str(r.get("Lote") or r.get("Lotes usados") or "").strip().lower().replace('.', '') == chave_lote]
+    bruto_sacado = _f(sum(float(r.get("Bruto") or 0.0) for r in pagamentos_lote))
+    liquido_sacado = _f(sum(float((r.get("Líquido") if "Líquido" in r else r.get("Liquido")) or 0.0) for r in pagamentos_lote))
     return {
         "lote_3120_mai_presente_ativos": bool(alvo),
-        "lote_3120_mai_presente_exauridos": any(str(r.get("Lote") or "").strip().lower().replace('.', '') == "lote 3120 mai" for r in ex_pkg),
+        "lote_3120_mai_presente_exauridos": any(str(r.get("Lote") or "").strip().lower().replace('.', '') == chave_lote for r in ex_pkg),
         "lote_3120_mai_saldo_final": _f(alvo.get("Líq. atual", 0.0)),
-        "lote_3120_mai_bruto_sacado": _f(alvo.get("Bruto sac.", 0.0)),
-        "lote_3120_mai_liquido_sacado": _f(alvo.get("Líq. sac.", 0.0)),
+        "lote_3120_mai_bruto_sacado": bruto_sacado,
+        "lote_3120_mai_liquido_sacado": liquido_sacado,
     }
 
 
