@@ -87,9 +87,21 @@ def _valores_sacados_por_lote_do_pacote(pacote_saida_observavel_temporal: Any) -
     pacote = _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
     out: dict[str, dict[str, float]] = {}
     for lote_id, dados in (getattr(pacote, "valores_sacados_por_lote", {}) or {}).items():
-        bruto = round(para_float((dados or {}).get("bruto_sacado")), 2)
-        liquido = round(para_float((dados or {}).get("liquido_sacado")), 2)
-        out[str(lote_id)] = {"bruto_sacado": bruto, "liquido_sacado": liquido}
+        bruto = (dados or {}).get("bruto_sacado")
+        liquido = (dados or {}).get("liquido_sacado")
+        if bruto is None and liquido is None and "valor_sacado_total" in (dados or {}):
+            liquido = (dados or {}).get("valor_sacado_total")
+        out[str(lote_id)] = {"bruto_sacado": round(para_float(bruto), 2), "liquido_sacado": round(para_float(liquido), 2)}
+
+    pagamentos = list((getattr(pacote, "pagamentos_replay_por_chave", {}) or {}).values())
+    for row in pagamentos:
+        lote_id = str(row.get("Lote") or row.get("Lotes usados") or "").strip()
+        if not lote_id:
+            continue
+        cur = out.setdefault(lote_id, {"bruto_sacado": 0.0, "liquido_sacado": 0.0})
+        cur["bruto_sacado"] = round(cur["bruto_sacado"] + para_float(row.get("Bruto")), 2)
+        liq = row.get("Líquido") if "Líquido" in row else row.get("Liquido")
+        cur["liquido_sacado"] = round(cur["liquido_sacado"] + para_float(liq), 2)
     return out
 
 
@@ -373,6 +385,7 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_sa
                 lote_id_exaurido
                 and lote_id_exaurido not in lotes_ativos_ids
                 and round(para_float(mapa_saldo_final_replay.get(lote_id_exaurido)), 2) > 0.20
+                and "migrado" not in str(_status_ciclo_lote(item_exaurido, tipo="exauridos")).lower()
             ):
                 itens_iteracao.append(item_exaurido)
 
@@ -384,10 +397,12 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_sa
             and lote_id in lotes_exauridos_ids
             and lote_id not in lotes_ativos_ids
             and round(para_float(mapa_saldo_final_replay.get(lote_id)), 2) > 0.20
+            and "migrado" not in str(_status_ciclo_lote(item, tipo="exauridos")).lower()
         )
         if (
             tipo == 'exauridos'
             and round(para_float(mapa_saldo_final_replay.get(lote_id)), 2) > 0.20
+            and "migrado" not in str(_status_ciclo_lote(item, tipo="exauridos")).lower()
         ):
             continue
         sacado = somas.get(lote_id, {})
