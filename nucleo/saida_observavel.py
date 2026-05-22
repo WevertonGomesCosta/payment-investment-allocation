@@ -556,6 +556,13 @@ def _valor_nominal_extraido_do_id_lote(lote_id: Any) -> float:
     return para_float(bruto)
 
 
+
+
+def _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal: Any) -> Any:
+    if pacote_saida_observavel_temporal is None:
+        raise RuntimeError("saida_observavel_requer_pacote_saida_observavel_temporal_na_V4W")
+    return pacote_saida_observavel_temporal
+
 def _origens_migradas_auditoria(saida: Any) -> list[dict[str, Any]]:
     auditoria = dict(getattr(saida, "auditoria", {}) or {})
     return list(auditoria.get("origens_migradas_por_switching") or [])
@@ -927,6 +934,7 @@ def construir_linhas_origens_migradas_por_switching(contexto, saida, pacote_said
 
 
 def construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
     """Switchings enriquecidos para console e planilha.
 
     Mantém a decisão de switching intacta e apenas preenche campos observáveis
@@ -983,16 +991,17 @@ def _valor_total_recebidos_brutos(saida) -> float:
     return round(total, 2)
 
 
-def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, Any]]:
+def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
     linhas_exauridos_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
-        construir_linhas_lotes_consolidados(contexto, saida, tipo='exauridos'),
+        construir_linhas_lotes_consolidados(contexto, saida, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
         saida,
     )
     linhas_exauridos = (
         linhas_exauridos_consolidadas
-        + construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida)
+        + construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
     )
-    linhas_ativos = construir_linhas_lotes_consolidados(contexto, saida, tipo='ativos')
+    linhas_ativos = construir_linhas_lotes_consolidados(contexto, saida, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
     linhas = linhas_exauridos + linhas_ativos
 
     valor_original_total = round(sum(para_float(item.get('Orig.')) for item in linhas), 2)
@@ -1069,37 +1078,38 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida) -> list[dict[str, A
     ]
 
 
-def construir_blocos_situacao_atual(contexto, saida) -> list[dict[str, Any]]:
+def construir_blocos_situacao_atual(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
     return [
         {
             'titulo': 'Lotes exauridos — identificação',
             'headers': COLS_LOTES_EXAURIDOS_ID_CURTAS,
-            'linhas': construir_linhas_lotes_id_curta(contexto, saida, tipo='exauridos'),
+            'linhas': construir_linhas_lotes_id_curta(contexto, saida, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
         },
         {
             'titulo': 'Lotes exauridos — valores e patrimônio',
             'headers': COLS_LOTES_VALORES_CURTAS,
-            'linhas': construir_linhas_lotes_valores_curta(contexto, saida, tipo='exauridos'),
+            'linhas': construir_linhas_lotes_valores_curta(contexto, saida, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
         },
         {
             'titulo': 'Lotes ativos — identificação',
             'headers': COLS_LOTES_ATIVOS_ID_CURTAS,
-            'linhas': construir_linhas_lotes_id_curta(contexto, saida, tipo='ativos'),
+            'linhas': construir_linhas_lotes_id_curta(contexto, saida, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
         },
         {
             'titulo': 'Lotes ativos — valores e patrimônio',
             'headers': COLS_LOTES_VALORES_CURTAS,
-            'linhas': construir_linhas_lotes_valores_curta(contexto, saida, tipo='ativos'),
+            'linhas': construir_linhas_lotes_valores_curta(contexto, saida, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
         },
         {
             'titulo': 'Origens migradas por switching — reconciliação patrimonial',
             'headers': COLS_ORIGENS_MIGRADAS_SWITCHING,
-            'linhas': construir_linhas_origens_migradas_por_switching(contexto, saida),
+            'linhas': construir_linhas_origens_migradas_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
         },
         {
             'titulo': 'Patrimônio total dos lotes',
             'headers': ['Métrica', 'Valor'],
-            'linhas': construir_resumo_patrimonio_total_lotes(contexto, saida),
+            'linhas': construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
         },
         {
             'titulo': 'Recebidos auditáveis',
