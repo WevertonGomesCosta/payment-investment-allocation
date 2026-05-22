@@ -231,7 +231,9 @@ def _registrar_aplicacao(mapa: dict[str, Any], lote_id: Any, data_aplicacao: Any
     mapa.setdefault(lote, data)
 
 
-def _mapa_aplicacao_por_lote(contexto: Any, saida: Any) -> dict[str, Any]:
+def _mapa_aplicacao_por_lote(contexto: Any, saida: Any, pacote_saida_observavel_temporal: Any | None = None) -> dict[str, Any]:
+    if pacote_saida_observavel_temporal is not None and getattr(pacote_saida_observavel_temporal, "aplicacoes_por_lote", None):
+        return dict(getattr(pacote_saida_observavel_temporal, "aplicacoes_por_lote", {}) or {})
     mapa: dict[str, Any] = {}
 
     for item in list(getattr(saida, "lotes_ativos", []) or []) + list(getattr(saida, "lotes_exauridos", []) or []):
@@ -309,12 +311,14 @@ def _registrar_produto_lote(mapa: dict[str, Any], lote_id: Any, produto: Any) ->
     mapa.setdefault(lote, str(produto).strip())
 
 
-def _mapa_produto_por_lote(contexto: Any, saida: Any) -> dict[str, Any]:
+def _mapa_produto_por_lote(contexto: Any, saida: Any, pacote_saida_observavel_temporal: Any | None = None) -> dict[str, Any]:
     """Busca produto/carteira do lote em estruturas já carregadas.
 
     Não decide switching, não altera motor e não altera ledger.
     É apenas enriquecimento observável para console/planilha.
     """
+    if pacote_saida_observavel_temporal is not None and getattr(pacote_saida_observavel_temporal, "produtos_por_lote", None):
+        return dict(getattr(pacote_saida_observavel_temporal, "produtos_por_lote", {}) or {})
     mapa: dict[str, Any] = {}
 
     for item in list(getattr(saida, "lotes_ativos", []) or []) + list(getattr(saida, "lotes_exauridos", []) or []):
@@ -428,12 +432,14 @@ def _registrar_valor_original_lote(mapa: dict[str, float], lote_id: Any, valor_o
     mapa.setdefault(lote, valor)
 
 
-def _mapa_valor_original_por_lote(contexto: Any, saida: Any) -> dict[str, float]:
+def _mapa_valor_original_por_lote(contexto: Any, saida: Any, pacote_saida_observavel_temporal: Any | None = None) -> dict[str, float]:
     """Busca o valor original do lote em estruturas já carregadas.
 
     Usado apenas para renderização observável de origens migradas por switching.
     Não altera motor, ledger, ranking nem totais patrimoniais.
     """
+    if pacote_saida_observavel_temporal is not None and getattr(pacote_saida_observavel_temporal, "valores_originais_por_lote", None):
+        return dict(getattr(pacote_saida_observavel_temporal, "valores_originais_por_lote", {}) or {})
     mapa: dict[str, float] = {}
 
     for item in list(getattr(saida, "lotes_ativos", []) or []) + list(getattr(saida, "lotes_exauridos", []) or []):
@@ -567,7 +573,9 @@ def _status_ciclo_lote(item: dict[str, Any], *, tipo: str) -> str:
 
 
 
-def _mapa_saldo_final_replay_por_lote(contexto: Any) -> dict[str, float]:
+def _mapa_saldo_final_replay_por_lote(contexto: Any, pacote_saida_observavel_temporal: Any | None = None) -> dict[str, float]:
+    if pacote_saida_observavel_temporal is not None and getattr(pacote_saida_observavel_temporal, "saldos_finais_replay_por_lote", None):
+        return dict(getattr(pacote_saida_observavel_temporal, "saldos_finais_replay_por_lote", {}) or {})
     replay = getattr(contexto, 'replay_passado', None)
     log = getattr(replay, 'log_passado', None) if replay is not None else None
     mapa: dict[str, tuple[str, float, int, float]] = {}
@@ -658,14 +666,26 @@ def calcular_rendimento_liquido_observavel(
     return rendimento
 
 
-def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
+def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
     campo = 'lotes_exauridos' if tipo == 'exauridos' else 'lotes_ativos'
     itens = list(getattr(saida, campo, []) or [])
-    mapa_saldo_final_replay = _mapa_saldo_final_replay_por_lote(contexto)
+    mapa_saldo_final_replay = _mapa_saldo_final_replay_por_lote(contexto, pacote_saida_observavel_temporal)
     lotes_exauridos = list(getattr(saida, 'lotes_exauridos', []) or [])
     lotes_exauridos_ids = {str(item.get('Lote') or '').strip() for item in lotes_exauridos}
     lotes_ativos_ids = {str(item.get('Lote') or '').strip() for item in list(getattr(saida, 'lotes_ativos', []) or [])}
-    somas = somar_valores_sacados_por_lote(contexto, saida)
+    if pacote_saida_observavel_temporal is not None and getattr(pacote_saida_observavel_temporal, "valores_sacados_por_lote", None):
+        somas = {}
+        for lote_id, dados in (getattr(pacote_saida_observavel_temporal, "valores_sacados_por_lote", {}) or {}).items():
+            tem_campos_compat = "bruto_sacado" in (dados or {}) or "liquido_sacado" in (dados or {})
+            if not tem_campos_compat:
+                continue
+            bruto = para_float((dados or {}).get("bruto_sacado"))
+            liquido = para_float((dados or {}).get("liquido_sacado"))
+            somas[str(lote_id)] = {"bruto_sacado": round(bruto, 2), "liquido_sacado": round(liquido, 2)}
+        if not somas:
+            somas = somar_valores_sacados_por_lote(contexto, saida)
+    else:
+        somas = somar_valores_sacados_por_lote(contexto, saida)
     mapa_termino = _mapa_ultimo_uso_lotes_saida(saida)
     linhas: list[dict[str, Any]] = []
 
@@ -762,23 +782,23 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str) -> list[d
     return linhas
 
 
-def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
+def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
     if tipo == 'ativos':
         headers = COLS_LOTES_ATIVOS_ID_CURTAS
-        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo)
+        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
     elif tipo == 'exauridos':
         headers = COLS_LOTES_EXAURIDOS_ID_CURTAS
         linhas_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
-            construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo),
+            construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
             saida,
         )
         linhas_base = (
             linhas_consolidadas
-            + construir_linhas_lotes_encerrados_por_switching(contexto, saida)
+            + construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
         )
     else:
         headers = COLS_LOTES_ID_CURTAS
-        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo)
+        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
 
     return [
         {chave: item.get(chave) for chave in headers}
@@ -786,15 +806,15 @@ def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str) -> list[dict[
     ]
 
 
-def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str) -> list[dict[str, Any]]:
-    linhas_base = list(construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo))
+def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    linhas_base = list(construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal))
 
     if tipo == 'exauridos':
         # Mantém alinhamento visual entre a tabela de identificação e a tabela de valores.
         # As origens migradas por switching entram apenas como linhas observáveis
         # e NÃO são usadas por construir_resumo_patrimonio_total_lotes(...).
         linhas_base = _remover_origens_migradas_dos_exauridos_consolidados(linhas_base, saida)
-        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida)
+        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
 
     return [
         {chave: item.get(chave) for chave in COLS_LOTES_VALORES_CURTAS}
@@ -802,9 +822,9 @@ def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str) -> list[
     ]
 
 
-def construir_linhas_lotes_encerrados_por_switching(contexto, saida) -> list[dict[str, Any]]:
-    aplicacoes = _mapa_aplicacao_por_lote(contexto, saida)
-    produtos = _mapa_produto_por_lote(contexto, saida)
+def construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    aplicacoes = _mapa_aplicacao_por_lote(contexto, saida, pacote_saida_observavel_temporal)
+    produtos = _mapa_produto_por_lote(contexto, saida, pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
     for item in _origens_migradas_auditoria(saida):
@@ -834,7 +854,7 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida) -> list[dic
 
 
 
-def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida) -> list[dict[str, Any]]:
+def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
     """Valores observáveis das origens migradas por switching.
 
     Essas linhas existem para alinhar a renderização das tabelas:
@@ -843,7 +863,7 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida) -> 
     - não são somadas no resumo patrimonial, pois o resumo continua usando
       construir_linhas_lotes_consolidados(...).
     """
-    valores_originais = _mapa_valor_original_por_lote(contexto, saida)
+    valores_originais = _mapa_valor_original_por_lote(contexto, saida, pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
     for item in _origens_migradas_auditoria(saida):
@@ -876,8 +896,8 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida) -> 
 
 
 
-def construir_linhas_origens_migradas_por_switching(contexto, saida) -> list[dict[str, Any]]:
-    aplicacoes = _mapa_aplicacao_por_lote(contexto, saida)
+def construir_linhas_origens_migradas_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    aplicacoes = _mapa_aplicacao_por_lote(contexto, saida, pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
     for item in _origens_migradas_auditoria(saida):
@@ -906,13 +926,13 @@ def construir_linhas_origens_migradas_por_switching(contexto, saida) -> list[dic
     return linhas
 
 
-def construir_switchings_observaveis(contexto, saida) -> list[dict[str, Any]]:
+def construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
     """Switchings enriquecidos para console e planilha.
 
     Mantém a decisão de switching intacta e apenas preenche campos observáveis
     ausentes, especialmente Produto origem.
     """
-    produtos = _mapa_produto_por_lote(contexto, saida)
+    produtos = _mapa_produto_por_lote(contexto, saida, pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
     for item in list(getattr(saida, "switchings", []) or []):
@@ -1325,7 +1345,21 @@ def _chave_pagamento_console(row: dict[str, Any]) -> tuple[str, str, str, float]
     return data, descricao, lote, liquido
 
 
-def _mapa_pagamentos_replay_por_chave(contexto: Any) -> dict[tuple[str, str, str, float], dict[str, Any]]:
+def _mapa_pagamentos_replay_por_chave(contexto: Any, pacote_saida_observavel_temporal: Any | None = None) -> dict[tuple[str, str, str, float], dict[str, Any]]:
+    if pacote_saida_observavel_temporal is not None and getattr(pacote_saida_observavel_temporal, "pagamentos_replay_por_chave", None):
+        mapa_pacote: dict[tuple[str, str, str, float], dict[str, Any]] = {}
+        for row in (getattr(pacote_saida_observavel_temporal, "pagamentos_replay_por_chave", {}) or {}).values():
+            chave = _chave_pagamento_replay(row)
+            if chave[0] and chave[1] and chave[2]:
+                mapa_pacote[chave] = {
+                    "Saldo Antes": row.get("Saldo Antes"),
+                    "Bruto": row.get("Bruto"),
+                    "Imposto": row.get("Imposto"),
+                    "Líquido": row.get("Líquido") if "Líquido" in row else row.get("Liquido"),
+                    "Saldo Remanescente": row.get("Saldo Remanescente"),
+                }
+        if mapa_pacote:
+            return mapa_pacote
     replay = getattr(contexto, "replay_passado", None)
     log = getattr(replay, "log_passado", None) if replay is not None else None
     mapa: dict[tuple[str, str, str, float], dict[str, Any]] = {}
@@ -1354,6 +1388,7 @@ def _mapa_pagamentos_replay_por_chave(contexto: Any) -> dict[tuple[str, str, str
 def corrigir_pagamentos_realizados_console_com_replay(
     contexto: Any,
     linhas: list[dict[str, Any]],
+    pacote_saida_observavel_temporal: Any | None = None,
 ) -> list[dict[str, Any]]:
     """Normaliza a amostra observável de pagamentos realizados usando o replay.
 
@@ -1361,7 +1396,7 @@ def corrigir_pagamentos_realizados_console_com_replay(
     Apenas corrige a renderização da amostra do console quando a linha observável
     diverge da linha auditável do replay para o mesmo pagamento/lote.
     """
-    mapa_replay = _mapa_pagamentos_replay_por_chave(contexto)
+    mapa_replay = _mapa_pagamentos_replay_por_chave(contexto, pacote_saida_observavel_temporal)
     if not mapa_replay:
         return list(linhas)
 
@@ -1381,7 +1416,7 @@ def corrigir_pagamentos_realizados_console_com_replay(
 
     return corrigidas
 
-def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None) -> dict[str, object]:
+def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None, pacote_saida_observavel_temporal: Any | None = None) -> dict[str, object]:
     """Constrói as amostras operacionais de pagamentos para o console.
 
     Fonte dos dados:
@@ -1399,6 +1434,7 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contex
             'linhas': corrigir_pagamentos_realizados_console_com_replay(
                 contexto,
                 saida.pagamentos_realizados_console(limite=limite),
+                pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
             ) if contexto is not None else saida.pagamentos_realizados_console(limite=limite),
             'limite': limite,
         },

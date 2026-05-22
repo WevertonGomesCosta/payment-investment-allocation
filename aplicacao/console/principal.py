@@ -20,9 +20,11 @@ from aplicacao.console.secoes_execucao import render_secao_execucao
 from nucleo.contexto_baseline import carregar_contexto_baseline
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
+from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
 from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_observavel import (
     construir_amostras_pagamentos_operacionais,
+    construir_linhas_lotes_consolidados,
     COLS_LOTES_EXAURIDOS_ID_CURTAS,
     COLS_LOTES_ATIVOS_ID_CURTAS,
     COLS_LOTES_VALORES_CURTAS,
@@ -34,8 +36,13 @@ from nucleo.saida_observavel import (
 
 
 
-def _render_amostras_pagamentos_operacionais(contexto_baseline, saida_canonica) -> None:
-    amostras = construir_amostras_pagamentos_operacionais(saida_canonica, limite=5, contexto=contexto_baseline)
+def _render_amostras_pagamentos_operacionais(contexto_baseline, saida_canonica, pacote_saida_observavel_temporal=None) -> None:
+    amostras = construir_amostras_pagamentos_operacionais(
+        saida_canonica,
+        limite=5,
+        contexto=contexto_baseline,
+        pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+    )
     amostras.pop('recebidos_futuros', None)
 
     _imprimir_titulo(amostras['titulo'])
@@ -119,10 +126,10 @@ def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> Non
     )
 
 
-def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) -> None:
+def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None, pacote_saida_observavel_temporal=None) -> None:
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
-    linhas = construir_switchings_observaveis(contexto_baseline, saida_canonica)[:10]
+    linhas = construir_switchings_observaveis(contexto_baseline, saida_canonica, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)[:10]
     shadow = getattr(contexto_baseline, 'switching_economico_shadow', None)
     auditoria_shadow = getattr(shadow, 'auditoria', {}) if shadow is not None else {}
     resumo_shadow = dict(auditoria_shadow.get('resumo', {}) or {})
@@ -165,7 +172,7 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None) ->
         print('- próximos 3 aportes (resumo):')
         _imprimir_tabela(['Data', 'Lote', 'Valor', 'Status'], alocacao['linhas'], limite=3)
 
-def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos) -> None:
+def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos, pacote_saida_observavel_temporal=None) -> None:
     _imprimir_titulo('SITUAÇÃO ATUAL')
 
     if resumo_fechamento:
@@ -181,8 +188,8 @@ def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo
             print(f"- leitura auditável: {resumo_fechamento.get('observacao')}")
 
     print('\n- lotes exauridos:')
-    exauridos_id = construir_linhas_lotes_id_curta(contexto_baseline, saida_canonica, tipo='exauridos')
-    exauridos_val = construir_linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='exauridos')
+    exauridos_id = construir_linhas_lotes_id_curta(contexto_baseline, saida_canonica, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    exauridos_val = construir_linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
     if exauridos_id:
         print('  identificação:')
         _imprimir_tabela(COLS_LOTES_EXAURIDOS_ID_CURTAS, exauridos_id, limite=None)
@@ -192,8 +199,8 @@ def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo
         print('  [OK] sem lotes exauridos nesta execução')
 
     print('\n- lotes ativos:')
-    ativos_id = construir_linhas_lotes_id_curta(contexto_baseline, saida_canonica, tipo='ativos')
-    ativos_val = construir_linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='ativos')
+    ativos_id = construir_linhas_lotes_id_curta(contexto_baseline, saida_canonica, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    ativos_val = construir_linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
     if ativos_id:
         print('  identificação:')
         _imprimir_tabela(COLS_LOTES_ATIVOS_ID_CURTAS, ativos_id, limite=None)
@@ -221,6 +228,17 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
     """
     if saida_canonica is None:
         saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
+    ativos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="ativos")
+    exauridos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="exauridos")
+    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_baseline)
+    pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
+    pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(
+        contexto_baseline,
+        saida_canonica,
+        lotes_ativos_observaveis=ativos_obs,
+        lotes_exauridos_observaveis=exauridos_obs,
+        pagamentos_realizados_observaveis=pagamentos_obs,
+    )
 
     pacote_config = contexto_baseline.pacote_config
     contexto = contexto_baseline.execucao
@@ -286,10 +304,10 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
         abas_auxiliares=abas_auxiliares,
     )
 
-    _render_amostras_pagamentos_operacionais(contexto_baseline, saida_canonica)
+    _render_amostras_pagamentos_operacionais(contexto_baseline, saida_canonica, pacote_saida_observavel_temporal)
 
     _render_secao_ranking_oficial(contexto_baseline, saida_canonica)
-    _render_secao_switchings_oficiais(contexto_baseline, saida_canonica)
+    _render_secao_switchings_oficiais(contexto_baseline, saida_canonica, pacote_saida_observavel_temporal)
 
     resumo_fechamento_bruto = {
         item.get("Métrica"): item.get("Valor")
@@ -326,6 +344,7 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
         saida_canonica,
         resumo_fechamento_situacao_atual,
         resumo_recebidos_saida,
+        pacote_saida_observavel_temporal,
     )
 
 
