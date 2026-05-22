@@ -10,3 +10,7 @@
 - evidências lote 3120 mai: presente em ativos, ausente em exauridos, saldo final 50.52.
 - decisão: etapa 5 permanece fechada (`etapa5_pode_abrir_agora=false`).
 - próxima microetapa: `V17-F0-V.4W`.
+- ajuste PR#350: caminho integrado do console agora constrói o pacote com snapshots observáveis consolidados (`ativos_obs`, `exauridos_obs`, `pagamentos_obs`) antes de injetar no fluxo observável.
+- ajuste PR#350: no caminho V4V integrado, `origem_lotes_ativos_exauridos="snapshot_observavel_consolidado"` e `usa_fallback_canonico_bruto=false`.
+- ajuste PR#350: auditor V4V fortalecido para comparar linhas observáveis completas normalizadas (não apenas IDs/contagem).
+- ajuste PR#350: `validacao_v4u_ok` no auditor V4V passou a ser calculado a partir das evidências reais do pacote (não hardcoded).

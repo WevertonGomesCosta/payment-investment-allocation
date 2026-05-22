@@ -24,6 +24,7 @@ from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_obser
 from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_observavel import (
     construir_amostras_pagamentos_operacionais,
+    construir_linhas_lotes_consolidados,
     COLS_LOTES_EXAURIDOS_ID_CURTAS,
     COLS_LOTES_ATIVOS_ID_CURTAS,
     COLS_LOTES_VALORES_CURTAS,
@@ -227,7 +228,17 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
     """
     if saida_canonica is None:
         saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
-    pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(contexto_baseline, saida_canonica)
+    ativos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="ativos")
+    exauridos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="exauridos")
+    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_baseline)
+    pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
+    pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(
+        contexto_baseline,
+        saida_canonica,
+        lotes_ativos_observaveis=ativos_obs,
+        lotes_exauridos_observaveis=exauridos_obs,
+        pagamentos_realizados_observaveis=pagamentos_obs,
+    )
 
     pacote_config = contexto_baseline.pacote_config
     contexto = contexto_baseline.execucao

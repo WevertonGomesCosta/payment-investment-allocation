@@ -676,13 +676,14 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_sa
     if pacote_saida_observavel_temporal is not None and getattr(pacote_saida_observavel_temporal, "valores_sacados_por_lote", None):
         somas = {}
         for lote_id, dados in (getattr(pacote_saida_observavel_temporal, "valores_sacados_por_lote", {}) or {}).items():
+            tem_campos_compat = "bruto_sacado" in (dados or {}) or "liquido_sacado" in (dados or {})
+            if not tem_campos_compat:
+                continue
             bruto = para_float((dados or {}).get("bruto_sacado"))
             liquido = para_float((dados or {}).get("liquido_sacado"))
-            if bruto <= 0 and liquido <= 0:
-                fallback_total = para_float((dados or {}).get("valor_sacado_total"))
-                bruto = fallback_total
-                liquido = fallback_total
             somas[str(lote_id)] = {"bruto_sacado": round(bruto, 2), "liquido_sacado": round(liquido, 2)}
+        if not somas:
+            somas = somar_valores_sacados_por_lote(contexto, saida)
     else:
         somas = somar_valores_sacados_por_lote(contexto, saida)
     mapa_termino = _mapa_ultimo_uso_lotes_saida(saida)
