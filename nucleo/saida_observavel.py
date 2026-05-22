@@ -316,15 +316,52 @@ def calcular_rendimento_liquido_observavel(
     return rendimento
 
 
-def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+
+
+def _valores_sacados_por_lote_bootstrap(saida: Any) -> dict[str, dict[str, float]]:
+    out: dict[str, dict[str, float]] = {}
+    for row in list(getattr(saida, "extrato_passado", []) or []):
+        lote = str(row.get("Lotes usados") or row.get("Lote") or "").strip()
+        if not lote:
+            continue
+        bruto = round(para_float(row.get("Bruto")), 2)
+        liq = round(para_float(row.get("Líquido") if "Líquido" in row else row.get("Liquido")), 2)
+        cur = out.setdefault(lote, {"bruto_sacado": 0.0, "liquido_sacado": 0.0})
+        cur["bruto_sacado"] = round(cur["bruto_sacado"] + bruto, 2)
+        cur["liquido_sacado"] = round(cur["liquido_sacado"] + liq, 2)
+    return out
+
+
+def _saldos_finais_por_lote_bootstrap(saida: Any) -> dict[str, float]:
+    acc: dict[str, tuple[str, float, int]] = {}
+    for i, row in enumerate(list(getattr(saida, "extrato_passado", []) or [])):
+        lote = str(row.get("Lotes usados") or row.get("Lote") or "").strip()
+        if not lote:
+            continue
+        data_txt = _fmt_data_observavel(row.get("Data"), padrao="")
+        seq = para_float(row.get("Sequencia Saque") if "Sequencia Saque" in row else row.get("sequencia_saque"))
+        saldo = round(para_float(row.get("Saldo Remanescente") if "Saldo Remanescente" in row else row.get("Saldo remanescente")), 2)
+        key = (data_txt, seq, i)
+        prev = acc.get(lote)
+        if prev is None or key > (prev[0], prev[1], prev[2]):
+            acc[lote] = (data_txt, seq, i, saldo)
+    return {k: v[3] for k, v in acc.items()}
+
+
+def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None, modo_bootstrap_pacote: bool = False) -> list[dict[str, Any]]:
     campo = 'lotes_exauridos' if tipo == 'exauridos' else 'lotes_ativos'
     itens = list(getattr(saida, campo, []) or [])
-    _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
-    mapa_saldo_final_replay = _saldos_finais_replay_por_lote_do_pacote(pacote_saida_observavel_temporal)
     lotes_exauridos = list(getattr(saida, 'lotes_exauridos', []) or [])
+    if pacote_saida_observavel_temporal is None:
+        if not modo_bootstrap_pacote:
+            _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
+        mapa_saldo_final_replay = _saldos_finais_por_lote_bootstrap(saida)
+        somas = _valores_sacados_por_lote_bootstrap(saida)
+    else:
+        mapa_saldo_final_replay = _saldos_finais_replay_por_lote_do_pacote(pacote_saida_observavel_temporal)
+        somas = _valores_sacados_por_lote_do_pacote(pacote_saida_observavel_temporal)
     lotes_exauridos_ids = {str(item.get('Lote') or '').strip() for item in lotes_exauridos}
     lotes_ativos_ids = {str(item.get('Lote') or '').strip() for item in list(getattr(saida, 'lotes_ativos', []) or [])}
-    somas = _valores_sacados_por_lote_do_pacote(pacote_saida_observavel_temporal)
     mapa_termino = _mapa_ultimo_uso_lotes_saida(saida)
     linhas: list[dict[str, Any]] = []
 

@@ -232,9 +232,9 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
     """
     if saida_canonica is None:
         saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
-    ativos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="ativos")
-    exauridos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="exauridos")
-    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_baseline)
+    ativos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="ativos", modo_bootstrap_pacote=True)
+    exauridos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="exauridos", modo_bootstrap_pacote=True)
+    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_baseline, pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(contexto_baseline, saida_canonica, lotes_ativos_observaveis=ativos_obs, lotes_exauridos_observaveis=exauridos_obs))
     pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
     pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(
         contexto_baseline,

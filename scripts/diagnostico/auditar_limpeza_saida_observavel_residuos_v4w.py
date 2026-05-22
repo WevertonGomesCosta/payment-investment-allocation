@@ -46,6 +46,7 @@ def main() -> None:
     sem_replay = _none_in(saida, ["replay_passado", "log_passado", "lotes_apos_replay", "lotes_antes_replay", "lotes_replay", "lotes_originais"])
     sem_dict = _none_in(saida, ["__dict__", "fila = [contexto]"])
     sem_df_generic = _none_in(saida, ["iterrows", ".columns"])
+    bootstrap_pacote_explicito = "modo_bootstrap_pacote: bool = False" in saida
     helpers_legados_removidos = _none_in(saida, [
         "somar_valores_sacados_por_lote", "_mapa_aplicacao_por_lote", "_mapa_produto_por_lote", "_mapa_valor_original_por_lote", "_mapa_saldo_final_replay_por_lote", "_mapa_pagamentos_replay_por_chave", "_lote_deve_ser_ativo_observavel_por_replay"
     ])
@@ -60,6 +61,7 @@ def main() -> None:
         "saida_observavel_sem_varredura_dict_contexto": sem_dict,
         "saida_observavel_sem_varredura_generica_dataframe": sem_df_generic,
         "helpers_legados_removidos": helpers_legados_removidos,
+        "bootstrap_pacote_explicito": bootstrap_pacote_explicito,
     }
     res["validacao_v4w_ok"] = all(res.values())
     print(json.dumps(res, ensure_ascii=False, indent=2))
