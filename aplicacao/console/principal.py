@@ -212,7 +212,11 @@ def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo
     print('\n- patrimônio total dos lotes:')
     _imprimir_tabela(
         ['Métrica', 'Valor'],
-        construir_resumo_patrimonio_total_lotes(contexto_baseline, saida_canonica),
+        construir_resumo_patrimonio_total_lotes(
+            contexto_baseline,
+            saida_canonica,
+            pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+        ),
         limite=None,
     )
 
