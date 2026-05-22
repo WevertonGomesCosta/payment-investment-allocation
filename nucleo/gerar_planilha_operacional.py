@@ -21,7 +21,12 @@ from nucleo.identidade_baseline import (
     nome_relatorio_operacional,
 )
 from nucleo.saida_canonica import construir_saida_canonica
-from nucleo.saida_observavel import construir_blocos_situacao_atual, construir_switchings_observaveis
+from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
+from nucleo.saida_observavel import (
+    construir_blocos_situacao_atual,
+    construir_linhas_lotes_consolidados,
+    construir_switchings_observaveis,
+)
 
 
 DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
@@ -512,11 +517,11 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
         _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows)
 
 
-def _adicionar_situacao_atual(wb, contexto, saida) -> None:
+def _adicionar_situacao_atual(wb, contexto, saida, pacote_saida_observavel_temporal) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
     r = 1
 
-    for idx, bloco in enumerate(construir_blocos_situacao_atual(contexto, saida)):
+    for idx, bloco in enumerate(construir_blocos_situacao_atual(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)):
         r = _apply_table_style(
             ws,
             bloco['headers'],
@@ -571,9 +576,20 @@ def main(*, contexto=None, saida=None) -> Path:
     headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
     _apply_table_style(ws_futuro, headers_futuro, _rows(saida.extrato_futuro, headers_futuro), freeze=True)
 
+    lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos")
+    pacote_semente = construir_pacote_saida_observavel_temporal(contexto, saida, lotes_ativos_observaveis=lotes_ativos_observaveis)
+    lotes_exauridos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="exauridos", pacote_saida_observavel_temporal=pacote_semente)
+    pacote_consolidado = construir_pacote_saida_observavel_temporal(
+        contexto,
+        saida,
+        lotes_ativos_observaveis=lotes_ativos_observaveis,
+        lotes_exauridos_observaveis=lotes_exauridos_observaveis,
+        pagamentos_realizados_observaveis=list(getattr(saida, "extrato_passado", []) or []),
+    )
+
     ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, "switching"))
     headers_switching = _cabecalhos_operacionais(contexto, "switching")
-    switchings_observaveis = construir_switchings_observaveis(contexto, saida)
+    switchings_observaveis = construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal=pacote_consolidado)
     _apply_table_style(ws_switching, headers_switching, _rows(switchings_observaveis, headers_switching), freeze=True)
 
     if _usar_abas_diagnosticas(contexto):
@@ -598,7 +614,7 @@ def main(*, contexto=None, saida=None) -> Path:
         )
 
     _adicionar_abas_ranking(wb, contexto)
-    _adicionar_situacao_atual(wb, contexto, saida)
+    _adicionar_situacao_atual(wb, contexto, saida, pacote_consolidado)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
     _adicionar_aba_tabela_operacional_pagamentos(wb)
     _adicionar_abas_saida_operacional_pagamentos_u7(wb)
