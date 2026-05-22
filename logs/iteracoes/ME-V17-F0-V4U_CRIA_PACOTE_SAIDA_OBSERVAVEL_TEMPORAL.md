@@ -28,3 +28,18 @@ Para `valores_sacados_por_lote`, o pacote passa a usar preferencialmente:
 Essa distinção evita superestimação em pagamentos multifonte, nos quais `Valor Conta` pode se repetir em múltiplos movimentos enquanto o valor líquido representa o consumo efetivo de cada lote.
 
 A Etapa 5 permanece fechada. A próxima microetapa segue sendo V17-F0-V.4V.
+
+## Nota de correção — comentários Codex P1/P2 sobre validação genérica
+
+Os comentários Codex sobre validação genérica do `PacoteSaidaObservavelTemporal` foram endereçados.
+
+A validação genérica do pacote não usa mais o `Lote 3120 mai` como gate bloqueante global. As evidências específicas do baseline continuam registradas, mas a decisão específica da microetapa V4U fica no auditor diagnóstico.
+
+O fallback canônico bruto também deixa de ser erro bloqueante do pacote. Quando snapshots observáveis consolidados não forem fornecidos, o pacote pode ser construído em modo degradado; esse modo não deve ser tratado como pronto para migração V4V.
+
+Separação adotada:
+
+- `validacao_generica_pacote_ok`: integridade estrutural do pacote;
+- `validacao_baseline_lote_3120_ok`: evidência diagnóstica da V4U no baseline atual;
+- `pacote_pronto_para_migracao_v4v`: prontidão operacional para a próxima microetapa;
+- `etapa5_pode_abrir_agora=false`: Etapa 5 permanece fechada.
