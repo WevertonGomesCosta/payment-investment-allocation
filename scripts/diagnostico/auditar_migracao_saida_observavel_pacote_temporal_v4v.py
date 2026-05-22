@@ -80,8 +80,8 @@ def main() -> int:
             break
 
     ultimos_eq = _norm_linhas(realizados_leg)[:1000] == _norm_linhas(realizados_pkg)[:1000]
-    ativos_eq = _norm_linhas(ativos_leg) == _norm_linhas(ativos_pkg) or {_lote(x) for x in ativos_leg} == {_lote(x) for x in ativos_pkg}
-    ex_eq = _norm_linhas(ex_leg) == _norm_linhas(ex_pkg) or {_lote(x) for x in ex_leg} == {_lote(x) for x in ex_pkg}
+    ativos_eq = _norm_linhas(ativos_leg) == _norm_linhas(ativos_pkg)
+    ex_eq = _norm_linhas(ex_leg) == _norm_linhas(ex_pkg)
     console_equivalente = ultimos_eq and ativos_eq and ex_eq
     a = pacote.auditoria_saida_observavel_temporal or {}
     origem = a.get("origem_lotes_ativos_exauridos")
