@@ -95,32 +95,6 @@ def _valores_sacados_por_lote_do_pacote(pacote_saida_observavel_temporal: Any) -
 
 
 
-def _valores_sacados_por_lote_da_saida(saida: Any) -> dict[str, dict[str, float]]:
-    out: dict[str, dict[str, float]] = {}
-    for row in list(getattr(saida, "extrato_passado", []) or []):
-        lote = str(row.get("Lotes usados") or row.get("Lote") or "").strip()
-        if not lote:
-            continue
-        bruto = round(para_float(row.get("Bruto")), 2)
-        liquido = round(para_float(row.get("Líquido") if "Líquido" in row else row.get("Liquido")), 2)
-        cur = out.setdefault(lote, {"bruto_sacado": 0.0, "liquido_sacado": 0.0})
-        cur["bruto_sacado"] = round(max(cur["bruto_sacado"], bruto), 2)
-        cur["liquido_sacado"] = round(max(cur["liquido_sacado"], liquido), 2)
-    return out
-
-
-def _saldos_finais_por_lote_da_saida(saida: Any) -> dict[str, float]:
-    out: dict[str, tuple[str, float]] = {}
-    for row in list(getattr(saida, "extrato_passado", []) or []):
-        lote = str(row.get("Lotes usados") or row.get("Lote") or "").strip()
-        if not lote:
-            continue
-        data_txt = _fmt_data_observavel(row.get("Data"), padrao="")
-        saldo = round(para_float(row.get("Saldo Remanescente") if "Saldo Remanescente" in row else row.get("Saldo remanescente")), 2)
-        prev = out.get(lote)
-        if prev is None or data_txt >= prev[0]:
-            out[lote] = (data_txt, saldo)
-    return {k:v[1] for k,v in out.items()}
 
 def _vazio_observavel(valor: Any) -> bool:
     return valor is None or str(valor).strip() in {"", "n/d", "nan", "NaT"}
@@ -345,11 +319,12 @@ def calcular_rendimento_liquido_observavel(
 def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
     campo = 'lotes_exauridos' if tipo == 'exauridos' else 'lotes_ativos'
     itens = list(getattr(saida, campo, []) or [])
-    mapa_saldo_final_replay = _saldos_finais_replay_por_lote_do_pacote(pacote_saida_observavel_temporal) if pacote_saida_observavel_temporal is not None else _saldos_finais_por_lote_da_saida(saida)
+    _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
+    mapa_saldo_final_replay = _saldos_finais_replay_por_lote_do_pacote(pacote_saida_observavel_temporal)
     lotes_exauridos = list(getattr(saida, 'lotes_exauridos', []) or [])
     lotes_exauridos_ids = {str(item.get('Lote') or '').strip() for item in lotes_exauridos}
     lotes_ativos_ids = {str(item.get('Lote') or '').strip() for item in list(getattr(saida, 'lotes_ativos', []) or [])}
-    somas = _valores_sacados_por_lote_do_pacote(pacote_saida_observavel_temporal) if pacote_saida_observavel_temporal is not None else _valores_sacados_por_lote_da_saida(saida)
+    somas = _valores_sacados_por_lote_do_pacote(pacote_saida_observavel_temporal)
     mapa_termino = _mapa_ultimo_uso_lotes_saida(saida)
     linhas: list[dict[str, Any]] = []
 
@@ -475,8 +450,8 @@ def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str, pacote_s
 
 
 def construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
-    aplicacoes = _aplicacoes_por_lote_do_pacote(contexto, saida, pacote_saida_observavel_temporal)
-    produtos = _produtos_por_lote_do_pacote(contexto, saida, pacote_saida_observavel_temporal)
+    aplicacoes = _aplicacoes_por_lote_do_pacote(pacote_saida_observavel_temporal)
+    produtos = _produtos_por_lote_do_pacote(pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
     for item in _origens_migradas_auditoria(saida):
@@ -515,7 +490,7 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pac
     - não são somadas no resumo patrimonial, pois o resumo continua usando
       construir_linhas_lotes_consolidados(...).
     """
-    valores_originais = _valores_originais_por_lote_do_pacote(contexto, saida, pacote_saida_observavel_temporal)
+    valores_originais = _valores_originais_por_lote_do_pacote(pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
     for item in _origens_migradas_auditoria(saida):
@@ -549,7 +524,7 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pac
 
 
 def construir_linhas_origens_migradas_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
-    aplicacoes = _aplicacoes_por_lote_do_pacote(contexto, saida, pacote_saida_observavel_temporal)
+    aplicacoes = _aplicacoes_por_lote_do_pacote(pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
     for item in _origens_migradas_auditoria(saida):
@@ -585,7 +560,7 @@ def construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_te
     Mantém a decisão de switching intacta e apenas preenche campos observáveis
     ausentes, especialmente Produto origem.
     """
-    produtos = _produtos_por_lote_do_pacote(contexto, saida, pacote_saida_observavel_temporal)
+    produtos = _produtos_por_lote_do_pacote(pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
     for item in list(getattr(saida, "switchings", []) or []):

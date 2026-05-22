@@ -73,7 +73,17 @@ def _auditar_cache_bcb() -> dict[str, Any]:
             "ultima_data_com_fator_no_cache": "",
             "status_obtencao_cdi_bcb": "cache_bcb_ausente",
         }
-    blob = json.loads(ARQ_CACHE_BCB.read_text(encoding="utf-8"))
+    try:
+        blob = json.loads(ARQ_CACHE_BCB.read_text(encoding="utf-8"))
+    except Exception:
+        return {
+            "data_referencia": "2026-05-22",
+            "cache_bcb_registrado": True,
+            "cache_bcb_atualizado_para_referencia": False,
+            "data_atualizacao_cache": "",
+            "ultima_data_com_fator_no_cache": "",
+            "status_obtencao_cdi_bcb": "cache_bcb_malformado",
+        }
     meta = dict(blob.get("meta") or {})
     registros = list(blob.get("registros") or [])
     ultima_data = str((registros[-1] if registros else {}).get("data") or "")
@@ -127,9 +137,10 @@ def _auditar_residuos_ast() -> dict[str, Any]:
 def _auditar_lote_3120() -> dict[str, Any]:
     ctx = carregar_contexto_baseline(raiz_repositorio=ROOT, instalar_automaticamente=False, incluir_benchmark_agrupado_individual_shadow=False)
     saida = construir_saida_canonica(ctx)
-    ativos = construir_linhas_lotes_consolidados(ctx, saida, tipo="ativos")
-    exauridos = construir_linhas_lotes_consolidados(ctx, saida, tipo="exauridos")
-    am = construir_amostras_pagamentos_operacionais(saida, limite=1000, contexto=ctx)
+    pacote = construir_pacote_saida_observavel_temporal(ctx, saida)
+    ativos = construir_linhas_lotes_consolidados(ctx, saida, tipo="ativos", pacote_saida_observavel_temporal=pacote)
+    exauridos = construir_linhas_lotes_consolidados(ctx, saida, tipo="exauridos", pacote_saida_observavel_temporal=pacote)
+    am = construir_amostras_pagamentos_operacionais(saida, limite=1000, contexto=ctx, pacote_saida_observavel_temporal=pacote)
     realizados = list((am.get("realizados") or {}).get("linhas") or [])
     pacote = construir_pacote_saida_observavel_temporal(ctx, saida, lotes_ativos_observaveis=ativos, lotes_exauridos_observaveis=exauridos, pagamentos_realizados_observaveis=realizados)
     ativos_pkg = construir_linhas_lotes_consolidados(ctx, saida, tipo="ativos", pacote_saida_observavel_temporal=pacote)
