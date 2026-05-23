@@ -136,68 +136,13 @@ def _dataclass_field_names(obj: Any) -> list[str]:
         return []
 
 
-def _dataframe_fingerprint(obj: Any) -> dict[str, Any] | None:
-    if not hasattr(obj, "shape") or not hasattr(obj, "columns"):
-        return None
+def _asdict_safe(obj: Any) -> dict[str, Any]:
+    if not is_dataclass(obj):
+        return {}
     try:
-        columns = [str(c) for c in list(obj.columns)]
-    except Exception:
-        columns = []
-    return {
-        "shape": _shape(obj),
-        "columns": columns,
-        "numeric_totals": _numeric_totals_dataframe(obj),
-    }
-
-
-def _numeric_totals_dataframe(obj: Any) -> dict[str, float]:
-    try:
-        numeric = obj.select_dtypes(include="number")
+        return asdict(obj)
     except Exception:
         return {}
-    totals: dict[str, float] = {}
-    try:
-        sums = numeric.sum(numeric_only=True)
-        for col, val in sums.items():
-            totals[str(col)] = _round_float(val)
-    except Exception:
-        return {}
-    return totals
-
-
-def _rows_from_obj(obj: Any, max_rows: int = 5) -> list[dict[str, Any]]:
-    if obj is None:
-        return []
-    if hasattr(obj, "head") and hasattr(obj, "to_dict"):
-        try:
-            return obj.head(max_rows).to_dict(orient="records")
-        except Exception:
-            return []
-    if isinstance(obj, list):
-        rows = []
-        for item in obj[:max_rows]:
-            if isinstance(item, dict):
-                rows.append(item)
-            elif is_dataclass(item):
-                try:
-                    rows.append(asdict(item))
-                except Exception:
-                    rows.append({"repr": repr(item)})
-            else:
-                rows.append({"repr": repr(item)})
-        return rows
-    return []
-
-
-def _numeric_totals_rows(rows: list[dict[str, Any]]) -> dict[str, float]:
-    totals: dict[str, float] = {}
-    for row in rows:
-        for key, value in row.items():
-            if isinstance(value, bool):
-                continue
-            if isinstance(value, (int, float)) and math.isfinite(float(value)):
-                totals[str(key)] = totals.get(str(key), 0.0) + float(value)
-    return {k: _round_float(v) for k, v in sorted(totals.items())}
 
 
 def _round_float(value: Any) -> float:
@@ -207,75 +152,45 @@ def _round_float(value: Any) -> float:
         return 0.0
 
 
-def _object_fingerprint(obj: Any) -> dict[str, Any]:
-    fp: dict[str, Any] = {
+def _numeric_totals_dataframe(obj: Any) -> dict[str, float]:
+    try:
+        numeric = obj.select_dtypes(include="number")
+    except Exception:
+        return {}
+    try:
+        sums = numeric.sum(numeric_only=True)
+    except Exception:
+        return {}
+    return {str(col): _round_float(val) for col, val in sums.items()}
+
+
+def _sample_rows_dataframe(obj: Any, max_rows: int = 5) -> list[dict[str, Any]]:
+    if not hasattr(obj, "head") or not hasattr(obj, "to_dict"):
+        return []
+    try:
+        return _serializar_simples(obj.head(max_rows).to_dict(orient="records"))
+    except Exception:
+        return []
+
+
+def _dataframe_summary(obj: Any) -> dict[str, Any]:
+    resumo: dict[str, Any] = {
         "type": type(obj).__name__,
-        "module": type(obj).__module__,
         "shape": _shape(obj),
         "len": _len(obj),
-        "dataclass_fields": _dataclass_field_names(obj),
+        "columns": [],
+        "numeric_totals": {},
+        "sample_rows": [],
     }
-
-    dfp = _dataframe_fingerprint(obj)
-    if dfp is not None:
-        fp["dataframe"] = dfp
-
-    for attr in (
-        "ok",
-        "data_referencia",
-        "origem",
-        "status",
-        "status_obtencao",
-        "raiz_repositorio",
-        "caminho_config",
-        "versao",
-        "erros_bloqueantes",
-        "avisos",
-    ):
-        valor = _safe_attr(obj, attr)
-        if valor is not None:
-            fp[attr] = valor
-
-    if hasattr(obj, "serie_cdi"):
-        fp["serie_cdi"] = _serie_summary(_safe_attr_raw(obj, "serie_cdi"))
-
-    if is_dataclass(obj):
+    if hasattr(obj, "columns"):
         try:
-            data = asdict(obj)
-            fp["dataclass_resumo"] = {
-                k: _fingerprint_resumido(v)
-                for k, v in sorted(data.items(), key=lambda kv: str(kv[0]))
-                if not str(k).lower().endswith("shadow")
-            }
-        except Exception as exc:
-            fp["dataclass_resumo_erro"] = str(exc)
-
-    return fp
-
-
-def _fingerprint_resumido(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    if isinstance(value, Path):
-        return value.as_posix()
-    if hasattr(value, "isoformat"):
-        try:
-            return value.isoformat()
+            resumo["columns"] = [str(c) for c in list(obj.columns)]
         except Exception:
             pass
-    shape = _shape(value)
-    if shape is not None:
-        resumo = {"type": type(value).__name__, "shape": shape}
-        if hasattr(value, "columns"):
-            try:
-                resumo["columns"] = [str(c) for c in list(value.columns)]
-            except Exception:
-                pass
-        return resumo
-    length = _len(value)
-    if length is not None and not isinstance(value, (str, bytes)):
-        return {"type": type(value).__name__, "len": length}
-    return {"type": type(value).__name__}
+    if hasattr(obj, "select_dtypes"):
+        resumo["numeric_totals"] = _numeric_totals_dataframe(obj)
+    resumo["sample_rows"] = _sample_rows_dataframe(obj)
+    return resumo
 
 
 def _serie_summary(serie: Any) -> dict[str, Any]:
@@ -304,6 +219,72 @@ def _serie_summary(serie: Any) -> dict[str, Any]:
     except Exception:
         pass
     return resumo
+
+
+def _fingerprint_resumido(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Path):
+        return value.as_posix()
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    shape = _shape(value)
+    if shape is not None:
+        resumo = {"type": type(value).__name__, "shape": shape}
+        if hasattr(value, "columns"):
+            try:
+                resumo["columns"] = [str(c) for c in list(value.columns)]
+            except Exception:
+                pass
+        return resumo
+    length = _len(value)
+    if length is not None and not isinstance(value, (str, bytes)):
+        return {"type": type(value).__name__, "len": length}
+    return {"type": type(value).__name__}
+
+
+def _object_fingerprint(obj: Any) -> dict[str, Any]:
+    fp: dict[str, Any] = {
+        "type": type(obj).__name__,
+        "module": type(obj).__module__,
+        "shape": _shape(obj),
+        "len": _len(obj),
+        "dataclass_fields": _dataclass_field_names(obj),
+    }
+
+    if hasattr(obj, "shape") and hasattr(obj, "columns"):
+        fp["dataframe"] = _dataframe_summary(obj)
+
+    for attr in (
+        "ok",
+        "data_referencia",
+        "origem",
+        "status",
+        "status_obtencao",
+        "raiz_repositorio",
+        "caminho_config",
+        "versao",
+        "erros_bloqueantes",
+        "avisos",
+    ):
+        valor = _safe_attr(obj, attr)
+        if valor is not None:
+            fp[attr] = valor
+
+    if hasattr(obj, "serie_cdi"):
+        fp["serie_cdi"] = _serie_summary(_safe_attr_raw(obj, "serie_cdi"))
+
+    if is_dataclass(obj):
+        data = _asdict_safe(obj)
+        fp["dataclass_resumo"] = {
+            k: _fingerprint_resumido(v)
+            for k, v in sorted(data.items(), key=lambda kv: str(kv[0]))
+            if not str(k).lower().endswith("shadow")
+        }
+    return fp
 
 
 def _comparar_fingerprints(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
@@ -351,15 +332,6 @@ def _auditar_campos_proibidos(canonico: Any) -> dict[str, Any]:
     }
 
 
-def _dataclass_dict(obj: Any) -> dict[str, Any]:
-    if not is_dataclass(obj):
-        return {}
-    try:
-        return asdict(obj)
-    except Exception:
-        return {}
-
-
 def _dict_keys_diff(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
     ka = {str(k) for k in a}
     kb = {str(k) for k in b}
@@ -375,30 +347,6 @@ def _dict_keys_diff(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _summarize_table_like(obj: Any) -> dict[str, Any]:
-    resumo = {
-        "type": type(obj).__name__,
-        "shape": _shape(obj),
-        "len": _len(obj),
-        "columns": [],
-        "numeric_totals": {},
-        "sample_rows": [],
-    }
-    if hasattr(obj, "columns"):
-        try:
-            resumo["columns"] = [str(c) for c in list(obj.columns)]
-        except Exception:
-            pass
-    if hasattr(obj, "select_dtypes"):
-        resumo["numeric_totals"] = _numeric_totals_dataframe(obj)
-    rows = _rows_from_obj(obj, max_rows=5)
-    if rows:
-        resumo["sample_rows"] = _serializar_simples(rows)
-        if not resumo["numeric_totals"]:
-            resumo["numeric_totals"] = _numeric_totals_rows(rows)
-    return resumo
-
-
 def _classificacao_por_diferencas(diferencas: dict[str, Any], chaves_operacionais: set[str]) -> str:
     if not diferencas:
         return "equivalente"
@@ -410,9 +358,58 @@ def _classificacao_por_diferencas(diferencas: dict[str, Any], chaves_operacionai
     return "operacional"
 
 
+def _validation_evidencias(ctx: Any) -> dict[str, Any]:
+    validacao = _safe_attr_raw(ctx, "validacao_pre_execucao")
+    evidencias = _safe_attr_raw(validacao, "evidencias")
+    return evidencias if isinstance(evidencias, dict) else {}
+
+
+def _extrair_proveniencia_entrada(ctx: Any) -> dict[str, Any]:
+    evid = _validation_evidencias(ctx)
+    pacote_cache = _safe_attr_raw(_safe_attr_raw(ctx, "pacote_entrada_resolvida"), "pacote_cache_cdi")
+    cache = _safe_attr_raw(ctx, "cache_cdi")
+    pacote_planilha = _safe_attr_raw(_safe_attr_raw(ctx, "pacote_entrada_resolvida"), "pacote_planilha")
+    return {
+        "planilha_fonte": evid.get("planilha_fonte") or _safe_attr(pacote_planilha, "fonte"),
+        "planilha_fetch_status": evid.get("planilha_fetch_status") or _safe_attr(pacote_planilha, "fetch_status"),
+        "auditoria_entrada_bruta_fonte_planilha": evid.get("auditoria_entrada_bruta_fonte_planilha"),
+        "auditoria_entrada_bruta_fetch_status": evid.get("auditoria_entrada_bruta_fetch_status"),
+        "janela_cdi_data_inicial_consulta": evid.get("janela_cdi_data_inicial_consulta"),
+        "janela_cdi_data_final_consulta": evid.get("janela_cdi_data_final_consulta"),
+        "cache_cdi_data_inicial_consulta": _serializar_simples(_safe_attr_raw(pacote_cache, "data_inicial_consulta") or _safe_attr_raw(cache, "data_inicial_consulta")),
+        "cache_cdi_data_final_consulta": _serializar_simples(_safe_attr_raw(pacote_cache, "data_final_consulta") or _safe_attr_raw(cache, "data_final_consulta")),
+        "cache_cdi_qtd_datas_serie": evid.get("cache_cdi_qtd_datas_serie") or evid.get("auditoria_cache_cdi_qtd_datas"),
+        "cache_cdi_ultima_data_serie": evid.get("cache_cdi_ultima_data_serie"),
+        "cache_cdi_fonte_serie": evid.get("auditoria_cache_cdi_fonte_serie"),
+        "cache_cdi_fetch_status": evid.get("auditoria_cache_cdi_fetch_status"),
+    }
+
+
+def _comparar_proveniencia_entrada(baseline_ctx: Any, canonico_ctx: Any) -> dict[str, Any]:
+    baseline = _extrair_proveniencia_entrada(baseline_ctx)
+    canonico = _extrair_proveniencia_entrada(canonico_ctx)
+    chaves_divergentes = sorted(k for k in sorted(set(baseline) | set(canonico)) if baseline.get(k) != canonico.get(k))
+    causas = []
+    if baseline.get("planilha_fonte") != canonico.get("planilha_fonte") or baseline.get("auditoria_entrada_bruta_fonte_planilha") != canonico.get("auditoria_entrada_bruta_fonte_planilha"):
+        causas.append("fonte_planilha_divergente")
+    if baseline.get("planilha_fetch_status") != canonico.get("planilha_fetch_status") or baseline.get("auditoria_entrada_bruta_fetch_status") != canonico.get("auditoria_entrada_bruta_fetch_status"):
+        causas.append("status_download_planilha_divergente")
+    if baseline.get("cache_cdi_data_inicial_consulta") != canonico.get("cache_cdi_data_inicial_consulta"):
+        causas.append("janela_cache_cdi_inicial_divergente")
+    if baseline.get("cache_cdi_qtd_datas_serie") != canonico.get("cache_cdi_qtd_datas_serie"):
+        causas.append("tamanho_serie_cdi_divergente")
+    return {
+        "baseline": baseline,
+        "canonico": canonico,
+        "chaves_divergentes": chaves_divergentes,
+        "causas_provaveis": sorted(set(causas)),
+        "proveniencia_equivalente": not chaves_divergentes,
+    }
+
+
 def _detalhar_pacote_entrada_resolvida(baseline: Any, canonico: Any, diferencas: dict[str, Any]) -> dict[str, Any]:
-    db = _dataclass_dict(baseline)
-    dc = _dataclass_dict(canonico)
+    db = _asdict_safe(baseline)
+    dc = _asdict_safe(canonico)
     diff = _dict_keys_diff(db, dc)
     chaves_operacionais = {"pacote_config", "contexto_execucao", "pacote_planilha", "pacote_cache_cdi"}
     operacionais_alteradas = sorted([k for k in diff["comuns_alteradas"] if k in chaves_operacionais])
@@ -426,7 +423,7 @@ def _detalhar_pacote_entrada_resolvida(baseline: Any, canonico: Any, diferencas:
         "resumo_baseline": _object_fingerprint(baseline),
         "resumo_canonico": _object_fingerprint(canonico),
         "diferencas_fingerprint": diferencas,
-        "interpretacao": "Divergência documental/metadados se apenas metadados/evidências mudaram; operacional se pacote_config, contexto_execucao, planilha ou cache diferirem.",
+        "interpretacao": "Divergência documental/metadados se apenas metadados/evidências mudaram; operacional se planilha ou cache diferirem.",
     }
 
 
@@ -449,13 +446,27 @@ def _detalhar_validacao_pre_execucao(baseline: Any, canonico: Any, diferencas: d
     }
 
 
+def _quadro_fontes(obj: Any) -> Any:
+    return _safe_attr_raw(obj, "quadro_fontes_elegiveis")
+
+
 def _detalhar_fontes_elegiveis(baseline: Any, canonico: Any, diferencas: dict[str, Any]) -> dict[str, Any]:
-    resumo_b = _summarize_table_like(baseline)
-    resumo_c = _summarize_table_like(canonico)
+    quadro_b = _quadro_fontes(baseline)
+    quadro_c = _quadro_fontes(canonico)
+    resumo_b = {
+        "pacote": _object_fingerprint(baseline),
+        "quadro_fontes_elegiveis": _dataframe_summary(quadro_b),
+        "auditoria": _serializar_simples(_safe_attr_raw(baseline, "auditoria")),
+    }
+    resumo_c = {
+        "pacote": _object_fingerprint(canonico),
+        "quadro_fontes_elegiveis": _dataframe_summary(quadro_c),
+        "auditoria": _serializar_simples(_safe_attr_raw(canonico, "auditoria")),
+    }
     operacionais = []
     for key in ("shape", "len", "columns", "numeric_totals"):
-        if resumo_b.get(key) != resumo_c.get(key):
-            operacionais.append(key)
+        if resumo_b["quadro_fontes_elegiveis"].get(key) != resumo_c["quadro_fontes_elegiveis"].get(key):
+            operacionais.append(f"quadro_fontes_elegiveis.{key}")
     classificacao = "operacional" if operacionais else "documental"
     return {
         "campo": "fontes_elegiveis_pagamento",
@@ -465,7 +476,7 @@ def _detalhar_fontes_elegiveis(baseline: Any, canonico: Any, diferencas: dict[st
         "resumo_baseline": resumo_b,
         "resumo_canonico": resumo_c,
         "diferencas_fingerprint": diferencas,
-        "interpretacao": "Divergência é operacional se quantidade, colunas ou totais numéricos das fontes elegíveis diferirem.",
+        "interpretacao": "Divergência é operacional se shape, len, colunas ou totais do dataframe interno quadro_fontes_elegiveis divergirem.",
     }
 
 
@@ -545,6 +556,7 @@ def auditar_equivalencia(raiz_repositorio: Path) -> dict[str, Any]:
     campos_equivalentes = [c["campo"] for c in comparacoes if c["equivalente"]]
     campos_divergentes = [c["campo"] for c in comparacoes if not c["equivalente"]]
     auditoria_proibidos = _auditar_campos_proibidos(contexto_canonico)
+    proveniencia_entrada = _comparar_proveniencia_entrada(contexto_baseline, contexto_canonico)
 
     detalhamento_divergencias = {
         campo: _detalhar_divergencia(campo, contexto_baseline, contexto_canonico, comparacoes_por_campo[campo])
@@ -563,6 +575,7 @@ def auditar_equivalencia(raiz_repositorio: Path) -> dict[str, Any]:
     )
     equivalencia_operacional_minima_ok = (
         not campos_com_impacto_runtime
+        and proveniencia_entrada["proveniencia_equivalente"]
         and auditoria_proibidos["canonico_sem_campos_transicionais"]
     )
 
@@ -585,9 +598,10 @@ def auditar_equivalencia(raiz_repositorio: Path) -> dict[str, Any]:
         "campos_com_impacto_runtime": campos_com_impacto_runtime,
         "resumo_classificacao_divergencias": resumo_classificacao_divergencias,
         "auditoria_campos_proibidos": auditoria_proibidos,
+        "proveniencia_entrada": proveniencia_entrada,
         "detalhamento_divergencias": detalhamento_divergencias,
         "comparacoes": comparacoes,
-        "decisao_pre_etapa5": "nao_migrar_runtime; detalhar divergencias operacionais antes de qualquer substituicao",
+        "decisao_pre_etapa5": "nao_migrar_runtime; alinhar fonte da planilha e janela CDI antes de qualquer substituicao",
     }
 
 
@@ -605,6 +619,12 @@ def _write_md(path: Path, payload: dict[str, Any]) -> None:
         f"- campos equivalentes: `{len(payload['campos_equivalentes'])}`",
         f"- campos divergentes: `{len(payload['campos_divergentes'])}`",
         f"- campos com impacto runtime: `{payload['campos_com_impacto_runtime']}`",
+        "",
+        "## Proveniência da entrada",
+        "",
+        "```json",
+        json.dumps(payload["proveniencia_entrada"], ensure_ascii=False, indent=2, sort_keys=True),
+        "```",
         "",
         "## Classificação das divergências",
         "",
@@ -662,6 +682,7 @@ def main() -> int:
     print("campos_com_impacto_runtime=", json.dumps(payload["campos_com_impacto_runtime"], ensure_ascii=False))
     print("resumo_classificacao_divergencias=", json.dumps(payload["resumo_classificacao_divergencias"], ensure_ascii=False, sort_keys=True))
     print("auditoria_campos_proibidos=", json.dumps(payload["auditoria_campos_proibidos"], ensure_ascii=False, sort_keys=True))
+    print("proveniencia_entrada=", json.dumps(payload["proveniencia_entrada"], ensure_ascii=False, sort_keys=True))
     print("detalhamento_divergencias=", json.dumps(payload["detalhamento_divergencias"], ensure_ascii=False, sort_keys=True))
 
     if not args.sem_arquivos:
