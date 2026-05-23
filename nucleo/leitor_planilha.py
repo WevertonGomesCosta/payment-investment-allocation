@@ -76,7 +76,6 @@ def _tentar_baixar_planilha(config: Mapping[str, Any], destino: Path) -> tuple[b
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx', dir=str(destino.parent)) as tmp:
             tmp.write(conteudo)
             tmp_path = Path(tmp.name)
-        # valida minimamente o arquivo antes de sobrescrever a planilha local
         try:
             with pd.ExcelFile(tmp_path) as excel_tmp:
                 _ = excel_tmp.sheet_names
@@ -411,12 +410,7 @@ def construir_janela_consulta_cdi(
     *,
     data_referencia: Optional[date] = None,
 ) -> JanelaConsultaCDI:
-    """Deriva a janela bruta de consulta CDI a partir da entrada resolvida.
-
-    A função apenas identifica datas interpretáveis em campos resolvidos cujo
-    nome estrutural contém ``data`` ou ``vencimento``. Ela não consulta BCB,
-    não carrega cache, não calcula rendimento e não altera DataFrames.
-    """
+    """Deriva a janela bruta de consulta CDI a partir da entrada resolvida."""
 
     datas: list[date] = []
     fontes_datas: dict[str, list[str]] = {}
@@ -544,29 +538,30 @@ def carregar_planilha(
         caminho_explicito=caminho_explicito,
     )
 
-    excel = pd.ExcelFile(caminho_planilha)
     quadros_brutos: dict[str, pd.DataFrame] = {}
     quadros_canonicos: dict[str, pd.DataFrame] = {}
 
-    abas_alvo = list(excel.sheet_names) if carregar_todas_as_abas else []
-    abas_config = config.get("abas", {}) if isinstance(config.get("abas"), Mapping) else {}
-    aliases_por_bloco = config.get("colunas", {}) if isinstance(config.get("colunas"), Mapping) else {}
-    mapa_abas_resolvidas = construir_mapa_abas_resolvidas(excel.sheet_names, config)
+    with pd.ExcelFile(caminho_planilha) as excel:
+        nomes_abas = list(excel.sheet_names)
+        abas_alvo = list(nomes_abas) if carregar_todas_as_abas else []
+        abas_config = config.get("abas", {}) if isinstance(config.get("abas"), Mapping) else {}
+        aliases_por_bloco = config.get("colunas", {}) if isinstance(config.get("colunas"), Mapping) else {}
+        mapa_abas_resolvidas = construir_mapa_abas_resolvidas(nomes_abas, config)
 
-    for nome_bloco, nome_aba in abas_config.items():
-        if nome_aba in excel.sheet_names and nome_aba not in abas_alvo:
-            abas_alvo.append(nome_aba)
+        for nome_bloco, nome_aba in abas_config.items():
+            if nome_aba in nomes_abas and nome_aba not in abas_alvo:
+                abas_alvo.append(nome_aba)
 
-    for nome_aba in abas_alvo:
-        quadro = pd.read_excel(caminho_planilha, sheet_name=nome_aba)
-        quadros_brutos[nome_aba] = quadro
+        for nome_aba in abas_alvo:
+            quadro = pd.read_excel(excel, sheet_name=nome_aba)
+            quadros_brutos[nome_aba] = quadro
 
-        nome_bloco = next(
-            (bloco for bloco, aba_cfg in abas_config.items() if aba_cfg == nome_aba),
-            None,
-        )
-        mapa_alias = aliases_por_bloco.get(nome_bloco, {}) if nome_bloco else {}
-        quadros_canonicos[nome_aba] = canonizar_colunas(quadro, mapa_alias=mapa_alias)
+            nome_bloco = next(
+                (bloco for bloco, aba_cfg in abas_config.items() if aba_cfg == nome_aba),
+                None,
+            )
+            mapa_alias = aliases_por_bloco.get(nome_bloco, {}) if nome_bloco else {}
+            quadros_canonicos[nome_aba] = canonizar_colunas(quadro, mapa_alias=mapa_alias)
 
     quadros_estruturais_resolvidos = materializar_quadros_estruturais_resolvidos(quadros_canonicos)
 
@@ -587,13 +582,13 @@ def carregar_planilha(
         'fonte_planilha': fonte_planilha,
         'fetch_status_planilha': fetch_status,
         'caminho_planilha': str(caminho_planilha),
-        'qtd_abas_planilha': len(excel.sheet_names),
+        'qtd_abas_planilha': len(nomes_abas),
     }
     validacao = {'ok': len(erros_validacao) == 0, 'erros': erros_validacao, 'avisos': avisos_validacao}
 
     return PacotePlanilha(
         caminho=caminho_planilha,
-        nomes_abas=list(excel.sheet_names),
+        nomes_abas=nomes_abas,
         quadros_brutos=quadros_brutos,
         quadros_canonicos=quadros_canonicos,
         auditoria=auditoria,
