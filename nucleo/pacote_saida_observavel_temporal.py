@@ -7,7 +7,6 @@ from typing import Any
 from nucleo.pacotes_temporais_agregados_saida import construir_pacotes_temporais_agregados_saida_shadow
 
 VERSAO_PACOTE_SAIDA_OBSERVAVEL_TEMPORAL = "V17-F0-V.4U"
-TOL = 0.01
 
 
 def _txt(v: Any) -> str:
@@ -157,30 +156,31 @@ def construir_pacote_saida_observavel_temporal(
         prod[lote] = _txt(r.get("Produto") or r.get("Carteira"))
         orig[lote] = _num_primeiro(r, ["Orig.", "Orig", "Valor Original", "Valor original"])
 
-    lote_alvo = "Lote 3120 mai"
     ativos_set = {_lote_norm(r.get("Lote")) for r in lotes_ativos}
     ex_set = {_lote_norm(r.get("Lote")) for r in lotes_exauridos}
-    saldo_3120 = saldos_finais.get(lote_alvo, 0.0)
-    valor_sacado_lote_3120 = float((valores_sacados.get(lote_alvo) or {}).get("valor_sacado_total", 0.0))
     qtd_aplic_preenchidas = sum(1 for v in aplic.values() if _txt(v) != "")
     qtd_orig_positivos = sum(1 for v in orig.values() if _f(v) > 0)
     aplic_sem_vazios = qtd_aplic_preenchidas == len(aplic)
     orig_validos = qtd_orig_positivos == len(orig)
 
     erros = []
-    if not saldos_finais: erros.append("saldos_finais_replay_por_lote_vazio")
-    if not pagamentos: erros.append("pagamentos_replay_por_chave_vazio")
-    if not lotes_ativos: erros.append("lotes_ativos_observaveis_vazio")
-    if not lotes_exauridos: erros.append("lotes_exauridos_observaveis_vazio")
-    lote_3120_presente_ativos = _lote_norm(lote_alvo) in ativos_set
-    lote_3120_presente_exauridos = _lote_norm(lote_alvo) in ex_set
-    lote_3120_saldo_compativel_baseline = abs(saldo_3120 - 50.52) <= TOL
-    if ativos_set & ex_set: erros.append("lotes_duplicados_ativos_exauridos")
+    if not saldos_finais:
+        erros.append("saldos_finais_replay_por_lote_vazio")
+    if not pagamentos:
+        erros.append("pagamentos_replay_por_chave_vazio")
+    if not lotes_ativos:
+        erros.append("lotes_ativos_observaveis_vazio")
+    if not lotes_exauridos:
+        erros.append("lotes_exauridos_observaveis_vazio")
+    if ativos_set & ex_set:
+        erros.append("lotes_duplicados_ativos_exauridos")
     usa_fallback_canonico_bruto = origem != "snapshot_observavel_consolidado"
-    if colisoes != 0: erros.append("colisoes_chave_pagamento_replay")
-    lote_3120_valor_sacado_positivo = valor_sacado_lote_3120 > 0
-    if not aplic_sem_vazios: erros.append("aplicacoes_por_lote_com_vazios")
-    if not orig_validos: erros.append("valores_originais_por_lote_invalidos")
+    if colisoes != 0:
+        erros.append("colisoes_chave_pagamento_replay")
+    if not aplic_sem_vazios:
+        erros.append("aplicacoes_por_lote_com_vazios")
+    if not orig_validos:
+        erros.append("valores_originais_por_lote_invalidos")
 
     validacao = {
         "ok": len(erros) == 0,
@@ -192,43 +192,11 @@ def construir_pacote_saida_observavel_temporal(
                 if usa_fallback_canonico_bruto
                 else []
             ),
-            *(
-                ["lote_3120_mai_ausente_ativos"]
-                if not lote_3120_presente_ativos
-                else []
-            ),
-            *(
-                ["lote_3120_mai_presente_exauridos"]
-                if lote_3120_presente_exauridos
-                else []
-            ),
-            *(
-                ["lote_3120_mai_saldo_final_incompativel"]
-                if not lote_3120_saldo_compativel_baseline
-                else []
-            ),
-            *(
-                ["valor_sacado_lote_3120_mai_nao_positivo"]
-                if not lote_3120_valor_sacado_positivo
-                else []
-            ),
         ],
         "evidencias": {
             "origem_lotes_ativos_exauridos": origem,
-        "usa_fallback_canonico_bruto": usa_fallback_canonico_bruto,
-        "validacao_generica_pacote_ok": len(erros) == 0,
-        "validacao_baseline_lote_3120_ok": (
-            lote_3120_presente_ativos
-            and not lote_3120_presente_exauridos
-            and lote_3120_saldo_compativel_baseline
-            and lote_3120_valor_sacado_positivo
-        ),
             "usa_fallback_canonico_bruto": usa_fallback_canonico_bruto,
-            "lote_3120_mai_saldo_final": saldo_3120,
-            "lote_3120_mai_presente_ativos": lote_3120_presente_ativos,
-            "lote_3120_mai_presente_exauridos": lote_3120_presente_exauridos,
-            "lote_3120_mai_saldo_compativel_baseline": lote_3120_saldo_compativel_baseline,
-            "lote_3120_mai_valor_sacado_positivo": lote_3120_valor_sacado_positivo,
+            "validacao_generica_pacote_ok": len(erros) == 0,
         },
     }
     auditoria = {
@@ -258,15 +226,11 @@ def construir_pacote_saida_observavel_temporal(
         "qtd_valores_originais_por_lote_positivos": qtd_orig_positivos,
         "valores_originais_por_lote_validos": orig_validos,
         "qtd_valores_sacados_por_lote": len(valores_sacados),
-        "valor_sacado_lote_3120_mai": valor_sacado_lote_3120,
         "campo_valor_sacado_preferencial": "Líquido/Liquido/Valor Líquido/Valor Liquido/Valor",
         "usa_valor_conta_para_saque_por_lote": False,
         "qtd_lotes_ativos_observaveis": len(lotes_ativos),
         "qtd_lotes_exauridos_observaveis": len(lotes_exauridos),
         "qtd_pagamentos_realizados_observaveis": len(pagamentos_realizados),
-        "lote_3120_mai_saldo_final": saldo_3120,
-        "lote_3120_mai_presente_ativos_snapshot": lote_3120_presente_ativos,
-        "lote_3120_mai_presente_exauridos_snapshot": lote_3120_presente_exauridos,
         "prepara_migracao_v4v": origem == "snapshot_observavel_consolidado" and validacao["ok"],
         "prepara_remocao_helpers_v4w": True,
         "origem_lotes_ativos_exauridos": origem,
