@@ -28,3 +28,13 @@ A Etapa 5 só pode consumir:
 ## Evidência contratual
 - Auditor V4Y criado para validar cadeia estrita Etapas 1–4 e aptidão da Etapa 5.
 - V4Y publica flags explícitas de resíduos funcionais/semânticos e consumo exclusivo da saída da Etapa 4.
+
+## Revisão P1 semântico (PR #355)
+- Corrigido o gate semântico do V4Y para usar flags atuais de V4U/V4V:
+  - `compatibilidade_historica_preservada`
+  - `helpers_legados_runtime_removidos`
+  - `fallback_runtime_sem_pacote_bloqueado`
+- Flags antigas (`helpers_legados_ainda_existentes`, `fallback_legado_preservado`, `helpers_legados_removidos`) permanecem apenas como detector de regressão contraditória; se reaparecerem em estado proibido, `residuos_semanticos_auditores=true` e a abertura da Etapa 5 é bloqueada.
+- Sentinelas específicas (lote 3120/8500) permanecem somente como regressão/evidência auxiliar e não podem compor gates normativos (`validacao_v4w_ok`, `etapa4_saneada`, `etapa4_fechamento_saneado_ok`, `etapa5_pode_abrir`).
+- A Etapa 5 permanece condicionada exclusivamente à saída saneada da Etapa 4.
+- V4Y formalizado como gate contratual final antes da Etapa 5.

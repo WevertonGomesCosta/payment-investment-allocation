@@ -124,11 +124,22 @@ def main() -> int:
         bool(v4x.get("saida_observavel_sem_residuos_legados", False)),
     ])
 
-    residuos_semanticos = any([
+    flag_antiga_contraditoria = any([
         bool(v4u.get("helpers_legados_ainda_existentes", False)),
         bool(v4v.get("fallback_legado_preservado", False)),
         bool(v4v.get("helpers_legados_removidos", True)) is False,
     ])
+    helpers_runtime_ok = bool(v4u.get("helpers_legados_runtime_removidos", False)) or bool(v4v.get("helpers_legados_runtime_removidos", False))
+    fallback_runtime_ok = bool(v4v.get("fallback_runtime_sem_pacote_bloqueado", False))
+    compat_hist_v4u = bool(v4u.get("compatibilidade_historica_preservada", False))
+    compat_hist_v4v = bool(v4v.get("compatibilidade_historica_preservada", False))
+
+    residuos_semanticos = (
+        flag_antiga_contraditoria
+        or (not helpers_runtime_ok)
+        or (not fallback_runtime_ok)
+        or (not (compat_hist_v4u or compat_hist_v4v))
+    )
 
     etapa5_consumo_exclusivo = all([
         bool(v4x.get("etapa4_fechamento_saneado_ok", False)),
@@ -165,6 +176,10 @@ def main() -> int:
         "invariantes_globais_etapa4_ok": invariantes_globais_ok,
         "residuos_funcionais_etapas_1_4": residuos_funcionais,
         "residuos_semanticos_auditores": residuos_semanticos,
+        "flag_antiga_contraditoria_detectada": flag_antiga_contraditoria,
+        "helpers_legados_runtime_removidos_ok": helpers_runtime_ok,
+        "fallback_runtime_sem_pacote_bloqueado_ok": fallback_runtime_ok,
+        "compatibilidade_historica_preservada_ok": (compat_hist_v4u or compat_hist_v4v),
         "etapa5_consumo_exclusivo_saida_etapa4": etapa5_consumo_exclusivo,
         "auditorias_base_ok": auditorias_base_ok,
         **estrut,
