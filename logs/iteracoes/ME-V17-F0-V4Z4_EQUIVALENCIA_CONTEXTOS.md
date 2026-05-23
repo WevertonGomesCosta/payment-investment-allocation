@@ -72,6 +72,35 @@ bloqueante
 
 A classificação é interpretativa e diagnóstica. Ela não altera runtime nem substitui validação econômica.
 
+## Comparações internas obrigatórias
+
+A V4Z4 passa a comparar explicitamente:
+
+```text
+fontes_elegiveis_pagamento.quadro_fontes_elegiveis
+```
+
+usando shape, len, colunas, totais numéricos e amostra controlada. Divergência nesses atributos passa a ser classificada como operacional.
+
+A V4Z4 também registra a proveniência da entrada de cada contexto, incluindo:
+
+```text
+planilha_fonte
+planilha_fetch_status
+auditoria_entrada_bruta_fonte_planilha
+auditoria_entrada_bruta_fetch_status
+janela_cdi_data_inicial_consulta
+janela_cdi_data_final_consulta
+cache_cdi_data_inicial_consulta
+cache_cdi_data_final_consulta
+cache_cdi_qtd_datas_serie
+cache_cdi_ultima_data_serie
+cache_cdi_fonte_serie
+cache_cdi_fetch_status
+```
+
+Essa proveniência deve separar divergência causada por `download` versus `fallback_local` de divergência causada por janela CDI ou diferença real no dataframe operacional.
+
 ## Regra de proteção
 
 O auditor também verifica se `ContextoOperacionalCanonico` permanece sem campos transicionais, incluindo shadows, benchmarks, auditorias shadow e motores transicionais.
