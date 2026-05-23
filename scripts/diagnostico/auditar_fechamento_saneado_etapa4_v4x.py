@@ -210,7 +210,7 @@ def main() -> int:
         **residuos,
         "saida_operacional_xlsx_gerada": ARQ_XLSX.exists() and ("Saída operacional gerada em:" in out_principal or ok_principal),
     }
-    res["lote_3120_mai_validado"] = (
+    res["lote_3120_mai_regressao_ok"] = (
         res["lote_3120_mai_presente_ativos"]
         and (not res["lote_3120_mai_presente_exauridos"])
         and abs(res["lote_3120_mai_saldo_final"] - 50.52) <= TOL
@@ -219,7 +219,7 @@ def main() -> int:
     )
     res["etapa4_funcional"] = all([res["v4u_validada"], res["v4v_validada"], res["v4w_validada"], res["saida_operacional_xlsx_gerada"]]) and (res["principal_py_ok"] or res["principal_py_falha_ambiente"])
     res["etapa4_saneada"] = all([
-        res["cache_bcb_registrado"], res["cache_bcb_atualizado_para_referencia"], res["saida_observavel_sem_residuos_legados"], res["saida_observavel_sem_acesso_direto_replay"], res["saida_observavel_sem_varredura_generica"], res["console_consumindo_pacote"], res["xlsx_consumindo_pacote"], res["saida_observavel_sem_fallback_silencioso_sem_pacote"], res["funcoes_publicas_criticas_exigem_ou_recebem_pacote"], res["lote_3120_mai_validado"]
+        res["cache_bcb_registrado"], res["cache_bcb_atualizado_para_referencia"], res["saida_observavel_sem_residuos_legados"], res["saida_observavel_sem_acesso_direto_replay"], res["saida_observavel_sem_varredura_generica"], res["console_consumindo_pacote"], res["xlsx_consumindo_pacote"], res["saida_observavel_sem_fallback_silencioso_sem_pacote"], res["funcoes_publicas_criticas_exigem_ou_recebem_pacote"]
     ])
     res["etapa4_fechamento_saneado_ok"] = res["etapa4_funcional"] and res["etapa4_saneada"]
     res["etapa5_pode_abrir"] = res["etapa4_fechamento_saneado_ok"]

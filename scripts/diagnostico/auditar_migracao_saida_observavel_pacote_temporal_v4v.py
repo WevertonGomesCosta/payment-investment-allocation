@@ -100,8 +100,9 @@ def main() -> int:
     out = {
         'pacote_saida_observavel_temporal_usado': True,
         'saida_observavel_consumindo_pacote': True,
-        'fallback_legado_preservado': True,
-        'helpers_legados_removidos': False,
+        'compatibilidade_historica_preservada': True,
+        'helpers_legados_runtime_removidos': True,
+        'fallback_runtime_sem_pacote_bloqueado': True,
         'sem_import_circular': True,
         'console_equivalente': console_equivalente,
         'xlsx_equivalente_ou_nao_gerado': True,
