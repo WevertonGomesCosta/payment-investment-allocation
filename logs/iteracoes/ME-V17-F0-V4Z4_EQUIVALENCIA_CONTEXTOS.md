@@ -25,7 +25,7 @@ ALTERA_DADOS: false
 
 Criar uma auditoria diagnóstica para comparar `ContextoBaseline` e `ContextoOperacionalCanonico` nos campos comuns que podem sustentar a rota runtime principal, sem migrar `aplicacao/principal.py`.
 
-A V4Z4 não altera runtime e não autoriza Etapa 5. Ela apenas mede a equivalência estrutural entre contextos para orientar uma futura migração controlada.
+A V4Z4 não altera runtime e não autoriza Etapa 5. Ela mede a equivalência estrutural entre contextos e, quando houver divergência, classifica se a divergência é apenas documental/metadados ou se possui impacto operacional potencial sobre a rota runtime.
 
 ## Campos comparados
 
@@ -50,6 +50,28 @@ tabela_iof
 faixas_ir
 ```
 
+## Campos com detalhamento específico
+
+O auditor detalha divergências em:
+
+```text
+pacote_entrada_resolvida
+validacao_pre_execucao
+fontes_elegiveis_pagamento
+cache_cdi
+```
+
+Para cada campo, o auditor classifica a divergência como:
+
+```text
+documental
+estrutural
+operacional
+bloqueante
+```
+
+A classificação é interpretativa e diagnóstica. Ela não altera runtime nem substitui validação econômica.
+
 ## Regra de proteção
 
 O auditor também verifica se `ContextoOperacionalCanonico` permanece sem campos transicionais, incluindo shadows, benchmarks, auditorias shadow e motores transicionais.
@@ -72,13 +94,14 @@ python scripts/diagnostico/auditar_equivalencia_contextos_v4z4.py --sem-arquivos
 
 ## Condição de interpretação
 
-- Se `equivalencia_contextos_ok=true`, a próxima microetapa pode discutir migração controlada de parte da rota runtime.
-- Se `equivalencia_contextos_ok=false`, a próxima microetapa deve analisar divergências por campo antes de qualquer migração.
+- Se `equivalencia_contextos_ok=true`, os contextos são equivalentes em todos os campos comparados.
+- Se `equivalencia_contextos_ok=false`, mas `equivalencia_operacional_minima_ok=true`, as divergências detectadas não parecem afetar runtime operacional pelos critérios do auditor.
+- Se `equivalencia_operacional_minima_ok=false`, a próxima microetapa deve analisar divergências operacionais antes de qualquer migração.
 
 ## Decisão
 
 ```text
 STATUS: DIAGNOSTICO_APENAS
 ETAPA_5: BLOQUEADA
-PROXIMA_ACAO: EXECUTAR_AUDITOR_V4Z4_LOCALMENTE_E_ANALISAR_DIVERGENCIAS
+PROXIMA_ACAO: EXECUTAR_AUDITOR_V4Z4_ATUALIZADO_LOCALMENTE_E_ANALISAR_IMPACTO_RUNTIME
 ```
