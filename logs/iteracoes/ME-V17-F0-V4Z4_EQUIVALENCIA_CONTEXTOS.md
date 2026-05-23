@@ -27,6 +27,36 @@ Criar uma auditoria diagnóstica para comparar `ContextoBaseline` e `ContextoOpe
 
 A V4Z4 não altera runtime e não autoriza Etapa 5. Ela mede a equivalência estrutural entre contextos e, quando houver divergência, classifica se a divergência é apenas documental/metadados ou se possui impacto operacional potencial sobre a rota runtime.
 
+## Modos de comparação
+
+A V4Z4 possui dois modos:
+
+```text
+modo_padrao
+modo_entrada_congelada
+```
+
+### `modo_padrao`
+
+Constrói `ContextoBaseline` e `ContextoOperacionalCanonico` pelos carregadores normais. Esse modo evidencia divergências causadas por download/fallback, janela CDI e demais diferenças de carregamento.
+
+### `modo_entrada_congelada`
+
+Constrói primeiro o `ContextoBaseline` e monta, apenas dentro do auditor, um `ContextoOperacionalCanonico` diagnóstico usando a mesma entrada já carregada pelo baseline:
+
+```text
+mesmo pacote_config
+mesma execucao
+mesmo calendario_financeiro
+mesmo pacote_planilha
+mesmo cache_cdi
+mesma carteira_canonica
+mesmos dados_operacionais
+mesmos recebidos_auditaveis
+```
+
+Esse modo não altera `ContextoBaseline`, não altera `carregar_contexto_operacional_canonico()` e não altera `aplicacao/principal.py`. Ele serve apenas para separar divergência de proveniência de divergência lógica real entre contextos.
+
 ## Campos comparados
 
 ```text
@@ -74,13 +104,13 @@ A classificação é interpretativa e diagnóstica. Ela não altera runtime nem 
 
 ## Comparações internas obrigatórias
 
-A V4Z4 passa a comparar explicitamente:
+A V4Z4 compara explicitamente:
 
 ```text
 fontes_elegiveis_pagamento.quadro_fontes_elegiveis
 ```
 
-usando shape, len, colunas, totais numéricos e amostra controlada. Divergência nesses atributos passa a ser classificada como operacional.
+usando shape, len, colunas, totais numéricos e amostra controlada. Divergência nesses atributos é classificada como operacional.
 
 A V4Z4 também registra a proveniência da entrada de cada contexto, incluindo:
 
@@ -103,7 +133,7 @@ Essa proveniência deve separar divergência causada por `download` versus `fall
 
 ## Regra de proteção
 
-O auditor também verifica se `ContextoOperacionalCanonico` permanece sem campos transicionais, incluindo shadows, benchmarks, auditorias shadow e motores transicionais.
+O auditor verifica se o contexto canônico comparado permanece sem campos transicionais, incluindo shadows, benchmarks, auditorias shadow e motores transicionais.
 
 ## Saídas esperadas
 
@@ -123,14 +153,14 @@ python scripts/diagnostico/auditar_equivalencia_contextos_v4z4.py --sem-arquivos
 
 ## Condição de interpretação
 
-- Se `equivalencia_contextos_ok=true`, os contextos são equivalentes em todos os campos comparados.
-- Se `equivalencia_contextos_ok=false`, mas `equivalencia_operacional_minima_ok=true`, as divergências detectadas não parecem afetar runtime operacional pelos critérios do auditor.
-- Se `equivalencia_operacional_minima_ok=false`, a próxima microetapa deve analisar divergências operacionais antes de qualquer migração.
+- Se o `modo_padrao` divergir, mas o `modo_entrada_congelada` convergir operacionalmente, a divergência principal vem de proveniência de entrada ou janela CDI.
+- Se o `modo_entrada_congelada` também divergir operacionalmente, há divergência lógica real entre os contextos ou entre as rotas de montagem derivadas.
+- A Etapa 5 permanece bloqueada em ambos os casos até decisão explícita de saneamento.
 
 ## Decisão
 
 ```text
 STATUS: DIAGNOSTICO_APENAS
 ETAPA_5: BLOQUEADA
-PROXIMA_ACAO: EXECUTAR_AUDITOR_V4Z4_ATUALIZADO_LOCALMENTE_E_ANALISAR_IMPACTO_RUNTIME
+PROXIMA_ACAO: EXECUTAR_AUDITOR_V4Z4_COM_MODO_ENTRADA_CONGELADA_E_ANALISAR_SE_DIVERGENCIA_E_DE_PROVENIENCIA_OU_LOGICA
 ```
