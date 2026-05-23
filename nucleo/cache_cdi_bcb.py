@@ -56,6 +56,34 @@ def _datas_relevantes(dados_operacionais: PacoteDadosOperacionaisCanonicos, data
     return _primeiro_dia_do_mes(data_min), data_referencia
 
 
+def _janela_cdi_contem_apenas_data_referencia(
+    janela_consulta_cdi: JanelaConsultaCDI,
+    data_referencia: date,
+) -> bool:
+    """Identifica janela estrutural que não acrescenta datas operacionais.
+
+    Durante a transição V4Z, a Etapa 1 pode produzir uma JanelaConsultaCDI
+    contendo apenas a data de referência. Essa janela é válida como evidência
+    estrutural, mas não deve estreitar o cache CDI operacional em relação ao
+    comportamento legado enquanto o runtime principal ainda usa
+    ContextoBaseline.
+    """
+
+    data_inicial = janela_consulta_cdi.data_inicial_consulta
+    data_final = janela_consulta_cdi.data_final_consulta
+    if data_inicial != data_referencia or data_final != data_referencia:
+        return False
+    metadados = janela_consulta_cdi.metadados if isinstance(janela_consulta_cdi.metadados, Mapping) else {}
+    fontes_datas = metadados.get('fontes_datas') if isinstance(metadados.get('fontes_datas'), Mapping) else {}
+    fontes_reais = {str(chave) for chave in fontes_datas.keys() if str(chave) != 'data_referencia'}
+    qtd_datas = metadados.get('qtd_datas_identificadas')
+    try:
+        qtd_datas_int = int(qtd_datas)
+    except Exception:
+        qtd_datas_int = None
+    return not fontes_reais and qtd_datas_int in (None, 1)
+
+
 def _datas_relevantes_por_janela_cdi(
     janela_consulta_cdi: Optional[JanelaConsultaCDI],
     data_referencia: date,
@@ -74,6 +102,8 @@ def _datas_relevantes_por_janela_cdi(
     if data_inicial is None or data_final is None:
         return None
     if not isinstance(data_inicial, date) or not isinstance(data_final, date):
+        return None
+    if _janela_cdi_contem_apenas_data_referencia(janela_consulta_cdi, data_referencia):
         return None
     data_ini = _primeiro_dia_do_mes(data_inicial)
     data_fim = max(data_final, data_referencia)
