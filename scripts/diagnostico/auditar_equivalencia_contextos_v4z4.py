@@ -13,10 +13,28 @@ RAIZ_REPOSITORIO = Path(__file__).resolve().parents[2]
 if str(RAIZ_REPOSITORIO) not in sys.path:
     sys.path.insert(0, str(RAIZ_REPOSITORIO))
 
+from nucleo.caixa_recebidos_auditaveis import (  # noqa: E402
+    materializar_fontes_elegiveis_pagamento,
+    materializar_saldo_disponivel_geral,
+)
 from nucleo.contexto_baseline import (  # noqa: E402
+    ContextoOperacionalCanonico,
     carregar_contexto_baseline,
     carregar_contexto_operacional_canonico,
+    obter_limiar_residuo_resolvido,
 )
+from nucleo.entrada_resolvida import (  # noqa: E402
+    auditar_pacote_entrada_resolvida,
+    montar_pacote_entrada_resolvida,
+)
+from nucleo.nucleo_financeiro_minimo import (  # noqa: E402
+    carregar_nucleo_financeiro_minimo,
+    construir_faixas_ir,
+    construir_tabela_iof,
+)
+from nucleo.ranking_carteira_estabilizado import carregar_ranking_carteira_estabilizado  # noqa: E402
+from nucleo.replay_passado_controlado import carregar_replay_passado_controlado  # noqa: E402
+from nucleo.validacao_pre_execucao import validar_pre_execucao_pacote_entrada_resolvida  # noqa: E402
 
 
 MICROETAPA = "V17-F0-V.4Z4"
@@ -127,15 +145,6 @@ def _serializar_simples(value: Any) -> Any:
     return str(value)
 
 
-def _dataclass_field_names(obj: Any) -> list[str]:
-    if not is_dataclass(obj):
-        return []
-    try:
-        return sorted(asdict(obj).keys())
-    except Exception:
-        return []
-
-
 def _asdict_safe(obj: Any) -> dict[str, Any]:
     if not is_dataclass(obj):
         return {}
@@ -155,9 +164,6 @@ def _round_float(value: Any) -> float:
 def _numeric_totals_dataframe(obj: Any) -> dict[str, float]:
     try:
         numeric = obj.select_dtypes(include="number")
-    except Exception:
-        return {}
-    try:
         sums = numeric.sum(numeric_only=True)
     except Exception:
         return {}
@@ -221,6 +227,12 @@ def _serie_summary(serie: Any) -> dict[str, Any]:
     return resumo
 
 
+def _dataclass_field_names(obj: Any) -> list[str]:
+    if not is_dataclass(obj):
+        return []
+    return sorted(_asdict_safe(obj).keys())
+
+
 def _fingerprint_resumido(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -254,10 +266,8 @@ def _object_fingerprint(obj: Any) -> dict[str, Any]:
         "len": _len(obj),
         "dataclass_fields": _dataclass_field_names(obj),
     }
-
     if hasattr(obj, "shape") and hasattr(obj, "columns"):
         fp["dataframe"] = _dataframe_summary(obj)
-
     for attr in (
         "ok",
         "data_referencia",
@@ -273,10 +283,8 @@ def _object_fingerprint(obj: Any) -> dict[str, Any]:
         valor = _safe_attr(obj, attr)
         if valor is not None:
             fp[attr] = valor
-
     if hasattr(obj, "serie_cdi"):
         fp["serie_cdi"] = _serie_summary(_safe_attr_raw(obj, "serie_cdi"))
-
     if is_dataclass(obj):
         data = _asdict_safe(obj)
         fp["dataclass_resumo"] = {
@@ -307,7 +315,6 @@ def _comparar_campo(nome: str, baseline: Any, canonico: Any) -> dict[str, Any]:
             "equivalente": False,
             "motivo": "campo ausente em um dos contextos",
         }
-
     valor_baseline = getattr(baseline, nome)
     valor_canonico = getattr(canonico, nome)
     fp_baseline = _object_fingerprint(valor_baseline)
@@ -483,14 +490,8 @@ def _detalhar_fontes_elegiveis(baseline: Any, canonico: Any, diferencas: dict[st
 def _detalhar_cache_cdi(baseline: Any, canonico: Any, diferencas: dict[str, Any]) -> dict[str, Any]:
     serie_b = _safe_attr_raw(baseline, "serie_cdi")
     serie_c = _safe_attr_raw(canonico, "serie_cdi")
-    resumo_b = {
-        "objeto": _object_fingerprint(baseline),
-        "serie_cdi": _serie_summary(serie_b),
-    }
-    resumo_c = {
-        "objeto": _object_fingerprint(canonico),
-        "serie_cdi": _serie_summary(serie_c),
-    }
+    resumo_b = {"objeto": _object_fingerprint(baseline), "serie_cdi": _serie_summary(serie_b)}
+    resumo_c = {"objeto": _object_fingerprint(canonico), "serie_cdi": _serie_summary(serie_c)}
     attrs_operacionais = []
     for key in ("shape", "len", "primeira_data", "ultima_data", "ultimo_valor", "soma"):
         if resumo_b["serie_cdi"].get(key) != resumo_c["serie_cdi"].get(key):
@@ -536,28 +537,128 @@ def _resumir_classificacoes(detalhes: dict[str, Any]) -> dict[str, int]:
     return dict(sorted(resumo.items()))
 
 
-def auditar_equivalencia(raiz_repositorio: Path) -> dict[str, Any]:
-    contexto_baseline = carregar_contexto_baseline(
-        raiz_repositorio=raiz_repositorio,
-        instalar_automaticamente=False,
-        incluir_resolver_hibrido_5p_shadow=False,
-        incluir_benchmark_agrupado_individual_shadow=False,
-        incluir_benchmark_runner_futuro_shadow=False,
-        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
+def _montar_contexto_canonico_entrada_congelada(contexto_baseline: Any) -> ContextoOperacionalCanonico:
+    pacote_config = contexto_baseline.pacote_config
+    contexto_execucao = contexto_baseline.execucao
+    calendario_financeiro = contexto_baseline.calendario_financeiro
+    pacote_planilha = contexto_baseline.pacote_planilha
+    cache_cdi = contexto_baseline.cache_cdi
+    carteira_canonica = contexto_baseline.carteira_canonica
+    dados_operacionais = contexto_baseline.dados_operacionais
+    recebidos_auditaveis = contexto_baseline.recebidos_auditaveis
+
+    pacote_entrada_resolvida = montar_pacote_entrada_resolvida(
+        pacote_config=pacote_config,
+        contexto_execucao=contexto_execucao,
+        pacote_planilha=pacote_planilha,
+        pacote_cache_cdi=cache_cdi,
+        metadados={
+            "artefato_operacional_contexto_canonico": True,
+            "modo_operacional_canonico": True,
+            "modo_diagnostico_entrada_congelada_v4z4": True,
+            "fonte_planilha_congelada_do_contexto_baseline": True,
+            "janela_cdi_congelada_do_contexto_baseline": True,
+            "substitui_validacao_pre_execucao": True,
+            "substitui_dados_operacionais_canonicos": False,
+            "substitui_cache_cdi_operacional": False,
+            "altera_motor": False,
+            "altera_replay": False,
+            "altera_ledger": False,
+            "altera_ranking": False,
+            "altera_saida_xlsx": False,
+        },
     )
-    contexto_canonico = carregar_contexto_operacional_canonico(
-        raiz_repositorio=raiz_repositorio,
-        instalar_automaticamente=False,
-        incluir_replay=True,
+    auditoria_pacote_entrada_resolvida = auditar_pacote_entrada_resolvida(
+        pacote_entrada_resolvida,
+        exigir_cache_cdi=True,
+    )
+    validacao_pre_execucao = validar_pre_execucao_pacote_entrada_resolvida(pacote_entrada_resolvida)
+    ranking_carteira = carregar_ranking_carteira_estabilizado(
+        pacote_planilha,
+        carteira_canonica,
+        raiz_repositorio=pacote_config.raiz_repositorio,
+        config=pacote_config.conteudo,
+    )
+    nucleo_financeiro = carregar_nucleo_financeiro_minimo(
+        dados_operacionais,
+        carteira_canonica,
+        calendario_financeiro,
+        pacote_config.conteudo,
+        data_referencia=contexto_execucao.data_referencia,
+        serie_cdi=cache_cdi.serie_cdi,
+    )
+    replay_passado = carregar_replay_passado_controlado(
+        dados_operacionais,
+        nucleo_financeiro,
+        calendario_financeiro,
+        pacote_config.conteudo,
+        data_referencia=contexto_execucao.data_referencia,
+        serie_cdi=cache_cdi.serie_cdi,
+    )
+    tabela_iof = construir_tabela_iof(pacote_config.conteudo)
+    faixas_ir = construir_faixas_ir(pacote_config.conteudo)
+    fontes_elegiveis_pagamento = materializar_fontes_elegiveis_pagamento(
+        dados_operacionais,
+        recebidos_auditaveis,
+        replay_passado,
+        data_referencia=contexto_execucao.data_referencia,
+        tabela_iof=tabela_iof,
+        faixas_ir=faixas_ir,
+        calendario_financeiro=calendario_financeiro,
+        serie_cdi=cache_cdi.serie_cdi,
+    )
+    saldo_disponivel_geral = materializar_saldo_disponivel_geral(
+        dados_operacionais,
+        fontes_elegiveis_pagamento,
+        data_referencia=contexto_execucao.data_referencia,
+        limiar_valor=obter_limiar_residuo_resolvido(pacote_config.conteudo),
+    )
+    return ContextoOperacionalCanonico(
+        pacote_config=pacote_config,
+        execucao=contexto_execucao,
+        calendario_financeiro=calendario_financeiro,
+        pacote_planilha=pacote_planilha,
+        pacote_entrada_resolvida=pacote_entrada_resolvida,
+        auditoria_pacote_entrada_resolvida=auditoria_pacote_entrada_resolvida,
+        validacao_pre_execucao=validacao_pre_execucao,
+        carteira_canonica=carteira_canonica,
+        dados_operacionais=dados_operacionais,
+        recebidos_auditaveis=recebidos_auditaveis,
+        fontes_elegiveis_pagamento=fontes_elegiveis_pagamento,
+        saldo_disponivel_geral=saldo_disponivel_geral,
+        cache_cdi=cache_cdi,
+        nucleo_financeiro=nucleo_financeiro,
+        replay_passado=replay_passado,
+        ranking_carteira=ranking_carteira,
+        tabela_iof=tabela_iof,
+        faixas_ir=faixas_ir,
+        metadados={
+            "artefato": "ContextoOperacionalCanonico",
+            "microetapa": MICROETAPA,
+            "modo_diagnostico_entrada_congelada": True,
+            "altera_contexto_baseline_historico": False,
+            "altera_runtime": False,
+            "altera_motor": False,
+            "altera_replay": False,
+            "altera_ledger": False,
+            "altera_ranking": False,
+            "altera_saida_xlsx": False,
+        },
     )
 
+
+def _comparar_contextos(
+    *,
+    nome_modo: str,
+    contexto_baseline: Any,
+    contexto_canonico: Any,
+) -> dict[str, Any]:
     comparacoes = [_comparar_campo(campo, contexto_baseline, contexto_canonico) for campo in CAMPOS_COMUNS_RUNTIME]
     comparacoes_por_campo = {c["campo"]: c for c in comparacoes}
     campos_equivalentes = [c["campo"] for c in comparacoes if c["equivalente"]]
     campos_divergentes = [c["campo"] for c in comparacoes if not c["equivalente"]]
     auditoria_proibidos = _auditar_campos_proibidos(contexto_canonico)
     proveniencia_entrada = _comparar_proveniencia_entrada(contexto_baseline, contexto_canonico)
-
     detalhamento_divergencias = {
         campo: _detalhar_divergencia(campo, contexto_baseline, contexto_canonico, comparacoes_por_campo[campo])
         for campo in campos_divergentes
@@ -568,7 +669,6 @@ def auditar_equivalencia(raiz_repositorio: Path) -> dict[str, Any]:
         if detalhe.get("impacta_runtime")
     )
     resumo_classificacao_divergencias = _resumir_classificacoes(detalhamento_divergencias)
-
     equivalencia_contextos_ok = (
         not campos_divergentes
         and auditoria_proibidos["canonico_sem_campos_transicionais"]
@@ -578,18 +678,8 @@ def auditar_equivalencia(raiz_repositorio: Path) -> dict[str, Any]:
         and proveniencia_entrada["proveniencia_equivalente"]
         and auditoria_proibidos["canonico_sem_campos_transicionais"]
     )
-
     return {
-        "microetapa": MICROETAPA,
-        "objetivo": "provar equivalencia entre ContextoBaseline e ContextoOperacionalCanonico nos campos comuns consumiveis pela rota runtime, sem migrar principal.py",
-        "altera_runtime": False,
-        "altera_contexto_baseline": False,
-        "altera_motor": False,
-        "altera_replay": False,
-        "altera_ledger": False,
-        "altera_ranking": False,
-        "altera_xlsx": False,
-        "campos_comuns_runtime": list(CAMPOS_COMUNS_RUNTIME),
+        "modo": nome_modo,
         "qtd_campos_comparados": len(comparacoes),
         "campos_equivalentes": campos_equivalentes,
         "campos_divergentes": campos_divergentes,
@@ -601,7 +691,53 @@ def auditar_equivalencia(raiz_repositorio: Path) -> dict[str, Any]:
         "proveniencia_entrada": proveniencia_entrada,
         "detalhamento_divergencias": detalhamento_divergencias,
         "comparacoes": comparacoes,
-        "decisao_pre_etapa5": "nao_migrar_runtime; alinhar fonte da planilha e janela CDI antes de qualquer substituicao",
+    }
+
+
+def auditar_equivalencia(raiz_repositorio: Path) -> dict[str, Any]:
+    contexto_baseline = carregar_contexto_baseline(
+        raiz_repositorio=raiz_repositorio,
+        instalar_automaticamente=False,
+        incluir_resolver_hibrido_5p_shadow=False,
+        incluir_benchmark_agrupado_individual_shadow=False,
+        incluir_benchmark_runner_futuro_shadow=False,
+        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
+    )
+    contexto_canonico_padrao = carregar_contexto_operacional_canonico(
+        raiz_repositorio=raiz_repositorio,
+        instalar_automaticamente=False,
+        incluir_replay=True,
+    )
+    contexto_canonico_entrada_congelada = _montar_contexto_canonico_entrada_congelada(contexto_baseline)
+
+    modo_padrao = _comparar_contextos(
+        nome_modo="padrao",
+        contexto_baseline=contexto_baseline,
+        contexto_canonico=contexto_canonico_padrao,
+    )
+    modo_entrada_congelada = _comparar_contextos(
+        nome_modo="entrada_congelada",
+        contexto_baseline=contexto_baseline,
+        contexto_canonico=contexto_canonico_entrada_congelada,
+    )
+
+    return {
+        "microetapa": MICROETAPA,
+        "objetivo": "comparar ContextoBaseline e ContextoOperacionalCanonico em modo padrao e em modo diagnostico de entrada congelada, sem migrar principal.py",
+        "altera_runtime": False,
+        "altera_contexto_baseline": False,
+        "altera_motor": False,
+        "altera_replay": False,
+        "altera_ledger": False,
+        "altera_ranking": False,
+        "altera_xlsx": False,
+        "campos_comuns_runtime": list(CAMPOS_COMUNS_RUNTIME),
+        "modo_padrao": modo_padrao,
+        "modo_entrada_congelada": modo_entrada_congelada,
+        "equivalencia_contextos_ok": modo_entrada_congelada["equivalencia_contextos_ok"],
+        "equivalencia_operacional_minima_ok": modo_entrada_congelada["equivalencia_operacional_minima_ok"],
+        "campos_com_impacto_runtime": modo_entrada_congelada["campos_com_impacto_runtime"],
+        "decisao_pre_etapa5": "nao_migrar_runtime; usar modo_entrada_congelada para separar divergencia de proveniencia de divergencia logica",
     }
 
 
@@ -610,58 +746,40 @@ def _write_json(path: Path, payload: Any) -> None:
 
 
 def _write_md(path: Path, payload: dict[str, Any]) -> None:
+    congelada = payload["modo_entrada_congelada"]
+    padrao = payload["modo_padrao"]
     linhas = [
         "# V17-F0-V.4Z4 — Auditoria de equivalência entre contextos",
         "",
-        f"- equivalencia_contextos_ok: `{payload['equivalencia_contextos_ok']}`",
-        f"- equivalencia_operacional_minima_ok: `{payload['equivalencia_operacional_minima_ok']}`",
-        f"- campos comparados: `{payload['qtd_campos_comparados']}`",
-        f"- campos equivalentes: `{len(payload['campos_equivalentes'])}`",
-        f"- campos divergentes: `{len(payload['campos_divergentes'])}`",
-        f"- campos com impacto runtime: `{payload['campos_com_impacto_runtime']}`",
+        "## Modo padrão",
         "",
-        "## Proveniência da entrada",
+        f"- equivalencia_operacional_minima_ok: `{padrao['equivalencia_operacional_minima_ok']}`",
+        f"- campos com impacto runtime: `{padrao['campos_com_impacto_runtime']}`",
+        "",
+        "## Modo entrada congelada",
+        "",
+        f"- equivalencia_contextos_ok: `{congelada['equivalencia_contextos_ok']}`",
+        f"- equivalencia_operacional_minima_ok: `{congelada['equivalencia_operacional_minima_ok']}`",
+        f"- campos divergentes: `{congelada['campos_divergentes']}`",
+        f"- campos com impacto runtime: `{congelada['campos_com_impacto_runtime']}`",
+        "",
+        "## Proveniência da entrada congelada",
         "",
         "```json",
-        json.dumps(payload["proveniencia_entrada"], ensure_ascii=False, indent=2, sort_keys=True),
+        json.dumps(congelada["proveniencia_entrada"], ensure_ascii=False, indent=2, sort_keys=True),
         "```",
         "",
-        "## Classificação das divergências",
+        "## Detalhamento das divergências em entrada congelada",
         "",
         "```json",
-        json.dumps(payload["resumo_classificacao_divergencias"], ensure_ascii=False, indent=2, sort_keys=True),
-        "```",
-        "",
-        "## Campos divergentes",
-        "",
-    ]
-    if payload["campos_divergentes"]:
-        for campo in payload["campos_divergentes"]:
-            detalhe = payload["detalhamento_divergencias"].get(campo, {})
-            classificacao = detalhe.get("classificacao_divergencia", "nao_detalhado")
-            impacto = detalhe.get("impacta_runtime", "indefinido")
-            linhas.append(f"- `{campo}` — classificação: `{classificacao}`; impacta_runtime: `{impacto}`")
-    else:
-        linhas.append("- nenhum")
-    linhas.extend([
-        "",
-        "## Auditoria de campos proibidos no contexto canônico",
-        "",
-        "```json",
-        json.dumps(payload["auditoria_campos_proibidos"], ensure_ascii=False, indent=2, sort_keys=True),
-        "```",
-        "",
-        "## Detalhamento das divergências",
-        "",
-        "```json",
-        json.dumps(payload["detalhamento_divergencias"], ensure_ascii=False, indent=2, sort_keys=True),
+        json.dumps(congelada["detalhamento_divergencias"], ensure_ascii=False, indent=2, sort_keys=True),
         "```",
         "",
         "## Decisão pré-Etapa 5",
         "",
         f"`{payload['decisao_pre_etapa5']}`",
         "",
-    ])
+    ]
     path.write_text("\n".join(linhas), encoding="utf-8")
 
 
@@ -672,18 +790,23 @@ def main() -> int:
     args = parser.parse_args()
 
     payload = auditar_equivalencia(args.raiz.resolve())
+    modo_padrao = payload["modo_padrao"]
+    modo_congelado = payload["modo_entrada_congelada"]
+
     print("=== AUDITORIA EQUIVALENCIA CONTEXTOS V4Z4 ===")
     print("microetapa=", payload["microetapa"])
-    print("qtd_campos_comparados=", payload["qtd_campos_comparados"])
-    print("equivalencia_contextos_ok=", payload["equivalencia_contextos_ok"])
-    print("equivalencia_operacional_minima_ok=", payload["equivalencia_operacional_minima_ok"])
-    print("campos_equivalentes=", json.dumps(payload["campos_equivalentes"], ensure_ascii=False))
-    print("campos_divergentes=", json.dumps(payload["campos_divergentes"], ensure_ascii=False))
-    print("campos_com_impacto_runtime=", json.dumps(payload["campos_com_impacto_runtime"], ensure_ascii=False))
-    print("resumo_classificacao_divergencias=", json.dumps(payload["resumo_classificacao_divergencias"], ensure_ascii=False, sort_keys=True))
-    print("auditoria_campos_proibidos=", json.dumps(payload["auditoria_campos_proibidos"], ensure_ascii=False, sort_keys=True))
-    print("proveniencia_entrada=", json.dumps(payload["proveniencia_entrada"], ensure_ascii=False, sort_keys=True))
-    print("detalhamento_divergencias=", json.dumps(payload["detalhamento_divergencias"], ensure_ascii=False, sort_keys=True))
+    print("modo_padrao_equivalencia_operacional_minima_ok=", modo_padrao["equivalencia_operacional_minima_ok"])
+    print("modo_padrao_campos_com_impacto_runtime=", json.dumps(modo_padrao["campos_com_impacto_runtime"], ensure_ascii=False))
+    print("modo_padrao_proveniencia_entrada=", json.dumps(modo_padrao["proveniencia_entrada"], ensure_ascii=False, sort_keys=True))
+    print("modo_entrada_congelada_equivalencia_contextos_ok=", modo_congelado["equivalencia_contextos_ok"])
+    print("modo_entrada_congelada_equivalencia_operacional_minima_ok=", modo_congelado["equivalencia_operacional_minima_ok"])
+    print("modo_entrada_congelada_campos_equivalentes=", json.dumps(modo_congelado["campos_equivalentes"], ensure_ascii=False))
+    print("modo_entrada_congelada_campos_divergentes=", json.dumps(modo_congelado["campos_divergentes"], ensure_ascii=False))
+    print("modo_entrada_congelada_campos_com_impacto_runtime=", json.dumps(modo_congelado["campos_com_impacto_runtime"], ensure_ascii=False))
+    print("modo_entrada_congelada_resumo_classificacao_divergencias=", json.dumps(modo_congelado["resumo_classificacao_divergencias"], ensure_ascii=False, sort_keys=True))
+    print("modo_entrada_congelada_auditoria_campos_proibidos=", json.dumps(modo_congelado["auditoria_campos_proibidos"], ensure_ascii=False, sort_keys=True))
+    print("modo_entrada_congelada_proveniencia_entrada=", json.dumps(modo_congelado["proveniencia_entrada"], ensure_ascii=False, sort_keys=True))
+    print("modo_entrada_congelada_detalhamento_divergencias=", json.dumps(modo_congelado["detalhamento_divergencias"], ensure_ascii=False, sort_keys=True))
 
     if not args.sem_arquivos:
         out = args.raiz / "relatorios" / "atuais" / "auditoria_equivalencia_contextos_v4z4"
@@ -691,7 +814,7 @@ def main() -> int:
         _write_json(out / "equivalencia_contextos_v4z4.json", payload)
         _write_md(out / "resumo_equivalencia_contextos_v4z4.md", payload)
         print("saida_dir=", out)
-    return 0 if payload["auditoria_campos_proibidos"]["canonico_sem_campos_transicionais"] else 1
+    return 0 if modo_congelado["auditoria_campos_proibidos"]["canonico_sem_campos_transicionais"] else 1
 
 
 if __name__ == "__main__":
