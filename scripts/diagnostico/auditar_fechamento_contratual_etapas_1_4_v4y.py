@@ -54,21 +54,36 @@ def _contains_any_structural_terms(expr: ast.AST, termos: tuple[str, ...]) -> bo
     return any(t in dump for t in termos)
 
 
+def _target_gate_name(target: ast.AST) -> str | None:
+    if isinstance(target, ast.Name):
+        return target.id
+    if isinstance(target, ast.Subscript):
+        sl = target.slice
+        if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
+            return sl.value
+        if isinstance(sl, ast.Index) and isinstance(sl.value, ast.Constant) and isinstance(sl.value.value, str):
+            return sl.value.value
+    return None
+
+
 def _sentinelas_usadas_como_gate() -> bool:
     sentinelas = ("3120", "8500", "lote_3120", "lote_8500")
+    gates = {"validacao_v4w_ok", "etapa4_saneada", "etapa4_fechamento_saneado_ok", "etapa5_pode_abrir"}
     arqs = [ARQ_V4W, ARQ_V4X]
     for arq in arqs:
         tree = ast.parse(arq.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
-                target_names = [t.id for t in node.targets if isinstance(t, ast.Name)]
-                if any(n in {"validacao_v4w_ok", "etapa4_saneada", "etapa4_fechamento_saneado_ok", "etapa5_pode_abrir"} for n in target_names):
-                    if _contains_any_structural_terms(node.value, sentinelas):
-                        return True
-            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-                if node.target.id in {"validacao_v4w_ok", "etapa4_saneada", "etapa4_fechamento_saneado_ok", "etapa5_pode_abrir"}:
-                    if node.value is not None and _contains_any_structural_terms(node.value, sentinelas):
-                        return True
+                gate_targets = [
+                    name for name in (_target_gate_name(t) for t in node.targets)
+                    if name in gates
+                ]
+                if gate_targets and _contains_any_structural_terms(node.value, sentinelas):
+                    return True
+            if isinstance(node, ast.AnnAssign):
+                gate_name = _target_gate_name(node.target)
+                if gate_name in gates and node.value is not None and _contains_any_structural_terms(node.value, sentinelas):
+                    return True
     return False
 
 
