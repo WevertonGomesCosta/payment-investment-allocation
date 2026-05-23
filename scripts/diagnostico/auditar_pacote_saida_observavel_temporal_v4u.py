@@ -18,9 +18,10 @@ def main() -> int:
     ctx = carregar_contexto_baseline(raiz_repositorio=ROOT, instalar_automaticamente=False, incluir_benchmark_agrupado_individual_shadow=False)
     saida = construir_saida_canonica(ctx)
     pacotes = construir_pacotes_temporais_agregados_saida_shadow(ctx)
-    ativos = construir_linhas_lotes_consolidados(ctx, saida, tipo='ativos')
-    exauridos = construir_linhas_lotes_consolidados(ctx, saida, tipo='exauridos')
-    am = construir_amostras_pagamentos_operacionais(saida, limite=1000, contexto=ctx)
+    p = construir_pacote_saida_observavel_temporal(ctx, saida, pacotes_temporais=pacotes)
+    ativos = construir_linhas_lotes_consolidados(ctx, saida, tipo='ativos', pacote_saida_observavel_temporal=p)
+    exauridos = construir_linhas_lotes_consolidados(ctx, saida, tipo='exauridos', pacote_saida_observavel_temporal=p)
+    am = construir_amostras_pagamentos_operacionais(saida, limite=1000, contexto=ctx, pacote_saida_observavel_temporal=p)
     realizados = list((am.get('realizados') or {}).get('linhas') or [])
 
     p = construir_pacote_saida_observavel_temporal(ctx, saida, pacotes_temporais=pacotes,
