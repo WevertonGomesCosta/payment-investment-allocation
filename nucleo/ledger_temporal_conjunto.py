@@ -1191,7 +1191,7 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'recebidos_total_integrados_ledger': 0,
         'saldo_temporal_lotes_auditados': 0,'saldo_temporal_lotes_com_consumo_acima_saldo': 0,'saldo_temporal_pagamentos_auditados': 0,
         'saldo_temporal_pagamentos_ok_antes': 0,'saldo_temporal_pagamentos_ok_depois': 0,'saldo_temporal_pagamentos_rebaixados_por_saldo': 0,
-        'saldo_temporal_lote_7500_reiniciado': 0,'saldo_temporal_lote_8500_consumo_acima_saldo': 0,'saldo_temporal_divergencias_saldo_antes': 0,
+        'saldo_temporal_divergencias_saldo_antes': 0,
         'saldo_temporal_divergencias_saldo_depois': 0,'saldo_temporal_invariantes_violados': 0,
         'recebidos_futuros_total': 0,'recebidos_futuros_incorporados_total': 0,'recebidos_disponiveis_incorporados_total': 0,'recebidos_disponiveis_nao_incorporados': 0,'recebidos_futuros_auditoria_linhas': 0,'pagamentos_rebaixados_por_fonte_nao_incorporada': 0,'pagamentos_rebaixados_por_recebido_nao_incorporado': 0,'pagamentos_rebaixados_por_saldo_real_insuficiente': 0,
         'saldo_temporal_fontes_auditadas_total': 0,
@@ -1199,7 +1199,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         'alocacao_fontes_candidatas_aporte': 0,'alocacao_fontes_reservadas_pagamento': 0,'alocacao_fontes_mantidas_caixa': 0,'alocacao_fontes_com_destino_carteira': 0,'alocacao_fontes_sem_destino_carteira': 0,
         'alocacao_inconsistencias_classificacao': 0,'alocacao_decisoes_integradas_ao_ledger': 0,
         'pagamentos_rebaixados_recuperaveis_shadow_por_recebidos': 0,'pagamentos_rebaixados_saldo_real_insuficiente_pos_recebidos': 0,
-        'saldo_temporal_lote_8500_evento_causal': '',
     }
     saldo_temporal_auditoria_lotes: list[dict[str, Any]] = []
     saldo_temporal_pagamentos_rebaixados_detalhe: list[dict[str, Any]] = []
@@ -2642,13 +2641,8 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         total = round(rec['total_consumo_d2a'] + rec['total_consumo_d2b'] + rec['total_consumo_fifo'] + rec['total_consumo_motor'], 2)
         excede = bool(total > ini + 0.01)
         if excede: saldo_temporal['saldo_temporal_lotes_com_consumo_acima_saldo'] += 1
-        if lote == 'Lote 8500 mar.' and excede: saldo_temporal['saldo_temporal_lote_8500_consumo_acima_saldo'] = 1
         saldo_temporal_auditoria_lotes.append({'lote_id': lote,'saldo_inicial_liquido': ini,**rec,'total_consumo_geral': total,'saldo_final_temporal': round(ini-total,2),'consumo_excede_saldo': excede})
     saldo_temporal['saldo_temporal_lotes_auditados'] = len(saldo_temporal_auditoria_lotes)
-    # detector de reinício indevido lote 7500: saldo_antes sobe após consumo anterior.
-    saldos_7500 = [float(e.get('saldo_antes') or 0.0) for e in eventos if str(e.get('lote_sugerido_operacional') or '') == 'Lote 7500 mai.' and e.get('saldo_antes') not in {'',None}]
-    if len(saldos_7500) >= 2 and any(saldos_7500[i] > saldos_7500[i-1] + 0.01 for i in range(1, len(saldos_7500))):
-        saldo_temporal['saldo_temporal_lote_7500_reiniciado'] = 1
     # Auditoria recebidos/alocação (shadow).
     recebidos_quadro = getattr(getattr(contexto, 'recebidos_auditaveis', None), 'quadro_recebidos_auditaveis', None) if contexto is not None else None
     recebidos_rows = recebidos_quadro.to_dict('records') if isinstance(recebidos_quadro, pd.DataFrame) and not recebidos_quadro.empty else []
@@ -2676,8 +2670,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
     saldo_temporal['valor_recebidos_reservado_pagamentos_shadow'] = 0.0
     saldo_temporal['valor_recebidos_alocavel_pos_reserva_shadow'] = 0.0
     saldo_temporal['alocacao_fontes_mantidas_caixa_justificadas'] = 0
-    saldo_temporal['saldo_temporal_lote_8500_primeiro_evento_estouro'] = ''
-    saldo_temporal_lote_8500_trilha_eventos: list[dict[str, Any]] = []
     pagamentos_rebaixados_shadow_detalhe: list[dict[str, Any]] = []
     shadow_recebidos_resumo_fontes: list[dict[str, Any]] = []
     data_ref = getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
@@ -2842,27 +2834,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
             'status_fonte_shadow': status_fonte,
         })
     saldo_temporal['alocacao_decisoes_integradas_ao_ledger'] = saldo_temporal['alocacao_fontes_disponiveis_total']
-    evento_8500 = next((x for x in saldo_temporal_auditoria_lotes if str(x.get('lote_id') or '') == 'Lote 8500 mar.' and bool(x.get('consumo_excede_saldo'))), None)
-    saldo_l8500 = float(estado_lotes.get('Lote 8500 mar.', {}).get('saldo_liquido') or 0.0)
-    for ev in eventos:
-        if str(ev.get('lote_sugerido_operacional') or '') != 'Lote 8500 mar.':
-            continue
-        consumo_ev = float(ev.get('consumo') or ev.get('liquido') or 0.0)
-        antes = saldo_l8500
-        depois = round(antes - consumo_ev, 2)
-        motivo = 'estouro_saldo' if depois < -0.01 else 'consumo_regular'
-        trilha = {'data': ev.get('data'),'evento': 'pagamento','pagamento_ou_switching': ev.get('pagamento_id'),'saldo_antes': round(antes,2),'consumo': round(consumo_ev,2),'saldo_depois': round(depois,2),'motivo_estouro': motivo}
-        saldo_temporal_lote_8500_trilha_eventos.append(trilha)
-        if motivo == 'estouro_saldo' and not saldo_temporal['saldo_temporal_lote_8500_primeiro_evento_estouro']:
-            saldo_temporal['saldo_temporal_lote_8500_primeiro_evento_estouro'] = str(ev.get('pagamento_id') or '')
-        saldo_l8500 = depois
-    saldo_temporal['saldo_temporal_lote_8500_trilha_eventos_linhas'] = len(saldo_temporal_lote_8500_trilha_eventos)
-    if not saldo_temporal.get('saldo_temporal_lote_8500_primeiro_evento_estouro'):
-        if saldo_temporal.get('saldo_temporal_lote_8500_consumo_acima_saldo'):
-            saldo_temporal['saldo_temporal_lote_8500_consumo_acima_saldo'] = 0
-        saldo_temporal['saldo_temporal_lote_8500_primeiro_evento_estouro'] = 'sem_evento_com_saldo_negativo_na_trilha'
-    if evento_8500:
-        saldo_temporal['saldo_temporal_lote_8500_evento_causal'] = saldo_temporal.get('saldo_temporal_lote_8500_primeiro_evento_estouro') or f"consumo_total={evento_8500.get('total_consumo_geral')} > saldo_inicial={evento_8500.get('saldo_inicial_liquido')}"
     saldo_temporal['extrato_futuro_status_ok_total'] = sum(1 for e in eventos if str(e.get('status') or '') == 'ok')
     saldo_temporal['extrato_futuro_nao_determinado_total'] = sum(1 for e in eventos if _eh_nd(e.get('lote_sugerido_operacional')))
     saldo_temporal['extrato_futuro_sem_saldo_temporal_total'] = sum(1 for e in eventos if str(e.get('status') or '') == 'sem_saldo_temporal_auditavel')
@@ -2926,7 +2897,6 @@ def construir_ledger_temporal_conjunto(quadro_futuro: pd.DataFrame | None, mapa_
         "shadow_pagamentos_recuperados_nominal": shadow_pagamentos_recuperados_nominal,
         "recebidos_futuros_auditoria": recebidos_futuros_auditoria,
         "alocacao_fontes_auditoria": alocacao_fontes_auditoria,
-        "saldo_temporal_lote_8500_trilha_eventos": saldo_temporal_lote_8500_trilha_eventos,
         "comparativo_mapa_funcoes_legadas": comparativo_mapa_funcoes_legadas,
         **shadow_counters,
     }
