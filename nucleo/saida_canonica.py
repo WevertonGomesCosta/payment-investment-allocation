@@ -2469,7 +2469,6 @@ def construir_saida_canonica(
     contexto: Any,
     *,
     versao: str = 'V203',
-    incluir_temporal_shadow: bool = False,
 ) -> PacoteSaidaCanonica:
     extrato_passado = _construir_extrato_passado(contexto)
     extrato_futuro = _construir_extrato_futuro(contexto)
@@ -2557,20 +2556,5 @@ def construir_saida_canonica(
         resumo_recebidos=_linhas_resumo_recebidos(contexto),
         auditoria=auditoria,
     )
-
-    if incluir_temporal_shadow:
-        from dataclasses import replace
-
-        from nucleo.saida_canonica_temporal_shadow_v4k import (
-            CHAVE_AUDITORIA_TEMPORAL_SHADOW_V4K,
-            construir_bloco_temporal_shadow_v4k,
-        )
-
-        auditoria_shadow = dict(pacote.auditoria or {})
-        auditoria_shadow[CHAVE_AUDITORIA_TEMPORAL_SHADOW_V4K] = construir_bloco_temporal_shadow_v4k(
-            contexto=contexto,
-            saida_base=pacote,
-        )
-        return replace(pacote, auditoria=auditoria_shadow)
 
     return pacote
