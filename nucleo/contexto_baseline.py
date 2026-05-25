@@ -270,14 +270,14 @@ def carregar_contexto_baseline(
     *,
     raiz_repositorio: Path | None = None,
     instalar_automaticamente: bool = False,
-    incluir_switching_shadow: bool = True,
+    incluir_switching_shadow: bool = False,
     incluir_triagem: bool = True,
     incluir_replay: bool = True,
-    incluir_switching_economico_shadow: bool = True,
-    incluir_resolver_hibrido_5p_shadow: bool = True,
-    incluir_benchmark_agrupado_individual_shadow: bool = True,
-    incluir_benchmark_runner_futuro_shadow: bool = True,
-    incluir_auditoria_primeira_quebra_runner_futuro_shadow: bool = True,
+    incluir_switching_economico_shadow: bool = False,
+    incluir_resolver_hibrido_5p_shadow: bool = False,
+    incluir_benchmark_agrupado_individual_shadow: bool = False,
+    incluir_benchmark_runner_futuro_shadow: bool = False,
+    incluir_auditoria_primeira_quebra_runner_futuro_shadow: bool = False,
 ) -> ContextoBaseline:
     pacote_config = carregar_config(raiz_repositorio=raiz_repositorio)
     contexto_execucao = bootstrap_ambiente(
