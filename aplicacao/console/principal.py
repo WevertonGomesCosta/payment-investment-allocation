@@ -130,11 +130,8 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None, pa
     ranking = getattr(contexto_baseline, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
     linhas = construir_switchings_observaveis(contexto_baseline, saida_canonica, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)[:10]
-    shadow = getattr(contexto_baseline, 'switching_economico_shadow', None)
-    auditoria_shadow = getattr(shadow, 'auditoria', {}) if shadow is not None else {}
-    resumo_shadow = dict(auditoria_shadow.get('resumo', {}) or {})
-    lotes_avaliados = resumo_shadow.get('qtd_lotes_ativos_avaliados', len(linhas))
-    candidatos_avaliados = resumo_shadow.get('qtd_linhas_analise', len(linhas))
+    lotes_avaliados = len(linhas)
+    candidatos_avaliados = len(linhas)
 
     _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
     _imprimir_pares([
@@ -357,10 +354,6 @@ def main() -> None:
     contexto_baseline = carregar_contexto_baseline(
         raiz_repositorio=RAIZ_REPOSITORIO,
         instalar_automaticamente=False,
-        incluir_resolver_hibrido_5p_shadow=False,
-        incluir_benchmark_agrupado_individual_shadow=False,
-        incluir_benchmark_runner_futuro_shadow=False,
-        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
     )
     saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
     render_console(contexto_baseline, saida_canonica)

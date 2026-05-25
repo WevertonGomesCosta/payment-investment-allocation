@@ -21,10 +21,6 @@ def carregar_contexto_e_saida():
     contexto_baseline = carregar_contexto_baseline(
         raiz_repositorio=RAIZ_REPOSITORIO,
         instalar_automaticamente=False,
-        incluir_resolver_hibrido_5p_shadow=False,
-        incluir_benchmark_agrupado_individual_shadow=False,
-        incluir_benchmark_runner_futuro_shadow=False,
-        incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
     )
     saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_baseline, versao=VERSAO_BASELINE)
     matriz = construir_matriz_elegibilidade_fontes_s7b(contexto_baseline, data_referencia=saida_canonica.data_referencia)
