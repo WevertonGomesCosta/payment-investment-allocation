@@ -1335,7 +1335,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         origem_switching = (
             'motor_pagamento'
             if str(row_dict.get('produto_destino_switching') or '').strip()
-            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
+            else ('janela_switching' if bool(row_dict.get('switching_antes_pagamento')) else '')
         )
         lote_origem_migrada = str(row_dict.get('lote_origem_pos_switching') or '').strip()
         if lote_origem_migrada:
@@ -1522,7 +1522,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Fonte switching': ('materializado' if bool(ledger.get('switching_materializado')) else ''),
             'Data switching': _fmt_data(ledger.get('data_switching_operacional')) if ledger.get('data_switching_operacional') is not None else 'n/d',
             'Evento switching ID': ledger.get('evento_switching_id') or '',
-            'Score switching': _round_monetario(row_dict.get('score_switching_shadow') if row_dict.get('score_switching_shadow') not in (None, '') else row_dict.get('ganho_liquido_estimado_switching'), ''),
+            'Score switching': _round_monetario(row_dict.get('ganho_liquido_estimado_switching'), ''),
             'Necessita switching': necessita_switching_txt if necessita_switching_txt in {'sim', 'não'} else _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': ('sim' if str(ledger.get('pacote_do_dia') or '') == 'switch_then_pay' else 'não'),
             'Switching depois do pagamento': ('sim' if str(ledger.get('pacote_do_dia') or '') == 'pay_then_switch' else 'não'),
@@ -1766,74 +1766,14 @@ def _texto_lote_reserva(lote_reserva: Any, lote_sugerido: Any) -> str:
     return reserva
 
 def _construir_switchings(contexto: Any, limite: int = 30) -> list[dict[str, Any]]:
-    shadow = getattr(contexto, 'switching_economico_shadow', None)
-    plano = getattr(shadow, 'plano_shadow', None) if shadow is not None else None
-    linhas: list[dict[str, Any]] = []
-    lotes_by_id = {str(l.id): l for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])}
-    ranking = getattr(contexto, 'ranking_carteira', None)
-    quadro_ranking = getattr(ranking, 'quadro_destinos_switch', None) if ranking is not None else None
-    rank_por_produto_key: dict[str, int] = {}
-    if isinstance(quadro_ranking, pd.DataFrame) and len(quadro_ranking):
-        for _, r in quadro_ranking.iterrows():
-            rank_por_produto_key[str(r.get('produto_key') or '')] = int(r.get('rank_destino') or 999)
-    bloqueados_auditoria: list[dict[str, Any]] = []
+    """Mantido apenas por compatibilidade da saída base.
 
-    if isinstance(plano, pd.DataFrame) and len(plano):
-        plano_f = plano.copy()
-        if 'recomendado_shadow' in plano_f.columns:
-            plano_f = plano_f[plano_f['recomendado_shadow'].fillna(False)]
-        plano_f = plano_f.sort_values(['ganho_liquido_estimado', 'score_switch_shadow', 'lote_id'], ascending=[False, False, True], kind='stable')
-        usados: set[str] = set()
-        for _, row in plano_f.iterrows():
-            lote_id = str(row.get('lote_id') or '')
-            if not lote_id or lote_id in usados:
-                continue
-            lote = lotes_by_id.get(lote_id)
-            if lote is None:
-                continue
-            destino_rank = _ranking_destino_para_lote(contexto, lote) or {}
-            destino_row_nome = str(row.get('produto_destino_nome') or '').strip()
-            destino_row_key = str(row.get('produto_destino_key') or '').strip()
-            destino_nome = destino_row_nome or str(destino_rank.get('nome') or '')
-            data_sug = _data_sugerida_switching_lote(contexto, lote)
-            ganho = _round_monetario(row.get('ganho_liquido_estimado'), _round_monetario(destino_rank.get('proxy_terminal_destino'), 0.0))
-            valor_liq = _round_monetario(lote.valor_liquido_hoje(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir), 0.0)
-            linha_base = {
-                'Data sugerida': _fmt_data(data_sug),
-                'Data': _fmt_data(data_sug),
-                'Lote origem': lote_id,
-                'Produto origem': getattr(lote, 'investimento', '') if lote is not None else row.get('produto_origem_nome') or '',
-                'Produto destino switching': destino_nome,
-                'Destino': destino_nome,
-                'Ganho estimado': ganho,
-                'Valor líquido origem': valor_liq,
-                'Status': 'destino_ranqueado',
-            }
-            rank_origem = int(row.get('rank_origem') or rank_por_produto_key.get(str(getattr(lote, 'produto_key', '') or ''), 999))
-            rank_destino = int(row.get('rank_destino_sugerido') or row.get('rank_destino') or destino_rank.get('rank_destino') or 999)
-            carencia_incremental = int(row.get('dias_carencia_incremental') or row.get('carencia_dias') or destino_rank.get('carencia_dias') or 0)
-            pagamentos_janela = _round_monetario(row.get('pagamentos_na_janela_carencia') or row.get('pagamentos_janela_carencia'), 0.0)
-            motivo_gate = str(row.get('motivo_gate_switching') or '').strip()
-            bloqueado = bool(row.get('bloqueado_pos_gate')) or bool(motivo_gate)
-            if bloqueado:
-                bloqueados_auditoria.append({
-                    **linha_base,
-                    'Rank origem': rank_origem,
-                    'Rank destino': rank_destino,
-                    'Dias carência incremental': carencia_incremental,
-                    'Pagamentos na janela': pagamentos_janela,
-                    'Status': motivo_gate or 'candidato_bloqueado_gate',
-                })
-            else:
-                linhas.append({**linha_base, 'Status': 'destino_ranqueado_elegivel'})
-            usados.add(lote_id)
-            if len(linhas) >= limite:
-                break
-    try:
-        setattr(contexto, '_switchings_bloqueados_gate_auditoria', bloqueados_auditoria)
-    except Exception:
-        pass
-    return linhas
+    Os switchings observáveis são integrados depois por
+    construir_saida_canonica_com_switching_v17_c7(), a partir dos eventos
+    materializados/canônicos. Esta função não deve reconstruir switchings por
+    fonte diagnóstica paralela.
+    """
+    return []
 
 
 def _construir_ranking_amostra(contexto: Any, limite: int = 10) -> list[dict[str, Any]]:
