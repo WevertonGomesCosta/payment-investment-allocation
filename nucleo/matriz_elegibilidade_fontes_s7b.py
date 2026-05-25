@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 import pandas as pd
 
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 
 VERSAO_BASELINE = "V225"
-CSV_S6 = Path("saidas/diagnostico/auditoria_separacao_previsao_materializacao_v17_f0_s6.csv")
-SCRIPT_S6 = Path("scripts/diagnostico/auditar_separacao_previsao_materializacao_v17_f0_s6.py")
-SCRIPT_S2 = Path("scripts/diagnostico/auditar_lacuna_integracao_temporal_v17_f0_s2.py")
-SCRIPT_S4 = Path("scripts/diagnostico/auditar_amostras_salario_sem_recebido_e_sem_aporte_v17_f0_s4.py")
 
 
 def _norm_txt(v: Any) -> str:
@@ -68,20 +63,17 @@ def _classificar_regra_base(reg: dict[str, Any]) -> dict[str, Any]:
     return reg
 
 
-def _carregar_s6_df() -> pd.DataFrame:
-    s6_origem = "csv_existente"
-    if not CSV_S6.exists():
-        raise RuntimeError("erro_csv_s6_ausente_sem_recomposicao_segura")
-    df = pd.read_csv(CSV_S6)
+def _preparar_s6_df(s6_df: pd.DataFrame | None = None) -> pd.DataFrame:
+    if s6_df is None:
+        return pd.DataFrame(columns=["classe_temporal_s6"])
+    df = s6_df.copy()
     if df.empty:
-        raise RuntimeError("erro_csv_s6_vazio_para_matriz_elegibilidade")
+        return pd.DataFrame(columns=["classe_temporal_s6"])
     col = _resolver_coluna_classe_s6(df)
     if not col:
-        raise RuntimeError("erro_coluna_classe_s6_nao_encontrada")
-    serie = df[col].astype(str).str.strip().str.lower()
-    if serie.eq("").all():
-        raise RuntimeError("erro_csv_s6_vazio_para_matriz_elegibilidade")
-    df["_s6_origem"] = s6_origem
+        df["classe_temporal_s6"] = ""
+        col = "classe_temporal_s6"
+    df["_s6_origem"] = "memoria"
     df["_coluna_classe_s6_usada"] = col
     return df
 
@@ -93,11 +85,11 @@ def _resolver_coluna_classe_s6(s6_df: pd.DataFrame) -> str:
     return ""
 
 
-def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None):
+def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None, s6_df: pd.DataFrame | None = None):
     saida = construir_saida_canonica_com_switching_v17_c7(contexto, versao=VERSAO_BASELINE)
     data_ref = str(data_referencia or saida.data_referencia)
 
-    s6_df = _carregar_s6_df()
+    s6_df = _preparar_s6_df(s6_df)
     classe_counts = {}
     coluna_classe_s6_usada = "nao_aplicavel_sem_csv_s6"
     col = _resolver_coluna_classe_s6(s6_df)

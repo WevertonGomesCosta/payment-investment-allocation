@@ -54,13 +54,7 @@ def _mapa_switchings_aba_operacional_legado_v37s(contexto: Any) -> dict[str, dic
     quadros_brutos = getattr(pacote_planilha, 'quadros_brutos', {}) if pacote_planilha is not None else {}
     df = quadros_brutos.get('Switching') if isinstance(quadros_brutos, dict) else None
     if not isinstance(df, pd.DataFrame):
-        caminho_planilha = getattr(pacote_planilha, 'caminho', None)
-        if not caminho_planilha:
-            return {}
-        try:
-            df = pd.read_excel(caminho_planilha, sheet_name='Switching')
-        except Exception:
-            return {}
+        return {}
     if not isinstance(df, pd.DataFrame) or df.empty:
         return {}
     mapa: dict[str, dict[str, Any]] = {}

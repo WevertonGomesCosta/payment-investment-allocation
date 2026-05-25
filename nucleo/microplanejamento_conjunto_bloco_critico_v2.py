@@ -209,7 +209,7 @@ def _score_ajustado_politica(
             motivo = 'bônus forte na âncora para acionar multifonte com as reservas explícitas.'
     elif politica_id == 'ancora_first_sacrificio_local':
         if pre_anchor and lot in reservas and desc not in {'Cartão Azul', 'Escola'}:
-            penalty += 8500.0 + min(valor_pagamento, 3000.0)
+            penalty += (8000.0 + 500.0) + min(valor_pagamento, 3000.0)
             motivo = 'penalização extrema para priorizar a âncora mesmo com sacrifício local.'
         if anchor and lot in reservas:
             penalty -= 500.0
