@@ -249,9 +249,7 @@ def _valor_nominal_extraido_do_id_lote(lote_id: Any) -> float:
     """Extrai valor nominal do identificador textual do lote.
 
     Exemplo:
-    - Lote 3000 mar. B  -> 3000.00
-    - Lote 8500 mar.    -> 8500.00
-    - Lote 6630,64 fev. -> 6630.64
+    - Lote 3000 mar. B -> 3000.00
 
     Uso restrito à renderização observável de origens migradas por switching.
     Não altera motor, replay, ledger, ranking, switching nem totais patrimoniais.

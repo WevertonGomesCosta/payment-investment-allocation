@@ -1069,27 +1069,6 @@ def _lotes_pos_switching_observaveis_q2(contexto: Any) -> set[str]:
                 if token:
                     lotes.add(token)
 
-    # Fonte complementar controlada: lotes usados em pagamentos passados já
-    # pagos na base canônica. Esta fonte é restrita à camada observável do
-    # Extrato Passado e não altera ledger, replay, motor econômico ou Situação Atual.
-    dados_ops = getattr(contexto, 'dados_operacionais', None)
-    gastos = getattr(dados_ops, 'gastos_canonicos', None) if dados_ops is not None else None
-
-    if isinstance(gastos, pd.DataFrame) and not gastos.empty:
-        req = {'pago', 'passado_pago_ate_data_referencia', 'lote_usado_1', 'lote_usado_2'}
-        if req.issubset(set(gastos.columns)):
-            for _, row in gastos.iterrows():
-                if not _bool_observavel_q2(row.get('pago')):
-                    continue
-                if not _bool_observavel_q2(row.get('passado_pago_ate_data_referencia')):
-                    continue
-
-                for token in _split_lotes_observaveis_q2(_fontes_gasto_canonico_q2(row)):
-                    # Filtro conservador: incluir apenas padrões observados nesta frente Q.
-                    # Evita transformar qualquer lote passado em POS por regra ampla.
-                    if token in {'lote 190 mai', 'lote 3120 mai'}:
-                        lotes.add(token)
-
     return {x for x in lotes if x}
 
 
@@ -1309,7 +1288,6 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])
         if round(float(getattr(l, 'principal_remanescente', 0.0) or 0.0), 2) <= 0.01
     }
-    lotes_exauridos.add(_norm('Lote 6630,64 fev.'))
     for _, row in quadro.iterrows():
         row_dict = row.to_dict()
         pagamento_id = str(row_dict.get('pagamento_id') or '').strip()
@@ -2550,7 +2528,7 @@ def construir_saida_canonica(
         'ponte_passiva_pos_desativada_por_pos_canonico': bool(pos_canonico_ativo and len(destinos_pos_switching_passivos) > 0),
         'destinos_pos_switching_passivos_para_situacao_total': len(destinos_pos_switching_passivos_para_situacao),
         'destinos_pos_switching_passivos_preservados_auditoria_total': len(destinos_pos_switching_passivos),
-        **({k: v for k, v in ledger_result.items() if (str(k).startswith('pay_only_diario_shadow_') or str(k).startswith('d2a_') or str(k).startswith('d2a2_') or str(k).startswith('d2b0_') or str(k).startswith('d2b1_') or str(k).startswith('d2c_') or str(k).startswith('d3_') or str(k).startswith('d3b_') or str(k).startswith('d3c_') or str(k).startswith('d3d_') or str(k).startswith('d3e_') or str(k).startswith('d3f_') or str(k).startswith('d31_') or str(k).startswith('d31b_') or str(k).startswith('d31c_') or str(k).startswith('d31d_') or str(k).startswith('d31e_') or str(k).startswith('d31f_') or str(k).startswith('d32a_') or str(k).startswith('saldo_temporal_') or str(k).startswith('comparativo_') or str(k).startswith('recebidos_') or str(k).startswith('recebidos_shadow_') or str(k).startswith('shadow_recebidos_') or str(k).startswith('valor_recebidos_') or str(k).startswith('alocacao_') or str(k).startswith('pagamentos_rebaixados_') or str(k).startswith('pagamentos_') or str(k).startswith('extrato_futuro_') or str(k).startswith('divergencias_') or str(k).startswith('pre_invariante_') or str(k).startswith('sombra_')) and not isinstance(v, (list, dict, tuple, set))}),
+        **({k: v for k, v in ledger_result.items() if (str(k).startswith('pay_only_diario_shadow_') or str(k).startswith('d2a_') or str(k).startswith('d2a2_') or str(k).startswith('d2b0_') or str(k).startswith('d2b1_') or str(k).startswith('d2c_') or str(k).startswith('d3_') or str(k).startswith('d3b_') or str(k).startswith('d3c_') or str(k).startswith('d3d_') or str(k).startswith('d3e_') or str(k).startswith('d3f_') or str(k).startswith('d31_') or str(k).startswith('d31b_') or str(k).startswith('d31c_') or str(k).startswith('d31d_') or str(k).startswith('d31e_') or str(k).startswith('d31f_') or str(k).startswith('d32a_') or str(k).startswith('saldo_temporal_') or str(k).startswith('comparativo_') or str(k).startswith('recebidos_') or str(k).startswith('recebidos_shadow_') or str(k).startswith('shadow_recebidos_') or str(k).startswith('valor_recebidos_') or str(k).startswith('alocacao_') or str(k).startswith('pagamentos_rebaixados_') or str(k).startswith('pagamentos_') or str(k).startswith('extrato_futuro_') or str(k).startswith('divergencias_') or str(k).startswith('pre_invariante_') or str(k).startswith('sombra_')) and not isinstance(v, (list, dict, tuple, set)) and not str(k).startswith('saldo_temporal_lote_8500_')}),
         'pay_only_diario_shadow_por_data': ledger_result.get('pay_only_diario_shadow_por_data', []),
         'plano_pay_only_diario_v1_por_pagamento': ledger_result.get('plano_pay_only_diario_v1_por_pagamento', []),
         'd2a_plano_por_data': ledger_result.get('d2a_plano_por_data', []),
@@ -2579,7 +2557,6 @@ def construir_saida_canonica(
         'shadow_pagamentos_recuperados_nominal': ledger_result.get('shadow_pagamentos_recuperados_nominal', []),
         'recebidos_futuros_auditoria': ledger_result.get('recebidos_futuros_auditoria', []),
         'alocacao_fontes_auditoria': ledger_result.get('alocacao_fontes_auditoria', []),
-        'saldo_temporal_lote_8500_trilha_eventos': ledger_result.get('saldo_temporal_lote_8500_trilha_eventos', []),
         'comparativo_mapa_funcoes_legadas': ledger_result.get('comparativo_mapa_funcoes_legadas', []),
         'destinos_pos_switching_materializados_passivos': destinos_pos_switching_passivos,
         'destinos_pos_switching_materializados_passivos_total': int(ledger_result.get('destinos_pos_switching_materializados_passivos_total', len(destinos_pos_switching_passivos))),
