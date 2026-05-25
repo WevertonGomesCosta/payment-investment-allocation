@@ -11,10 +11,6 @@ from datetime import timedelta
 import pandas as pd
 from nucleo.calendario_financeiro import proximo_dia_util_bancario_em_ou_apos
 from nucleo.ledger_switching_estado_temporal_v17_f0_o2 import materializar_eventos_switching_ledger_estado_temporal_v17_f0_o2
-from nucleo.switching_canonico_ledger_shadow import (
-    switching_canonico_para_eventos_ledger_shadow,
-    switching_canonico_para_mapa_ledger_shadow,
-)
 
 
 def _txt(v: Any) -> str:
@@ -123,70 +119,11 @@ def _eventos_switching_aba_operacional_legado_v37s(contexto: Any) -> list[dict[s
     return eventos
 
 
-def _mapa_switchings_canonico_compativel_ledger_v37s(contexto: Any) -> dict[str, dict[str, Any]]:
-    try:
-        mapa_canonico = switching_canonico_para_mapa_ledger_shadow(contexto)
-    except Exception:
-        mapa_canonico = {}
-    if not mapa_canonico:
-        return {}
-    mapa: dict[str, dict[str, Any]] = {}
-    for lote, meta in mapa_canonico.items():
-        lote_origem = _txt(lote or meta.get('lote_origem'))
-        if not lote_origem:
-            continue
-        mapa[lote_origem] = {
-            'lote_origem': lote_origem,
-            'data_switching': meta.get('data_switching'),
-            'produto_destino': _txt(meta.get('produto_destino')),
-            'valor_liquido_origem': meta.get('valor_liquido_origem'),
-            'status_switching': 'classificado_promovido',
-            'origem_mapa_migracao': 'aba_switching_operacional',
-            'lote_pos_switching': _txt(meta.get('lote_pos_switching')),
-        }
-    return mapa
-
-
-def _eventos_switching_canonico_compativel_ledger_v37s(contexto: Any) -> list[dict[str, Any]]:
-    try:
-        eventos_canonicos = switching_canonico_para_eventos_ledger_shadow(contexto)
-    except Exception:
-        eventos_canonicos = []
-    if not eventos_canonicos:
-        return []
-    eventos: list[dict[str, Any]] = []
-    for evento in eventos_canonicos:
-        lote_origem = _txt(evento.get('lote_origem'))
-        if not lote_origem:
-            continue
-        data_switching = evento.get('data_switching')
-        evento_id = _txt(evento.get('evento_switching_id_legado_compat') or evento.get('evento_switching_id'))
-        if not evento_id:
-            evento_id = f"swop::{_normalizar_data_comparavel(data_switching)}::{lote_origem}::{_txt(evento.get('lote_pos_switching'))}"
-        eventos.append({
-            'evento_switching_id': evento_id,
-            'lote_origem': lote_origem,
-            'data_switching': data_switching,
-            'produto_destino': _txt(evento.get('produto_destino')),
-            'valor_liquido_origem': evento.get('valor_liquido_origem'),
-            'lote_pos_switching': _txt(evento.get('lote_pos_switching')),
-            'status_materializacao_passiva': 'materializado_passivo',
-            'origem_mapa_migracao': 'aba_switching_operacional',
-        })
-    return eventos
-
-
 def _mapa_switchings_aba_operacional(contexto: Any) -> dict[str, dict[str, Any]]:
-    mapa_canonico = _mapa_switchings_canonico_compativel_ledger_v37s(contexto)
-    if mapa_canonico:
-        return mapa_canonico
     return _mapa_switchings_aba_operacional_legado_v37s(contexto)
 
 
 def _eventos_switching_aba_operacional(contexto: Any) -> list[dict[str, Any]]:
-    eventos_canonicos = _eventos_switching_canonico_compativel_ledger_v37s(contexto)
-    if eventos_canonicos:
-        return eventos_canonicos
     return _eventos_switching_aba_operacional_legado_v37s(contexto)
 
 
@@ -343,67 +280,7 @@ def _inferir_pacote(row: dict[str, Any]) -> str:
 
 
 def _mapa_global_switchings_contexto(contexto: Any) -> dict[str, dict[str, Any]]:
-    mapa_switchings: dict[str, dict[str, Any]] = {}
-    shadow = getattr(contexto, 'switching_economico_shadow', None) if contexto is not None else None
-    plano = getattr(shadow, 'plano_shadow', None) if shadow is not None else None
-    if isinstance(plano, pd.DataFrame) and not plano.empty:
-        plano_f = plano.copy()
-        if 'recomendado_shadow' in plano_f.columns:
-            plano_f = plano_f[plano_f['recomendado_shadow'].fillna(False)]
-        for _, row in plano_f.iterrows():
-            lote = _txt(row.get('lote_id'))
-            if not lote:
-                continue
-            lote_obj = None
-            for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or []):
-                if str(getattr(l, 'id', '')) == lote:
-                    lote_obj = l
-                    break
-            data_sw = None
-            data_sw_exp = _primeira_data_valida_em_ordem(
-                row,
-                ['data_operacional', 'data_switching', 'data_switching_operacional', 'data_horizonte', 'data_referencia'],
-            )
-            if data_sw_exp is not None and _normalizar_data_comparavel(data_sw_exp) is not None:
-                data_sw = data_sw_exp
-            elif lote_obj is not None:
-                carteira = getattr(contexto, 'carteira_canonica', None)
-                mapa_produtos = getattr(carteira, 'mapa_produtos', {}) if carteira is not None else {}
-                meta_prod = ((mapa_produtos.get('by_key') or {}).get(getattr(lote_obj, 'produto_key', None)) or {}) if isinstance(mapa_produtos, dict) else {}
-                prazo = int(meta_prod.get('prazo_dias') or 0)
-                datas_candidatas = []
-                if prazo > 0:
-                    datas_candidatas.append(getattr(lote_obj, 'data_aplicacao', None) + timedelta(days=prazo))
-                carencia = getattr(lote_obj, 'carencia_ate', None)
-                if carencia is not None:
-                    datas_candidatas.append(carencia)
-                base = max([d for d in datas_candidatas if d is not None], default=getattr(contexto.execucao, 'data_referencia', None))
-                if base is not None:
-                    try:
-                        data_sw = proximo_dia_util_bancario_em_ou_apos(base, contexto.calendario_financeiro)
-                    except Exception:
-                        data_sw = base
-            if data_sw is None:
-                data_sw = data_sw_exp
-            evento_sw = {
-                'lote_origem': lote,
-                'data_switching': data_sw,
-                'produto_destino': _txt(row.get('produto_destino_nome') or row.get('produto_destino_key')),
-                'valor_liquido_origem': _round(row.get('valor_liquido_resgatavel')),
-                'status_switching': 'classificado_promovido',
-                'origem_mapa_migracao': 'contexto.switching_economico_shadow.plano_shadow::data_operacional',
-                'lote_pos_switching': '',
-            }
-            atual = mapa_switchings.get(lote)
-            if atual is None:
-                mapa_switchings[lote] = evento_sw
-            else:
-                data_atual = _normalizar_data_comparavel(atual.get('data_switching'))
-                data_nova = _normalizar_data_comparavel(evento_sw.get('data_switching'))
-                if data_atual is None or (data_nova is not None and data_nova > data_atual):
-                    mapa_switchings[lote] = evento_sw
-    return mapa_switchings
-
+    return _mapa_switchings_aba_operacional(contexto)
 
 
 def _normalizar_evento_operacional(ev: dict[str, Any]) -> dict[str, Any]:
