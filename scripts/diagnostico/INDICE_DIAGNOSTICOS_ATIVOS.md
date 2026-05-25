@@ -20,10 +20,7 @@
 - `auditar_pacote_auditoria_temporal_v4g.py`
 - `auditar_pacotes_temporais_agregados_saida_v4i.py`
 - `auditar_saida_canonica_vs_pacotes_temporais_v4j.py`
-- `auditar_saida_temporal_shadow_v4k.py`
 - `auditar_normalizacao_lotes_estado_temporal_v4k0.py`
-- `auditar_saida_controlada_temporal_shadow_v4l.py`
-- `auditar_saida_canonica_parametro_temporal_shadow_v4n.py`
 
 ## Governança
 Scripts em `historico/etapa4` não pertencem ao runtime ativo, mas devem permanecer executáveis para auditoria histórica, incluindo resolução robusta da raiz do repositório.
