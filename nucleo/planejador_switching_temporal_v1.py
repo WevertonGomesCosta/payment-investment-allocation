@@ -177,7 +177,7 @@ def planejar_switching_temporal_v1(
             perda_liquidez_estimada=0.0,
             ganho_terminal_proxy_estimado=0.0,
             impacto_pagamentos_futuros_estimado=0.0,
-            justificativa='Ação neutra obrigatória para benchmark interno do recorte curto.',
+            justificativa='Ação neutra obrigatória para referência interna do recorte curto.',
             elegivel=True,
         )
     ]

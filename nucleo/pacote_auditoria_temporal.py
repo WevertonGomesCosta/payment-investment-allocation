@@ -1,4 +1,4 @@
-"""PacoteAuditoriaTemporal shadow.
+"""PacoteAuditoriaTemporal temporal.
 
 V17-F0-V.4G centraliza auditorias temporais já existentes em um pacote único,
 sem alterar replay efetivo, ledger efetivo, estado temporal efetivo, saída
@@ -11,12 +11,12 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
 
 
-VERSAO_PACOTE_AUDITORIA_TEMPORAL_SHADOW = "V17-F0-V.4G-shadow"
+VERSAO_PACOTE_AUDITORIA_TEMPORAL = "V17-F0-V.4G-temporal"
 
 
 @dataclass(slots=True)
 class PacoteAuditoriaTemporal:
-    """Contrato shadow de auditoria temporal da Etapa 4."""
+    """Contrato temporal de auditoria temporal da Etapa 4."""
 
     versao: str
     modo_execucao: str
@@ -146,8 +146,8 @@ def _auditoria_residuos(pacote_ledger_operacional: Any, pacote_estado_temporal: 
     return {
         "ok": True,
         "usa_contexto_amplo": auditoria_ledger.get("usa_contexto_amplo"),
-        "usa_pacote_planilha": "n/d_shadow",
-        "usa_quadros_brutos": "n/d_shadow",
+        "usa_pacote_planilha": "n/d_temporal",
+        "usa_quadros_brutos": "n/d_temporal",
         "usa_planilha_bruta_como_fonte_primaria": auditoria_ledger.get("usa_planilha_bruta_como_fonte_primaria"),
         "usa_planilha_bruta_apenas_fallback": auditoria_ledger.get("usa_planilha_bruta_apenas_fallback"),
         "usa_retorno_ledger_dict_legado": auditoria_ledger.get("retorno_dict_legado_usado_como_origem"),
@@ -183,8 +183,8 @@ def _montar_validacao_global(
 
     if auditoria_switching.get("migracoes_por_data_materializadas") is False:
         avisos.append("migracoes_por_data_vazio_auditado")
-    if auditoria_replay.get("modo_shadow") is True:
-        avisos.append("auditoria_replay_origem_shadow")
+    if auditoria_replay.get("modo_operacional_temporal") is True:
+        avisos.append("auditoria_replay_origem_temporal_operacional")
     if auditoria_ledger.get("retorno_dict_legado_usado_como_origem") is True:
         avisos.append("retorno_dict_legado_ainda_usado_como_origem")
 
@@ -203,15 +203,15 @@ def _montar_validacao_global(
     }
 
 
-def construir_pacote_auditoria_temporal_shadow(
+def construir_pacote_auditoria_temporal(
     pacote_replay_passado: Any,
     pacote_ledger_operacional: Any,
     pacote_estado_temporal: Any,
     *,
     contexto: Any = None,
-    modo_execucao: str = "shadow",
+    modo_execucao: str = "operacional_temporal",
 ) -> PacoteAuditoriaTemporal:
-    """Centraliza auditorias temporais dos pacotes shadow da Etapa 4."""
+    """Centraliza auditorias temporais dos pacotes temporal da Etapa 4."""
     data_referencia = _inferir_data_referencia(
         pacote_replay_passado=pacote_replay_passado,
         pacote_ledger_operacional=pacote_ledger_operacional,
@@ -241,8 +241,8 @@ def construir_pacote_auditoria_temporal_shadow(
 
     metadados = {
         "versao_microetapa": "V17-F0-V.4G",
-        "modo_shadow": True,
-        "adaptador": "construir_pacote_auditoria_temporal_shadow",
+        "modo_operacional_temporal": True,
+        "adaptador": "construir_pacote_auditoria_temporal",
         "origem_replay": type(pacote_replay_passado).__name__,
         "origem_ledger": type(pacote_ledger_operacional).__name__,
         "origem_estado": type(pacote_estado_temporal).__name__,
@@ -253,7 +253,7 @@ def construir_pacote_auditoria_temporal_shadow(
     }
 
     return PacoteAuditoriaTemporal(
-        versao=VERSAO_PACOTE_AUDITORIA_TEMPORAL_SHADOW,
+        versao=VERSAO_PACOTE_AUDITORIA_TEMPORAL,
         modo_execucao=modo_execucao,
         data_referencia=data_referencia,
         auditoria_replay=auditoria_replay,

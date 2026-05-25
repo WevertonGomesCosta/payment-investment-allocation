@@ -1,6 +1,6 @@
-"""Envelope shadow para o ledger temporal.
+"""Envelope temporal para o ledger temporal.
 
-V17-F0-V.3.7K cria apenas um adaptador compatível em modo shadow.
+V17-F0-V.3.7K cria apenas um adaptador compatível em modo temporal.
 Este módulo não substitui o ledger legado, não altera a saída canônica e não
 remove nenhuma ponte histórica. Ele apenas embrulha o retorno atual de
 ``construir_ledger_temporal_conjunto(...)`` em um contrato explícito.
@@ -12,12 +12,12 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
 
 
-VERSAO_PACOTE_LEDGER_TEMPORAL_SHADOW = "V17-F0-V.3.7K-shadow"
+VERSAO_PACOTE_LEDGER_TEMPORAL = "V17-F0-V.3.7K-temporal"
 
 
 @dataclass(slots=True)
 class PacoteLedgerTemporal:
-    """Pacote contratual mínimo do ledger temporal em modo shadow.
+    """Pacote contratual mínimo do ledger temporal em modo temporal.
 
     Os campos seguem o contrato documental V3.7J. Nesta primeira versão, os
     campos que ainda não existem no retorno legado são preenchidos com listas
@@ -25,7 +25,7 @@ class PacoteLedgerTemporal:
     """
 
     versao: str
-    modo_shadow: bool
+    modo_operacional_temporal: bool
     data_referencia: Any
     eventos_temporais: list[dict[str, Any]] = field(default_factory=list)
     estado_temporal_por_data: list[dict[str, Any]] = field(default_factory=list)
@@ -174,8 +174,8 @@ def _montar_auditoria(
 ) -> dict[str, Any]:
     return {
         "ok": True,
-        "modo_shadow": True,
-        "origem_execucao": "construir_pacote_ledger_temporal_shadow",
+        "modo_operacional_temporal": True,
+        "origem_execucao": "construir_pacote_ledger_temporal",
         "origem_retorno_legado": "construir_ledger_temporal_conjunto",
         "qtd_eventos_temporais": len(eventos_temporais),
         "qtd_pagamentos_futuros_processados": len(pagamentos_futuros_processados),
@@ -185,7 +185,7 @@ def _montar_auditoria(
         "campos_ausentes_preenchidos_vazios": list(campos_ausentes),
         "usa_contexto_amplo": contexto is not None,
         "usa_planilha_bruta": True,
-        "usa_switching_shadow": True,
+        "usa_switching_canonico": True,
         "usa_pos_injetado": True,
         "compatibilidade_retorno_legado": True,
         "retorno_legado_chaves_total": len(list(retorno_legado.keys())),
@@ -210,14 +210,14 @@ def _montar_validacao(
     if "fifo_candidatos_avaliados" not in retorno_legado:
         avisos.append("retorno_legado_sem_chave_fifo_candidatos_avaliados")
     if not eventos_temporais:
-        avisos.append("eventos_temporais_vazio_no_shadow")
+        avisos.append("eventos_temporais_vazio_no_temporal")
     if not fifo_candidatos_avaliados:
-        avisos.append("fifo_candidatos_avaliados_vazio_no_shadow")
+        avisos.append("fifo_candidatos_avaliados_vazio_no_temporal")
 
-    avisos.extend(f"campo_minimo_shadow_vazio:{campo}" for campo in campos_ausentes)
+    avisos.extend(f"campo_minimo_temporal_operacional_vazio:{campo}" for campo in campos_ausentes)
     avisos.append("uso_transitorio_de_contexto_amplo")
     avisos.append("uso_transitorio_de_planilha_bruta_pelo_ledger_legado")
-    avisos.append("uso_transitorio_de_switching_shadow_pelo_ledger_legado")
+    avisos.append("uso_transitorio_de_switching_canonico_pelo_ledger_legado")
 
     return {
         "ok": len(erros) == 0,
@@ -231,15 +231,15 @@ def _montar_validacao(
     }
 
 
-def construir_pacote_ledger_temporal_shadow(
+def construir_pacote_ledger_temporal(
     quadro_futuro: Any,
     mapa_central: Any,
     contexto: Any,
     *,
-    modo_shadow: bool = True,
+    modo_operacional_temporal: bool = True,
     retorno_legado: Mapping[str, Any] | None = None,
 ) -> PacoteLedgerTemporal:
-    """Constrói o envelope shadow do ledger temporal.
+    """Constrói o envelope temporal do ledger temporal.
 
     Quando ``retorno_legado`` não é fornecido, executa o construtor legado.
     Quando fornecido, apenas embrulha o retorno já calculado. Em ambos os casos,
@@ -288,8 +288,8 @@ def construir_pacote_ledger_temporal_shadow(
 
     metadados_origem = {
         "versao_microetapa": "V17-F0-V.3.7K",
-        "modo_shadow": bool(modo_shadow),
-        "adaptador": "construir_pacote_ledger_temporal_shadow",
+        "modo_operacional_temporal": bool(modo_operacional_temporal),
+        "adaptador": "construir_pacote_ledger_temporal",
         "construtor_legado": "construir_ledger_temporal_conjunto",
         "nao_altera_saida_canonica": True,
         "nao_remove_ponte_legacy": True,
@@ -297,8 +297,8 @@ def construir_pacote_ledger_temporal_shadow(
     }
 
     return PacoteLedgerTemporal(
-        versao=VERSAO_PACOTE_LEDGER_TEMPORAL_SHADOW,
-        modo_shadow=bool(modo_shadow),
+        versao=VERSAO_PACOTE_LEDGER_TEMPORAL,
+        modo_operacional_temporal=bool(modo_operacional_temporal),
         data_referencia=_inferir_data_referencia(contexto),
         eventos_temporais=eventos_temporais,
         estado_temporal_por_data=estado_temporal_por_data,

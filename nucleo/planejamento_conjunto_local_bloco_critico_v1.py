@@ -168,8 +168,8 @@ def _penalidade_politica(
     data_pagamento = pagamento.get('data')
     valor = _safe_float(pagamento.get('valor'))
     pre_anchor = bool(isinstance(data_pagamento, date) and data_pagamento < data_ancora)
-    if politica_id == 'reserva_8500_pos_cartao_inicial':
-        lote_prioritario = contexto.get('lote_cartao_inicial_v103') or 'Lote 8500 mar.'
+    if politica_id == 'reserva_lote_cartao_inicial_pos_cartao_inicial':
+        lote_prioritario = contexto.get('lote_cartao_inicial_v103') or ''
         if pre_anchor and lot == lote_prioritario and desc != 'Cartão Azul':
             return 3200.0 + min(valor, 1200.0), 'penalização para preservar o lote principal usado no primeiro Cartão Azul até a âncora de 20/05.'
         if pre_anchor and lot == (contexto.get('lote_ancora_v102') or ''):
@@ -523,7 +523,7 @@ def carregar_planejamento_conjunto_local_bloco_critico_v1(
     pagamentos_bloco = pagamentos_bloco_df.to_dict(orient='records')
 
     custom_specs = [
-        ('reserva_8500_pos_cartao_inicial', 'Preservar o lote do primeiro Cartão Azul e deslocar pagamentos menores antes de 20/05'),
+        ('reserva_lote_cartao_inicial_pos_cartao_inicial', 'Preservar o lote do primeiro Cartão Azul e deslocar pagamentos menores antes de 20/05'),
         ('reserva_lote_ancora_e_escola', 'Preservar o lote da âncora de 20/05 e o lote crítico da Escola dentro do bloco'),
         ('reserva_dupla_ancora', 'Preservar simultaneamente o lote da âncora, o lote do primeiro Cartão Azul e o lote da Escola'),
     ]

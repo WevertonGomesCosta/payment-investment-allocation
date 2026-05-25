@@ -554,10 +554,6 @@ def main(*, contexto=None, saida=None) -> Path:
         contexto = carregar_contexto_baseline(
             raiz_repositorio=RAIZ,
             instalar_automaticamente=False,
-            incluir_resolver_hibrido_5p_shadow=False,
-            incluir_benchmark_agrupado_individual_shadow=False,
-            incluir_benchmark_runner_futuro_shadow=False,
-            incluir_auditoria_primeira_quebra_runner_futuro_shadow=False,
         )
 
     if saida is None:

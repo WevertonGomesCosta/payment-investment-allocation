@@ -126,10 +126,6 @@ def _records(df: pd.DataFrame, colunas: list[str]) -> pd.DataFrame:
 
 
 def _quadro_recomendacoes(contexto: Any) -> tuple[pd.DataFrame, str]:
-    motor = getattr(contexto, "motor_recomendacao_pagamentos_switching_v1", None)
-    df, origem = _first_df(motor, ["quadro_recomendacoes", "quadro_decisao"])
-    if len(df):
-        return df, f"motor_recomendacao_pagamentos_switching_v1.{origem}"
     decisao = getattr(contexto, "decisao_local_v1", None)
     df, origem = _first_df(decisao, ["quadro_decisao_local_v1", "quadro_decisoes", "quadro_recomendacoes"])
     if len(df):

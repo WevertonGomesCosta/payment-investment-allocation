@@ -609,10 +609,6 @@ def _precificar_destino_pos_switching_canonico(
 
 
 def _quadro_futuro_preferencial(contexto: Any) -> pd.DataFrame | None:
-    motor = getattr(contexto, 'motor_recomendacao_pagamentos_switching_v1', None)
-    quadro = getattr(motor, 'quadro_recomendacoes', None) if motor is not None else None
-    if isinstance(quadro, pd.DataFrame) and len(quadro):
-        return quadro.copy().sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
     decisao = getattr(contexto, 'decisao_local_v1', None)
     quadro = getattr(decisao, 'quadro_decisao_local_v1', None) if decisao is not None else None
     if isinstance(quadro, pd.DataFrame) and len(quadro):
@@ -657,13 +653,6 @@ def _pagamentos_decisao_recebido_disponivel_fallback_auditavel(contexto: Any) ->
     if decisao is not None:
         for attr in ["quadro_decisao_local_v1", "quadro_decisoes", "quadro_recomendacoes"]:
             q = getattr(decisao, attr, None)
-            if isinstance(q, pd.DataFrame) and len(q):
-                quadros.append(q)
-
-    motor = getattr(contexto, "motor_recomendacao_pagamentos_switching_v1", None) if contexto is not None else None
-    if motor is not None:
-        for attr in ["quadro_recomendacoes", "quadro_decisao"]:
-            q = getattr(motor, attr, None)
             if isinstance(q, pd.DataFrame) and len(q):
                 quadros.append(q)
 
@@ -1069,27 +1058,6 @@ def _lotes_pos_switching_observaveis_q2(contexto: Any) -> set[str]:
                 if token:
                     lotes.add(token)
 
-    # Fonte complementar controlada: lotes usados em pagamentos passados já
-    # pagos na base canônica. Esta fonte é restrita à camada observável do
-    # Extrato Passado e não altera ledger, replay, motor econômico ou Situação Atual.
-    dados_ops = getattr(contexto, 'dados_operacionais', None)
-    gastos = getattr(dados_ops, 'gastos_canonicos', None) if dados_ops is not None else None
-
-    if isinstance(gastos, pd.DataFrame) and not gastos.empty:
-        req = {'pago', 'passado_pago_ate_data_referencia', 'lote_usado_1', 'lote_usado_2'}
-        if req.issubset(set(gastos.columns)):
-            for _, row in gastos.iterrows():
-                if not _bool_observavel_q2(row.get('pago')):
-                    continue
-                if not _bool_observavel_q2(row.get('passado_pago_ate_data_referencia')):
-                    continue
-
-                for token in _split_lotes_observaveis_q2(_fontes_gasto_canonico_q2(row)):
-                    # Filtro conservador: incluir apenas padrões observados nesta frente Q.
-                    # Evita transformar qualquer lote passado em POS por regra ampla.
-                    if token in {'lote 190 mai', 'lote 3120 mai'}:
-                        lotes.add(token)
-
     return {x for x in lotes if x}
 
 
@@ -1309,7 +1277,6 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])
         if round(float(getattr(l, 'principal_remanescente', 0.0) or 0.0), 2) <= 0.01
     }
-    lotes_exauridos.add(_norm('Lote 6630,64 fev.'))
     for _, row in quadro.iterrows():
         row_dict = row.to_dict()
         pagamento_id = str(row_dict.get('pagamento_id') or '').strip()
@@ -1368,7 +1335,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
         origem_switching = (
             'motor_pagamento'
             if str(row_dict.get('produto_destino_switching') or '').strip()
-            else ('shadow_janela' if bool(row_dict.get('switching_antes_pagamento')) else '')
+            else ('janela_switching' if bool(row_dict.get('switching_antes_pagamento')) else '')
         )
         lote_origem_migrada = str(row_dict.get('lote_origem_pos_switching') or '').strip()
         if lote_origem_migrada:
@@ -1555,7 +1522,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
             'Fonte switching': ('materializado' if bool(ledger.get('switching_materializado')) else ''),
             'Data switching': _fmt_data(ledger.get('data_switching_operacional')) if ledger.get('data_switching_operacional') is not None else 'n/d',
             'Evento switching ID': ledger.get('evento_switching_id') or '',
-            'Score switching': _round_monetario(row_dict.get('score_switching_shadow') if row_dict.get('score_switching_shadow') not in (None, '') else row_dict.get('ganho_liquido_estimado_switching'), ''),
+            'Score switching': _round_monetario(row_dict.get('ganho_liquido_estimado_switching'), ''),
             'Necessita switching': necessita_switching_txt if necessita_switching_txt in {'sim', 'não'} else _texto_necessita_switching({**central, **row_dict}, estrategia),
             'Switching antes do pagamento': ('sim' if str(ledger.get('pacote_do_dia') or '') == 'switch_then_pay' else 'não'),
             'Switching depois do pagamento': ('sim' if str(ledger.get('pacote_do_dia') or '') == 'pay_then_switch' else 'não'),
@@ -1799,74 +1766,14 @@ def _texto_lote_reserva(lote_reserva: Any, lote_sugerido: Any) -> str:
     return reserva
 
 def _construir_switchings(contexto: Any, limite: int = 30) -> list[dict[str, Any]]:
-    shadow = getattr(contexto, 'switching_economico_shadow', None)
-    plano = getattr(shadow, 'plano_shadow', None) if shadow is not None else None
-    linhas: list[dict[str, Any]] = []
-    lotes_by_id = {str(l.id): l for l in (getattr(getattr(contexto, 'replay_passado', None), 'lotes_apos_replay', []) or [])}
-    ranking = getattr(contexto, 'ranking_carteira', None)
-    quadro_ranking = getattr(ranking, 'quadro_destinos_switch', None) if ranking is not None else None
-    rank_por_produto_key: dict[str, int] = {}
-    if isinstance(quadro_ranking, pd.DataFrame) and len(quadro_ranking):
-        for _, r in quadro_ranking.iterrows():
-            rank_por_produto_key[str(r.get('produto_key') or '')] = int(r.get('rank_destino') or 999)
-    bloqueados_auditoria: list[dict[str, Any]] = []
+    """Mantido apenas por compatibilidade da saída base.
 
-    if isinstance(plano, pd.DataFrame) and len(plano):
-        plano_f = plano.copy()
-        if 'recomendado_shadow' in plano_f.columns:
-            plano_f = plano_f[plano_f['recomendado_shadow'].fillna(False)]
-        plano_f = plano_f.sort_values(['ganho_liquido_estimado', 'score_switch_shadow', 'lote_id'], ascending=[False, False, True], kind='stable')
-        usados: set[str] = set()
-        for _, row in plano_f.iterrows():
-            lote_id = str(row.get('lote_id') or '')
-            if not lote_id or lote_id in usados:
-                continue
-            lote = lotes_by_id.get(lote_id)
-            if lote is None:
-                continue
-            destino_rank = _ranking_destino_para_lote(contexto, lote) or {}
-            destino_row_nome = str(row.get('produto_destino_nome') or '').strip()
-            destino_row_key = str(row.get('produto_destino_key') or '').strip()
-            destino_nome = destino_row_nome or str(destino_rank.get('nome') or '')
-            data_sug = _data_sugerida_switching_lote(contexto, lote)
-            ganho = _round_monetario(row.get('ganho_liquido_estimado'), _round_monetario(destino_rank.get('proxy_terminal_destino'), 0.0))
-            valor_liq = _round_monetario(lote.valor_liquido_hoje(contexto.execucao.data_referencia, tabela_iof=contexto.tabela_iof, faixas_ir=contexto.faixas_ir), 0.0)
-            linha_base = {
-                'Data sugerida': _fmt_data(data_sug),
-                'Data': _fmt_data(data_sug),
-                'Lote origem': lote_id,
-                'Produto origem': getattr(lote, 'investimento', '') if lote is not None else row.get('produto_origem_nome') or '',
-                'Produto destino switching': destino_nome,
-                'Destino': destino_nome,
-                'Ganho estimado': ganho,
-                'Valor líquido origem': valor_liq,
-                'Status': 'destino_ranqueado',
-            }
-            rank_origem = int(row.get('rank_origem') or rank_por_produto_key.get(str(getattr(lote, 'produto_key', '') or ''), 999))
-            rank_destino = int(row.get('rank_destino_sugerido') or row.get('rank_destino') or destino_rank.get('rank_destino') or 999)
-            carencia_incremental = int(row.get('dias_carencia_incremental') or row.get('carencia_dias') or destino_rank.get('carencia_dias') or 0)
-            pagamentos_janela = _round_monetario(row.get('pagamentos_na_janela_carencia') or row.get('pagamentos_janela_carencia'), 0.0)
-            motivo_gate = str(row.get('motivo_gate_switching') or '').strip()
-            bloqueado = bool(row.get('bloqueado_pos_gate')) or bool(motivo_gate)
-            if bloqueado:
-                bloqueados_auditoria.append({
-                    **linha_base,
-                    'Rank origem': rank_origem,
-                    'Rank destino': rank_destino,
-                    'Dias carência incremental': carencia_incremental,
-                    'Pagamentos na janela': pagamentos_janela,
-                    'Status': motivo_gate or 'candidato_bloqueado_gate',
-                })
-            else:
-                linhas.append({**linha_base, 'Status': 'destino_ranqueado_elegivel'})
-            usados.add(lote_id)
-            if len(linhas) >= limite:
-                break
-    try:
-        setattr(contexto, '_switchings_bloqueados_gate_auditoria', bloqueados_auditoria)
-    except Exception:
-        pass
-    return linhas
+    Os switchings observáveis são integrados depois por
+    construir_saida_canonica_com_switching_v17_c7(), a partir dos eventos
+    materializados/canônicos. Esta função não deve reconstruir switchings por
+    fonte diagnóstica paralela.
+    """
+    return []
 
 
 def _construir_ranking_amostra(contexto: Any, limite: int = 10) -> list[dict[str, Any]]:
@@ -2491,7 +2398,6 @@ def construir_saida_canonica(
     contexto: Any,
     *,
     versao: str = 'V203',
-    incluir_temporal_shadow: bool = False,
 ) -> PacoteSaidaCanonica:
     extrato_passado = _construir_extrato_passado(contexto)
     extrato_futuro = _construir_extrato_futuro(contexto)
@@ -2550,37 +2456,10 @@ def construir_saida_canonica(
         'ponte_passiva_pos_desativada_por_pos_canonico': bool(pos_canonico_ativo and len(destinos_pos_switching_passivos) > 0),
         'destinos_pos_switching_passivos_para_situacao_total': len(destinos_pos_switching_passivos_para_situacao),
         'destinos_pos_switching_passivos_preservados_auditoria_total': len(destinos_pos_switching_passivos),
-        **({k: v for k, v in ledger_result.items() if (str(k).startswith('pay_only_diario_shadow_') or str(k).startswith('d2a_') or str(k).startswith('d2a2_') or str(k).startswith('d2b0_') or str(k).startswith('d2b1_') or str(k).startswith('d2c_') or str(k).startswith('d3_') or str(k).startswith('d3b_') or str(k).startswith('d3c_') or str(k).startswith('d3d_') or str(k).startswith('d3e_') or str(k).startswith('d3f_') or str(k).startswith('d31_') or str(k).startswith('d31b_') or str(k).startswith('d31c_') or str(k).startswith('d31d_') or str(k).startswith('d31e_') or str(k).startswith('d31f_') or str(k).startswith('d32a_') or str(k).startswith('saldo_temporal_') or str(k).startswith('comparativo_') or str(k).startswith('recebidos_') or str(k).startswith('recebidos_shadow_') or str(k).startswith('shadow_recebidos_') or str(k).startswith('valor_recebidos_') or str(k).startswith('alocacao_') or str(k).startswith('pagamentos_rebaixados_') or str(k).startswith('pagamentos_') or str(k).startswith('extrato_futuro_') or str(k).startswith('divergencias_') or str(k).startswith('pre_invariante_') or str(k).startswith('sombra_')) and not isinstance(v, (list, dict, tuple, set))}),
-        'pay_only_diario_shadow_por_data': ledger_result.get('pay_only_diario_shadow_por_data', []),
-        'plano_pay_only_diario_v1_por_pagamento': ledger_result.get('plano_pay_only_diario_v1_por_pagamento', []),
-        'd2a_plano_por_data': ledger_result.get('d2a_plano_por_data', []),
-        'plano_pay_only_diario_v1_combinacao_minima_por_pagamento_fonte': ledger_result.get('plano_pay_only_diario_v1_combinacao_minima_por_pagamento_fonte', []),
-        'd2b0_plano_por_data': ledger_result.get('d2b0_plano_por_data', []),
-        'd2c_residuais_detalhe': ledger_result.get('d2c_residuais_detalhe', []),
-        'd3_residuais_detalhe': ledger_result.get('d3_residuais_detalhe', []),
-        'd3_datas_residuais_detalhe': ledger_result.get('d3_datas_residuais_detalhe', []),
-        'd3b_lotes_detalhe': ledger_result.get('d3b_lotes_detalhe', []),
-        'd3c_fontes_saneadas': ledger_result.get('d3c_fontes_saneadas', []),
-        'd3d_fontes_saneadas': ledger_result.get('d3d_fontes_saneadas', []),
-        'd3e_fontes_saneadas': ledger_result.get('d3e_fontes_saneadas', []),
-        'd3e_pacotes_por_data': ledger_result.get('d3e_pacotes_por_data', []),
-        'd3f_fontes_saneadas': ledger_result.get('d3f_fontes_saneadas', []),
-        'd31_cenarios_por_data': ledger_result.get('d31_cenarios_por_data', []),
-        'd31b_cenarios_por_data': ledger_result.get('d31b_cenarios_por_data', []),
-        'd31c_cenarios_por_data': ledger_result.get('d31c_cenarios_por_data', []),
-        'd31d_cenarios_detalhe': ledger_result.get('d31d_cenarios_detalhe', []),
-        'd31e_bases_por_cenario': ledger_result.get('d31e_bases_por_cenario', []),
-        'd31f_bases_reclassificadas': ledger_result.get('d31f_bases_reclassificadas', []),
-        'd32a_plano_por_data': ledger_result.get('d32a_plano_por_data', []),
         'saldo_temporal_auditoria_lotes': ledger_result.get('saldo_temporal_auditoria_lotes', []),
         'saldo_temporal_pagamentos_rebaixados_detalhe': ledger_result.get('saldo_temporal_pagamentos_rebaixados_detalhe', []),
-        'pagamentos_rebaixados_shadow_detalhe': ledger_result.get('pagamentos_rebaixados_shadow_detalhe', []),
-        'shadow_recebidos_resumo_fontes': ledger_result.get('shadow_recebidos_resumo_fontes', []),
-        'shadow_pagamentos_recuperados_nominal': ledger_result.get('shadow_pagamentos_recuperados_nominal', []),
         'recebidos_futuros_auditoria': ledger_result.get('recebidos_futuros_auditoria', []),
         'alocacao_fontes_auditoria': ledger_result.get('alocacao_fontes_auditoria', []),
-        'saldo_temporal_lote_8500_trilha_eventos': ledger_result.get('saldo_temporal_lote_8500_trilha_eventos', []),
-        'comparativo_mapa_funcoes_legadas': ledger_result.get('comparativo_mapa_funcoes_legadas', []),
         'destinos_pos_switching_materializados_passivos': destinos_pos_switching_passivos,
         'destinos_pos_switching_materializados_passivos_total': int(ledger_result.get('destinos_pos_switching_materializados_passivos_total', len(destinos_pos_switching_passivos))),
         'vinculos_origem_destino_pos_switching': vinculos_origem_destino_pos_switching,
@@ -2606,20 +2485,5 @@ def construir_saida_canonica(
         resumo_recebidos=_linhas_resumo_recebidos(contexto),
         auditoria=auditoria,
     )
-
-    if incluir_temporal_shadow:
-        from dataclasses import replace
-
-        from nucleo.saida_canonica_temporal_shadow_v4k import (
-            CHAVE_AUDITORIA_TEMPORAL_SHADOW_V4K,
-            construir_bloco_temporal_shadow_v4k,
-        )
-
-        auditoria_shadow = dict(pacote.auditoria or {})
-        auditoria_shadow[CHAVE_AUDITORIA_TEMPORAL_SHADOW_V4K] = construir_bloco_temporal_shadow_v4k(
-            contexto=contexto,
-            saida_base=pacote,
-        )
-        return replace(pacote, auditoria=auditoria_shadow)
 
     return pacote

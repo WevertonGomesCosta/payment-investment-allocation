@@ -1,6 +1,6 @@
-"""PacoteLedgerTemporalOperacional shadow.
+"""PacoteLedgerTemporalOperacional temporal.
 
-V17-F0-V.4E normaliza o PacoteLedgerTemporal shadow existente para o
+V17-F0-V.4E normaliza o PacoteLedgerTemporal temporal existente para o
 contrato operacional mínimo da Etapa 4, sem substituir o ledger efetivo e sem
 alterar saída canônica/observável.
 """
@@ -11,15 +11,15 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
 
 
-VERSAO_PACOTE_LEDGER_TEMPORAL_OPERACIONAL_SHADOW = "V17-F0-V.4E-shadow"
+VERSAO_PACOTE_LEDGER_TEMPORAL_OPERACIONAL = "V17-F0-V.4E-temporal"
 
 
 @dataclass(slots=True)
 class PacoteLedgerTemporalOperacional:
-    """Contrato operacional shadow do ledger temporal.
+    """Contrato operacional temporal do ledger temporal.
 
     Este pacote é derivado do retorno legado do ledger e do
-    PacoteLedgerTemporal shadow. Não executa decisão econômica nova.
+    PacoteLedgerTemporal temporal. Não executa decisão econômica nova.
     """
 
     versao: str
@@ -77,8 +77,8 @@ def _primeiro(row: Mapping[str, Any], *chaves: str) -> Any:
     return ""
 
 
-def _inferir_data_referencia(contexto: Any = None, pacote_shadow: Any = None) -> Any:
-    data = getattr(pacote_shadow, "data_referencia", None)
+def _inferir_data_referencia(contexto: Any = None, pacote_temporal: Any = None) -> Any:
+    data = getattr(pacote_temporal, "data_referencia", None)
     if data not in (None, ""):
         return data.isoformat() if hasattr(data, "isoformat") else data
     execucao = getattr(contexto, "execucao", None)
@@ -167,7 +167,7 @@ def _normalizar_fontes_elegiveis_por_pagamento(
             "migracao_ok": _primeiro(item, "migracao_ok"),
             "motivo_descarte_fonte": _primeiro(item, "motivo_descarte_fonte", "motivo_bloqueio"),
             "status_fonte": _primeiro(item, "status_fonte", "status"),
-            "ordem_shadow": idx,
+            "ordem_temporal": idx,
         })
     return saida
 
@@ -184,7 +184,7 @@ def _saldos_por_data(saldos_por_lote: list[dict[str, Any]]) -> list[dict[str, An
 def _montar_auditoria(
     *,
     retorno_legado: Mapping[str, Any],
-    pacote_shadow: Any,
+    pacote_temporal: Any,
     eventos_temporais: list[dict[str, Any]],
     fifo_candidatos_avaliados: list[dict[str, Any]],
     pagamentos_futuros_processados: list[dict[str, Any]],
@@ -192,12 +192,12 @@ def _montar_auditoria(
     saldos_por_lote: list[dict[str, Any]],
     campos_vazios_auditados: list[str],
 ) -> dict[str, Any]:
-    auditoria_shadow = _as_dict(getattr(pacote_shadow, "auditoria_ledger_temporal", {}))
-    auditoria = dict(auditoria_shadow)
+    auditoria_temporal = _as_dict(getattr(pacote_temporal, "auditoria_ledger_temporal", {}))
+    auditoria = dict(auditoria_temporal)
     auditoria.update({
         "ok": True,
-        "modo_shadow": True,
-        "origem_execucao": "construir_pacote_ledger_temporal_operacional_shadow",
+        "modo_operacional_temporal": True,
+        "origem_execucao": "construir_pacote_ledger_temporal_operacional",
         "versao_microetapa": "V17-F0-V.4E",
         "contrato_alvo": "PacoteLedgerTemporalOperacional",
         "qtd_eventos_temporais": len(eventos_temporais),
@@ -210,10 +210,10 @@ def _montar_auditoria(
         "usa_contexto_amplo": True,
         "usa_planilha_bruta_como_fonte_primaria": False,
         "usa_planilha_bruta_apenas_fallback": True,
-        "usa_switching_shadow_como_fonte_primaria": False,
+        "usa_switching_canonico_como_fonte_primaria": False,
         "usa_switching_canonico_como_fonte_primaria": True,
         "retorno_dict_legado_usado_como_origem": True,
-        "pacote_shadow_v37k_usado_como_origem": True,
+        "pacote_ledger_temporal_usado_como_origem": True,
         "campos_vazios_auditados": list(campos_vazios_auditados),
         "nao_altera_ledger_efetivo": True,
         "nao_altera_saida_canonica": True,
@@ -235,7 +235,7 @@ def _montar_validacao(
     if not fifo_candidatos_avaliados:
         erros.append("fifo_candidatos_avaliados_ausente")
     for campo in campos_vazios_auditados:
-        avisos.append(f"campo_operacional_shadow_vazio:{campo}")
+        avisos.append(f"campo_temporal_operacional_vazio:{campo}")
     avisos.append("retorno_dict_legado_ainda_usado_como_origem")
     return {
         "ok": len(erros) == 0,
@@ -249,18 +249,18 @@ def _montar_validacao(
     }
 
 
-def construir_pacote_ledger_temporal_operacional_shadow(
+def construir_pacote_ledger_temporal_operacional(
     retorno_legado: Mapping[str, Any],
-    pacote_shadow: Any,
+    pacote_temporal: Any,
     *,
     contexto: Any = None,
-    modo_execucao: str = "shadow",
+    modo_execucao: str = "operacional_temporal",
 ) -> PacoteLedgerTemporalOperacional:
-    """Normaliza o ledger shadow atual para o contrato operacional V4B/V4E."""
+    """Normaliza o ledger temporal atual para o contrato operacional V4B/V4E."""
     retorno = _as_dict(retorno_legado)
-    eventos_originais = _as_list_dict(getattr(pacote_shadow, "eventos_temporais", []))
-    fifo = _as_list_dict(getattr(pacote_shadow, "fifo_candidatos_avaliados", []))
-    saldos_originais = _as_list_dict(getattr(pacote_shadow, "saldos_por_lote", []))
+    eventos_originais = _as_list_dict(getattr(pacote_temporal, "eventos_temporais", []))
+    fifo = _as_list_dict(getattr(pacote_temporal, "fifo_candidatos_avaliados", []))
+    saldos_originais = _as_list_dict(getattr(pacote_temporal, "saldos_por_lote", []))
 
     eventos_temporais = _normalizar_eventos(eventos_originais)
     pagamentos = _normalizar_pagamentos(eventos_originais)
@@ -268,10 +268,10 @@ def construir_pacote_ledger_temporal_operacional_shadow(
     saldos_por_lote = saldos_originais
     saldos_disponiveis_por_data = _saldos_por_data(saldos_por_lote)
 
-    estado_temporal_por_data = _as_list_dict(getattr(pacote_shadow, "estado_temporal_por_data", []))
-    vencimentos_processados = _as_list_dict(getattr(pacote_shadow, "vencimentos_processados", []))
-    fontes_elegiveis_por_data = _as_list_dict(getattr(pacote_shadow, "fontes_elegiveis_por_data", []))
-    alertas_temporais = _as_list_dict(getattr(pacote_shadow, "alertas_temporais", []))
+    estado_temporal_por_data = _as_list_dict(getattr(pacote_temporal, "estado_temporal_por_data", []))
+    vencimentos_processados = _as_list_dict(getattr(pacote_temporal, "vencimentos_processados", []))
+    fontes_elegiveis_por_data = _as_list_dict(getattr(pacote_temporal, "fontes_elegiveis_por_data", []))
+    alertas_temporais = _as_list_dict(getattr(pacote_temporal, "alertas_temporais", []))
 
     campos_vazios = []
     for nome, valor in [
@@ -284,7 +284,7 @@ def construir_pacote_ledger_temporal_operacional_shadow(
 
     auditoria = _montar_auditoria(
         retorno_legado=retorno,
-        pacote_shadow=pacote_shadow,
+        pacote_temporal=pacote_temporal,
         eventos_temporais=eventos_temporais,
         fifo_candidatos_avaliados=fifo,
         pagamentos_futuros_processados=pagamentos,
@@ -301,18 +301,18 @@ def construir_pacote_ledger_temporal_operacional_shadow(
 
     metadados = {
         "versao_microetapa": "V17-F0-V.4E",
-        "modo_shadow": True,
-        "adaptador": "construir_pacote_ledger_temporal_operacional_shadow",
-        "origem_pacote_shadow": type(pacote_shadow).__name__,
+        "modo_operacional_temporal": True,
+        "adaptador": "construir_pacote_ledger_temporal_operacional",
+        "origem_pacote_temporal": type(pacote_temporal).__name__,
         "origem_retorno_legado": "construir_ledger_temporal_conjunto",
         "nao_altera_ledger_efetivo": True,
         "nao_altera_saida_canonica": True,
     }
 
     return PacoteLedgerTemporalOperacional(
-        versao=VERSAO_PACOTE_LEDGER_TEMPORAL_OPERACIONAL_SHADOW,
+        versao=VERSAO_PACOTE_LEDGER_TEMPORAL_OPERACIONAL,
         modo_execucao=modo_execucao,
-        data_referencia=_inferir_data_referencia(contexto=contexto, pacote_shadow=pacote_shadow),
+        data_referencia=_inferir_data_referencia(contexto=contexto, pacote_temporal=pacote_temporal),
         eventos_temporais=eventos_temporais,
         estado_temporal_por_data=estado_temporal_por_data,
         saldos_por_lote=saldos_por_lote,

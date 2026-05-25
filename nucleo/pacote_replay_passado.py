@@ -1,4 +1,4 @@
-"""Adaptador shadow para o contrato mínimo PacoteReplayPassado.
+"""Adaptador temporal para o contrato mínimo PacoteReplayPassado.
 
 V17-F0-V.4D não altera o replay efetivo nem a saída canônica. Este módulo
 apenas embrulha o PacoteReplayPassadoControlado atual em um contrato explícito
@@ -13,12 +13,12 @@ from typing import Any, Mapping
 import pandas as pd
 
 
-VERSAO_PACOTE_REPLAY_PASSADO_SHADOW = "V17-F0-V.4D-shadow"
+VERSAO_PACOTE_REPLAY_PASSADO = "V17-F0-V.4D-temporal"
 
 
 @dataclass(slots=True)
 class PacoteReplayPassado:
-    """Contrato mínimo shadow do replay passado.
+    """Contrato mínimo temporal do replay passado.
 
     O pacote preserva os objetos já produzidos pelo replay controlado e adiciona
     aliases contratuais, metadados e validação para uso diagnóstico da Etapa 4.
@@ -83,8 +83,8 @@ def _montar_auditoria(
     auditoria = dict(auditoria_base)
     auditoria.update({
         "ok": True,
-        "modo_shadow": True,
-        "origem_execucao": "construir_pacote_replay_passado_shadow",
+        "modo_operacional_temporal": True,
+        "origem_execucao": "construir_pacote_replay_passado",
         "origem_replay_controlado": type(replay_controlado).__name__,
         "qtd_lotes_apos_replay": len(lotes_apos_replay),
         "qtd_log_movimentos_passados": qtd_log,
@@ -131,12 +131,12 @@ def _montar_validacao(
     }
 
 
-def construir_pacote_replay_passado_shadow(
+def construir_pacote_replay_passado(
     replay_controlado: Any,
     *,
     contexto: Any = None,
     data_referencia: Any = None,
-    modo_execucao: str = "shadow",
+    modo_execucao: str = "operacional_temporal",
 ) -> PacoteReplayPassado:
     """Constrói PacoteReplayPassado mínimo a partir do replay controlado atual.
 
@@ -168,8 +168,8 @@ def construir_pacote_replay_passado_shadow(
 
     metadados_origem = {
         "versao_microetapa": "V17-F0-V.4D",
-        "modo_shadow": True,
-        "adaptador": "construir_pacote_replay_passado_shadow",
+        "modo_operacional_temporal": True,
+        "adaptador": "construir_pacote_replay_passado",
         "classe_origem": type(replay_controlado).__name__,
         "campo_origem_lotes": "lotes_apos_replay",
         "campo_origem_log": "log_passado",
@@ -181,7 +181,7 @@ def construir_pacote_replay_passado_shadow(
     }
 
     return PacoteReplayPassado(
-        versao=VERSAO_PACOTE_REPLAY_PASSADO_SHADOW,
+        versao=VERSAO_PACOTE_REPLAY_PASSADO,
         modo_execucao=modo_execucao,
         data_referencia=_inferir_data_referencia(contexto=contexto, data_referencia=data_referencia),
         lotes_apos_replay=lotes_apos_replay,
