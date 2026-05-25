@@ -19,15 +19,8 @@ from nucleo.entrada_resolvida import (
 from nucleo.leitor_planilha import PacotePlanilha, carregar_planilha
 from nucleo.nucleo_financeiro_minimo import construir_faixas_ir, construir_tabela_iof, carregar_nucleo_financeiro_minimo
 from nucleo.replay_passado_controlado import carregar_replay_passado_controlado
-from nucleo.switching_shadow_reconciliacao import carregar_switching_shadow_reconciliacao
 from nucleo.triagem_motor import carregar_triagem_motor
 from nucleo.ranking_carteira_estabilizado import carregar_ranking_carteira_estabilizado
-from nucleo.switching_economico_shadow import carregar_switching_economico_shadow
-from nucleo.resolver_hibrido_5p_shadow import carregar_resolver_hibrido_5p_shadow
-from nucleo.benchmark_agrupado_individual_shadow import carregar_benchmark_agrupado_individual_shadow
-from nucleo.benchmark_runner_futuro_shadow import carregar_benchmark_runner_futuro_shadow
-from nucleo.auditoria_runner_futuro_shadow import carregar_auditoria_runner_futuro_shadow
-from nucleo.auditoria_primeira_quebra_runner_futuro_shadow import carregar_auditoria_primeira_quebra_runner_futuro_shadow
 from nucleo.auditoria_temporal_decisao_local import carregar_auditoria_temporal_decisao_local
 from nucleo.reescolha_dinamica_pos_quebra import carregar_reescolha_dinamica_pos_quebra
 from nucleo.heuristica_conjunta_parcial_bloco_critico import carregar_heuristica_conjunta_parcial_bloco_critico
@@ -342,7 +335,7 @@ def carregar_contexto_baseline(
     if not validacao_pre_execucao.ok:
         detalhes = "\n - ".join(validacao_pre_execucao.erros_bloqueantes)
         raise RuntimeError(f"Validação pré-execução por PacoteEntradaResolvida reprovada:\n - {detalhes}")
-    switching_shadow = carregar_switching_shadow_reconciliacao(dados_operacionais, carteira_canonica=carteira_canonica) if incluir_switching_shadow else None
+    switching_shadow = None
     triagem_motor = carregar_triagem_motor(
         carteira_canonica,
         dados_operacionais,
@@ -372,18 +365,7 @@ def carregar_contexto_baseline(
         data_referencia=contexto_execucao.data_referencia,
         serie_cdi=cache_cdi.serie_cdi,
     ) if incluir_replay else None
-    switching_economico_shadow = carregar_switching_economico_shadow(
-        dados_operacionais,
-        carteira_canonica,
-        triagem_motor,
-        replay_passado,
-        calendario_financeiro,
-        pacote_config.conteudo,
-        ranking_carteira=ranking_carteira,
-        data_referencia=contexto_execucao.data_referencia,
-        tabela_iof=construir_tabela_iof(pacote_config.conteudo),
-        faixas_ir=construir_faixas_ir(pacote_config.conteudo),
-    ) if incluir_switching_economico_shadow else None
+    switching_economico_shadow = None
     fontes_elegiveis_pagamento = materializar_fontes_elegiveis_pagamento(
         dados_operacionais,
         recebidos_auditaveis,
@@ -469,15 +451,7 @@ def carregar_contexto_baseline(
         calendario_financeiro=calendario_financeiro,
         serie_cdi=cache_cdi.serie_cdi,
     ) if decisao_local_v1 is not None and replay_passado is not None else None
-    motor_recomendacao_pagamentos_switching_v1 = carregar_motor_recomendacao_pagamentos_switching_v1(
-        dados_operacionais,
-        fontes_elegiveis_pagamento,
-        saldo_disponivel_geral,
-        decisao_local_v1,
-        recomputacao_sequencial_central_v1,
-        switching_economico_shadow,
-        data_referencia=contexto_execucao.data_referencia,
-    ) if decisao_local_v1 is not None and recomputacao_sequencial_central_v1 is not None and switching_economico_shadow is not None else None
+    motor_recomendacao_pagamentos_switching_v1 = None
     
     microplanejamento_conjunto_bloco_critico_v2 = carregar_microplanejamento_conjunto_bloco_critico_v2(
         dados_operacionais,
@@ -491,53 +465,11 @@ def carregar_contexto_baseline(
         faixas_ir=construir_faixas_ir(pacote_config.conteudo),
         carteira_canonica=carteira_canonica,
     ) if decisao_local_v1 is not None and replay_passado is not None and planejamento_conjunto_local_bloco_critico_v1 is not None else None
-    resolver_hibrido_5p_shadow = carregar_resolver_hibrido_5p_shadow(
-        dados_operacionais,
-        fontes_elegiveis_pagamento,
-        decisao_local_v1,
-        replay_passado,
-        calendario_financeiro,
-        cache_cdi,
-        pacote_config.conteudo,
-        data_referencia=contexto_execucao.data_referencia,
-        tabela_iof=construir_tabela_iof(pacote_config.conteudo),
-        faixas_ir=construir_faixas_ir(pacote_config.conteudo),
-    ) if incluir_resolver_hibrido_5p_shadow else None
-    benchmark_agrupado_individual_shadow = carregar_benchmark_agrupado_individual_shadow(
-        dados_operacionais,
-        fontes_elegiveis_pagamento,
-        decisao_local_v1,
-        pacote_config.conteudo,
-        data_referencia=contexto_execucao.data_referencia,
-        carteira_canonica=carteira_canonica,
-        proxy_version='v3',
-    ) if incluir_benchmark_agrupado_individual_shadow else None
-    benchmark_runner_futuro_shadow = carregar_benchmark_runner_futuro_shadow(
-        dados_operacionais,
-        replay_passado,
-        calendario_financeiro,
-        cache_cdi,
-        decisao_local_v1,
-        pacote_config.conteudo,
-        data_referencia=contexto_execucao.data_referencia,
-        tabela_iof=construir_tabela_iof(pacote_config.conteudo),
-        faixas_ir=construir_faixas_ir(pacote_config.conteudo),
-    ) if incluir_benchmark_runner_futuro_shadow else None
-    auditoria_runner_futuro_shadow = carregar_auditoria_runner_futuro_shadow(
-        benchmark_runner_futuro_shadow,
-        data_referencia=contexto_execucao.data_referencia,
-    ) if benchmark_runner_futuro_shadow is not None else None
-    auditoria_primeira_quebra_runner_futuro_shadow = carregar_auditoria_primeira_quebra_runner_futuro_shadow(
-        benchmark_runner_futuro_shadow,
-        auditoria_runner_futuro_shadow,
-        dados_operacionais,
-        replay_passado,
-        calendario_financeiro,
-        cache_cdi,
-        data_referencia=contexto_execucao.data_referencia,
-        tabela_iof=construir_tabela_iof(pacote_config.conteudo),
-        faixas_ir=construir_faixas_ir(pacote_config.conteudo),
-    ) if (incluir_auditoria_primeira_quebra_runner_futuro_shadow and benchmark_runner_futuro_shadow is not None) else None
+    resolver_hibrido_5p_shadow = None
+    benchmark_agrupado_individual_shadow = None
+    benchmark_runner_futuro_shadow = None
+    auditoria_runner_futuro_shadow = None
+    auditoria_primeira_quebra_runner_futuro_shadow = None
     return ContextoBaseline(
         pacote_config=pacote_config,
         execucao=contexto_execucao,
