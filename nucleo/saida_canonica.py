@@ -609,10 +609,6 @@ def _precificar_destino_pos_switching_canonico(
 
 
 def _quadro_futuro_preferencial(contexto: Any) -> pd.DataFrame | None:
-    motor = getattr(contexto, 'motor_recomendacao_pagamentos_switching_v1', None)
-    quadro = getattr(motor, 'quadro_recomendacoes', None) if motor is not None else None
-    if isinstance(quadro, pd.DataFrame) and len(quadro):
-        return quadro.copy().sort_values(['data_pagamento', 'pagamento_id'], kind='stable')
     decisao = getattr(contexto, 'decisao_local_v1', None)
     quadro = getattr(decisao, 'quadro_decisao_local_v1', None) if decisao is not None else None
     if isinstance(quadro, pd.DataFrame) and len(quadro):
@@ -657,13 +653,6 @@ def _pagamentos_decisao_recebido_disponivel_fallback_auditavel(contexto: Any) ->
     if decisao is not None:
         for attr in ["quadro_decisao_local_v1", "quadro_decisoes", "quadro_recomendacoes"]:
             q = getattr(decisao, attr, None)
-            if isinstance(q, pd.DataFrame) and len(q):
-                quadros.append(q)
-
-    motor = getattr(contexto, "motor_recomendacao_pagamentos_switching_v1", None) if contexto is not None else None
-    if motor is not None:
-        for attr in ["quadro_recomendacoes", "quadro_decisao"]:
-            q = getattr(motor, attr, None)
             if isinstance(q, pd.DataFrame) and len(q):
                 quadros.append(q)
 
