@@ -1,12 +1,10 @@
-# Índice de Diagnósticos Ativos — ME-POST-GOV-04B
+# Índice de Diagnósticos Ativos — ME-POST-GOV-04C
 
-## Status pós-arquivamento fora da rota viva
+## Status pós-registro de evidências estáticas
 
-Este índice registra o estado após a aplicação física das decisões `ARQUIVAR_FORA_ROTA_VIVA` definidas na ME-POST-GOV-03.
+Este índice registra o estado após a criação de evidência estática substitutiva para os 11 scripts classificados como `SUBSTITUIR_POR_EVIDENCIA_ESTATICA`.
 
-A ME-POST-GOV-04B removeu do namespace ativo `scripts/diagnostico/` os 26 scripts classificados como `ARQUIVAR_FORA_ROTA_VIVA`. A preservação histórica desses arquivos passa a ser feita pelo histórico Git, conforme GOV-01, sem manter uma segunda rota executável de diagnóstico ativo.
-
-Nenhum script classificado como `SUBSTITUIR_POR_EVIDENCIA_ESTATICA` foi removido ou alterado nesta microetapa.
+A ME-POST-GOV-04C **não removeu fisicamente** esses scripts. Ela apenas criou evidência estática em `logs/iteracoes/ME-POST-GOV-04C_EVIDENCIAS_ESTATICAS_DIAGNOSTICOS.md`, permitindo que uma microetapa futura faça a remoção física com rastreabilidade.
 
 ## Gate permanente preservado
 
@@ -54,21 +52,23 @@ Nenhum script classificado como `SUBSTITUIR_POR_EVIDENCIA_ESTATICA` foi removido
 | `scripts/diagnostico/validar_canonizacao_v17_a1.py` | `ARQUIVAR_FORA_ROTA_VIVA` | `REMOVIDO_COM_HISTORICO_GIT` |
 | `scripts/diagnostico/validar_invariantes_extrato_futuro.py` | `ARQUIVAR_FORA_ROTA_VIVA` | `REMOVIDO_COM_HISTORICO_GIT` |
 
-## Ainda presentes para microetapa futura: `SUBSTITUIR_POR_EVIDENCIA_ESTATICA`
+## Evidência estática registrada na ME-POST-GOV-04C
 
-| Script | Estado físico |
-|---|---|
-| `scripts/diagnostico/auditar_consistencia_exportacao_auxiliar_u4_vs_u3_v17_f0_u5.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/auditar_governanca_promocao_saida_auxiliar_v17_f0_u6.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/auditar_regras_operacionais_uso_recebidos_v17_f0_t5.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/auditar_separacao_previsao_materializacao_v17_f0_s6.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/consolidar_matriz_correcao_v17_c5.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/consolidar_plano_migracao_v17_b0.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/construir_taxonomia_v17_a2.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/desenhar_pacote_orquestrado_pre_saida_v17_b2.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/explicitar_valores_resgate_multifonte_v17_f0_u2.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/formalizar_criterios_elegibilidade_pagamento_v17_f0_u1.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
-| `scripts/diagnostico/formalizar_ledger_diagnostico_recebidos_v17_f0_t6.py` | `PRESENTE_AGUARDA_EVIDENCIA_ESTATICA` |
+Os scripts abaixo permanecem fisicamente presentes nesta microetapa, mas já possuem evidência estática substitutiva em `logs/iteracoes/ME-POST-GOV-04C_EVIDENCIAS_ESTATICAS_DIAGNOSTICOS.md`.
+
+| Script | Estado físico | Evidência estática |
+|---|---|---|
+| `scripts/diagnostico/auditar_consistencia_exportacao_auxiliar_u4_vs_u3_v17_f0_u5.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/auditar_governanca_promocao_saida_auxiliar_v17_f0_u6.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/auditar_regras_operacionais_uso_recebidos_v17_f0_t5.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/auditar_separacao_previsao_materializacao_v17_f0_s6.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/consolidar_matriz_correcao_v17_c5.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/consolidar_plano_migracao_v17_b0.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/construir_taxonomia_v17_a2.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/desenhar_pacote_orquestrado_pre_saida_v17_b2.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/explicitar_valores_resgate_multifonte_v17_f0_u2.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/formalizar_criterios_elegibilidade_pagamento_v17_f0_u1.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
+| `scripts/diagnostico/formalizar_ledger_diagnostico_recebidos_v17_f0_t6.py` | `PRESENTE` | `REGISTRADA_ME_POST_GOV_04C` |
 
 ## Resumo do estado físico
 
@@ -77,8 +77,8 @@ Nenhum script classificado como `SUBSTITUIR_POR_EVIDENCIA_ESTATICA` foi removido
 | `GATE_PERMANENTE_PRESENTE` | 1 |
 | `REMOVER_IMEDIATAMENTE_REMOVIDO` | 4 |
 | `ARQUIVAR_FORA_ROTA_VIVA_REMOVIDO_COM_HISTORICO_GIT` | 26 |
-| `SUBSTITUIR_POR_EVIDENCIA_ESTATICA_PENDENTE` | 11 |
+| `SUBSTITUIR_POR_EVIDENCIA_ESTATICA_COM_EVIDENCIA_REGISTRADA` | 11 |
 
 ## Próxima ação
 
-Abrir microetapa futura para tratar exclusivamente os 11 scripts classificados como `SUBSTITUIR_POR_EVIDENCIA_ESTATICA`, criando ou apontando evidência estática antes de qualquer remoção física.
+Após validação da ME-POST-GOV-04C, abrir microetapa futura para remover fisicamente os 11 scripts com evidência já registrada, sem tocar em `aplicacao/*`, `nucleo/*`, motor ou regra econômica.
