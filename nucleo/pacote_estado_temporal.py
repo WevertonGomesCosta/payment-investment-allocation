@@ -1,7 +1,7 @@
-"""PacoteEstadoTemporal shadow.
+"""PacoteEstadoTemporal temporal.
 
 V17-F0-V.4F materializa um estado temporal explícito a partir do
-PacoteReplayPassado shadow e do PacoteLedgerTemporalOperacional shadow, sem
+PacoteReplayPassado temporal e do PacoteLedgerTemporalOperacional temporal, sem
 alterar replay, ledger efetivo, saída canônica ou saída observável.
 """
 
@@ -13,12 +13,12 @@ from typing import Any, Mapping
 import pandas as pd
 
 
-VERSAO_PACOTE_ESTADO_TEMPORAL_SHADOW = "V17-F0-V.4F-shadow"
+VERSAO_PACOTE_ESTADO_TEMPORAL = "V17-F0-V.4F-temporal"
 
 
 @dataclass(slots=True)
 class PacoteEstadoTemporal:
-    """Contrato shadow do estado temporal da Etapa 4."""
+    """Contrato temporal do estado temporal da Etapa 4."""
 
     versao: str
     modo_execucao: str
@@ -90,12 +90,12 @@ def _registro_replay_para_estado(row: Mapping[str, Any], data_referencia: Any) -
         "saldo_liquido": _primeiro(row, "saldo_liquido_pos_replay", "Saldo Líquido", "Saldo Liquido") or saldo_bruto,
         "principal_remanescente": _primeiro(row, "principal_remanescente", "Principal Remanescente"),
         "fator_acumulado": _primeiro(row, "fator_acumulado", "Fator Acumulado"),
-        "disponivel_para_pagamento": _primeiro(row, "disponivel_para_pagamento") or "n/d_shadow",
-        "disponivel_para_switching": _primeiro(row, "disponivel_para_switching") or "n/d_shadow",
+        "disponivel_para_pagamento": _primeiro(row, "disponivel_para_pagamento") or "n/d_temporal",
+        "disponivel_para_switching": _primeiro(row, "disponivel_para_switching") or "n/d_temporal",
         "carencia_ate": _primeiro(row, "carencia_ate", "Carência Até", "Carencia Ate"),
-        "vencido": _primeiro(row, "vencido") or "n/d_shadow",
+        "vencido": _primeiro(row, "vencido") or "n/d_temporal",
         "data_vencimento": _primeiro(row, "data_vencimento", "Data Vencimento"),
-        "migrado": _primeiro(row, "migrado") or "n/d_shadow",
+        "migrado": _primeiro(row, "migrado") or "n/d_temporal",
         "migrado_em": _primeiro(row, "migrado_em"),
         "lote_pos_switching": _primeiro(row, "lote_pos_switching"),
         "origem_estado": "replay_passado.estado_lotes_passado",
@@ -113,10 +113,10 @@ def _registro_saldo_para_estado(row: Mapping[str, Any]) -> dict[str, Any]:
         "saldo_liquido": _primeiro(row, "saldo_liquido", "liquido"),
         "principal_remanescente": _primeiro(row, "principal_remanescente"),
         "fator_acumulado": _primeiro(row, "fator_acumulado"),
-        "disponivel_para_pagamento": _primeiro(row, "disponivel_para_pagamento") or "n/d_shadow",
-        "disponivel_para_switching": _primeiro(row, "disponivel_para_switching") or "n/d_shadow",
+        "disponivel_para_pagamento": _primeiro(row, "disponivel_para_pagamento") or "n/d_temporal",
+        "disponivel_para_switching": _primeiro(row, "disponivel_para_switching") or "n/d_temporal",
         "carencia_ate": _primeiro(row, "carencia_ate"),
-        "vencido": _primeiro(row, "vencido") or "n/d_shadow",
+        "vencido": _primeiro(row, "vencido") or "n/d_temporal",
         "data_vencimento": _primeiro(row, "data_vencimento"),
         "migrado": bool(_txt(_primeiro(row, "lote_pos_switching", "lote_origem_switching"))),
         "migrado_em": _primeiro(row, "migrado_em"),
@@ -228,8 +228,8 @@ def _montar_auditoria(
 ) -> dict[str, Any]:
     return {
         "ok": True,
-        "modo_shadow": True,
-        "origem_execucao": "construir_pacote_estado_temporal_shadow",
+        "modo_operacional_temporal": True,
+        "origem_execucao": "construir_pacote_estado_temporal",
         "versao_microetapa": "V17-F0-V.4F",
         "contrato_alvo": "PacoteEstadoTemporal",
         "qtd_estado_lotes_por_data": len(estado_lotes_por_data),
@@ -240,8 +240,8 @@ def _montar_auditoria(
         "qtd_vencimentos_por_data": len(vencimentos_por_data),
         "qtd_migracoes_por_data": len(migracoes_por_data),
         "campos_vazios_auditados": list(campos_vazios_auditados),
-        "usa_pacote_replay_passado_shadow": True,
-        "usa_pacote_ledger_temporal_operacional_shadow": True,
+        "usa_pacote_replay_passado_temporal": True,
+        "usa_pacote_ledger_temporal_operacional_temporal": True,
         "nao_altera_replay_efetivo": True,
         "nao_altera_ledger_efetivo": True,
         "nao_altera_saida_canonica": True,
@@ -267,7 +267,7 @@ def _montar_validacao(
     if not fontes_disponiveis_por_data:
         avisos.append("fontes_disponiveis_por_data_vazio")
     for campo in campos_vazios_auditados:
-        avisos.append(f"campo_estado_temporal_shadow_vazio:{campo}")
+        avisos.append(f"campo_estado_temporal_vazio:{campo}")
     return {
         "ok": len(erros) == 0,
         "erros_bloqueantes": erros,
@@ -282,14 +282,14 @@ def _montar_validacao(
     }
 
 
-def construir_pacote_estado_temporal_shadow(
+def construir_pacote_estado_temporal(
     pacote_replay_passado: Any,
     pacote_ledger_operacional: Any,
     *,
     contexto: Any = None,
-    modo_execucao: str = "shadow",
+    modo_execucao: str = "operacional_temporal",
 ) -> PacoteEstadoTemporal:
-    """Constrói PacoteEstadoTemporal shadow a partir dos pacotes V4D e V4E."""
+    """Constrói PacoteEstadoTemporal temporal a partir dos pacotes V4D e V4E."""
     data_referencia = _inferir_data_referencia(
         pacote_replay_passado=pacote_replay_passado,
         pacote_ledger_operacional=pacote_ledger_operacional,
@@ -340,8 +340,8 @@ def construir_pacote_estado_temporal_shadow(
 
     metadados = {
         "versao_microetapa": "V17-F0-V.4F",
-        "modo_shadow": True,
-        "adaptador": "construir_pacote_estado_temporal_shadow",
+        "modo_operacional_temporal": True,
+        "adaptador": "construir_pacote_estado_temporal",
         "origem_replay": type(pacote_replay_passado).__name__,
         "origem_ledger": type(pacote_ledger_operacional).__name__,
         "nao_altera_replay_efetivo": True,
@@ -350,7 +350,7 @@ def construir_pacote_estado_temporal_shadow(
     }
 
     return PacoteEstadoTemporal(
-        versao=VERSAO_PACOTE_ESTADO_TEMPORAL_SHADOW,
+        versao=VERSAO_PACOTE_ESTADO_TEMPORAL,
         modo_execucao=modo_execucao,
         data_referencia=data_referencia,
         estado_lotes_por_data=estado_lotes_por_data,

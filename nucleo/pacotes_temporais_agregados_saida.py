@@ -1,7 +1,7 @@
-"""Agregador shadow de pacotes temporais para a saída canônica.
+"""Agregador temporal de pacotes temporais para a saída canônica.
 
 V17-F0-V.4I cria um construtor único que monta, de forma coordenada, os
-pacotes temporais shadow da Etapa 4. O módulo não altera replay efetivo,
+pacotes temporais temporal da Etapa 4. O módulo não altera replay efetivo,
 ledger efetivo, estado temporal efetivo, saída canônica ou saída observável.
 """
 
@@ -13,23 +13,23 @@ from typing import Any, Mapping
 import pandas as pd
 
 from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
-from nucleo.pacote_auditoria_temporal import PacoteAuditoriaTemporal, construir_pacote_auditoria_temporal_shadow
-from nucleo.pacote_estado_temporal import PacoteEstadoTemporal, construir_pacote_estado_temporal_shadow
-from nucleo.pacote_ledger_temporal import construir_pacote_ledger_temporal_shadow
+from nucleo.pacote_auditoria_temporal import PacoteAuditoriaTemporal, construir_pacote_auditoria_temporal
+from nucleo.pacote_estado_temporal import PacoteEstadoTemporal, construir_pacote_estado_temporal
+from nucleo.pacote_ledger_temporal import construir_pacote_ledger_temporal
 from nucleo.pacote_ledger_temporal_operacional import (
     PacoteLedgerTemporalOperacional,
-    construir_pacote_ledger_temporal_operacional_shadow,
+    construir_pacote_ledger_temporal_operacional,
 )
-from nucleo.pacote_replay_passado import PacoteReplayPassado, construir_pacote_replay_passado_shadow
+from nucleo.pacote_replay_passado import PacoteReplayPassado, construir_pacote_replay_passado
 from nucleo.saida_canonica import _mapa_pagamentos_central, _quadro_futuro_preferencial
 
 
-VERSAO_PACOTES_TEMPORAIS_AGREGADOS_SHADOW = "V17-F0-V.4I-shadow"
+VERSAO_PACOTES_TEMPORAIS_AGREGADOS = "V17-F0-V.4I-temporal"
 
 
 @dataclass(slots=True)
 class PacotesTemporaisAgregadosSaida:
-    """Envelope shadow dos pacotes temporais necessários à saída canônica."""
+    """Envelope temporal dos pacotes temporais necessários à saída canônica."""
 
     versao: str
     modo_execucao: str
@@ -98,8 +98,8 @@ def _montar_auditoria_agregador(
 
     return {
         "ok": True,
-        "modo_shadow": True,
-        "origem_execucao": "construir_pacotes_temporais_agregados_saida_shadow",
+        "modo_operacional_temporal": True,
+        "origem_execucao": "construir_pacotes_temporais_agregados_saida",
         "versao_microetapa": "V17-F0-V.4I",
         "contrato_alvo": "PacotesTemporaisAgregadosSaida",
         "qtd_quadro_futuro": _qtd(quadro_futuro),
@@ -160,7 +160,7 @@ def _montar_validacao_agregador(
         erros.append("planilha_bruta_usada_como_fonte_primaria")
 
     if auditoria_agregador.get("usa_retorno_ledger_dict_legado") is True:
-        avisos.append("retorno_ledger_dict_legado_ainda_usado_como_origem_shadow")
+        avisos.append("retorno_ledger_dict_legado_ainda_usado_como_origem_temporal")
     if auditoria_agregador.get("saida_chama_ledger_diretamente_fluxo_atual"):
         avisos.append("saida_chama_ledger_diretamente_fluxo_atual_transitorio")
 
@@ -180,18 +180,18 @@ def _montar_validacao_agregador(
     }
 
 
-def construir_pacotes_temporais_agregados_saida_shadow(
+def construir_pacotes_temporais_agregados_saida(
     contexto: Any,
     *,
-    modo_execucao: str = "shadow",
+    modo_execucao: str = "operacional_temporal",
 ) -> PacotesTemporaisAgregadosSaida:
-    """Constrói os quatro pacotes temporais shadow da Etapa 4 em cadeia única.
+    """Constrói os quatro pacotes temporais temporal da Etapa 4 em cadeia única.
 
     A função não altera o contexto e não substitui nenhuma chamada da saída
     canônica. Ela apenas centraliza a construção V4D→V4G para futuras auditorias
     de equivalência.
     """
-    pacote_replay = construir_pacote_replay_passado_shadow(
+    pacote_replay = construir_pacote_replay_passado(
         getattr(contexto, "replay_passado", None),
         contexto=contexto,
     )
@@ -200,23 +200,23 @@ def construir_pacotes_temporais_agregados_saida_shadow(
     mapa_central = _mapa_pagamentos_central(contexto)
     retorno_legado = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto) or {}
 
-    pacote_ledger_shadow = construir_pacote_ledger_temporal_shadow(
+    pacote_ledger_temporal = construir_pacote_ledger_temporal(
         quadro_futuro,
         mapa_central,
         contexto,
         retorno_legado=retorno_legado,
     )
-    pacote_ledger_operacional = construir_pacote_ledger_temporal_operacional_shadow(
+    pacote_ledger_operacional = construir_pacote_ledger_temporal_operacional(
         retorno_legado,
-        pacote_ledger_shadow,
+        pacote_ledger_temporal,
         contexto=contexto,
     )
-    pacote_estado = construir_pacote_estado_temporal_shadow(
+    pacote_estado = construir_pacote_estado_temporal(
         pacote_replay,
         pacote_ledger_operacional,
         contexto=contexto,
     )
-    pacote_auditoria = construir_pacote_auditoria_temporal_shadow(
+    pacote_auditoria = construir_pacote_auditoria_temporal(
         pacote_replay,
         pacote_ledger_operacional,
         pacote_estado,
@@ -243,8 +243,8 @@ def construir_pacotes_temporais_agregados_saida_shadow(
 
     metadados = {
         "versao_microetapa": "V17-F0-V.4I",
-        "modo_shadow": True,
-        "adaptador": "construir_pacotes_temporais_agregados_saida_shadow",
+        "modo_operacional_temporal": True,
+        "adaptador": "construir_pacotes_temporais_agregados_saida",
         "ordem_construcao": [
             "PacoteReplayPassado",
             "PacoteLedgerTemporalOperacional",
@@ -259,7 +259,7 @@ def construir_pacotes_temporais_agregados_saida_shadow(
     }
 
     return PacotesTemporaisAgregadosSaida(
-        versao=VERSAO_PACOTES_TEMPORAIS_AGREGADOS_SHADOW,
+        versao=VERSAO_PACOTES_TEMPORAIS_AGREGADOS,
         modo_execucao=modo_execucao,
         data_referencia=_inferir_data_referencia(
             contexto=contexto,

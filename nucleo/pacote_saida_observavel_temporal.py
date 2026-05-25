@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from typing import Any
 
-from nucleo.pacotes_temporais_agregados_saida import construir_pacotes_temporais_agregados_saida_shadow
+from nucleo.pacotes_temporais_agregados_saida import construir_pacotes_temporais_agregados_saida
 
 VERSAO_PACOTE_SAIDA_OBSERVAVEL_TEMPORAL = "V17-F0-V.4U"
 
@@ -91,12 +91,12 @@ def construir_pacote_saida_observavel_temporal(
     saida: Any,
     *,
     pacotes_temporais: Any | None = None,
-    modo_execucao: str = "shadow",
+    modo_execucao: str = "operacional_temporal",
     lotes_ativos_observaveis: list[dict[str, Any]] | None = None,
     lotes_exauridos_observaveis: list[dict[str, Any]] | None = None,
     pagamentos_realizados_observaveis: list[dict[str, Any]] | None = None,
 ) -> PacoteSaidaObservavelTemporal:
-    pacotes = pacotes_temporais or construir_pacotes_temporais_agregados_saida_shadow(contexto)
+    pacotes = pacotes_temporais or construir_pacotes_temporais_agregados_saida(contexto)
     replay = getattr(pacotes, "pacote_replay_passado", None)
     log = _iter_rows(getattr(replay, "log_movimentos_passados", []))
 
@@ -202,7 +202,7 @@ def construir_pacote_saida_observavel_temporal(
     auditoria = {
         "ok": len(erros) == 0,
         "versao_microetapa": VERSAO_PACOTE_SAIDA_OBSERVAVEL_TEMPORAL,
-        "modo_shadow": modo_execucao == "shadow",
+        "modo_operacional_temporal": modo_execucao == "operacional_temporal",
         "origem_execucao": "construir_pacote_saida_observavel_temporal",
         "contrato_alvo": "PacoteSaidaObservavelTemporal",
         "usa_pacotes_temporais_agregados": True,
