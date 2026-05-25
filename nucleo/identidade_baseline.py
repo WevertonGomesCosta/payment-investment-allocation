@@ -44,38 +44,5 @@ def nome_auditoria_comparativa_proxy_v2_v3(extensao: str) -> str:
     return f"auditoria_comparativa_proxy_v2_v3_{VERSAO_SLUG}.{extensao.lstrip('.')}"
 
 
-def nome_auditoria_comparativa_proxy_v3_vs_hibrido_shadow(extensao: str) -> str:
-    return f"auditoria_comparativa_proxy_v3_vs_hibrido_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
-
-
-def nome_auditoria_residual_proxy_v3_vs_hibrido_shadow(extensao: str) -> str:
-    return f"auditoria_residual_proxy_v3_vs_hibrido_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
-
-
-def nome_auditoria_cirurgica_reaproveitaveis_proxy_v3_vs_hibrido_shadow(extensao: str) -> str:
-    return f"auditoria_cirurgica_reaproveitaveis_proxy_v3_vs_hibrido_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
-
-
-def nome_auditoria_fina_transicao_dominante_proxy_v3_vs_hibrido_shadow(extensao: str) -> str:
-    return f"auditoria_fina_transicao_dominante_proxy_v3_vs_hibrido_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
-
-
-
 def nome_auditoria_mapa_execucao_principal_script2(extensao: str) -> str:
     return f"auditoria_mapa_execucao_principal_script2_{VERSAO_SLUG}.{extensao.lstrip('.')}"
-
-
-def nome_auditoria_benchmark_agrupado_individual_shadow(extensao: str) -> str:
-    return f"auditoria_benchmark_agrupado_individual_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
-
-
-def nome_auditoria_benchmark_runner_futuro_shadow(extensao: str) -> str:
-    return f"auditoria_benchmark_runner_futuro_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
-
-
-def nome_auditoria_casos_criticos_runner_futuro_shadow(extensao: str) -> str:
-    return f"auditoria_casos_criticos_runner_futuro_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
-
-
-def nome_auditoria_primeira_quebra_runner_futuro_shadow(extensao: str) -> str:
-    return f"auditoria_primeira_quebra_runner_futuro_shadow_{VERSAO_SLUG}.{extensao.lstrip('.')}"
