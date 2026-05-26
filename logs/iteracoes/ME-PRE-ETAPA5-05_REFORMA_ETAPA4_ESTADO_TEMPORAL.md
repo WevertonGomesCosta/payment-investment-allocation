@@ -1,0 +1,45 @@
+# ME-PRE-ETAPA5-05_REFORMA_ETAPA4_ESTADO_TEMPORAL
+
+## Objetivo
+Implementar a reforma estrutural da Etapa 4 com EstadoTemporalInicial formal, cadeia canônica operacional e remoção de ContextoBaseline da rota viva.
+
+## Baseline
+- Branch local inicial: `work`.
+- `origin` indisponível no ambiente, sem possibilidade de criar branch remota aqui.
+
+## Arquivos alterados
+- `nucleo/contexto_operacional_canonico.py` (novo ponto de entrada canônico Etapas 1-4).
+- `nucleo/estado_temporal_inicial.py` (novo artefato formal da Etapa 4).
+- `aplicacao/principal.py` (rota viva migrada para cadeia canônica + EstadoTemporalInicial).
+- `aplicacao/console/principal.py` (sem import de ContextoBaseline).
+- `nucleo/gerar_planilha_operacional.py` (sem import de ContextoBaseline).
+- `nucleo/saida_canonica.py` (sem import de ContextoBaseline).
+- `nucleo/contexto_baseline.py` removido fisicamente.
+
+## Aderência contratual
+- Etapa 4 agora produz `EstadoTemporalInicial` explicitamente.
+- `pagamentos_temporais` é construído de `gastos_canonicos` (Etapa 3), incluindo contas futuras.
+- `obrigacao_temporal=True` para todas as contas canônicas.
+- Auditoria estrutural via `auditar_estado_temporal_inicial`.
+
+## Migração rota viva
+- `aplicacao/principal.py` usa `carregar_contexto_operacional_canonico` + `construir_estado_temporal_inicial`.
+- Console/XLSX/saída canônica não importam `ContextoBaseline`.
+
+## Etapa 5
+- Não implementada nesta microetapa.
+
+## Validações no Codex
+- `python -m py_compile ...` ✅
+- `python - <<'PY' ... EstadoTemporalInicial ...` ✅
+- `python -B aplicacao/principal.py` ❌ erro de código legado em `nucleo/saida_canonica.py` (`_PRE_INVARIANTE_EXTRATO_FUTURO` não definido)
+- `python scripts/diagnostico/auditar_nucleo_vivo_v4z.py --sem-arquivos` ❌ script ainda apontando para `nucleo/contexto_baseline.py`
+
+## Riscos remanescentes
+- Script de gate V4Z precisa ser atualizado para novo arquivo canônico.
+- `nucleo/saida_canonica.py` possui erro em runtime não relacionado diretamente à nova camada temporal, mas bloqueia execução principal.
+
+## Próxima etapa recomendada
+- Corrigir `nucleo/saida_canonica.py` (`_PRE_INVARIANTE_EXTRATO_FUTURO`).
+- Atualizar `scripts/diagnostico/auditar_nucleo_vivo_v4z.py` para `nucleo/contexto_operacional_canonico.py`.
+- Reexecutar validações de ponta a ponta.

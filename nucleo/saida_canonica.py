@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 
 from nucleo.calendario_financeiro import calcular_dias_lote, proximo_dia_util_bancario_em_ou_apos
-from nucleo.contexto_baseline import obter_limiar_residuo_resolvido
+from nucleo.contexto_operacional_canonico import obter_limiar_residuo_resolvido
 from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
 from nucleo.nucleo_financeiro_minimo import criar_lote_de_aporte

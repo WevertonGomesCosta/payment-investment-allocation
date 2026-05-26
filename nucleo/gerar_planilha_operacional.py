@@ -12,7 +12,7 @@ RAIZ = Path(__file__).resolve().parents[1]
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-from nucleo.contexto_baseline import carregar_contexto_baseline
+from nucleo.contexto_operacional_canonico import carregar_contexto_operacional_canonico
 from nucleo.identidade_baseline import (
     VERSAO_BASELINE,
     VERSAO_SLUG,
@@ -551,7 +551,7 @@ def main(*, contexto=None, saida=None) -> Path:
     partir dos objetos já construídos pela rota principal.
     """
     if contexto is None:
-        contexto = carregar_contexto_baseline(
+        contexto = carregar_contexto_operacional_canonico(
             raiz_repositorio=RAIZ,
             instalar_automaticamente=False,
         )
