@@ -630,8 +630,6 @@ def main(*, contexto=None, saida=None) -> Path:
 
     return saida_interna
 
-if __name__ == '__main__':
-    print(main())
 
 
 def _adicionar_aba_auditoria_fontes(wb, contexto, pacote_saida) -> None:
@@ -713,3 +711,6 @@ def _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, pacote_saida) -> None
     for cand in list((getattr(pacote_saida, 'auditoria', {}) or {}).get('fifo_candidatos_avaliados', []) or []):
         itens.append({h: cand.get(h) for h in headers})
     _apply_table_style(ws, headers, _rows(itens, headers), freeze=True)
+
+if __name__ == '__main__':
+    print(main())

@@ -18,6 +18,7 @@ from aplicacao.console.common import (
 )
 from aplicacao.console.secoes_execucao import render_secao_execucao
 from nucleo.contexto_operacional_canonico import carregar_contexto_operacional_canonico
+from nucleo.estado_temporal_inicial import construir_estado_temporal_inicial
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
@@ -368,8 +369,9 @@ def main() -> None:
         raiz_repositorio=RAIZ_REPOSITORIO,
         instalar_automaticamente=False,
     )
+    estado_temporal_inicial = construir_estado_temporal_inicial(contexto_operacional)
     saida_canonica = construir_saida_canonica(contexto_operacional, versao=VERSAO_BASELINE)
-    render_console(contexto_operacional, saida_canonica)
+    render_console(contexto_operacional, saida_canonica, estado_temporal_inicial=estado_temporal_inicial)
 
 if __name__ == '__main__':
     main()
