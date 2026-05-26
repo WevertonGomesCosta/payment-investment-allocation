@@ -368,13 +368,16 @@ def _string_iso_yyyy_mm_dd(valor: str) -> bool:
 def _normalizar_data_para_janela_cdi(valor: Any) -> Optional[date]:
     if valor is None:
         return None
-    if isinstance(valor, date):
-        return valor
     try:
         if pd.isna(valor):
             return None
     except Exception:
         pass
+
+    if isinstance(valor, pd.Timestamp):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
 
     if isinstance(valor, str):
         texto = valor.strip()
