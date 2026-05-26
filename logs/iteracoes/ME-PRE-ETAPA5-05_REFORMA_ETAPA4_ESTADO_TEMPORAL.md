@@ -56,3 +56,11 @@ Implementar a reforma estrutural da Etapa 4 com EstadoTemporalInicial formal, ca
 - Corrigida disponibilidade de `fontes_temporais` com lógica conservadora: `disponivel` -> `elegivel_na_data_pagamento` -> `elegivel_temporalmente` -> `False`.
 - Corrigido `valor_estimado` em `fontes_temporais` com ordem: `valor_liquido_disponivel` -> `valor_bruto_disponivel` -> `valor_liquido` -> `valor` -> `0.0`, com conversão segura para `float`.
 - Auditoria do `EstadoTemporalInicial` ampliada com: `qtd_fontes_temporais`, `qtd_fontes_disponiveis`, `qtd_fontes_indisponiveis`, `qtd_fontes_valor_positivo`.
+
+## Atualização microetapa (regressão observável próximos pagamentos)
+- Corrigida regressão em que console mostrava "sem linhas para exibir" em próximos pagamentos mesmo com obrigações futuras no `EstadoTemporalInicial`.
+- `nucleo/saida_observavel.py` agora usa fallback observável por `estado_temporal_inicial.pagamentos_temporais` quando `saida_canonica.pagamentos_proximos_console(...)` vier vazio.
+- Fallback renderiza apenas obrigações temporais futuras, ordenadas por data, com neutralidade econômica:
+  - lote/fonte: `fonte_a_decidir` / `não decidido_etapa5`;
+  - status: `obrigacao_temporal_futura_sem_decisao_etapa5`.
+- Etapa 5 não foi implementada; não houve decisão de fonte/pacote/switching.

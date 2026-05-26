@@ -1095,7 +1095,7 @@ def corrigir_pagamentos_realizados_console_com_pacote(
 
     return corrigidas
 
-def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None, pacote_saida_observavel_temporal: Any | None = None) -> dict[str, object]:
+def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> dict[str, object]:
     """Constrói as amostras operacionais de pagamentos para o console.
 
     Fonte dos dados:
@@ -1126,25 +1126,59 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contex
         'proximos': {
             'rotulo': 'próximos 5 pagamentos',
             'headers': list(COLS_PAGAMENTOS_PROXIMOS_CONSOLE),
-            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'linhas': (saida.pagamentos_proximos_console(limite=limite) or _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial, limite)) if estado_temporal_inicial is not None else saida.pagamentos_proximos_console(limite=limite),
             'limite': limite,
         },
         'proximos_valores_fonte': {
             'rotulo': 'próximos 5 pagamentos — valores/fonte',
             'headers': list(COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE),
-            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'linhas': (saida.pagamentos_proximos_console(limite=limite) or _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial, limite)) if estado_temporal_inicial is not None else saida.pagamentos_proximos_console(limite=limite),
             'limite': limite,
         },
         'proximos_switching_status': {
             'rotulo': 'próximos 5 pagamentos — switching/status',
             'headers': list(COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS),
-            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'linhas': (saida.pagamentos_proximos_console(limite=limite) or _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial, limite)) if estado_temporal_inicial is not None else saida.pagamentos_proximos_console(limite=limite),
             'limite': limite,
         },
         'proximos_relevantes_switching_status': construir_amostra_pagamentos_futuros_switching_relevante(saida, limite=limite),
     }
 
 
+
+
+def _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial: Any, limite: int) -> list[dict[str, Any]]:
+    pagamentos = list(getattr(estado_temporal_inicial, 'pagamentos_temporais', []) or [])
+    futuros = [p for p in pagamentos if p.get('status_temporal') == 'futuro' or p.get('futuro_na_referencia') is True]
+    futuros.sort(key=lambda p: str(p.get('data') or ''))
+    linhas = []
+    for p in futuros[:limite]:
+        linhas.append({
+            'Data': p.get('data'),
+            'Conta': p.get('descricao') or p.get('pagamento_id') or '',
+            'Valor': p.get('valor'),
+            'Lote': 'fonte_a_decidir' if p.get('fonte_a_decidir') else (p.get('fonte_resolvida_historica') or 'não decidido_etapa5'),
+            'Pós-switch': 'não decidido_etapa5',
+            'Destino sw.': 'não decidido_etapa5',
+            'Origem sw.': 'não decidido_etapa5',
+            'Fonte sw.': 'não decidido_etapa5',
+            'Data sw.': 'não decidido_etapa5',
+            'Ganho sw.': 'n/d',
+            'Pacote': 'não decidido_etapa5',
+            'Switch?': 'não',
+            'Reserva': 'n/d',
+            'Saldo ant.': 'n/d',
+            'Bruto': p.get('valor'),
+            'IR': 'n/d',
+            'Liq.': p.get('valor'),
+            'Rem.': 'n/d',
+            'Sw. ant.': 'n/d',
+            'Sw. dep.': 'n/d',
+            'Status': 'obrigacao_temporal_futura_sem_decisao_etapa5',
+            'Bloq.': 'fonte_a_decidir',
+            'Cobertura': 'não',
+        })
+    return linhas
 def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: int = 5) -> dict[str, object]:
     if hasattr(saida, 'pagamentos_futuros_console_completo'):
         linhas_base = list(saida.pagamentos_futuros_console_completo() or [])

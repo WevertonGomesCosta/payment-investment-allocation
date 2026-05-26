@@ -36,12 +36,13 @@ from nucleo.saida_observavel import (
 
 
 
-def _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal=None) -> None:
+def _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal=None, estado_temporal_inicial=None) -> None:
     amostras = construir_amostras_pagamentos_operacionais(
         saida_canonica,
         limite=5,
         contexto=contexto_operacional,
         pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+        estado_temporal_inicial=estado_temporal_inicial,
     )
     amostras.pop('recebidos_futuros', None)
 
@@ -231,7 +232,7 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
         saida_canonica = construir_saida_canonica(contexto_operacional, versao=VERSAO_BASELINE)
     ativos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="ativos", modo_bootstrap_pacote=True)
     exauridos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="exauridos", modo_bootstrap_pacote=True)
-    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_operacional, pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(contexto_operacional, saida_canonica, lotes_ativos_observaveis=ativos_obs, lotes_exauridos_observaveis=exauridos_obs))
+    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_operacional, pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(contexto_operacional, saida_canonica, lotes_ativos_observaveis=ativos_obs, lotes_exauridos_observaveis=exauridos_obs), estado_temporal_inicial=estado_temporal_inicial)
     pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
     pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(
         contexto_operacional,
@@ -305,7 +306,7 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
         abas_auxiliares=abas_auxiliares,
     )
 
-    _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal)
+    _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
 
     _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
     _render_secao_switchings_oficiais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal)
