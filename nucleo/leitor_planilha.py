@@ -378,6 +378,8 @@ def _normalizar_data_para_janela_cdi(valor: Any) -> Optional[date]:
         return valor.date()
     if isinstance(valor, date):
         return valor
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        return None
 
     if isinstance(valor, str):
         texto = valor.strip()
@@ -413,7 +415,8 @@ def _primeiro_dia_do_mes_janela_cdi(dt: date) -> date:
 
 def _nome_temporal_para_janela_cdi(valor: Any) -> bool:
     normalizado = normalizar_texto(valor)
-    return "data" in normalizado or "vencimento" in normalizado
+    tokens = normalizado.replace("_", " ").replace("-", " ").replace("/", " ").replace(".", " ").split()
+    return "data" in tokens or "vencimento" in tokens
 
 
 def _resolver_coluna_janela_cdi(
