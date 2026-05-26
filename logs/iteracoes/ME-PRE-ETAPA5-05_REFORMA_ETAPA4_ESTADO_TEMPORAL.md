@@ -64,3 +64,13 @@ Implementar a reforma estrutural da Etapa 4 com EstadoTemporalInicial formal, ca
   - lote/fonte: `fonte_a_decidir` / `não decidido_etapa5`;
   - status: `obrigacao_temporal_futura_sem_decisao_etapa5`.
 - Etapa 5 não foi implementada; não houve decisão de fonte/pacote/switching.
+
+## Atualização microetapa (switching materializado aplicado na Etapa 4)
+- `EstadoTemporalInicial` passou a aplicar eventos de `switching_canonico` no `inventario_temporal`.
+- Cada evento de switching agora entra em `switching_temporal_realizado` com status temporal (`materializado`/`declarado`) e valor líquido migrado.
+- Para switchings materializados:
+  - lote origem passa para `migrado_por_switching`/`exaurido_por_switching` e deixa de ser ativo comum;
+  - lote destino é criado/consolidado com `origem_canonica=switching_canonico`, `sintetico_pos_switching=True`, `origem_switching`, produto e valor migrado.
+- Auditoria temporal ampliada com resumo de switchings (qtd e valor líquido migrado total) e bloqueios para ausência de origem/destino.
+- Renderização da seção de lotes ativos passou a filtrar lotes migrados com base no `EstadoTemporalInicial`.
+- Resumo patrimonial observável passou a usar eventos materializados de `EstadoTemporalInicial` como fallback quando métricas de origens migradas vierem zeradas da saída canônica.

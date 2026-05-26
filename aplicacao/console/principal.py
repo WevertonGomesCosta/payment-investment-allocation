@@ -35,6 +35,14 @@ from nucleo.saida_observavel import (
 )
 
 
+def _filtrar_lotes_ativos_com_estado_temporal(linhas: list[dict], estado_temporal_inicial=None) -> list[dict]:
+    if estado_temporal_inicial is None:
+        return linhas
+    migrados = {str(l.get('lote_id') or '').strip() for l in (estado_temporal_inicial.inventario_temporal or []) if l.get('status_temporal') in {'migrado_por_switching','exaurido_por_switching'}}
+    if not migrados:
+        return linhas
+    return [row for row in linhas if str(row.get('Lote') or '').strip() not in migrados]
+
 
 def _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal=None, estado_temporal_inicial=None) -> None:
     amostras = construir_amostras_pagamentos_operacionais(
@@ -170,7 +178,7 @@ def _render_secao_switchings_oficiais(contexto_operacional, saida_canonica=None,
         print('- próximos 3 aportes (resumo):')
         _imprimir_tabela(['Data', 'Lote', 'Valor', 'Status'], alocacao['linhas'], limite=3)
 
-def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, resumo_fechamento, resumo_recebidos, pacote_saida_observavel_temporal=None) -> None:
+def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, resumo_fechamento, resumo_recebidos, pacote_saida_observavel_temporal=None, estado_temporal_inicial=None) -> None:
     _imprimir_titulo('SITUAÇÃO ATUAL')
 
     if resumo_fechamento:
@@ -199,6 +207,8 @@ def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, res
     print('\n- lotes ativos:')
     ativos_id = construir_linhas_lotes_id_curta(contexto_operacional, saida_canonica, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
     ativos_val = construir_linhas_lotes_valores_curta(contexto_operacional, saida_canonica, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    ativos_id = _filtrar_lotes_ativos_com_estado_temporal(ativos_id, estado_temporal_inicial=estado_temporal_inicial)
+    ativos_val = _filtrar_lotes_ativos_com_estado_temporal(ativos_val, estado_temporal_inicial=estado_temporal_inicial)
     if ativos_id:
         print('  identificação:')
         _imprimir_tabela(COLS_LOTES_ATIVOS_ID_CURTAS, ativos_id, limite=None)
@@ -214,6 +224,7 @@ def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, res
             contexto_operacional,
             saida_canonica,
             pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+            estado_temporal_inicial=estado_temporal_inicial,
         ),
         limite=None,
     )
@@ -347,6 +358,7 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
         resumo_fechamento_situacao_atual,
         resumo_recebidos_saida,
         pacote_saida_observavel_temporal,
+        estado_temporal_inicial=estado_temporal_inicial,
     )
 
 

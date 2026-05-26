@@ -56,6 +56,14 @@ def _float_seguro(*valores: Any) -> float:
     return 0.0
 
 
+
+
+def _status_switching_materializacao(data_ref: date, data_switching: Any, data_aplicacao: Any) -> str:
+    data_evt = data_switching or data_aplicacao
+    if data_evt is None:
+        return 'declarado'
+    return 'materializado' if data_evt <= data_ref else 'declarado'
+
 def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> EstadoTemporalInicial:
     data_ref = contexto.execucao.data_referencia
     gastos = contexto.dados_operacionais.gastos_canonicos
@@ -120,7 +128,55 @@ def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> 
         )
         fontes_temporais.append({'fonte_id':f.get('lote_id') or f.get('fonte_id'),'tipo_fonte':f.get('tipo_fonte') or 'lote','data_disponibilidade':f.get('data_disponibilidade') or data_ref,'valor_estimado':valor_estimado,'status_temporal':'disponivel' if disponivel_ref else 'indisponivel','disponivel_na_referencia':disponivel_ref,'motivo_indisponibilidade':f.get('motivo_bloqueio') or '','origem_canonica':'fontes_elegiveis_pagamento'})
 
-    switching_temporal_realizado = [] if switching is None else switching.to_dict(orient='records')
+    inventario_por_lote = {str(item.get('lote_id') or '').strip(): item for item in inventario_temporal if str(item.get('lote_id') or '').strip()}
+    switching_temporal_realizado = []
+    if switching is not None:
+        for row in switching.to_dict(orient='records'):
+            lote_origem = str(row.get('lote_origem') or '').strip()
+            lote_destino = str(row.get('lote_destino') or '').strip()
+            data_switching = row.get('data_switching')
+            data_aplicacao = row.get('data_aplicacao')
+            status_sw = _status_switching_materializacao(data_ref, data_switching, data_aplicacao)
+            valor_migrado = _float_seguro(row.get('valor_liquido_origem'), 0.0)
+            evento = {
+                'switching_id': row.get('switching_id') or f"sw_{len(switching_temporal_realizado)+1:05d}",
+                'lote_origem': lote_origem,
+                'lote_destino': lote_destino,
+                'produto_destino': row.get('produto_destino'),
+                'data_switching': data_switching,
+                'data_aplicacao': data_aplicacao,
+                'valor_liquido_migrado': valor_migrado,
+                'status_temporal': status_sw,
+            }
+            switching_temporal_realizado.append(evento)
+            if status_sw != 'materializado':
+                continue
+            if lote_origem and lote_origem in inventario_por_lote:
+                origem_item = inventario_por_lote[lote_origem]
+                origem_item['status_temporal'] = 'migrado_por_switching' if origem_item.get('status_temporal') != 'exaurido' else 'exaurido_por_switching'
+                origem_item['migrado_por_switching'] = True
+                origem_item['disponibilidade'] = 'indisponivel'
+            if lote_destino:
+                destino_item = inventario_por_lote.get(lote_destino)
+                if destino_item is None:
+                    destino_item = {
+                        'lote_id': lote_destino,
+                        'status_temporal': 'ativo_pos_switching',
+                        'disponibilidade': 'disponivel',
+                        'migrado_por_switching': False,
+                        'sintetico_pos_switching': True,
+                        'origem_canonica': 'switching_canonico',
+                    }
+                    inventario_temporal.append(destino_item)
+                    inventario_por_lote[lote_destino] = destino_item
+                destino_item['status_temporal'] = 'ativo_pos_switching' if destino_item.get('status_temporal') not in {'exaurido', 'exaurido_por_switching'} else destino_item.get('status_temporal')
+                destino_item['origem_canonica'] = 'switching_canonico'
+                destino_item['sintetico_pos_switching'] = True
+                destino_item['origem_switching'] = lote_origem
+                destino_item['produto'] = row.get('produto_destino')
+                destino_item['valor_liquido_migrado'] = valor_migrado
+                destino_item['data_aplicacao'] = data_aplicacao
+                destino_item['data_recebimento'] = row.get('data_recebimento')
 
     restricoes_temporais=[]
     elegibilidades=[]
@@ -160,4 +216,13 @@ def auditar_estado_temporal_inicial(estado: EstadoTemporalInicial) -> dict[str, 
     qtd_fontes_disponiveis = sum(1 for f in estado.fontes_temporais if f.get('disponivel_na_referencia') is True)
     qtd_fontes_indisponiveis = sum(1 for f in estado.fontes_temporais if f.get('disponivel_na_referencia') is False)
     qtd_fontes_valor_positivo = sum(1 for f in estado.fontes_temporais if float(f.get('valor_estimado') or 0.0) > 0)
-    return {'ok': len(bloqueios)==0, 'bloqueios': bloqueios, 'resumo': {'qtd_pagamentos':len(estado.pagamentos_temporais),'qtd_futuros':len(futuros),'qtd_fontes_temporais':qtd_fontes,'qtd_fontes_disponiveis':qtd_fontes_disponiveis,'qtd_fontes_indisponiveis':qtd_fontes_indisponiveis,'qtd_fontes_valor_positivo':qtd_fontes_valor_positivo}}
+    switchings = list(estado.switching_temporal_realizado or [])
+    qtd_switchings_materializados = sum(1 for s in switchings if s.get('status_temporal') == 'materializado')
+    qtd_lotes_origem_migrados = sum(1 for l in estado.inventario_temporal if l.get('status_temporal') in {'migrado_por_switching', 'exaurido_por_switching'})
+    qtd_lotes_destino_pos_switching = sum(1 for l in estado.inventario_temporal if l.get('sintetico_pos_switching') is True or l.get('origem_canonica') == 'switching_canonico')
+    valor_liquido_migrado_total = round(sum(_float_seguro(s.get('valor_liquido_migrado'), 0.0) for s in switchings if s.get('status_temporal') == 'materializado'), 2)
+    if any(not str(s.get('lote_origem') or '').strip() for s in switchings):
+        bloqueios.append('switching_sem_lote_origem')
+    if any(not str(s.get('lote_destino') or '').strip() for s in switchings):
+        bloqueios.append('switching_sem_lote_destino')
+    return {'ok': len(bloqueios)==0, 'bloqueios': bloqueios, 'resumo': {'qtd_pagamentos':len(estado.pagamentos_temporais),'qtd_futuros':len(futuros),'qtd_fontes_temporais':qtd_fontes,'qtd_fontes_disponiveis':qtd_fontes_disponiveis,'qtd_fontes_indisponiveis':qtd_fontes_indisponiveis,'qtd_fontes_valor_positivo':qtd_fontes_valor_positivo,'qtd_switchings_temporais':len(switchings),'qtd_switchings_materializados':qtd_switchings_materializados,'qtd_lotes_origem_migrados':qtd_lotes_origem_migrados,'qtd_lotes_destino_pos_switching':qtd_lotes_destino_pos_switching,'valor_liquido_migrado_total':valor_liquido_migrado_total}}

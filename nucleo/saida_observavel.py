@@ -684,7 +684,7 @@ def _valor_total_recebidos_brutos(saida) -> float:
     return round(total, 2)
 
 
-def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
     linhas_exauridos_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
         construir_linhas_lotes_consolidados(contexto, saida, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
@@ -723,6 +723,14 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
     valor_liquido_migrado_pos_switching = rec_origens['valor_liquido_migrado_total']
     valor_bruto_sacado_origens_migradas = rec_origens['valor_bruto_sacado_historico_total']
     valor_liquido_sacado_origens_migradas = rec_origens['valor_liquido_sacado_historico_total']
+    if estado_temporal_inicial is not None and valor_liquido_migrado_pos_switching == 0.0:
+        switchings_estado = list(getattr(estado_temporal_inicial, 'switching_temporal_realizado', []) or [])
+        materializados = [s for s in switchings_estado if s.get('status_temporal') == 'materializado']
+        total_migrado = round(sum(para_float(s.get('valor_liquido_migrado')) for s in materializados), 2)
+        if total_migrado > 0:
+            valor_liquido_migrado_pos_switching = total_migrado
+            valor_bruto_sacado_origens_migradas = total_migrado
+            valor_liquido_sacado_origens_migradas = total_migrado
     origens_migradas = _lotes_origens_migradas_set(saida)
     origens_migradas_incluidas_no_resumo = any(
         str(item.get('Lote') or '').strip() in origens_migradas
