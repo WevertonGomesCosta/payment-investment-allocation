@@ -14,6 +14,12 @@ from nucleo.contexto_saida_canonica_compat import (
     construir_contexto_saida_canonica_compat,
 )
 from nucleo.identidade_baseline import VERSAO_BASELINE
+from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
+from nucleo.saida_observavel import (
+    construir_amostras_pagamentos_operacionais,
+    construir_blocos_situacao_atual,
+    construir_linhas_lotes_consolidados,
+)
 
 
 @dataclass(frozen=True)
@@ -194,6 +200,8 @@ def _chave_estavel_registro(tabela: str, registro: dict[str, Any], indice: int) 
                 _valor_campo(registro, "Destino", "Produto destino", "Investimento"),
             ]
         ).strip("|")
+    elif tabela == "situacao_atual":
+        chave = _valor_campo(registro, "titulo", "Título", "Titulo")
     else:
         chave = "|".join(str(v) for v in list(registro.values())[:3] if v not in (None, "")).strip("|")
 
@@ -267,29 +275,84 @@ def _detalhar_divergencias_registros(
     return detalhes
 
 
-def _resumir_saida(saida: Any) -> dict[str, Any]:
-    fechamento = getattr(saida, "fechamento_atual", None) or []
+def _construir_pacote_observavel_temporal(contexto: Any, saida: Any) -> Any:
+    """Replica a montagem observável usada pelo console, sem escrever saída oficial."""
+
+    ativos_obs = construir_linhas_lotes_consolidados(
+        contexto,
+        saida,
+        tipo="ativos",
+        modo_bootstrap_pacote=True,
+    )
+    exauridos_obs = construir_linhas_lotes_consolidados(
+        contexto,
+        saida,
+        tipo="exauridos",
+        modo_bootstrap_pacote=True,
+    )
+    pacote_bootstrap = construir_pacote_saida_observavel_temporal(
+        contexto,
+        saida,
+        lotes_ativos_observaveis=ativos_obs,
+        lotes_exauridos_observaveis=exauridos_obs,
+    )
+    amostras_obs = construir_amostras_pagamentos_operacionais(
+        saida,
+        limite=1000,
+        contexto=contexto,
+        pacote_saida_observavel_temporal=pacote_bootstrap,
+    )
+    pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
+    return construir_pacote_saida_observavel_temporal(
+        contexto,
+        saida,
+        lotes_ativos_observaveis=ativos_obs,
+        lotes_exauridos_observaveis=exauridos_obs,
+        pagamentos_realizados_observaveis=pagamentos_obs,
+    )
+
+
+def _construir_situacao_atual_completa(contexto: Any, saida: Any) -> list[dict[str, Any]]:
+    pacote = _construir_pacote_observavel_temporal(contexto, saida)
+    return construir_blocos_situacao_atual(
+        contexto,
+        saida,
+        pacote_saida_observavel_temporal=pacote,
+    )
+
+
+def _linhas_bloco_situacao(blocos: list[dict[str, Any]], titulo: str) -> list[dict[str, Any]]:
+    alvo = _normalizar_texto_chave(titulo)
+    for bloco in blocos or []:
+        if _normalizar_texto_chave(bloco.get("titulo")) == alvo:
+            return list(bloco.get("linhas") or [])
+    return []
+
+
+def _resumir_saida(contexto: Any, saida: Any) -> dict[str, Any]:
     extrato_passado = getattr(saida, "extrato_passado", None) or []
     extrato_futuro = getattr(saida, "extrato_futuro", None) or []
     lotes_ativos = getattr(saida, "lotes_ativos", None) or []
     lotes_exauridos = getattr(saida, "lotes_exauridos", None) or []
     switchings = getattr(saida, "switchings", None) or []
+    situacao_atual = _construir_situacao_atual_completa(contexto, saida)
+    patrimonio_total_lotes = _linhas_bloco_situacao(situacao_atual, "Patrimônio total dos lotes")
 
     return {
         "versao": str(getattr(saida, "versao", "")),
         "data_referencia": str(getattr(saida, "data_referencia", "")),
         "patrimonio_liquido_atual": _valor_metrica_decimal(
-            fechamento,
+            patrimonio_total_lotes,
             "Patrimônio líquido atual",
             "patrimonio liquido atual",
         ),
         "rendimento_liquido_atual": _valor_metrica_decimal(
-            fechamento,
+            patrimonio_total_lotes,
             "Rendimento líquido atual",
             "rendimento liquido atual",
         ),
         "rendimento_liquido_reconciliado_recebidos": _valor_metrica_decimal(
-            fechamento,
+            patrimonio_total_lotes,
             "Rendimento líquido atual — reconciliado contra recebidos",
             "rendimento liquido atual reconciliado contra recebidos",
         ),
@@ -299,16 +362,19 @@ def _resumir_saida(saida: Any) -> dict[str, Any]:
         "qtd_lotes_exauridos": len(lotes_exauridos),
         "qtd_extrato_passado": len(extrato_passado),
         "qtd_extrato_futuro": len(extrato_futuro),
+        "qtd_blocos_situacao_atual": len(situacao_atual),
         "hash_lotes_ativos": _hash_registros(lotes_ativos),
         "hash_lotes_exauridos": _hash_registros(lotes_exauridos),
         "hash_extrato_passado": _hash_registros(extrato_passado),
         "hash_extrato_futuro": _hash_registros(extrato_futuro),
-        "hash_situacao_atual": _hash_registros(fechamento),
+        "hash_situacao_atual": _hash_registros(situacao_atual),
         "hash_switchings": _hash_registros(switchings),
     }
 
 
-def _detalhes_por_hash(saida_baseline: Any, saida_compat: Any) -> dict[str, list[dict[str, Any]]]:
+def _detalhes_por_hash(saida_baseline: Any, saida_compat: Any, contexto_baseline: Any, contexto_compat: Any) -> dict[str, list[dict[str, Any]]]:
+    situacao_baseline = _construir_situacao_atual_completa(contexto_baseline, saida_baseline)
+    situacao_compat = _construir_situacao_atual_completa(contexto_compat, saida_compat)
     return {
         "hash_lotes_ativos": _detalhar_divergencias_registros(
             getattr(saida_baseline, "lotes_ativos", None) or [],
@@ -329,6 +395,11 @@ def _detalhes_por_hash(saida_baseline: Any, saida_compat: Any) -> dict[str, list
             getattr(saida_baseline, "extrato_futuro", None) or [],
             getattr(saida_compat, "extrato_futuro", None) or [],
             tabela="extrato_futuro",
+        ),
+        "hash_situacao_atual": _detalhar_divergencias_registros(
+            situacao_baseline,
+            situacao_compat,
+            tabela="situacao_atual",
         ),
         "hash_switchings": _detalhar_divergencias_registros(
             getattr(saida_baseline, "switchings", None) or [],
@@ -361,6 +432,23 @@ def _comparar_resumos(
     return divergencias
 
 
+def _construir_contexto_compat(
+    contexto_baseline: Any,
+    contexto_operacional_canonico: Any,
+):
+    componentes = ComponentesTransicionaisSaidaCanonica(
+        decisao_local_v1=getattr(contexto_baseline, "decisao_local_v1"),
+        recomputacao_sequencial_central_v1=getattr(
+            contexto_baseline,
+            "recomputacao_sequencial_central_v1",
+        ),
+    )
+    return construir_contexto_saida_canonica_compat(
+        contexto_operacional_canonico,
+        componentes,
+    )
+
+
 def construir_saida_canonica_via_contexto_compat(
     contexto_baseline: Any,
     contexto_operacional_canonico: Any,
@@ -373,17 +461,7 @@ def construir_saida_canonica_via_contexto_compat(
     transicionais são retirados explicitamente do ContextoBaseline já carregado.
     """
 
-    componentes = ComponentesTransicionaisSaidaCanonica(
-        decisao_local_v1=getattr(contexto_baseline, "decisao_local_v1"),
-        recomputacao_sequencial_central_v1=getattr(
-            contexto_baseline,
-            "recomputacao_sequencial_central_v1",
-        ),
-    )
-    contexto_compat = construir_contexto_saida_canonica_compat(
-        contexto_operacional_canonico,
-        componentes,
-    )
+    contexto_compat = _construir_contexto_compat(contexto_baseline, contexto_operacional_canonico)
     return construir_saida_canonica_com_switching_v17_c7(contexto_compat, versao=versao)
 
 
@@ -400,16 +478,13 @@ def comparar_saida_canonica_baseline_vs_compat(
     compatível e sem substituir ContextoBaseline.
     """
 
+    contexto_compat = _construir_contexto_compat(contexto_baseline, contexto_operacional_canonico)
     saida_baseline = construir_saida_canonica_com_switching_v17_c7(contexto_baseline, versao=versao)
-    saida_compat = construir_saida_canonica_via_contexto_compat(
-        contexto_baseline,
-        contexto_operacional_canonico,
-        versao=versao,
-    )
+    saida_compat = construir_saida_canonica_com_switching_v17_c7(contexto_compat, versao=versao)
 
-    resumo_baseline = _resumir_saida(saida_baseline)
-    resumo_compat = _resumir_saida(saida_compat)
-    detalhes = _detalhes_por_hash(saida_baseline, saida_compat)
+    resumo_baseline = _resumir_saida(contexto_baseline, saida_baseline)
+    resumo_compat = _resumir_saida(contexto_compat, saida_compat)
+    detalhes = _detalhes_por_hash(saida_baseline, saida_compat, contexto_baseline, contexto_compat)
     divergencias = _comparar_resumos(resumo_baseline, resumo_compat, detalhes)
 
     return ResultadoComparacaoSaidaCanonicaCompat(
@@ -426,6 +501,8 @@ def comparar_saida_canonica_baseline_vs_compat(
             "altera_xlsx_oficial": False,
             "versao": versao,
             "detalha_divergencias_por_chave_estavel": True,
+            "hash_situacao_atual_completa": True,
+            "metricas_financeiras_do_bloco_patrimonio_total_lotes": True,
         },
     )
 
@@ -446,6 +523,7 @@ def imprimir_resumo_comparacao(resultado: ResultadoComparacaoSaidaCanonicaCompat
         "qtd_lotes_exauridos",
         "qtd_extrato_passado",
         "qtd_extrato_futuro",
+        "qtd_blocos_situacao_atual",
     ):
         print(
             f"{chave}: baseline={resultado.resumo_baseline.get(chave)} | "
