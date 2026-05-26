@@ -525,7 +525,11 @@ def _mapa_economico_origens_switching(saida: Any) -> dict[str, dict[str, float]]
     def _slot(lote: str) -> dict[str, float]:
         return mapa.setdefault(lote, {'bruto_pagamentos': 0.0, 'liquido_pagamentos': 0.0, 'bruto_migrado': 0.0, 'liquido_migrado': 0.0})
 
-    for item in list(_origens_migradas_auditoria(saida)):
+    origens = list(_origens_migradas_auditoria(saida))
+    tem_hist_auditoria = bool(origens)
+    tem_migracao_auditoria = any(para_float(item.get('valor_liquido_migrado_total')) > 0 for item in origens)
+
+    for item in origens:
         lote = str(item.get('lote_origem') or '').strip()
         if not lote:
             continue
@@ -536,31 +540,34 @@ def _mapa_economico_origens_switching(saida: Any) -> dict[str, dict[str, float]]
         slot['liquido_migrado'] += liq_mig
         slot['bruto_migrado'] += para_float(item.get('valor_bruto_migrado_total')) or liq_mig
 
-    for sw in list(getattr(saida, 'switchings', []) or []):
-        lote = str(sw.get('Lote origem') or sw.get('lote_origem') or sw.get('lote_origem_switching') or '').strip()
-        if not lote:
-            continue
-        slot = _slot(lote)
-        liq_mig = para_float(sw.get('valor_liquido_origem') or sw.get('Valor líquido origem') or sw.get('valor_liquido_migrado'))
-        br_mig = para_float(sw.get('valor_bruto_origem') or sw.get('Valor bruto origem'))
-        slot['liquido_migrado'] += liq_mig
-        slot['bruto_migrado'] += br_mig if br_mig > 0 else liq_mig
-
-    for linha in list(getattr(saida, 'extrato_passado', []) or []):
-        lote_raw = linha.get('Lotes usados') or linha.get('Lote') or ''
-        lote_txt = str(lote_raw or '').strip()
-        lotes_usados = [part.strip() for part in lote_txt.split('|') if part.strip()]
-        if not lotes_usados and lote_txt:
-            lotes_usados = [lote_txt]
-        for lote in lotes_usados:
-            lote = str(lote or '').strip()
+    if not tem_migracao_auditoria:
+        for sw in list(getattr(saida, 'switchings', []) or []):
+            lote = str(sw.get('Lote origem') or sw.get('lote_origem') or sw.get('lote_origem_switching') or '').strip()
             if not lote:
                 continue
             slot = _slot(lote)
-            slot['bruto_pagamentos'] += para_float(linha.get('Bruto'))
-            slot['liquido_pagamentos'] += para_float(linha.get('Líquido'))
+            liq_mig = para_float(sw.get('valor_liquido_origem') or sw.get('Valor líquido origem') or sw.get('valor_liquido_migrado'))
+            br_mig = para_float(sw.get('valor_bruto_origem') or sw.get('Valor bruto origem'))
+            slot['liquido_migrado'] += liq_mig
+            slot['bruto_migrado'] += br_mig if br_mig > 0 else liq_mig
 
-    for lote, slot in mapa.items():
+    if not tem_hist_auditoria:
+        for linha in list(getattr(saida, 'extrato_passado', []) or []):
+            lote_raw = linha.get('Lotes usados') or linha.get('Lote') or ''
+            lote_txt = str(lote_raw or '').strip()
+            tokens = lote_txt.replace('+', '|').split('|')
+            lotes_usados = [part.strip() for part in tokens if part.strip()]
+            if not lotes_usados and lote_txt:
+                lotes_usados = [lote_txt]
+            for lote in lotes_usados:
+                lote = str(lote or '').strip()
+                if not lote:
+                    continue
+                slot = _slot(lote)
+                slot['bruto_pagamentos'] += para_float(linha.get('Bruto'))
+                slot['liquido_pagamentos'] += para_float(linha.get('Líquido'))
+
+    for _, slot in mapa.items():
         for k in list(slot.keys()):
             slot[k] = round(para_float(slot[k]), 2)
     return mapa
