@@ -77,7 +77,9 @@ construir_saida_canonica_via_contexto_compat(...)
 imprimir_resumo_comparacao(...)
 ```
 
-## Subcorreção aplicada após auditoria inicial
+## Subcorreções aplicadas após auditorias
+
+### Subcorreção 1 — métricas e divergências por chave
 
 A primeira validação completa retornou:
 
@@ -91,16 +93,31 @@ hash_lotes_exauridos divergente
 
 Além disso, as métricas de fechamento atual não eram capturadas corretamente no resumo comparativo.
 
-A subcorreção desta PR:
+Foi aplicada correção para:
 
 ```text
-corrige extração de métricas de fechamento_atual com normalização robusta de texto
-captura Patrimônio líquido atual
-captura Rendimento líquido atual
-captura Rendimento líquido atual — reconciliado contra recebidos
-detalha divergências de hash por chave estável e campos divergentes
-mantém comparação isolada
-mantém ok=False quando houver divergência observável real
+normalizar texto com remoção de acentos, pontuação e variações de traço
+preservar valores zero
+tratar número decimal com ponto sem multiplicar por 100
+detalhar divergências de hash por chave estável e campos divergentes
+manter ok=False quando houver divergência observável real
+```
+
+### Subcorreção 2 — comentários remanescentes do Codex
+
+A auditoria dos comentários do Codex indicou que `hash_situacao_atual` ainda hashava apenas `fechamento_atual`, embora a Situação Atual observável seja composta por múltiplos blocos.
+
+Foi aplicada correção para:
+
+```text
+montar a Situação Atual completa por construir_blocos_situacao_atual(...)
+replicar a montagem observável do console com construir_pacote_saida_observavel_temporal(...)
+extrair Patrimônio líquido atual do bloco “Patrimônio total dos lotes”
+extrair Rendimento líquido atual do bloco “Patrimônio total dos lotes”
+extrair Rendimento líquido atual — reconciliado contra recebidos do bloco “Patrimônio total dos lotes”
+calcular hash_situacao_atual sobre todos os blocos de Situação Atual
+incluir qtd_blocos_situacao_atual no resumo comparativo
+manter comparação isolada, sem alterar a rota principal
 ```
 
 ## Métricas comparadas
@@ -117,11 +134,12 @@ Quantidade de lotes ativos
 Quantidade de lotes exauridos
 Quantidade de linhas do extrato passado
 Quantidade de linhas do extrato futuro
+Quantidade de blocos da Situação Atual
 Hash de lotes ativos
 Hash de lotes exauridos
 Hash de extrato passado
 Hash de extrato futuro
-Hash de Situação Atual
+Hash da Situação Atual completa
 Hash de switchings
 Detalhes por chave estável para hashes divergentes
 ```
