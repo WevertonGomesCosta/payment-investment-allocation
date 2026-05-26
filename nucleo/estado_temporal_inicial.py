@@ -78,6 +78,8 @@ def _status_inventario_temporal(row: dict[str, Any]) -> str:
             return 'futuro'
         if 'pos_switching' in status_canonico:
             return 'ativo_pos_switching'
+        if 'indisponivel' in status_canonico:
+            return 'indisponivel'
         if 'ativo' in status_canonico or 'disponivel' in status_canonico:
             return 'ativo'
     if bool(row.get('migrado_por_switching')):
