@@ -23,7 +23,11 @@ def carregar_contexto_e_saida():
         instalar_automaticamente=False,
     )
     saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_baseline, versao=VERSAO_BASELINE)
-    matriz = construir_matriz_elegibilidade_fontes_s7b(contexto_baseline, data_referencia=saida_canonica.data_referencia)
+    matriz = construir_matriz_elegibilidade_fontes_s7b(
+        contexto_baseline,
+        data_referencia=saida_canonica.data_referencia,
+        saida_canonica_preconstruida=saida_canonica,
+    )
     saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
     return contexto_baseline, saida_canonica
 

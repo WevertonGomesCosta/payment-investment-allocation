@@ -85,8 +85,16 @@ def _resolver_coluna_classe_s6(s6_df: pd.DataFrame) -> str:
     return ""
 
 
-def construir_matriz_elegibilidade_fontes_s7b(contexto, *, data_referencia=None, s6_df: pd.DataFrame | None = None):
-    saida = construir_saida_canonica_com_switching_v17_c7(contexto, versao=VERSAO_BASELINE)
+def construir_matriz_elegibilidade_fontes_s7b(
+    contexto,
+    *,
+    data_referencia=None,
+    s6_df: pd.DataFrame | None = None,
+    saida_canonica_preconstruida=None,
+):
+    saida = saida_canonica_preconstruida
+    if saida is None:
+        saida = construir_saida_canonica_com_switching_v17_c7(contexto, versao=VERSAO_BASELINE)
     data_ref = str(data_referencia or saida.data_referencia)
 
     s6_df = _preparar_s6_df(s6_df)
