@@ -245,26 +245,6 @@ def _valores_originais_por_lote_do_pacote(pacote_saida_observavel_temporal: Any)
     return dict(getattr(pacote, "valores_originais_por_lote", {}) or {})
 
 
-def _valor_nominal_extraido_do_id_lote(lote_id: Any) -> float:
-    """Extrai valor nominal do identificador textual do lote.
-
-    Exemplo:
-    - Lote 3000 mar. B -> 3000.00
-
-    Uso restrito à renderização observável de origens migradas por switching.
-    Não altera motor, replay, ledger, ranking, switching nem totais patrimoniais.
-    """
-    partes = str(lote_id or "").strip().split()
-    if len(partes) < 2 or partes[0].lower() != "lote":
-        return 0.0
-
-    bruto = partes[1].strip()
-    if "," in bruto:
-        bruto = bruto.replace(".", "").replace(",", ".")
-
-    return para_float(bruto)
-
-
 
 
 def _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal: Any) -> Any:
