@@ -368,13 +368,18 @@ def _string_iso_yyyy_mm_dd(valor: str) -> bool:
 def _normalizar_data_para_janela_cdi(valor: Any) -> Optional[date]:
     if valor is None:
         return None
-    if isinstance(valor, date):
-        return valor
     try:
         if pd.isna(valor):
             return None
     except Exception:
         pass
+
+    if isinstance(valor, pd.Timestamp):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        return None
 
     if isinstance(valor, str):
         texto = valor.strip()
@@ -404,6 +409,71 @@ def _normalizar_data_para_janela_cdi(valor: Any) -> Optional[date]:
     return convertido.date()
 
 
+def _primeiro_dia_do_mes_janela_cdi(dt: date) -> date:
+    return dt.replace(day=1)
+
+
+def _nome_temporal_para_janela_cdi(valor: Any) -> bool:
+    normalizado = normalizar_texto(valor)
+    tokens = normalizado.replace("_", " ").replace("-", " ").replace("/", " ").replace(".", " ").split()
+    return "data" in tokens or "vencimento" in tokens
+
+
+def _resolver_coluna_janela_cdi(
+    quadro: pd.DataFrame,
+    *,
+    campo: Any,
+    coluna_resolvida: Any,
+) -> Optional[Any]:
+    """Resolve coluna temporal preservando compatibilidade original/canônica.
+
+    ``mapa_colunas_resolvidas`` guarda a coluna física encontrada no quadro
+    bruto, enquanto ``quadros_estruturais_resolvidos`` pode ter colunas
+    renomeadas por aliases canônicos. Esta função aceita ambos os nomes antes
+    de desistir da coluna.
+    """
+
+    if quadro is None or not hasattr(quadro, "columns"):
+        return None
+
+    colunas = list(quadro.columns)
+    candidatos = [coluna_resolvida, campo]
+    candidatos.extend(normalizar_texto(candidato) for candidato in list(candidatos))
+
+    for candidato in candidatos:
+        if candidato in quadro.columns:
+            return candidato
+
+    colunas_por_normalizado = {normalizar_texto(coluna): coluna for coluna in colunas}
+    for candidato in candidatos:
+        normalizado = normalizar_texto(candidato)
+        if normalizado in colunas_por_normalizado:
+            return colunas_por_normalizado[normalizado]
+
+    return None
+
+
+def _datas_coluna_janela_cdi(
+    quadro: pd.DataFrame,
+    coluna: Any,
+    *,
+    data_referencia: Optional[date],
+) -> tuple[list[date], int]:
+    datas: list[date] = []
+    datas_futuras_ignoradas = 0
+
+    for valor in quadro[coluna]:
+        data_normalizada = _normalizar_data_para_janela_cdi(valor)
+        if data_normalizada is None:
+            continue
+        if data_referencia is not None and data_normalizada > data_referencia:
+            datas_futuras_ignoradas += 1
+            continue
+        datas.append(data_normalizada)
+
+    return datas, datas_futuras_ignoradas
+
+
 def construir_janela_consulta_cdi(
     quadros_estruturais_resolvidos: Mapping[str, pd.DataFrame],
     mapa_abas_resolvidas: MapaAbasResolvidas,
@@ -413,14 +483,19 @@ def construir_janela_consulta_cdi(
 ) -> JanelaConsultaCDI:
     """Deriva a janela bruta de consulta CDI a partir da entrada resolvida.
 
-    A função apenas identifica datas interpretáveis em campos resolvidos cujo
-    nome estrutural contém ``data`` ou ``vencimento``. Ela não consulta BCB,
-    não carrega cache, não calcula rendimento e não altera DataFrames.
+    A função identifica datas interpretáveis em campos resolvidos cujo nome
+    estrutural contém ``data`` ou ``vencimento`` e, de forma complementar,
+    varre colunas operacionais com nomes temporais. Ela não consulta BCB, não
+    carrega cache, não calcula rendimento e não altera DataFrames.
     """
 
     datas: list[date] = []
     fontes_datas: dict[str, list[str]] = {}
+    fontes_sem_coluna_resolvida: list[str] = []
+    datas_futuras_ignoradas_por_fonte: dict[str, int] = {}
+    colunas_usadas_por_bloco: dict[str, set[Any]] = {}
 
+    data_ref_norm: Optional[date] = None
     if data_referencia is not None:
         data_ref_norm = _normalizar_data_para_janela_cdi(data_referencia)
         if data_ref_norm is not None:
@@ -428,29 +503,74 @@ def construir_janela_consulta_cdi(
             fontes_datas["data_referencia"] = [data_ref_norm.isoformat()]
 
     for bloco, aba_resolvida in mapa_abas_resolvidas.abas_por_bloco.items():
+        bloco_str = str(bloco)
         quadro = quadros_estruturais_resolvidos.get(aba_resolvida)
-        colunas_bloco = mapa_colunas_resolvidas.colunas_por_bloco.get(str(bloco), {})
-        if quadro is None or not colunas_bloco:
+        colunas_bloco = mapa_colunas_resolvidas.colunas_por_bloco.get(bloco_str, {})
+        if quadro is None:
             continue
 
+        colunas_usadas = colunas_usadas_por_bloco.setdefault(bloco_str, set())
+
         for campo, coluna in colunas_bloco.items():
-            campo_normalizado = normalizar_texto(campo)
-            if "data" not in campo_normalizado and "vencimento" not in campo_normalizado:
-                continue
-            if coluna not in quadro.columns:
+            if not _nome_temporal_para_janela_cdi(campo) and not _nome_temporal_para_janela_cdi(coluna):
                 continue
 
-            datas_coluna = [
-                data_normalizada
-                for valor in quadro[coluna]
-                if (data_normalizada := _normalizar_data_para_janela_cdi(valor)) is not None
-            ]
+            coluna_quadro = _resolver_coluna_janela_cdi(
+                quadro,
+                campo=campo,
+                coluna_resolvida=coluna,
+            )
+            chave_fonte = f"{bloco}.{campo}"
+            if coluna_quadro is None:
+                fontes_sem_coluna_resolvida.append(chave_fonte)
+                continue
+
+            datas_coluna, qtd_futuras = _datas_coluna_janela_cdi(
+                quadro,
+                coluna_quadro,
+                data_referencia=data_ref_norm,
+            )
+            colunas_usadas.add(coluna_quadro)
+            if qtd_futuras:
+                datas_futuras_ignoradas_por_fonte[chave_fonte] = qtd_futuras
             if not datas_coluna:
                 continue
 
             datas.extend(datas_coluna)
-            chave_fonte = f"{bloco}.{campo}"
             fontes_datas[chave_fonte] = sorted({valor.isoformat() for valor in datas_coluna})
+
+        for coluna in quadro.columns:
+            if coluna in colunas_usadas:
+                continue
+            if not _nome_temporal_para_janela_cdi(coluna):
+                continue
+
+            datas_coluna, qtd_futuras = _datas_coluna_janela_cdi(
+                quadro,
+                coluna,
+                data_referencia=data_ref_norm,
+            )
+            chave_fonte = f"{bloco}.__coluna_operacional__.{coluna}"
+            if qtd_futuras:
+                datas_futuras_ignoradas_por_fonte[chave_fonte] = qtd_futuras
+            if not datas_coluna:
+                continue
+
+            datas.extend(datas_coluna)
+            colunas_usadas.add(coluna)
+            fontes_datas[chave_fonte] = sorted({valor.isoformat() for valor in datas_coluna})
+
+    metadados_base = {
+        "fontes_datas": fontes_datas,
+        "fontes_sem_coluna_resolvida": fontes_sem_coluna_resolvida,
+        "datas_futuras_ignoradas_por_fonte": datas_futuras_ignoradas_por_fonte,
+        "criterio_resolucao": "campos_resolvidos_e_colunas_operacionais_com_data_ou_vencimento",
+        "criterio_cobertura_replay_historico": "primeiro_dia_mes_menor_data_operacional_ate_data_referencia",
+        "inclui_data_referencia": data_ref_norm is not None,
+        "altera_cache_cdi": False,
+        "altera_rendimento": False,
+        "altera_fluxo_operacional": False,
+    }
 
     if not datas:
         return JanelaConsultaCDI(
@@ -458,26 +578,23 @@ def construir_janela_consulta_cdi(
             data_final_consulta=None,
             metadados={
                 "qtd_datas_identificadas": 0,
-                "fontes_datas": fontes_datas,
-                "criterio_resolucao": "campos_resolvidos_com_data_ou_vencimento",
-                "inclui_data_referencia": data_referencia is not None,
-                "altera_cache_cdi": False,
-                "altera_rendimento": False,
-                "altera_fluxo_operacional": False,
+                **metadados_base,
             },
         )
 
+    data_minima = min(datas)
+    data_maxima = max(datas)
+    data_inicial_consulta = _primeiro_dia_do_mes_janela_cdi(data_minima)
+    data_final_consulta = max(data_maxima, data_ref_norm) if data_ref_norm is not None else data_maxima
+
     return JanelaConsultaCDI(
-        data_inicial_consulta=min(datas),
-        data_final_consulta=max(datas),
+        data_inicial_consulta=data_inicial_consulta,
+        data_final_consulta=data_final_consulta,
         metadados={
             "qtd_datas_identificadas": len(datas),
-            "fontes_datas": fontes_datas,
-            "criterio_resolucao": "campos_resolvidos_com_data_ou_vencimento",
-            "inclui_data_referencia": data_referencia is not None,
-            "altera_cache_cdi": False,
-            "altera_rendimento": False,
-            "altera_fluxo_operacional": False,
+            "menor_data_identificada": data_minima.isoformat(),
+            "maior_data_identificada": data_maxima.isoformat(),
+            **metadados_base,
         },
     )
 
