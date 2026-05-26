@@ -245,26 +245,6 @@ def _valores_originais_por_lote_do_pacote(pacote_saida_observavel_temporal: Any)
     return dict(getattr(pacote, "valores_originais_por_lote", {}) or {})
 
 
-def _valor_nominal_extraido_do_id_lote(lote_id: Any) -> float:
-    """Extrai valor nominal do identificador textual do lote.
-
-    Exemplo:
-    - Lote 3000 mar. B -> 3000.00
-
-    Uso restrito à renderização observável de origens migradas por switching.
-    Não altera motor, replay, ledger, ranking, switching nem totais patrimoniais.
-    """
-    partes = str(lote_id or "").strip().split()
-    if len(partes) < 2 or partes[0].lower() != "lote":
-        return 0.0
-
-    bruto = partes[1].strip()
-    if "," in bruto:
-        bruto = bruto.replace(".", "").replace(",", ".")
-
-    return para_float(bruto)
-
-
 
 
 def _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal: Any) -> Any:
@@ -311,6 +291,18 @@ def _lotes_origens_migradas_set(saida: Any) -> set[str]:
         if str(item.get("lote_origem") or "").strip()
     }
 
+
+
+
+def _mapa_switching_por_origem(estado_temporal_inicial: Any | None) -> dict[str, dict[str, Any]]:
+    mapa = {}
+    if estado_temporal_inicial is None:
+        return mapa
+    for ev in list(getattr(estado_temporal_inicial, 'switching_temporal_realizado', []) or []):
+        origem = str(ev.get('lote_origem') or '').strip()
+        if origem:
+            mapa[origem] = ev
+    return mapa
 
 def _remover_origens_migradas_dos_exauridos_consolidados(
     linhas: list[dict[str, Any]],
@@ -450,6 +442,9 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_sa
 
         bruto_atual = 0.0 if tipo == 'exauridos' else round(para_float(item.get('Bruto')), 2)
         liquido_atual = 0.0 if tipo == 'exauridos' else round(para_float(item.get('Líquido')), 2)
+        if tipo == 'ativos' and saldo_final_replay > 0:
+            bruto_atual = max(bruto_atual, saldo_final_replay)
+            liquido_atual = max(liquido_atual, saldo_final_replay)
         if origem_exaurida_com_saldo_replay:
             bruto_atual = saldo_final_replay
             liquido_atual = saldo_final_replay
@@ -482,7 +477,7 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_sa
     return linhas
 
 
-def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     if tipo == 'ativos':
         headers = COLS_LOTES_ATIVOS_ID_CURTAS
         linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
@@ -494,7 +489,7 @@ def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str, pacote_saida_
         )
         linhas_base = (
             linhas_consolidadas
-            + construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+            + construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
         )
     else:
         headers = COLS_LOTES_ID_CURTAS
@@ -506,7 +501,7 @@ def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str, pacote_saida_
     ]
 
 
-def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     linhas_base = list(construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal))
 
     if tipo == 'exauridos':
@@ -514,7 +509,7 @@ def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str, pacote_s
         # As origens migradas por switching entram apenas como linhas observáveis
         # e NÃO são usadas por construir_resumo_patrimonio_total_lotes(...).
         linhas_base = _remover_origens_migradas_dos_exauridos_consolidados(linhas_base, saida)
-        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
 
     return [
         {chave: item.get(chave) for chave in COLS_LOTES_VALORES_CURTAS}
@@ -522,19 +517,27 @@ def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str, pacote_s
     ]
 
 
-def construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+def construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     aplicacoes = _aplicacoes_por_lote_do_pacote(pacote_saida_observavel_temporal)
     produtos = _produtos_por_lote_do_pacote(pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
-    for item in _origens_migradas_auditoria(saida):
+    origens = list(_origens_migradas_auditoria(saida))
+    mapa_sw = _mapa_switching_por_origem(estado_temporal_inicial)
+    if estado_temporal_inicial is not None:
+        for inv in list(getattr(estado_temporal_inicial,'inventario_temporal',[]) or []):
+            if inv.get('status_temporal') in {'migrado_por_switching','exaurido_por_switching'} or inv.get('migrado_por_switching') is True:
+                ev = mapa_sw.get(str(inv.get('lote_id') or '').strip(), {})
+                origens.append({'lote_origem':inv.get('lote_id'),'produto_origem':inv.get('produto'),'data_switching':ev.get('data_switching') or inv.get('data_switching'),'data_aplicacao_origem':inv.get('data_aplicacao'),'data_aplicacao_switching':ev.get('data_aplicacao'),'data_recebimento_switching':ev.get('data_recebimento'),'valor_liquido_migrado_total':inv.get('valor_liquido_migrado'),'valor_original_origem':inv.get('valor_original')})
+    for item in origens:
         lote = str(item.get('lote_origem') or '').strip()
-        data_switching = item.get('data_switching') or 'n/d'
-        data_aplicacao = _lookup_por_lote_normalizado(aplicacoes, lote, None)
+        data_switching = item.get('data_switching') or item.get('data_aplicacao_switching') or item.get('data_recebimento_switching') or 'n/d'
+        data_aplicacao = item.get('data_aplicacao_origem') or _lookup_por_lote_normalizado(aplicacoes, lote, None)
         dias = _calcular_dias_observavel(contexto, data_aplicacao, data_switching)
         produto_origem = (
             item.get('produto_origem')
             or item.get('Produto origem')
+            or item.get('produto_origem_switching')
             or _lookup_por_lote_normalizado(produtos, lote, None)
             or 'produto_origem_nao_encontrado'
         )
@@ -554,7 +557,7 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_said
 
 
 
-def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     """Valores observáveis das origens migradas por switching.
 
     Essas linhas existem para alinhar a renderização das tabelas:
@@ -566,20 +569,20 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pac
     valores_originais = _valores_originais_por_lote_do_pacote(pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
-    for item in _origens_migradas_auditoria(saida):
+    origens = list(_origens_migradas_auditoria(saida))
+    if estado_temporal_inicial is not None:
+        for inv in list(getattr(estado_temporal_inicial,'inventario_temporal',[]) or []):
+            if inv.get('status_temporal') in {'migrado_por_switching','exaurido_por_switching'} or inv.get('migrado_por_switching') is True:
+                origens.append({'lote_origem':inv.get('lote_id'),'produto_origem':inv.get('produto'),'data_switching':inv.get('data_switching'),'data_aplicacao_origem':inv.get('data_aplicacao'),'valor_liquido_migrado_total':inv.get('valor_liquido_migrado')})
+    for item in origens:
         lote = str(item.get('lote_origem') or '').strip()
-        valor_original = round(
-            _valor_nominal_extraido_do_id_lote(lote)
-            or para_float(_lookup_por_lote_normalizado(valores_originais, lote, 0.0))
-            or para_float(item.get('valor_liquido_migrado_total')),
-            2,
-        )
-        valor_migrado = round(para_float(item.get('valor_liquido_migrado_total')), 2)
+        valor_original = round(para_float(item.get('valor_original_origem')) or para_float(_lookup_por_lote_normalizado(valores_originais, lote, 0.0)) or para_float(item.get('valor_liquido_migrado_total')),2)
+        valor_migrado = round(para_float(item.get('valor_liquido_migrado_total') or item.get('valor_liquido_migrado')), 2)
         bruto_sacado_historico = round(para_float(item.get('valor_bruto_sacado_historico')), 2)
         liquido_sacado_historico = round(para_float(item.get('valor_liquido_sacado_historico')), 2)
 
-        patrimonio_liquido_observavel = round(liquido_sacado_historico + valor_migrado, 2)
-        rendimento_liquido_observavel = round(patrimonio_liquido_observavel - valor_original, 2)
+        patrimonio_liquido_observavel = round(max(valor_migrado, liquido_sacado_historico), 2)
+        rendimento_liquido_observavel = 0.0
 
         linhas.append({
             'Lote': lote,
@@ -597,13 +600,21 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pac
 
 
 def construir_linhas_origens_migradas_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+    estado_temporal_inicial = None
     aplicacoes = _aplicacoes_por_lote_do_pacote(pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
 
-    for item in _origens_migradas_auditoria(saida):
+    origens = list(_origens_migradas_auditoria(saida))
+    mapa_sw = _mapa_switching_por_origem(estado_temporal_inicial)
+    if estado_temporal_inicial is not None:
+        for inv in list(getattr(estado_temporal_inicial,'inventario_temporal',[]) or []):
+            if inv.get('status_temporal') in {'migrado_por_switching','exaurido_por_switching'} or inv.get('migrado_por_switching') is True:
+                ev = mapa_sw.get(str(inv.get('lote_id') or '').strip(), {})
+                origens.append({'lote_origem':inv.get('lote_id'),'produto_origem':inv.get('produto'),'data_switching':ev.get('data_switching') or inv.get('data_switching'),'data_aplicacao_origem':inv.get('data_aplicacao'),'data_aplicacao_switching':ev.get('data_aplicacao'),'data_recebimento_switching':ev.get('data_recebimento'),'valor_liquido_migrado_total':inv.get('valor_liquido_migrado'),'valor_original_origem':inv.get('valor_original')})
+    for item in origens:
         lote = str(item.get('lote_origem') or '').strip()
-        data_switching = item.get('data_switching') or 'n/d'
-        data_aplicacao = _lookup_por_lote_normalizado(aplicacoes, lote, None)
+        data_switching = item.get('data_switching') or item.get('data_aplicacao_switching') or item.get('data_recebimento_switching') or 'n/d'
+        data_aplicacao = item.get('data_aplicacao_origem') or _lookup_por_lote_normalizado(aplicacoes, lote, None)
         dias = _calcular_dias_observavel(contexto, data_aplicacao, data_switching)
         destinos = list(item.get('destinos_vinculados') or [])
 
@@ -657,6 +668,10 @@ def construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_te
             produto_origem = "produto_origem_nao_encontrado"
 
         linha["Produto origem"] = produto_origem
+        linha['Data'] = linha.get('Data') or linha.get('data_switching') or linha.get('data_aplicacao')
+        linha['Lote origem'] = linha.get('Lote origem') or linha.get('lote_origem') or linha.get('lote_origem_switching') or linha.get('lote_id')
+        linha['Lote destino'] = linha.get('Lote destino') or linha.get('lote_destino') or linha.get('Lote (ID) Depois')
+        linha['Produto destino'] = linha.get('Produto destino') or linha.get('Produto destino switching') or linha.get('produto_destino') or linha.get('Destino')
         linhas.append(linha)
 
     return linhas
@@ -684,7 +699,7 @@ def _valor_total_recebidos_brutos(saida) -> float:
     return round(total, 2)
 
 
-def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
+def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
     linhas_exauridos_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
         construir_linhas_lotes_consolidados(contexto, saida, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
@@ -692,18 +707,19 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
     )
     linhas_exauridos = (
         linhas_exauridos_consolidadas
-        + construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+        + construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
     )
     linhas_ativos = construir_linhas_lotes_consolidados(contexto, saida, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    linhas_economicas = linhas_exauridos_consolidadas + linhas_ativos
     linhas = linhas_exauridos + linhas_ativos
 
-    valor_original_total = round(sum(para_float(item.get('Orig.')) for item in linhas), 2)
+    valor_original_total = round(sum(para_float(item.get('Orig.')) for item in linhas_economicas), 2)
     valor_total_investido_em_carteira = round(sum(para_float(item.get('Orig.')) for item in linhas_ativos), 2)
-    valor_total_bruto_sacado = round(sum(para_float(item.get('Bruto sac.')) for item in linhas), 2)
-    valor_total_liquido_sacado = round(sum(para_float(item.get('Líq. sac.')) for item in linhas), 2)
-    valor_bruto_atual = round(sum(para_float(item.get('Bruto atual')) for item in linhas), 2)
-    valor_liquido_atual = round(sum(para_float(item.get('Líq. atual')) for item in linhas), 2)
-    patrimonio_liquido_atual = round(sum(para_float(item.get('Patr. líq.')) for item in linhas), 2)
+    valor_total_bruto_sacado = round(sum(para_float(item.get('Bruto sac.')) for item in linhas_economicas), 2)
+    valor_total_liquido_sacado = round(sum(para_float(item.get('Líq. sac.')) for item in linhas_economicas), 2)
+    valor_bruto_atual = round(sum(para_float(item.get('Bruto atual')) for item in linhas_economicas), 2)
+    valor_liquido_atual = round(sum(para_float(item.get('Líq. atual')) for item in linhas_economicas), 2)
+    patrimonio_liquido_atual = round(sum(para_float(item.get('Patr. líq.')) for item in linhas_economicas), 2)
     rendimento_liquido_atual = round(patrimonio_liquido_atual - valor_original_total, 2)
 
     valor_original_destinos_pos_switching = round(
@@ -723,18 +739,21 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
     valor_liquido_migrado_pos_switching = rec_origens['valor_liquido_migrado_total']
     valor_bruto_sacado_origens_migradas = rec_origens['valor_bruto_sacado_historico_total']
     valor_liquido_sacado_origens_migradas = rec_origens['valor_liquido_sacado_historico_total']
+    if estado_temporal_inicial is not None and valor_liquido_migrado_pos_switching == 0.0:
+        switchings_estado = list(getattr(estado_temporal_inicial, 'switching_temporal_realizado', []) or [])
+        materializados = [s for s in switchings_estado if s.get('status_temporal') == 'materializado']
+        total_migrado = round(sum(para_float(s.get('valor_liquido_migrado')) for s in materializados), 2)
+        if total_migrado > 0:
+            valor_liquido_migrado_pos_switching = total_migrado
+            valor_bruto_sacado_origens_migradas = total_migrado
+            valor_liquido_sacado_origens_migradas = total_migrado
     origens_migradas = _lotes_origens_migradas_set(saida)
     origens_migradas_incluidas_no_resumo = any(
         str(item.get('Lote') or '').strip() in origens_migradas
         for item in linhas_exauridos
     )
 
-    patrimonio_liquido_reconciliado = round(
-        patrimonio_liquido_atual
-        if origens_migradas_incluidas_no_resumo
-        else patrimonio_liquido_atual + valor_liquido_sacado_origens_migradas,
-        2,
-    )
+    patrimonio_liquido_reconciliado = round(patrimonio_liquido_atual, 2)
 
     base_economica_recebidos_brutos = _valor_total_recebidos_brutos(saida)
     rendimento_reconciliado_contra_recebidos = round(
@@ -763,8 +782,8 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
         {'Métrica': 'Valor original observado sem destinos pós-switching sintéticos', 'Valor': valor_original_observado_sem_destinos_sinteticos},
         {'Métrica': 'Base econômica explícita — recebidos brutos', 'Valor': base_economica_recebidos_brutos},
         {'Métrica': 'Valor líquido migrado para destinos pós-switching', 'Valor': valor_liquido_migrado_pos_switching},
-        {'Métrica': 'Valor bruto sacado — origens migradas', 'Valor': valor_bruto_sacado_origens_migradas},
-        {'Métrica': 'Valor líquido sacado — origens migradas', 'Valor': valor_liquido_sacado_origens_migradas},
+        {'Métrica': 'Valor transferido internamente por switching (bruto histórico)', 'Valor': valor_bruto_sacado_origens_migradas},
+        {'Métrica': 'Origens encerradas por switching — valor migrado', 'Valor': valor_liquido_migrado_pos_switching},
         {'Métrica': 'Patrimônio líquido atual — reconciliado com origens migradas', 'Valor': patrimonio_liquido_reconciliado},
         {'Métrica': 'Rendimento líquido atual — reconciliado contra recebidos', 'Valor': rendimento_reconciliado_contra_recebidos},
         {'Métrica': 'Rendimento líquido atual — reconciliado contra valor original observado', 'Valor': rendimento_reconciliado_contra_valor_original_observado},
@@ -1095,7 +1114,7 @@ def corrigir_pagamentos_realizados_console_com_pacote(
 
     return corrigidas
 
-def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None, pacote_saida_observavel_temporal: Any | None = None) -> dict[str, object]:
+def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> dict[str, object]:
     """Constrói as amostras operacionais de pagamentos para o console.
 
     Fonte dos dados:
@@ -1126,25 +1145,59 @@ def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contex
         'proximos': {
             'rotulo': 'próximos 5 pagamentos',
             'headers': list(COLS_PAGAMENTOS_PROXIMOS_CONSOLE),
-            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'linhas': (saida.pagamentos_proximos_console(limite=limite) or _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial, limite)) if estado_temporal_inicial is not None else saida.pagamentos_proximos_console(limite=limite),
             'limite': limite,
         },
         'proximos_valores_fonte': {
             'rotulo': 'próximos 5 pagamentos — valores/fonte',
             'headers': list(COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE),
-            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'linhas': (saida.pagamentos_proximos_console(limite=limite) or _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial, limite)) if estado_temporal_inicial is not None else saida.pagamentos_proximos_console(limite=limite),
             'limite': limite,
         },
         'proximos_switching_status': {
             'rotulo': 'próximos 5 pagamentos — switching/status',
             'headers': list(COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS),
-            'linhas': saida.pagamentos_proximos_console(limite=limite),
+            'linhas': (saida.pagamentos_proximos_console(limite=limite) or _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial, limite)) if estado_temporal_inicial is not None else saida.pagamentos_proximos_console(limite=limite),
             'limite': limite,
         },
         'proximos_relevantes_switching_status': construir_amostra_pagamentos_futuros_switching_relevante(saida, limite=limite),
     }
 
 
+
+
+def _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial: Any, limite: int) -> list[dict[str, Any]]:
+    pagamentos = list(getattr(estado_temporal_inicial, 'pagamentos_temporais', []) or [])
+    futuros = [p for p in pagamentos if p.get('status_temporal') == 'futuro' or p.get('futuro_na_referencia') is True]
+    futuros.sort(key=lambda p: str(p.get('data') or ''))
+    linhas = []
+    for p in futuros[:limite]:
+        linhas.append({
+            'Data': p.get('data'),
+            'Conta': p.get('descricao') or p.get('pagamento_id') or '',
+            'Valor': p.get('valor'),
+            'Lote': 'fonte_a_decidir' if p.get('fonte_a_decidir') else (p.get('fonte_resolvida_historica') or 'não decidido_etapa5'),
+            'Pós-switch': 'não decidido_etapa5',
+            'Destino sw.': 'não decidido_etapa5',
+            'Origem sw.': 'não decidido_etapa5',
+            'Fonte sw.': 'não decidido_etapa5',
+            'Data sw.': 'não decidido_etapa5',
+            'Ganho sw.': 'n/d',
+            'Pacote': 'não decidido_etapa5',
+            'Switch?': 'não',
+            'Reserva': 'n/d',
+            'Saldo ant.': 'n/d',
+            'Bruto': p.get('valor'),
+            'IR': 'n/d',
+            'Liq.': p.get('valor'),
+            'Rem.': 'n/d',
+            'Sw. ant.': 'n/d',
+            'Sw. dep.': 'n/d',
+            'Status': 'obrigacao_temporal_futura_sem_decisao_etapa5',
+            'Bloq.': 'fonte_a_decidir',
+            'Cobertura': 'não',
+        })
+    return linhas
 def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: int = 5) -> dict[str, object]:
     if hasattr(saida, 'pagamentos_futuros_console_completo'):
         linhas_base = list(saida.pagamentos_futuros_console_completo() or [])

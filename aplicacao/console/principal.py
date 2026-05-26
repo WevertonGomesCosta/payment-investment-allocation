@@ -17,7 +17,7 @@ from aplicacao.console.common import (
     severidade as _severidade,
 )
 from aplicacao.console.secoes_execucao import render_secao_execucao
-from nucleo.contexto_baseline import carregar_contexto_baseline
+from nucleo.contexto_operacional_canonico import carregar_contexto_operacional_canonico
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
@@ -35,13 +35,22 @@ from nucleo.saida_observavel import (
 )
 
 
+def _filtrar_lotes_ativos_com_estado_temporal(linhas: list[dict], estado_temporal_inicial=None) -> list[dict]:
+    if estado_temporal_inicial is None:
+        return linhas
+    migrados = {str(l.get('lote_id') or '').strip() for l in (estado_temporal_inicial.inventario_temporal or []) if l.get('status_temporal') in {'migrado_por_switching','exaurido_por_switching'}}
+    if not migrados:
+        return linhas
+    return [row for row in linhas if str(row.get('Lote') or '').strip() not in migrados]
 
-def _render_amostras_pagamentos_operacionais(contexto_baseline, saida_canonica, pacote_saida_observavel_temporal=None) -> None:
+
+def _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal=None, estado_temporal_inicial=None) -> None:
     amostras = construir_amostras_pagamentos_operacionais(
         saida_canonica,
         limite=5,
-        contexto=contexto_baseline,
+        contexto=contexto_operacional,
         pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+        estado_temporal_inicial=estado_temporal_inicial,
     )
     amostras.pop('recebidos_futuros', None)
 
@@ -102,8 +111,8 @@ def _render_amostras_pagamentos_operacionais(contexto_baseline, saida_canonica, 
     else:
         print('  [OK] sem alertas na amostra atual')
 
-def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> None:
-    ranking = getattr(contexto_baseline, 'ranking_carteira', None)
+def _render_secao_ranking_oficial(contexto_operacional, saida_canonica=None) -> None:
+    ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     if ranking is None:
         return
 
@@ -126,10 +135,10 @@ def _render_secao_ranking_oficial(contexto_baseline, saida_canonica=None) -> Non
     )
 
 
-def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None, pacote_saida_observavel_temporal=None) -> None:
-    ranking = getattr(contexto_baseline, 'ranking_carteira', None)
+def _render_secao_switchings_oficiais(contexto_operacional, saida_canonica=None, pacote_saida_observavel_temporal=None) -> None:
+    ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
-    linhas = construir_switchings_observaveis(contexto_baseline, saida_canonica, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)[:10]
+    linhas = construir_switchings_observaveis(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)[:10]
     lotes_avaliados = len(linhas)
     candidatos_avaliados = len(linhas)
 
@@ -149,8 +158,8 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None, pa
     ])
 
     print('- amostra de switchings reais da janela (independente de pagamentos):')
-    _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=5)
-    bloqueados = list(getattr(contexto_baseline, '_switchings_bloqueados_gate_auditoria', []) or [])[:10]
+    _imprimir_tabela(['Data', 'Lote origem', 'Lote destino', 'Produto origem', 'Produto destino'], linhas, limite=5)
+    bloqueados = list(getattr(contexto_operacional, '_switchings_bloqueados_gate_auditoria', []) or [])[:10]
     if bloqueados:
         print('- candidatos bloqueados por gate (auditoria):')
         _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino', 'Status'], bloqueados, limite=5)
@@ -169,7 +178,7 @@ def _render_secao_switchings_oficiais(contexto_baseline, saida_canonica=None, pa
         print('- próximos 3 aportes (resumo):')
         _imprimir_tabela(['Data', 'Lote', 'Valor', 'Status'], alocacao['linhas'], limite=3)
 
-def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo_fechamento, resumo_recebidos, pacote_saida_observavel_temporal=None) -> None:
+def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, resumo_fechamento, resumo_recebidos, pacote_saida_observavel_temporal=None, estado_temporal_inicial=None) -> None:
     _imprimir_titulo('SITUAÇÃO ATUAL')
 
     if resumo_fechamento:
@@ -185,8 +194,8 @@ def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo
             print(f"- leitura auditável: {resumo_fechamento.get('observacao')}")
 
     print('\n- lotes exauridos:')
-    exauridos_id = construir_linhas_lotes_id_curta(contexto_baseline, saida_canonica, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
-    exauridos_val = construir_linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    exauridos_id = construir_linhas_lotes_id_curta(contexto_operacional, saida_canonica, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
+    exauridos_val = construir_linhas_lotes_valores_curta(contexto_operacional, saida_canonica, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
     if exauridos_id:
         print('  identificação:')
         _imprimir_tabela(COLS_LOTES_EXAURIDOS_ID_CURTAS, exauridos_id, limite=None)
@@ -196,8 +205,10 @@ def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo
         print('  [OK] sem lotes exauridos nesta execução')
 
     print('\n- lotes ativos:')
-    ativos_id = construir_linhas_lotes_id_curta(contexto_baseline, saida_canonica, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
-    ativos_val = construir_linhas_lotes_valores_curta(contexto_baseline, saida_canonica, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    ativos_id = construir_linhas_lotes_id_curta(contexto_operacional, saida_canonica, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    ativos_val = construir_linhas_lotes_valores_curta(contexto_operacional, saida_canonica, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    ativos_id = _filtrar_lotes_ativos_com_estado_temporal(ativos_id, estado_temporal_inicial=estado_temporal_inicial)
+    ativos_val = _filtrar_lotes_ativos_com_estado_temporal(ativos_val, estado_temporal_inicial=estado_temporal_inicial)
     if ativos_id:
         print('  identificação:')
         _imprimir_tabela(COLS_LOTES_ATIVOS_ID_CURTAS, ativos_id, limite=None)
@@ -210,9 +221,10 @@ def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo
     _imprimir_tabela(
         ['Métrica', 'Valor'],
         construir_resumo_patrimonio_total_lotes(
-            contexto_baseline,
+            contexto_operacional,
             saida_canonica,
             pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+            estado_temporal_inicial=estado_temporal_inicial,
         ),
         limite=None,
     )
@@ -221,38 +233,38 @@ def _render_situacao_atual_operacional(contexto_baseline, saida_canonica, resumo
         print('\n- resumo de recebidos:')
         _imprimir_pares(list(resumo_recebidos.items()))
 
-def render_console(contexto_baseline, saida_canonica=None) -> None:
+def render_console(contexto_operacional, saida_canonica=None, estado_temporal_inicial=None) -> None:
     """Renderiza o console usando contexto e saída canônica já construídos.
 
     Esta função não carrega planilha, não baixa dados e não reconstrói cache.
     Ela apenas renderiza o estado recebido.
     """
     if saida_canonica is None:
-        saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
-    ativos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="ativos", modo_bootstrap_pacote=True)
-    exauridos_obs = construir_linhas_lotes_consolidados(contexto_baseline, saida_canonica, tipo="exauridos", modo_bootstrap_pacote=True)
-    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_baseline, pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(contexto_baseline, saida_canonica, lotes_ativos_observaveis=ativos_obs, lotes_exauridos_observaveis=exauridos_obs))
+        saida_canonica = construir_saida_canonica(contexto_operacional, versao=VERSAO_BASELINE)
+    ativos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="ativos", modo_bootstrap_pacote=True)
+    exauridos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="exauridos", modo_bootstrap_pacote=True)
+    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_operacional, pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(contexto_operacional, saida_canonica, lotes_ativos_observaveis=ativos_obs, lotes_exauridos_observaveis=exauridos_obs), estado_temporal_inicial=estado_temporal_inicial)
     pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
     pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(
-        contexto_baseline,
+        contexto_operacional,
         saida_canonica,
         lotes_ativos_observaveis=ativos_obs,
         lotes_exauridos_observaveis=exauridos_obs,
         pagamentos_realizados_observaveis=pagamentos_obs,
     )
 
-    pacote_config = contexto_baseline.pacote_config
-    contexto = contexto_baseline.execucao
-    pacote_planilha = contexto_baseline.pacote_planilha
-    carteira_canonica = contexto_baseline.carteira_canonica
-    cache_cdi = contexto_baseline.cache_cdi
+    pacote_config = contexto_operacional.pacote_config
+    contexto = contexto_operacional.execucao
+    pacote_planilha = contexto_operacional.pacote_planilha
+    carteira_canonica = contexto_operacional.carteira_canonica
+    cache_cdi = contexto_operacional.cache_cdi
 
     resumo_planilha = construir_resumo_planilha(pacote_planilha)
     resumo_por_aba = {item["nome_aba"]: item for item in resumo_planilha}
 
     abas_cfg = pacote_config.conteudo.get("abas", {}) if isinstance(pacote_config.conteudo.get("abas"), dict) else {}
     nome_aba_carteira_real = getattr(carteira_canonica, "nome_aba", abas_cfg.get("carteira", "Carteira"))
-    dados_operacionais = getattr(contexto_baseline, "dados_operacionais", None)
+    dados_operacionais = getattr(contexto_operacional, "dados_operacionais", None)
 
     nome_aba_salarios_real = (
         getattr(dados_operacionais, "nome_aba_salarios", "")
@@ -305,10 +317,10 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
         abas_auxiliares=abas_auxiliares,
     )
 
-    _render_amostras_pagamentos_operacionais(contexto_baseline, saida_canonica, pacote_saida_observavel_temporal)
+    _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
 
-    _render_secao_ranking_oficial(contexto_baseline, saida_canonica)
-    _render_secao_switchings_oficiais(contexto_baseline, saida_canonica, pacote_saida_observavel_temporal)
+    _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
+    _render_secao_switchings_oficiais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal)
 
     resumo_fechamento_bruto = {
         item.get("Métrica"): item.get("Valor")
@@ -341,22 +353,23 @@ def render_console(contexto_baseline, saida_canonica=None) -> None:
     }
 
     _render_situacao_atual_operacional(
-        contexto_baseline,
+        contexto_operacional,
         saida_canonica,
         resumo_fechamento_situacao_atual,
         resumo_recebidos_saida,
         pacote_saida_observavel_temporal,
+        estado_temporal_inicial=estado_temporal_inicial,
     )
 
 
 def main() -> None:
     """Execução standalone do console. Para a rota oficial integrada, use aplicacao/principal.py."""
-    contexto_baseline = carregar_contexto_baseline(
+    contexto_operacional = carregar_contexto_operacional_canonico(
         raiz_repositorio=RAIZ_REPOSITORIO,
         instalar_automaticamente=False,
     )
-    saida_canonica = construir_saida_canonica(contexto_baseline, versao=VERSAO_BASELINE)
-    render_console(contexto_baseline, saida_canonica)
+    saida_canonica = construir_saida_canonica(contexto_operacional, versao=VERSAO_BASELINE)
+    render_console(contexto_operacional, saida_canonica)
 
 if __name__ == '__main__':
     main()
