@@ -21,6 +21,10 @@ from nucleo.nucleo_financeiro_minimo import criar_lote_de_aporte
 from nucleo.utilitarios_neutros import normalizar_texto, normalizar_valores_situacao_atual_exaurida
 
 
+
+_PRE_INVARIANTE_EXTRATO_FUTURO = {}
+_SOMBRA_DIVERGENCIAS_LEDGER = {}
+
 def _norm(txt: Any) -> str:
     return str(txt or '').strip().lower()
 

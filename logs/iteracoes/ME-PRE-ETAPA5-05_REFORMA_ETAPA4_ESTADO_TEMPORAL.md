@@ -43,3 +43,11 @@ Implementar a reforma estrutural da Etapa 4 com EstadoTemporalInicial formal, ca
 - Corrigir `nucleo/saida_canonica.py` (`_PRE_INVARIANTE_EXTRATO_FUTURO`).
 - Atualizar `scripts/diagnostico/auditar_nucleo_vivo_v4z.py` para `nucleo/contexto_operacional_canonico.py`.
 - Reexecutar validações de ponta a ponta.
+
+## Atualização microetapa (desbloqueio runtime operacional)
+- Escopo desta frente: corrigir apenas o bloqueio real de runtime em `python -B aplicacao/principal.py`.
+- Correção aplicada: inicialização defensiva de variáveis de módulo em `nucleo/saida_canonica.py`:
+  - `_PRE_INVARIANTE_EXTRATO_FUTURO = {}`
+  - `_SOMBRA_DIVERGENCIAS_LEDGER = {}`
+- Não houve alteração de regra econômica, Etapa 5, dados, ou recriação de `ContextoBaseline`.
+- `scripts/diagnostico/auditar_nucleo_vivo_v4z.py` explicitamente **não** tratado como gate desta PR.
