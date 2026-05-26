@@ -158,7 +158,7 @@ def _render_secao_switchings_oficiais(contexto_operacional, saida_canonica=None,
     ])
 
     print('- amostra de switchings reais da janela (independente de pagamentos):')
-    _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino'], linhas, limite=5)
+    _imprimir_tabela(['Data', 'Lote origem', 'Lote destino', 'Produto origem', 'Produto destino'], linhas, limite=5)
     bloqueados = list(getattr(contexto_operacional, '_switchings_bloqueados_gate_auditoria', []) or [])[:10]
     if bloqueados:
         print('- candidatos bloqueados por gate (auditoria):')
@@ -196,6 +196,29 @@ def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, res
     print('\n- lotes exauridos:')
     exauridos_id = construir_linhas_lotes_id_curta(contexto_operacional, saida_canonica, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
     exauridos_val = construir_linhas_lotes_valores_curta(contexto_operacional, saida_canonica, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    if estado_temporal_inicial is not None:
+        migrados = [l for l in (estado_temporal_inicial.inventario_temporal or []) if l.get('status_temporal') in {'migrado_por_switching','exaurido_por_switching'} or l.get('migrado_por_switching') is True]
+        for item in migrados:
+            exauridos_id.append({
+                'Lote': item.get('lote_id'),
+                'Status ciclo': item.get('status_temporal') or 'migrado_por_switching',
+                'Carteira': item.get('produto') or item.get('carteira') or 'n/d',
+                'Aplic.': item.get('data_aplicacao') or 'n/d',
+                'Base fiscal': item.get('data_aplicacao') or 'n/d',
+                'Data término': item.get('data_switching') or item.get('data_aplicacao') or 'n/d',
+                'Dias corr.': item.get('dias_corridos') or 0,
+                'Dias úteis': item.get('dias_uteis') or 0,
+            })
+            exauridos_val.append({
+                'Lote': item.get('lote_id'),
+                'Orig.': item.get('valor_original') or item.get('valor_liquido_migrado') or 0.0,
+                'Bruto sac.': item.get('valor_liquido_migrado') or 0.0,
+                'Líq. sac.': item.get('valor_liquido_migrado') or 0.0,
+                'Bruto atual': 0.0,
+                'Líq. atual': 0.0,
+                'Patr. líq.': item.get('valor_liquido_migrado') or 0.0,
+                'Rend. líq.': 0.0,
+            })
     if exauridos_id:
         print('  identificação:')
         _imprimir_tabela(COLS_LOTES_EXAURIDOS_ID_CURTAS, exauridos_id, limite=None)

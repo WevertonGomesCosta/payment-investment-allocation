@@ -657,6 +657,10 @@ def construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_te
             produto_origem = "produto_origem_nao_encontrado"
 
         linha["Produto origem"] = produto_origem
+        linha['Data'] = linha.get('Data') or linha.get('data_switching') or linha.get('data_aplicacao')
+        linha['Lote origem'] = linha.get('Lote origem') or linha.get('lote_origem') or linha.get('lote_origem_switching') or linha.get('lote_id')
+        linha['Lote destino'] = linha.get('Lote destino') or linha.get('lote_destino') or linha.get('Lote (ID) Depois')
+        linha['Produto destino'] = linha.get('Produto destino') or linha.get('Produto destino switching') or linha.get('produto_destino') or linha.get('Destino')
         linhas.append(linha)
 
     return linhas
@@ -737,12 +741,7 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
         for item in linhas_exauridos
     )
 
-    patrimonio_liquido_reconciliado = round(
-        patrimonio_liquido_atual
-        if origens_migradas_incluidas_no_resumo
-        else patrimonio_liquido_atual + valor_liquido_sacado_origens_migradas,
-        2,
-    )
+    patrimonio_liquido_reconciliado = round(patrimonio_liquido_atual, 2)
 
     base_economica_recebidos_brutos = _valor_total_recebidos_brutos(saida)
     rendimento_reconciliado_contra_recebidos = round(
