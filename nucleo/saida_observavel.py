@@ -517,6 +517,54 @@ def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str, pacote_s
     ]
 
 
+
+
+def _mapa_economico_origens_switching(saida: Any) -> dict[str, dict[str, float]]:
+    mapa: dict[str, dict[str, float]] = {}
+
+    def _slot(lote: str) -> dict[str, float]:
+        return mapa.setdefault(lote, {'bruto_pagamentos': 0.0, 'liquido_pagamentos': 0.0, 'bruto_migrado': 0.0, 'liquido_migrado': 0.0})
+
+    for item in list(_origens_migradas_auditoria(saida)):
+        lote = str(item.get('lote_origem') or '').strip()
+        if not lote:
+            continue
+        slot = _slot(lote)
+        slot['bruto_pagamentos'] += para_float(item.get('valor_bruto_sacado_historico'))
+        slot['liquido_pagamentos'] += para_float(item.get('valor_liquido_sacado_historico'))
+        liq_mig = para_float(item.get('valor_liquido_migrado_total'))
+        slot['liquido_migrado'] += liq_mig
+        slot['bruto_migrado'] += para_float(item.get('valor_bruto_migrado_total')) or liq_mig
+
+    for sw in list(getattr(saida, 'switchings', []) or []):
+        lote = str(sw.get('Lote origem') or sw.get('lote_origem') or sw.get('lote_origem_switching') or '').strip()
+        if not lote:
+            continue
+        slot = _slot(lote)
+        liq_mig = para_float(sw.get('valor_liquido_origem') or sw.get('Valor líquido origem') or sw.get('valor_liquido_migrado'))
+        br_mig = para_float(sw.get('valor_bruto_origem') or sw.get('Valor bruto origem'))
+        slot['liquido_migrado'] += liq_mig
+        slot['bruto_migrado'] += br_mig if br_mig > 0 else liq_mig
+
+    for linha in list(getattr(saida, 'extrato_passado', []) or []):
+        lote_raw = linha.get('Lotes usados') or linha.get('Lote') or ''
+        lote_txt = str(lote_raw or '').strip()
+        lotes_usados = [part.strip() for part in lote_txt.split('|') if part.strip()]
+        if not lotes_usados and lote_txt:
+            lotes_usados = [lote_txt]
+        for lote in lotes_usados:
+            lote = str(lote or '').strip()
+            if not lote:
+                continue
+            slot = _slot(lote)
+            slot['bruto_pagamentos'] += para_float(linha.get('Bruto'))
+            slot['liquido_pagamentos'] += para_float(linha.get('Líquido'))
+
+    for lote, slot in mapa.items():
+        for k in list(slot.keys()):
+            slot[k] = round(para_float(slot[k]), 2)
+    return mapa
+
 def construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     aplicacoes = _aplicacoes_por_lote_do_pacote(pacote_saida_observavel_temporal)
     produtos = _produtos_por_lote_do_pacote(pacote_saida_observavel_temporal)
@@ -568,6 +616,7 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pac
     """
     valores_originais = _valores_originais_por_lote_do_pacote(pacote_saida_observavel_temporal)
     linhas: list[dict[str, Any]] = []
+    mapa_economico = _mapa_economico_origens_switching(saida)
 
     origens = list(_origens_migradas_auditoria(saida))
     if estado_temporal_inicial is not None:
@@ -580,15 +629,18 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pac
         valor_migrado = round(para_float(item.get('valor_liquido_migrado_total') or item.get('valor_liquido_migrado')), 2)
         bruto_sacado_historico = round(para_float(item.get('valor_bruto_sacado_historico')), 2)
         liquido_sacado_historico = round(para_float(item.get('valor_liquido_sacado_historico')), 2)
+        econ = mapa_economico.get(lote, {})
+        bruto_sacado_total = round(max(bruto_sacado_historico + max(0.0, para_float(econ.get('bruto_migrado'))), para_float(econ.get('bruto_pagamentos')) + para_float(econ.get('bruto_migrado'))), 2)
+        liquido_sacado_total = round(max(liquido_sacado_historico + max(0.0, para_float(econ.get('liquido_migrado'))), para_float(econ.get('liquido_pagamentos')) + para_float(econ.get('liquido_migrado')), valor_migrado), 2)
 
-        patrimonio_liquido_observavel = round(max(valor_migrado, liquido_sacado_historico), 2)
-        rendimento_liquido_observavel = 0.0
+        patrimonio_liquido_observavel = round(liquido_sacado_total, 2)
+        rendimento_liquido_observavel = round(patrimonio_liquido_observavel - valor_original, 2)
 
         linhas.append({
             'Lote': lote,
             'Orig.': valor_original,
-            'Bruto sac.': bruto_sacado_historico,
-            'Líq. sac.': liquido_sacado_historico,
+            'Bruto sac.': bruto_sacado_total,
+            'Líq. sac.': liquido_sacado_total,
             'Bruto atual': 0.0,
             'Líq. atual': 0.0,
             'Patr. líq.': patrimonio_liquido_observavel,
@@ -778,7 +830,7 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
 
         # Métricas novas e explícitas para reconciliação econômica.
         {'Métrica': 'Valor original total — observado', 'Valor': valor_original_total},
-        {'Métrica': 'Valor original destinos pós-switching — sintético', 'Valor': valor_original_destinos_pos_switching},
+        {'Métrica': 'Valor original destinos pós-switching ativos/sintéticos atuais', 'Valor': valor_original_destinos_pos_switching},
         {'Métrica': 'Valor original observado sem destinos pós-switching sintéticos', 'Valor': valor_original_observado_sem_destinos_sinteticos},
         {'Métrica': 'Base econômica explícita — recebidos brutos', 'Valor': base_economica_recebidos_brutos},
         {'Métrica': 'Valor líquido migrado para destinos pós-switching', 'Valor': valor_liquido_migrado_pos_switching},

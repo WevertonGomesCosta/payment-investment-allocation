@@ -64,10 +64,77 @@ def _status_switching_materializacao(data_ref: date, data_switching: Any, data_a
         return 'declarado'
     return 'materializado' if data_evt <= data_ref else 'declarado'
 
+
+def _status_inventario_temporal(row: dict[str, Any]) -> str:
+    status_canonico = str(row.get('status_temporal') or row.get('status_ciclo') or row.get('situacao_investimento') or '').strip().lower()
+    if status_canonico:
+        if 'migrado' in status_canonico:
+            return 'migrado_por_switching'
+        if 'exaurido' in status_canonico:
+            return 'exaurido'
+        if 'vencido' in status_canonico:
+            return 'vencido_normalizado'
+        if 'futuro' in status_canonico:
+            return 'futuro'
+        if 'pos_switching' in status_canonico:
+            return 'ativo_pos_switching'
+        if 'ativo' in status_canonico or 'disponivel' in status_canonico:
+            return 'ativo'
+    if bool(row.get('migrado_por_switching')):
+        return 'migrado_por_switching'
+    if bool(row.get('sintetico_pos_switching')):
+        return 'ativo_pos_switching'
+    if bool(row.get('futuro')) or bool(row.get('futuro_na_referencia')):
+        return 'futuro'
+    if bool(row.get('exaurido')):
+        return 'exaurido'
+    if bool(row.get('vencido')):
+        return 'vencido_normalizado'
+    if row.get('ativo') is False:
+        return 'indisponivel'
+    if row.get('disponivel_na_data_referencia') is False or row.get('disponivel') is False:
+        return 'indisponivel'
+    return 'ativo'
+
+
+def _recebidos_temporais_canonicos(recebidos_auditaveis: Any, data_ref: date) -> list[dict[str, Any]]:
+    if recebidos_auditaveis is None:
+        return []
+    if hasattr(recebidos_auditaveis, 'to_dict'):
+        registros = recebidos_auditaveis.to_dict(orient='records')
+    else:
+        registros = list(recebidos_auditaveis)
+    saida = []
+    for row in registros:
+        recebido_id = row.get('recebido_id')
+        if not recebido_id:
+            lote_origem = str(row.get('lote_id_origem') or '').strip()
+            recebido_id = f'recebido::{lote_origem}' if lote_origem else None
+        data_rec = row.get('data_recebimento')
+        aplicado = str(row.get('destino_potencial') or '').strip().lower() == 'aplicacao'
+        valor_pre_ap = _float_seguro(row.get('valor_pagamentos_pre_aplicacao'), 0.0)
+        saida.append({
+            'recebido_id': recebido_id,
+            'data_recebimento': data_rec,
+            'origem': row.get('lote_id_origem'),
+            'valor': _float_seguro(row.get('valor_liquido'), row.get('valor_bruto'), 0.0),
+            'status_recebido': row.get('status_recebido'),
+            'destino_potencial': row.get('destino_potencial'),
+            'aplicado': aplicado,
+            'vinculado': int(row.get('qtd_pagamentos_vinculados') or 0) > 0,
+            'disponivel_na_referencia': bool(row.get('disponivel_na_data_referencia', False)),
+            'usado_antes_da_aplicacao': valor_pre_ap > 0,
+            'pagamento_vinculado_id': row.get('pagamento_vinculado_id'),
+            'futuro_indisponivel': not bool(row.get('disponivel_na_data_referencia', False)),
+            'materializado': bool(data_rec and data_rec <= data_ref),
+        })
+    return saida
+
 def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> EstadoTemporalInicial:
     data_ref = contexto.execucao.data_referencia
     gastos = contexto.dados_operacionais.gastos_canonicos
     recebidos = contexto.dados_operacionais.salarios_canonicos
+    recebidos_auditaveis = getattr(getattr(contexto, 'recebidos_auditaveis', None), 'quadro_recebidos_auditaveis', None)
     inventario = contexto.dados_operacionais.inventario_canonico
     switching = getattr(contexto.dados_operacionais, 'switching_canonico', None)
 
@@ -95,20 +162,22 @@ def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> 
 
     inventario_temporal=[]
     for row in inventario.to_dict(orient='records'):
-        status = 'ativo'
-        if bool(row.get('futuro_na_referencia')):
-            status='futuro'
-        elif bool(row.get('exaurido')):
-            status='exaurido'
-        elif bool(row.get('vencido')):
-            status='vencido_normalizado'
-        inventario_temporal.append({'lote_id':row.get('lote_id'),'status_temporal':status,'disponibilidade':'disponivel' if bool(row.get('disponivel',True)) else 'indisponivel','migrado_por_switching':bool(row.get('migrado_por_switching')),'sintetico_pos_switching':bool(row.get('sintetico_pos_switching')),'origem_canonica':'inventario_canonico'})
+        status = _status_inventario_temporal(row)
+        disponivel_ref = row.get('disponivel_na_data_referencia')
+        if disponivel_ref is None:
+            disponivel_ref = row.get('disponivel', True)
+        inventario_temporal.append({'lote_id':row.get('lote_id'),'status_temporal':status,'disponibilidade':'disponivel' if bool(disponivel_ref) else 'indisponivel','migrado_por_switching':bool(row.get('migrado_por_switching')),'sintetico_pos_switching':bool(row.get('sintetico_pos_switching')),'origem_canonica':row.get('origem_canonica') or 'inventario_canonico'})
 
-    recebidos_temporais=[]
-    for row in recebidos.to_dict(orient='records'):
-        data_rec=row.get('data_recebimento')
-        materializado = bool(data_rec and data_rec <= data_ref)
-        recebidos_temporais.append({'recebido_id':row.get('recebido_id') or row.get('salario_id'),'data_recebimento':data_rec,'valor':row.get('valor_liquido') or row.get('valor_bruto') or 0.0,'materializado':materializado,'futuro_indisponivel':not materializado,'aplicado':bool(row.get('aplicado')),'vinculado':bool(row.get('vinculado')),'disponivel_na_referencia':materializado and not bool(row.get('aplicado'))})
+    recebidos_temporais = _recebidos_temporais_canonicos(recebidos_auditaveis, data_ref)
+    if not recebidos_temporais:
+        for row in recebidos.to_dict(orient='records'):
+            data_rec=row.get('data_recebimento')
+            materializado = bool(data_rec and data_rec <= data_ref)
+            recebido_id = row.get('recebido_id')
+            if not recebido_id:
+                salario_id = str(row.get('salario_id') or '').strip()
+                recebido_id = f'recebido::{salario_id}' if salario_id else None
+            recebidos_temporais.append({'recebido_id':recebido_id,'data_recebimento':data_rec,'origem':row.get('origem'),'valor':row.get('valor_liquido') or row.get('valor_bruto') or 0.0,'status_recebido':row.get('status_recebido') or ('materializado' if materializado else 'futuro'),'destino_potencial':row.get('destino_potencial'),'materializado':materializado,'futuro_indisponivel':not materializado,'aplicado':bool(row.get('aplicado')),'vinculado':bool(row.get('vinculado')),'disponivel_na_referencia':materializado and not bool(row.get('aplicado')),'usado_antes_da_aplicacao':bool(row.get('usado_antes_da_aplicacao')),'pagamento_vinculado_id':row.get('pagamento_vinculado_id')})
 
     fontes_temporais=[]
     fontes_obj = getattr(contexto, 'fontes_elegiveis_pagamento', None)
