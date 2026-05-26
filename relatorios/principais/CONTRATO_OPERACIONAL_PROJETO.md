@@ -710,7 +710,20 @@ A Etapa 4 deve receber os dados operacionais canônicos e construir o estado tem
 
 Antes da execução do motor temporal conjunto, o projeto deve construir explicitamente o estado temporal inicial.
 
-O estado temporal inicial deve consumir os dados financeiros canônicos e o inventário completo de lotes produzido na etapa anterior.
+A Etapa 4 recebe os dados operacionais canônicos produzidos pela Etapa 3, incluindo o `PacoteDadosOperacionaisCanonicos`, o `UniversoEconomicoCanonico` e o `inventario_canonico_completo`.
+
+A função normativa da Etapa 4 é preparar o estado temporal inicial auditável para a Etapa 5. Ela não é motor decisório, não é camada de saída, não é renderização e não é ponte de compatibilidade entre arquiteturas.
+
+O estado temporal inicial deve consumir, no mínimo:
+
+- dados operacionais canônicos da Etapa 3;
+- inventário canônico completo;
+- pagamentos canônicos;
+- recebidos canônicos;
+- switching canônico de eventos já declarados ou materializados;
+- cache CDI/BCB resolvido;
+- calendário financeiro;
+- parâmetros fiscais, operacionais e temporais vigentes.
 
 O estado temporal inicial deve conter, no mínimo:
 
@@ -718,12 +731,63 @@ O estado temporal inicial deve conter, no mínimo:
 - lotes exauridos;
 - lotes vencidos normalizados;
 - lotes futuros;
+- fontes disponíveis;
+- fontes indisponíveis;
 - saldos disponíveis;
-- recebidos materializados;
-- recebidos futuros;
-- pagamentos vencidos ou futuros;
-- switchings candidatos, promovidos ou previamente declarados;
-- restrições de liquidez, carência, vencimento e disponibilidade.
+- recebidos já materializados;
+- recebidos futuros ainda indisponíveis;
+- pagamentos vencidos ou futuros como obrigações temporais;
+- switchings já declarados ou materializados como eventos de estado quando aplicável;
+- restrições de liquidez;
+- restrições de carência;
+- restrições de vencimento;
+- restrições de disponibilidade;
+- elegibilidades temporais preliminares;
+- auditorias de consistência temporal.
+
+A Etapa 4 pode:
+
+- receber os dados operacionais canônicos da Etapa 3;
+- consumir o inventário canônico completo;
+- construir o estado temporal inicial;
+- consolidar estado temporal auditável antes do motor;
+- normalizar lotes ativos, vencidos, exauridos, futuros e disponíveis;
+- materializar recebidos já disponíveis;
+- manter recebidos futuros como indisponíveis até a data correta;
+- manter pagamentos vencidos e futuros como obrigações temporais;
+- registrar switchings já declarados ou materializados como eventos de estado quando aplicável;
+- preparar elegibilidades temporais;
+- preparar restrições de liquidez, carência, vencimento e disponibilidade;
+- preparar o estado para a Etapa 5, que será o motor temporal conjunto.
+
+A Etapa 4 não pode:
+
+- decidir pagamento;
+- decidir switching candidato;
+- promover switching;
+- executar pacote do dia;
+- gerar ledger canônico do pacote escolhido;
+- gerar saída canônica;
+- corrigir saída;
+- renderizar console;
+- gerar XLSX;
+- substituir `ContextoBaseline` por adaptador;
+- promover `ContextoSaidaCanonicaCompat`;
+- usar fallback legado como regra normativa;
+- usar pontes shadow ou compatíveis como rota viva;
+- iniciar funcionalmente a Etapa 5.
+
+`ContextoBaseline` permanece classificado como runtime legado/transitório, aceito apenas enquanto a rota oficial ainda depender dele. Ele não deve ser expandido como alvo arquitetural nem usado para justificar novas pontes compatíveis.
+
+`ContextoOperacionalCanonico` é o alvo canônico das Etapas 1–4. A evolução arquitetural deve convergir para esse contexto, sem criar rotas paralelas com status equivalente.
+
+`ContextoSaidaCanonicaCompat` é apenas artefato diagnóstico de equivalência observável concluída. Ele não é camada normativa, não é runtime oficial, não é arquitetura viva, não deve ser promovido e não deve ser mantido como ponte canônica antes da Etapa 5.
+
+A comparação observável entre `ContextoBaseline` e `ContextoSaidaCanonicaCompat`, quando `ok=True` e `divergencias=0`, serve apenas como evidência diagnóstica de equivalência. Ela não justifica manter `ContextoSaidaCanonicaCompat` como arquitetura viva.
+
+Nenhuma ponte legado/canônico, adaptador compatível, fallback legado, linguagem shadow ou contexto amplo transitório pode virar rota viva antes da Etapa 5.
+
+Qualquer remoção física de `ContextoSaidaCanonicaCompat` e comparadores associados deve ocorrer em microetapa própria posterior, fora da ME-PRE-ETAPA5-01.
 
 O estado temporal inicial não depende diretamente do ranking para existir. A dependência direta do ranking ocorre principalmente no motor temporal conjunto, em especial na avaliação de switchings e destinos econômicos.
 
