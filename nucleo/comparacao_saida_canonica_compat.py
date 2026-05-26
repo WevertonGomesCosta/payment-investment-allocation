@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -47,29 +49,93 @@ def _hash_registros(registros: Any) -> str:
     return hashlib.sha256(serializado.encode("utf-8")).hexdigest()
 
 
+def _normalizar_texto_chave(valor: Any) -> str:
+    texto = str(valor or "").strip().lower()
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(ch for ch in texto if not unicodedata.combining(ch))
+    texto = texto.replace("—", " ").replace("–", " ").replace("-", " ")
+    texto = re.sub(r"[^a-z0-9]+", " ", texto)
+    return re.sub(r"\s+", " ", texto).strip()
+
+
 def _como_decimal(valor: Any) -> Decimal | None:
     if valor is None or valor == "":
         return None
+
+    texto = str(valor).replace("R$", "").strip().replace(" ", "")
+    if not texto:
+        return None
+
+    if "," in texto and "." in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    elif "," in texto:
+        texto = texto.replace(",", ".")
+
     try:
-        return Decimal(str(valor).replace("R$", "").replace(".", "").replace(",", ".").strip())
+        return Decimal(texto)
     except (InvalidOperation, ValueError):
         try:
-            return Decimal(str(float(valor)))
+            return Decimal(str(float(texto)))
         except Exception:
             return None
 
 
-def _valor_metrica(fechamento: list[dict[str, Any]], nome_metrica: str) -> str:
-    alvo = nome_metrica.strip().lower()
-    for linha in fechamento or []:
-        nome = str(linha.get("Métrica") or linha.get("Metrica") or linha.get("metrica") or "").strip().lower()
-        if nome == alvo:
-            return str(linha.get("Valor") or linha.get("valor") or "")
+def _iter_dicts(objeto: Any):
+    if isinstance(objeto, dict):
+        yield objeto
+        for valor in objeto.values():
+            yield from _iter_dicts(valor)
+    elif isinstance(objeto, (list, tuple)):
+        for item in objeto:
+            yield from _iter_dicts(item)
+
+
+def _valor_preferencial_linha_metrica(linha: dict[str, Any], chave_metrica: str | None = None) -> Any:
+    if chave_metrica and chave_metrica in linha:
+        return linha.get(chave_metrica)
+
+    for chave in ("Valor", "valor", "VALOR", "value", "Value"):
+        if chave in linha:
+            return linha.get(chave)
+
+    for chave, valor in linha.items():
+        chave_norm = _normalizar_texto_chave(chave)
+        if chave_norm in {"valor", "valor r", "valor atual", "total"}:
+            return valor
+
+    for chave, valor in linha.items():
+        if chave_metrica and chave == chave_metrica:
+            continue
+        if _como_decimal(valor) is not None:
+            return valor
+
     return ""
 
 
-def _valor_metrica_decimal(fechamento: list[dict[str, Any]], nome_metrica: str) -> str:
-    valor = _como_decimal(_valor_metrica(fechamento, nome_metrica))
+def _valor_metrica(fechamento: Any, *aliases: str) -> str:
+    aliases_norm = {_normalizar_texto_chave(alias) for alias in aliases if alias}
+    if not aliases_norm:
+        return ""
+
+    for linha in _iter_dicts(fechamento or []):
+        for chave, valor in linha.items():
+            chave_norm = _normalizar_texto_chave(chave)
+            valor_norm = _normalizar_texto_chave(valor)
+
+            if chave_norm in aliases_norm:
+                return str(_valor_preferencial_linha_metrica(linha, chave))
+
+            if chave_norm in {"metrica", "métrica", "nome", "indicador"} and valor_norm in aliases_norm:
+                return str(_valor_preferencial_linha_metrica(linha))
+
+            if valor_norm in aliases_norm:
+                return str(_valor_preferencial_linha_metrica(linha))
+
+    return ""
+
+
+def _valor_metrica_decimal(fechamento: Any, *aliases: str) -> str:
+    valor = _como_decimal(_valor_metrica(fechamento, *aliases))
     if valor is None:
         return ""
     return str(valor.quantize(Decimal("0.01")))
@@ -83,6 +149,124 @@ def _ranking_top1(saida: Any) -> str:
     return str(primeira.get("Produto") or primeira.get("produto") or "")
 
 
+def _valor_campo(registro: dict[str, Any], *nomes: str) -> str:
+    for nome in nomes:
+        if nome in registro and registro.get(nome) not in (None, ""):
+            return str(registro.get(nome))
+    nomes_norm = {_normalizar_texto_chave(nome) for nome in nomes}
+    for chave, valor in registro.items():
+        if _normalizar_texto_chave(chave) in nomes_norm and valor not in (None, ""):
+            return str(valor)
+    return ""
+
+
+def _chave_estavel_registro(tabela: str, registro: dict[str, Any], indice: int) -> str:
+    if tabela in {"lotes_ativos", "lotes_exauridos"}:
+        chave = "|".join(
+            [
+                _valor_campo(registro, "Lote", "Lote (ID)", "nome", "id"),
+                _valor_campo(registro, "Status", "Status ciclo", "status_ciclo"),
+                _valor_campo(registro, "Aplic.", "Aplicação", "Data Aplicação", "data_aplicacao"),
+            ]
+        ).strip("|")
+    elif tabela == "extrato_passado":
+        chave = "|".join(
+            [
+                _valor_campo(registro, "Data", "data"),
+                _valor_campo(registro, "Conta", "Descrição", "Descricao", "descrição"),
+                _valor_campo(registro, "Valor", "Líquido", "Liquido"),
+                _valor_campo(registro, "Lotes usados", "Lote", "Lote usado"),
+            ]
+        ).strip("|")
+    elif tabela == "extrato_futuro":
+        chave = "|".join(
+            [
+                _valor_campo(registro, "Data", "data"),
+                _valor_campo(registro, "Conta", "Descrição", "Descricao", "descrição"),
+                _valor_campo(registro, "Valor", "Líquido", "Liquido"),
+            ]
+        ).strip("|")
+    elif tabela == "switchings":
+        chave = "|".join(
+            [
+                _valor_campo(registro, "Data", "data", "Data switching"),
+                _valor_campo(registro, "Lote origem", "Lote (ID) Antes", "Origem"),
+                _valor_campo(registro, "Destino", "Produto destino", "Investimento"),
+            ]
+        ).strip("|")
+    else:
+        chave = "|".join(str(v) for v in list(registro.values())[:3] if v not in (None, "")).strip("|")
+
+    return chave or f"linha_{indice}"
+
+
+def _indexar_registros(registros: list[dict[str, Any]], tabela: str) -> dict[str, dict[str, Any]]:
+    indice: dict[str, dict[str, Any]] = {}
+    contagens: dict[str, int] = {}
+    for i, registro in enumerate(registros or []):
+        chave_base = _chave_estavel_registro(tabela, registro, i)
+        ocorrencia = contagens.get(chave_base, 0) + 1
+        contagens[chave_base] = ocorrencia
+        chave = chave_base if ocorrencia == 1 else f"{chave_base}#{ocorrencia}"
+        indice[chave] = registro
+    return indice
+
+
+def _valores_iguais(a: Any, b: Any) -> bool:
+    return _normalizar_json(a) == _normalizar_json(b)
+
+
+def _detalhar_divergencias_registros(
+    registros_baseline: list[dict[str, Any]],
+    registros_compat: list[dict[str, Any]],
+    *,
+    tabela: str,
+    limite_registros: int = 20,
+    limite_campos: int = 12,
+) -> list[dict[str, Any]]:
+    idx_baseline = _indexar_registros(registros_baseline, tabela)
+    idx_compat = _indexar_registros(registros_compat, tabela)
+    chaves = sorted(set(idx_baseline) | set(idx_compat))
+    detalhes: list[dict[str, Any]] = []
+
+    for chave in chaves:
+        linha_base = idx_baseline.get(chave)
+        linha_compat = idx_compat.get(chave)
+
+        if linha_base is None:
+            detalhes.append({"chave": chave, "status": "ausente_no_baseline"})
+        elif linha_compat is None:
+            detalhes.append({"chave": chave, "status": "ausente_no_compat"})
+        else:
+            campos = sorted(set(linha_base) | set(linha_compat), key=str)
+            campos_divergentes = []
+            for campo in campos:
+                valor_base = linha_base.get(campo)
+                valor_compat = linha_compat.get(campo)
+                if not _valores_iguais(valor_base, valor_compat):
+                    campos_divergentes.append(
+                        {
+                            "campo": str(campo),
+                            "baseline": valor_base,
+                            "compat": valor_compat,
+                        }
+                    )
+            if campos_divergentes:
+                detalhes.append(
+                    {
+                        "chave": chave,
+                        "status": "campos_divergentes",
+                        "qtd_campos_divergentes": len(campos_divergentes),
+                        "campos": campos_divergentes[:limite_campos],
+                    }
+                )
+
+        if len(detalhes) >= limite_registros:
+            break
+
+    return detalhes
+
+
 def _resumir_saida(saida: Any) -> dict[str, Any]:
     fechamento = getattr(saida, "fechamento_atual", None) or []
     extrato_passado = getattr(saida, "extrato_passado", None) or []
@@ -94,11 +278,20 @@ def _resumir_saida(saida: Any) -> dict[str, Any]:
     return {
         "versao": str(getattr(saida, "versao", "")),
         "data_referencia": str(getattr(saida, "data_referencia", "")),
-        "patrimonio_liquido_atual": _valor_metrica_decimal(fechamento, "Patrimônio líquido atual"),
-        "rendimento_liquido_atual": _valor_metrica_decimal(fechamento, "Rendimento líquido atual"),
+        "patrimonio_liquido_atual": _valor_metrica_decimal(
+            fechamento,
+            "Patrimônio líquido atual",
+            "patrimonio liquido atual",
+        ),
+        "rendimento_liquido_atual": _valor_metrica_decimal(
+            fechamento,
+            "Rendimento líquido atual",
+            "rendimento liquido atual",
+        ),
         "rendimento_liquido_reconciliado_recebidos": _valor_metrica_decimal(
             fechamento,
             "Rendimento líquido atual — reconciliado contra recebidos",
+            "rendimento liquido atual reconciliado contra recebidos",
         ),
         "ranking_top1": _ranking_top1(saida),
         "qtd_switchings_reais": len(switchings),
@@ -115,20 +308,56 @@ def _resumir_saida(saida: Any) -> dict[str, Any]:
     }
 
 
-def _comparar_resumos(resumo_baseline: dict[str, Any], resumo_compat: dict[str, Any]) -> list[dict[str, Any]]:
+def _detalhes_por_hash(saida_baseline: Any, saida_compat: Any) -> dict[str, list[dict[str, Any]]]:
+    return {
+        "hash_lotes_ativos": _detalhar_divergencias_registros(
+            getattr(saida_baseline, "lotes_ativos", None) or [],
+            getattr(saida_compat, "lotes_ativos", None) or [],
+            tabela="lotes_ativos",
+        ),
+        "hash_lotes_exauridos": _detalhar_divergencias_registros(
+            getattr(saida_baseline, "lotes_exauridos", None) or [],
+            getattr(saida_compat, "lotes_exauridos", None) or [],
+            tabela="lotes_exauridos",
+        ),
+        "hash_extrato_passado": _detalhar_divergencias_registros(
+            getattr(saida_baseline, "extrato_passado", None) or [],
+            getattr(saida_compat, "extrato_passado", None) or [],
+            tabela="extrato_passado",
+        ),
+        "hash_extrato_futuro": _detalhar_divergencias_registros(
+            getattr(saida_baseline, "extrato_futuro", None) or [],
+            getattr(saida_compat, "extrato_futuro", None) or [],
+            tabela="extrato_futuro",
+        ),
+        "hash_switchings": _detalhar_divergencias_registros(
+            getattr(saida_baseline, "switchings", None) or [],
+            getattr(saida_compat, "switchings", None) or [],
+            tabela="switchings",
+        ),
+    }
+
+
+def _comparar_resumos(
+    resumo_baseline: dict[str, Any],
+    resumo_compat: dict[str, Any],
+    detalhes_por_hash: dict[str, list[dict[str, Any]]] | None = None,
+) -> list[dict[str, Any]]:
     chaves = sorted(set(resumo_baseline) | set(resumo_compat))
     divergencias = []
+    detalhes_por_hash = detalhes_por_hash or {}
     for chave in chaves:
         valor_baseline = resumo_baseline.get(chave)
         valor_compat = resumo_compat.get(chave)
         if valor_baseline != valor_compat:
-            divergencias.append(
-                {
-                    "campo": chave,
-                    "baseline": valor_baseline,
-                    "compat": valor_compat,
-                }
-            )
+            divergencia = {
+                "campo": chave,
+                "baseline": valor_baseline,
+                "compat": valor_compat,
+            }
+            if chave in detalhes_por_hash:
+                divergencia["detalhes"] = detalhes_por_hash[chave]
+            divergencias.append(divergencia)
     return divergencias
 
 
@@ -180,7 +409,8 @@ def comparar_saida_canonica_baseline_vs_compat(
 
     resumo_baseline = _resumir_saida(saida_baseline)
     resumo_compat = _resumir_saida(saida_compat)
-    divergencias = _comparar_resumos(resumo_baseline, resumo_compat)
+    detalhes = _detalhes_por_hash(saida_baseline, saida_compat)
+    divergencias = _comparar_resumos(resumo_baseline, resumo_compat, detalhes)
 
     return ResultadoComparacaoSaidaCanonicaCompat(
         ok=not divergencias,
@@ -195,6 +425,7 @@ def comparar_saida_canonica_baseline_vs_compat(
             "altera_runtime_principal": False,
             "altera_xlsx_oficial": False,
             "versao": versao,
+            "detalha_divergencias_por_chave_estavel": True,
         },
     )
 
@@ -227,3 +458,14 @@ def imprimir_resumo_comparacao(resultado: ResultadoComparacaoSaidaCanonicaCompat
                 f"{divergencia['campo']}: baseline={divergencia['baseline']} | "
                 f"compat={divergencia['compat']}"
             )
+            detalhes = divergencia.get("detalhes") or []
+            for detalhe in detalhes[:5]:
+                print(
+                    f"  chave={detalhe.get('chave')} | status={detalhe.get('status')} | "
+                    f"campos={detalhe.get('qtd_campos_divergentes', '')}"
+                )
+                for campo in (detalhe.get("campos") or [])[:5]:
+                    print(
+                        f"    {campo.get('campo')}: baseline={campo.get('baseline')} | "
+                        f"compat={campo.get('compat')}"
+                    )
