@@ -74,3 +74,9 @@ Implementar a reforma estrutural da Etapa 4 com EstadoTemporalInicial formal, ca
 - Auditoria temporal ampliada com resumo de switchings (qtd e valor líquido migrado total) e bloqueios para ausência de origem/destino.
 - Renderização da seção de lotes ativos passou a filtrar lotes migrados com base no `EstadoTemporalInicial`.
 - Resumo patrimonial observável passou a usar eventos materializados de `EstadoTemporalInicial` como fallback quando métricas de origens migradas vierem zeradas da saída canônica.
+
+
+## Atualização microetapa (origens migradas com dados canônicos e reconciliação interna)
+- A amostra de switchings observáveis passou a exibir explicitamente Lote destino com origem canônica (lote_origem/lote_destino/produtos/data).
+- Origens migradas por switching passaram a ser renderizadas em exauridos/encerrados via camada de saída observável, evitando remendo direto no console.
+- O resumo patrimonial foi ajustado para neutralidade de transferência interna (sem dupla contagem por valor migrado e sem inflar rendimento reconciliado).
