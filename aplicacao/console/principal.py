@@ -18,10 +18,13 @@ from aplicacao.console.common import (
 )
 from aplicacao.console.secoes_execucao import render_secao_execucao
 from nucleo.contexto_operacional_canonico import carregar_contexto_operacional_canonico
+from nucleo.estado_temporal_inicial import construir_estado_temporal_inicial
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
-from nucleo.saida_canonica import construir_saida_canonica
+from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
+from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
+from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 from nucleo.saida_observavel import (
     construir_amostras_pagamentos_operacionais,
     construir_linhas_lotes_consolidados,
@@ -240,7 +243,13 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
     Ela apenas renderiza o estado recebido.
     """
     if saida_canonica is None:
-        saida_canonica = construir_saida_canonica(contexto_operacional, versao=VERSAO_BASELINE)
+        saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional, versao=VERSAO_BASELINE)
+        matriz = construir_matriz_elegibilidade_fontes_s7b(
+            contexto_operacional,
+            data_referencia=saida_canonica.data_referencia,
+            saida_canonica_preconstruida=saida_canonica,
+        )
+        saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
     ativos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="ativos", modo_bootstrap_pacote=True)
     exauridos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="exauridos", modo_bootstrap_pacote=True)
     amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_operacional, pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(contexto_operacional, saida_canonica, lotes_ativos_observaveis=ativos_obs, lotes_exauridos_observaveis=exauridos_obs), estado_temporal_inicial=estado_temporal_inicial)
@@ -368,8 +377,15 @@ def main() -> None:
         raiz_repositorio=RAIZ_REPOSITORIO,
         instalar_automaticamente=False,
     )
-    saida_canonica = construir_saida_canonica(contexto_operacional, versao=VERSAO_BASELINE)
-    render_console(contexto_operacional, saida_canonica)
+    estado_temporal_inicial = construir_estado_temporal_inicial(contexto_operacional)
+    saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional, versao=VERSAO_BASELINE)
+    matriz = construir_matriz_elegibilidade_fontes_s7b(
+        contexto_operacional,
+        data_referencia=saida_canonica.data_referencia,
+        saida_canonica_preconstruida=saida_canonica,
+    )
+    saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
+    render_console(contexto_operacional, saida_canonica, estado_temporal_inicial=estado_temporal_inicial)
 
 if __name__ == '__main__':
     main()
