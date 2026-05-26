@@ -4,8 +4,7 @@ from typing import Any
 import pandas as pd
 
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
-
-VERSAO_BASELINE = "V225"
+from nucleo.identidade_baseline import VERSAO_BASELINE
 
 
 def _norm_txt(v: Any) -> str:
