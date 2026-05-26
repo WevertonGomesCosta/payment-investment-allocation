@@ -77,6 +77,32 @@ construir_saida_canonica_via_contexto_compat(...)
 imprimir_resumo_comparacao(...)
 ```
 
+## Subcorreção aplicada após auditoria inicial
+
+A primeira validação completa retornou:
+
+```text
+ok=False
+divergencias=3
+hash_extrato_passado divergente
+hash_lotes_ativos divergente
+hash_lotes_exauridos divergente
+```
+
+Além disso, as métricas de fechamento atual não eram capturadas corretamente no resumo comparativo.
+
+A subcorreção desta PR:
+
+```text
+corrige extração de métricas de fechamento_atual com normalização robusta de texto
+captura Patrimônio líquido atual
+captura Rendimento líquido atual
+captura Rendimento líquido atual — reconciliado contra recebidos
+detalha divergências de hash por chave estável e campos divergentes
+mantém comparação isolada
+mantém ok=False quando houver divergência observável real
+```
+
 ## Métricas comparadas
 
 A comparação cobre:
@@ -97,6 +123,7 @@ Hash de extrato passado
 Hash de extrato futuro
 Hash de Situação Atual
 Hash de switchings
+Detalhes por chave estável para hashes divergentes
 ```
 
 ## Garantias de isolamento
