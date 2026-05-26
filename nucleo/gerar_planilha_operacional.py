@@ -20,7 +20,9 @@ from nucleo.identidade_baseline import (
     caminho_saida_operacional,
     nome_relatorio_operacional,
 )
-from nucleo.saida_canonica import construir_saida_canonica
+from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
+from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
+from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
 from nucleo.saida_observavel import (
     construir_blocos_situacao_atual,
@@ -557,7 +559,13 @@ def main(*, contexto=None, saida=None) -> Path:
         )
 
     if saida is None:
-        saida = construir_saida_canonica(contexto, versao=VERSAO_BASELINE)
+        saida = construir_saida_canonica_com_switching_v17_c7(contexto, versao=VERSAO_BASELINE)
+        matriz = construir_matriz_elegibilidade_fontes_s7b(
+            contexto,
+            data_referencia=saida.data_referencia,
+            saida_canonica_preconstruida=saida,
+        )
+        saida, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida, matriz)
 
     saida_interna, saida_externa = _caminhos_saida_operacional(contexto)
 
