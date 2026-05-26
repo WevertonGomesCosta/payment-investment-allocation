@@ -35,6 +35,27 @@ def _status_data(data_pg: Any, data_ref: date, pago: bool) -> str:
     return 'futuro'
 
 
+def _bool_conservador_fonte(f: dict[str, Any]) -> bool:
+    if 'disponivel' in f:
+        return bool(f.get('disponivel'))
+    if 'elegivel_na_data_pagamento' in f:
+        return bool(f.get('elegivel_na_data_pagamento'))
+    if 'elegivel_temporalmente' in f:
+        return bool(f.get('elegivel_temporalmente'))
+    return False
+
+
+def _float_seguro(*valores: Any) -> float:
+    for v in valores:
+        if v is None or v == '':
+            continue
+        try:
+            return float(v)
+        except Exception:
+            continue
+    return 0.0
+
+
 def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> EstadoTemporalInicial:
     data_ref = contexto.execucao.data_referencia
     gastos = contexto.dados_operacionais.gastos_canonicos
@@ -89,7 +110,15 @@ def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> 
     if hasattr(fontes_brutas, 'to_dict'):
         fontes_brutas = fontes_brutas.to_dict(orient='records')
     for f in fontes_brutas:
-        fontes_temporais.append({'fonte_id':f.get('lote_id') or f.get('fonte_id'),'tipo_fonte':f.get('tipo_fonte') or 'lote','data_disponibilidade':f.get('data_disponibilidade') or data_ref,'valor_estimado':f.get('valor_liquido') or f.get('valor') or 0.0,'status_temporal':'disponivel' if f.get('disponivel', True) else 'indisponivel','disponivel_na_referencia':bool(f.get('disponivel', True)),'motivo_indisponibilidade':f.get('motivo_bloqueio') or '','origem_canonica':'fontes_elegiveis_pagamento'})
+        disponivel_ref = _bool_conservador_fonte(f)
+        valor_estimado = _float_seguro(
+            f.get('valor_liquido_disponivel'),
+            f.get('valor_bruto_disponivel'),
+            f.get('valor_liquido'),
+            f.get('valor'),
+            0.0,
+        )
+        fontes_temporais.append({'fonte_id':f.get('lote_id') or f.get('fonte_id'),'tipo_fonte':f.get('tipo_fonte') or 'lote','data_disponibilidade':f.get('data_disponibilidade') or data_ref,'valor_estimado':valor_estimado,'status_temporal':'disponivel' if disponivel_ref else 'indisponivel','disponivel_na_referencia':disponivel_ref,'motivo_indisponibilidade':f.get('motivo_bloqueio') or '','origem_canonica':'fontes_elegiveis_pagamento'})
 
     switching_temporal_realizado = [] if switching is None else switching.to_dict(orient='records')
 
@@ -127,4 +156,8 @@ def auditar_estado_temporal_inicial(estado: EstadoTemporalInicial) -> dict[str, 
         bloqueios.append('sem_pagamentos_futuros')
     if any(p.get('obrigacao_temporal') is not True for p in estado.pagamentos_temporais):
         bloqueios.append('pagamentos_sem_obrigacao_temporal')
-    return {'ok': len(bloqueios)==0, 'bloqueios': bloqueios, 'resumo': {'qtd_pagamentos':len(estado.pagamentos_temporais),'qtd_futuros':len(futuros)}}
+    qtd_fontes = len(estado.fontes_temporais)
+    qtd_fontes_disponiveis = sum(1 for f in estado.fontes_temporais if f.get('disponivel_na_referencia') is True)
+    qtd_fontes_indisponiveis = sum(1 for f in estado.fontes_temporais if f.get('disponivel_na_referencia') is False)
+    qtd_fontes_valor_positivo = sum(1 for f in estado.fontes_temporais if float(f.get('valor_estimado') or 0.0) > 0)
+    return {'ok': len(bloqueios)==0, 'bloqueios': bloqueios, 'resumo': {'qtd_pagamentos':len(estado.pagamentos_temporais),'qtd_futuros':len(futuros),'qtd_fontes_temporais':qtd_fontes,'qtd_fontes_disponiveis':qtd_fontes_disponiveis,'qtd_fontes_indisponiveis':qtd_fontes_indisponiveis,'qtd_fontes_valor_positivo':qtd_fontes_valor_positivo}}

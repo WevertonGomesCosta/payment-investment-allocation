@@ -51,3 +51,8 @@ Implementar a reforma estrutural da Etapa 4 com EstadoTemporalInicial formal, ca
   - `_SOMBRA_DIVERGENCIAS_LEDGER = {}`
 - Não houve alteração de regra econômica, Etapa 5, dados, ou recriação de `ContextoBaseline`.
 - `scripts/diagnostico/auditar_nucleo_vivo_v4z.py` explicitamente **não** tratado como gate desta PR.
+
+## Atualização microetapa (P1 fontes_temporais)
+- Corrigida disponibilidade de `fontes_temporais` com lógica conservadora: `disponivel` -> `elegivel_na_data_pagamento` -> `elegivel_temporalmente` -> `False`.
+- Corrigido `valor_estimado` em `fontes_temporais` com ordem: `valor_liquido_disponivel` -> `valor_bruto_disponivel` -> `valor_liquido` -> `valor` -> `0.0`, com conversão segura para `float`.
+- Auditoria do `EstadoTemporalInicial` ampliada com: `qtd_fontes_temporais`, `qtd_fontes_disponiveis`, `qtd_fontes_indisponiveis`, `qtd_fontes_valor_positivo`.
