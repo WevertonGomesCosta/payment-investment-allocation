@@ -55,6 +55,19 @@ Essa separação evita misturar contratos individuais com:
 
 - `relatorios/principais/CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md`
 
+## Fontes históricas usadas para os contratos individuais
+
+Os contratos das Etapas 1–4 não foram recriados conceitualmente do zero. Eles foram derivados dos documentos contratuais já existentes em `logs/iteracoes/`, preservando a lógica, as fronteiras e os fluxogramas formalizados:
+
+| Contrato individual | Documento-fonte preservado |
+|---|---|
+| `CONTRATO_ETAPA1_ENTRADA_RESOLVIDA.md` | `logs/iteracoes/ME-V17-F0-V32A_FORMALIZA_ETAPA1_PACOTE_ENTRADA_RESOLVIDA.md` |
+| `CONTRATO_ETAPA2_VALIDACAO_PRE_EXECUCAO.md` | `logs/iteracoes/ME-V17-F0-V32B_FORMALIZA_ETAPA2_VALIDACAO_PACOTE_ENTRADA_RESOLVIDA.md` |
+| `CONTRATO_ETAPA3_DADOS_OPERACIONAIS_CANONICOS.md` | `logs/iteracoes/ME-V17-F0-V32C_FORMALIZA_ETAPA3_CANONIZACAO_OPERACIONAL.md` |
+| `CONTRATO_ETAPA4_ESTADO_TEMPORAL_INICIAL.md` | `logs/iteracoes/ME-V17-F0-V4B_ESPECIFICA_CONTRATOS_FLUXOGRAMA_ETAPA4.md` |
+
+Os documentos-fonte permanecem preservados em `logs/iteracoes/` como histórico.
+
 ## Justificativa da remoção
 
 O contrato individual da Etapa 5 estava solto na raiz de `relatorios/principais/`, misturado com contrato mestre, modelo oficial e demais documentos principais.
