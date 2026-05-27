@@ -1296,8 +1296,11 @@ def construir_resultado_motor_temporal_conjunto(
         metadados={
             'etapa': '5',
             'artefato': 'ResultadoMotorTemporalConjunto',
-            'versao_contrato': 'ME-ETAPA5-A',
-            'sem_decisao_economica': True,
+            'versao_contrato': 'MACRO-ETAPA5-B',
+            'com_valoracao_pacotes_temporais': True,
+            'com_selecao_pacote_temporal': True,
+            'sem_execucao_pagamento': True,
+            'sem_execucao_switching': True,
             'sem_ledger': True,
             'sem_console_xlsx': True,
         },
