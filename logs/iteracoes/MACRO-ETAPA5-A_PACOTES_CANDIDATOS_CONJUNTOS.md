@@ -73,3 +73,13 @@ Criadas/evoluídas no módulo:
 - Não foi implementada escolha de pacote vencedor.
 - Não foi executado pagamento.
 - Não foi promovido/executado switching novo.
+
+## Correções pós-review (PR #411)
+- Ajustado `extrair_valor_fonte_referencial` para priorizar `valor_estimado`, com fallback seguro em `valor_disponivel`, `saldo_disponivel`, `saldo`, `valor`.
+- Ajustado `montar_fonte_candidata_pacote_temporal` para priorizar chaves canônicas (`fonte_id`, `tipo_fonte`, `origem_canonica`) antes dos fallbacks (`id`, `tipo`, `origem`).
+- Ajustado filtro de geração de pacotes de pagamento para ignorar fontes indisponíveis quando:
+  - `disponivel_na_referencia == False`; ou
+  - `status_temporal == 'indisponivel'`.
+- Ajustado `gerar_pacote_sem_cobertura` para considerar ausência de fontes disponíveis (não apenas ausência de fontes listadas).
+- Ajustado `montar_switching_candidato_pacote_temporal` para priorizar chaves canônicas (`switching_id`, `lote_origem`, `lote_destino`) com fallback para (`id`, `lote_origem_id`, `lote_destino_id`).
+- Ajustado `gerar_pacote_pagamento_com_recebido` para registrar explicitamente os recebidos referenciados em `metadados_auditoria` com `recebido_id` + referência do registro.

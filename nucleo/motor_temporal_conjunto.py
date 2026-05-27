@@ -554,7 +554,7 @@ def extrair_valor_obrigacao_referencial(obrigacao: dict[str, Any]) -> tuple[floa
 
 def extrair_valor_fonte_referencial(fonte: dict[str, Any]) -> tuple[float | None, list[str]]:
     avisos: list[str] = []
-    for campo in ('valor_disponivel', 'saldo_disponivel', 'saldo'):
+    for campo in ('valor_estimado', 'valor_disponivel', 'saldo_disponivel', 'saldo', 'valor'):
         valor = fonte.get(campo)
         if isinstance(valor, (int, float)):
             return float(valor), avisos
@@ -574,21 +574,29 @@ def extrair_valor_recebido_referencial(recebido: dict[str, Any]) -> tuple[float 
 
 def montar_fonte_candidata_pacote_temporal(fonte: dict[str, Any]) -> FonteCandidataPacoteTemporal:
     return FonteCandidataPacoteTemporal(
-        fonte_id=str(fonte.get('id')) if fonte.get('id') is not None else None,
-        tipo_fonte=str(fonte.get('tipo')) if fonte.get('tipo') is not None else None,
-        origem_fonte=str(fonte.get('origem')) if fonte.get('origem') is not None else 'fonte_temporal_referenciada',
+        fonte_id=str(fonte.get('fonte_id') or fonte.get('id')) if (fonte.get('fonte_id') is not None or fonte.get('id') is not None) else None,
+        tipo_fonte=str(fonte.get('tipo_fonte') or fonte.get('tipo')) if (fonte.get('tipo_fonte') is not None or fonte.get('tipo') is not None) else None,
+        origem_fonte=str(fonte.get('origem_canonica') or fonte.get('origem')) if (fonte.get('origem_canonica') is not None or fonte.get('origem') is not None) else None,
         referencia_estado_temporal=fonte,
     )
 
 
 def montar_switching_candidato_pacote_temporal(switching: dict[str, Any]) -> SwitchingCandidatoPacoteTemporal:
     return SwitchingCandidatoPacoteTemporal(
-        switching_id=str(switching.get('id')) if switching.get('id') is not None else None,
-        lote_origem_id=str(switching.get('lote_origem_id')) if switching.get('lote_origem_id') is not None else None,
-        lote_destino_id=str(switching.get('lote_destino_id')) if switching.get('lote_destino_id') is not None else None,
+        switching_id=str(switching.get('switching_id') or switching.get('id')) if (switching.get('switching_id') is not None or switching.get('id') is not None) else None,
+        lote_origem_id=str(switching.get('lote_origem') or switching.get('lote_origem_id')) if (switching.get('lote_origem') is not None or switching.get('lote_origem_id') is not None) else None,
+        lote_destino_id=str(switching.get('lote_destino') or switching.get('lote_destino_id')) if (switching.get('lote_destino') is not None or switching.get('lote_destino_id') is not None) else None,
         tipo_switching='integral',
         referencia_estado_temporal=switching,
     )
+
+
+def _fonte_disponivel_referencialmente(fonte: dict[str, Any]) -> bool:
+    if fonte.get('disponivel_na_referencia') is False:
+        return False
+    if str(fonte.get('status_temporal') or '').lower() == 'indisponivel':
+        return False
+    return True
 
 
 def _montar_pacote_base(data_ref: date, tipo_pacote: str, idx: str) -> PacoteTemporalCandidato:
@@ -618,7 +626,8 @@ def gerar_pacote_sem_obrigacao(estado_dia: EstadoDiarioMotorTemporal) -> PacoteT
 def gerar_pacote_sem_cobertura(estado_dia: EstadoDiarioMotorTemporal) -> PacoteTemporalCandidato | None:
     if not estado_dia.obrigacoes.pagamentos_referenciados:
         return None
-    if estado_dia.fontes_referenciadas.fontes_referenciadas or estado_dia.recebidos.recebidos_referenciados or estado_dia.switchings_realizados.switchings_referenciados:
+    fontes_disponiveis = [f for f in estado_dia.fontes_referenciadas.fontes_referenciadas if _fonte_disponivel_referencialmente(f)]
+    if fontes_disponiveis or estado_dia.recebidos.recebidos_referenciados or estado_dia.switchings_realizados.switchings_referenciados:
         return None
     pacote = _montar_pacote_base(estado_dia.data, 'sem_cobertura', '1')
     pacote.obrigacoes_referenciadas = list(estado_dia.obrigacoes.pagamentos_referenciados)
@@ -659,7 +668,8 @@ def gerar_pacotes_pagamento_fonte_unica(estado_dia: EstadoDiarioMotorTemporal) -
     pacotes: list[PacoteTemporalCandidato] = []
     if not estado_dia.obrigacoes.pagamentos_referenciados:
         return pacotes
-    for idx, fonte in enumerate(estado_dia.fontes_referenciadas.fontes_referenciadas, start=1):
+    fontes_disponiveis = [f for f in estado_dia.fontes_referenciadas.fontes_referenciadas if _fonte_disponivel_referencialmente(f)]
+    for idx, fonte in enumerate(fontes_disponiveis, start=1):
         pacote = _montar_pacote_base(estado_dia.data, 'pagamento_fonte_unica', str(idx))
         pacote.obrigacoes_referenciadas = list(estado_dia.obrigacoes.pagamentos_referenciados)
         fonte_candidata = montar_fonte_candidata_pacote_temporal(fonte)
@@ -673,15 +683,16 @@ def gerar_pacotes_pagamento_fonte_unica(estado_dia: EstadoDiarioMotorTemporal) -
 
 
 def gerar_pacote_pagamento_combinacao_fontes(estado_dia: EstadoDiarioMotorTemporal) -> PacoteTemporalCandidato | None:
-    if not estado_dia.obrigacoes.pagamentos_referenciados or len(estado_dia.fontes_referenciadas.fontes_referenciadas) < 2:
+    fontes_disponiveis = [f for f in estado_dia.fontes_referenciadas.fontes_referenciadas if _fonte_disponivel_referencialmente(f)]
+    if not estado_dia.obrigacoes.pagamentos_referenciados or len(fontes_disponiveis) < 2:
         return None
     pacote = _montar_pacote_base(estado_dia.data, 'pagamento_combinacao_fontes', '1')
     pacote.obrigacoes_referenciadas = list(estado_dia.obrigacoes.pagamentos_referenciados)
     pacote.fontes_candidatas = [
-        montar_fonte_candidata_pacote_temporal(fonte) for fonte in estado_dia.fontes_referenciadas.fontes_referenciadas
+        montar_fonte_candidata_pacote_temporal(fonte) for fonte in fontes_disponiveis
     ]
     pacote.valor_obrigacoes = sum(extrair_valor_obrigacao_referencial(o)[0] or 0.0 for o in pacote.obrigacoes_referenciadas)
-    pacote.valor_cobertura_referencial = sum(extrair_valor_fonte_referencial(f)[0] or 0.0 for f in estado_dia.fontes_referenciadas.fontes_referenciadas)
+    pacote.valor_cobertura_referencial = sum(extrair_valor_fonte_referencial(f)[0] or 0.0 for f in fontes_disponiveis)
     pacote.status_factibilidade = 'factivel_referencialmente'
     return pacote
 
@@ -694,7 +705,10 @@ def gerar_pacote_pagamento_com_recebido(estado_dia: EstadoDiarioMotorTemporal) -
     pacote.valor_obrigacoes = sum(extrair_valor_obrigacao_referencial(o)[0] or 0.0 for o in pacote.obrigacoes_referenciadas)
     pacote.valor_cobertura_referencial = sum(extrair_valor_recebido_referencial(r)[0] or 0.0 for r in estado_dia.recebidos.recebidos_referenciados)
     pacote.status_factibilidade = 'factivel_referencialmente'
-    pacote.metadados_auditoria['recebidos_referenciados'] = len(estado_dia.recebidos.recebidos_referenciados)
+    pacote.metadados_auditoria['recebidos_referenciados'] = [
+        {'recebido_id': recebido.get('recebido_id') or recebido.get('id'), 'referencia': recebido}
+        for recebido in estado_dia.recebidos.recebidos_referenciados
+    ]
     return pacote
 
 
