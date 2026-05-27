@@ -447,14 +447,16 @@ def montar_obrigacoes_temporais_dia(
     indice: IndiceTemporalMotor,
     data_motor: date,
 ) -> ObrigacoesTemporaisDia:
-    indices = list(indice.pagamentos_por_data.get(data_motor, []))
+    indices_brutos = list(indice.pagamentos_por_data.get(data_motor, []))
+    indices: list[int] = []
     pagamentos = []
-    for i in indices:
+    for i in indices_brutos:
         pagamento = estado.pagamentos_temporais[i]
         if pagamento.get('pago') is True:
             continue
         if pagamento.get('fonte_a_decidir') is False:
             continue
+        indices.append(i)
         pagamentos.append(pagamento)
     return ObrigacoesTemporaisDia(data=data_motor, indices_pagamentos=indices, pagamentos_referenciados=pagamentos)
 
@@ -764,7 +766,7 @@ def gerar_pacotes_pagamento_fonte_unica(estado_dia: EstadoDiarioMotorTemporal) -
         valor_fonte, _ = extrair_valor_fonte_referencial(fonte)
         pacote.valor_cobertura_referencial = valor_fonte
         if valor_fonte is None:
-            pacote.status_factibilidade = 'nao_avaliado'
+            pacote.status_factibilidade = 'bloqueado_estruturalmente'
             pacote.motivos_bloqueio.append('fonte_sem_valor_referencial')
         elif valor_fonte <= 0.0:
             pacote.status_factibilidade = 'bloqueado_estruturalmente'
@@ -811,6 +813,12 @@ def gerar_pacote_pagamento_com_recebido(estado_dia: EstadoDiarioMotorTemporal) -
     if not recebidos_disponiveis:
         pacote.status_factibilidade = 'bloqueado_estruturalmente'
         pacote.motivos_bloqueio.append('recebidos_indisponiveis_na_referencia')
+    elif (pacote.valor_cobertura_referencial or 0.0) <= 0.0:
+        pacote.status_factibilidade = 'bloqueado_estruturalmente'
+        pacote.motivos_bloqueio.append('recebidos_sem_cobertura_referencial_positiva')
+    elif (pacote.valor_cobertura_referencial or 0.0) < (pacote.valor_obrigacoes or 0.0):
+        pacote.status_factibilidade = 'bloqueado_estruturalmente'
+        pacote.motivos_bloqueio.append('recebidos_cobertura_referencial_insuficiente')
     else:
         pacote.status_factibilidade = 'factivel_referencialmente'
     pacote.metadados_auditoria['recebidos_referenciados'] = [
@@ -1185,11 +1193,68 @@ def selecionar_pacotes_temporais_vencedores(
     decisoes: dict[date, DecisaoTemporalDia] = {}
     vencedores: dict[date, PacoteTemporalCandidato | None] = {}
     descartados: dict[date, list[PacoteTemporalDescartado]] = {}
+    reserva_por_fonte: dict[str, float] = {}
     for data_ref in resultado.horizonte_motor.datas_temporais:
-        decisao, lista_descartados, vencedor = selecionar_pacote_temporal_vencedor_dia(data_ref, pacotes_valorados.get(data_ref, []))
+        pacotes_data = list(pacotes_valorados.get(data_ref, []))
+        filtrados: list[PacoteTemporalValorado] = []
+        descartes_reserva: list[PacoteTemporalDescartado] = []
+        for pv in pacotes_data:
+            pacote = pv.pacote_candidato
+            if pacote.tipo_pacote not in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'}:
+                filtrados.append(pv)
+                continue
+            if not pacote.obrigacoes_referenciadas:
+                filtrados.append(pv)
+                continue
+            fontes = pacote.fontes_candidatas
+            if not fontes:
+                descartes_reserva.append(PacoteTemporalDescartado(
+                    pacote_id=pacote.pacote_id,
+                    tipo_pacote=pacote.tipo_pacote,
+                    motivos_descarte=['fonte_ausente_para_reserva_referencial'],
+                    score_referencial=pv.valoracao.score_referencial,
+                ))
+                continue
+            valor_obrig = float(pacote.valor_obrigacoes or 0.0)
+            valor_cob = float(pacote.valor_cobertura_referencial or 0.0)
+            if valor_cob <= 0.0:
+                descartes_reserva.append(PacoteTemporalDescartado(
+                    pacote_id=pacote.pacote_id,
+                    tipo_pacote=pacote.tipo_pacote,
+                    motivos_descarte=['fonte_sem_cobertura_referencial_positiva_para_reserva'],
+                    score_referencial=pv.valoracao.score_referencial,
+                ))
+                continue
+            valor_por_fonte = valor_cob / float(len(fontes))
+            excedeu = False
+            for fonte in fontes:
+                if not fonte.fonte_id:
+                    excedeu = True
+                    break
+                reservado = reserva_por_fonte.get(fonte.fonte_id, 0.0)
+                if reservado + valor_por_fonte > valor_por_fonte and valor_obrig > 0.0 and reservado > 0.0:
+                    excedeu = True
+                    break
+            if excedeu:
+                descartes_reserva.append(PacoteTemporalDescartado(
+                    pacote_id=pacote.pacote_id,
+                    tipo_pacote=pacote.tipo_pacote,
+                    motivos_descarte=['fonte_referencial_ja_reservada_em_data_anterior'],
+                    score_referencial=pv.valoracao.score_referencial,
+                ))
+                continue
+            filtrados.append(pv)
+        decisao, lista_descartados, vencedor = selecionar_pacote_temporal_vencedor_dia(data_ref, filtrados)
+        lista_descartados.extend(descartes_reserva)
         decisoes[data_ref] = decisao
         vencedores[data_ref] = vencedor
         descartados[data_ref] = lista_descartados
+        if vencedor and vencedor.tipo_pacote in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'} and vencedor.fontes_candidatas:
+            valor_cob = float(vencedor.valor_cobertura_referencial or 0.0)
+            valor_por_fonte = valor_cob / float(len(vencedor.fontes_candidatas))
+            for fonte in vencedor.fontes_candidatas:
+                if fonte.fonte_id:
+                    reserva_por_fonte[fonte.fonte_id] = reserva_por_fonte.get(fonte.fonte_id, 0.0) + valor_por_fonte
     return decisoes, vencedores, descartados
 
 
@@ -1208,6 +1273,10 @@ def auditar_decisoes_temporais(resultado: ResultadoMotorTemporalConjunto) -> Aud
             continue
         if estado_diario.get(data_ref) and estado_diario[data_ref].obrigacoes.pagamentos_referenciados and decisao.pacote_vencedor_id is None:
             avisos.append(f'data_com_obrigacao_sem_vencedor:{data_ref.isoformat()}')
+        if estado_diario.get(data_ref):
+            obrigacoes = estado_diario[data_ref].obrigacoes
+            if len(obrigacoes.indices_pagamentos) != len(obrigacoes.pagamentos_referenciados):
+                avisos.append(f'inconsistencia_indices_pagamentos_referenciados:{data_ref.isoformat()}')
         vencedor = vencedores.get(data_ref)
         ids = {p.pacote_id for p in pacotes_por_data.get(data_ref, [])}
         if decisao.pacote_vencedor_id and decisao.pacote_vencedor_id not in ids:
@@ -1241,6 +1310,13 @@ def auditar_decisoes_temporais(resultado: ResultadoMotorTemporalConjunto) -> Aud
             )
             if indisponivel:
                 avisos.append(f'pagamento_com_recebido_factivel_com_recebido_indisponivel:{data_ref.isoformat()}')
+            if (vencedor.valor_cobertura_referencial or 0.0) < (vencedor.valor_obrigacoes or 0.0):
+                avisos.append(f'pagamento_com_recebido_factivel_com_cobertura_parcial:{data_ref.isoformat()}')
+        if vencedor and vencedor.tipo_pacote in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'}:
+            if any(f.fonte_id is None for f in vencedor.fontes_candidatas):
+                avisos.append(f'vencedor_com_fonte_sem_id:{data_ref.isoformat()}')
+            if vencedor.valor_cobertura_referencial is None:
+                avisos.append(f'vencedor_com_fonte_sem_valor_conhecido:{data_ref.isoformat()}')
         if decisao.executa_pagamento:
             avisos.append(f'decisao_indica_execucao_pagamento:{data_ref.isoformat()}')
         if decisao.executa_switching:

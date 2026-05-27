@@ -91,3 +91,11 @@ Valorar pacotes candidatos por data de forma referencial/heurística e seleciona
 - pagamento_fonte_unica: factível apenas com cobertura referencial suficiente; cobertura zero/insuficiente agora bloqueia com motivo explícito.
 - pagamento_combinacao_fontes: factível apenas com cobertura integral referencial; parcial/zero bloqueia com motivo explícito.
 - switching_mais_pagamento: exige cobertura referencial de switching >= obrigações; parcial/zero bloqueia com motivo explícito.
+
+## Ajustes P2 PR #415
+- pagamento_com_recebido bloqueado para cobertura parcial/zero mesmo com recebidos disponíveis.
+- indices_pagamentos sincronizados com pagamentos_referenciados filtrados.
+- fonte sem valor referencial agora bloqueia pagamento_fonte_unica.
+- seleção consolidada com reserva referencial interdiária mínima por fonte_id para evitar sobrecompromisso.
+- auditoria ampliada para cobertura parcial em pagamento_com_recebido, fonte sem valor/id e inconsistência de índices.
+
