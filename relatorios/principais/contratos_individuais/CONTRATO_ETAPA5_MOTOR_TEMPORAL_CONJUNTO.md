@@ -4,12 +4,13 @@
 >
 > `relatorios/principais/CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md`
 >
-> O arquivo original da raiz de `relatorios/principais/` é removido nesta microetapa para evitar duplicidade normativa. Esta cópia organiza o contrato individual na pasta canônica `relatorios/principais/contratos_individuais/`.
+> O arquivo original da raiz de `relatorios/principais/` foi removido na ME-CONTRATOS-01 para evitar duplicidade normativa. Esta cópia organiza o contrato individual na pasta canônica `relatorios/principais/contratos_individuais/`.
 
 ## 1. Identificação documental
 
 - MICROETAPA DE CRIAÇÃO DO CONTRATO: ME-ETAPA5-00
 - MICROETAPA DE ORGANIZAÇÃO: ME-CONTRATOS-01
+- MICROETAPA DE REVISÃO CONTRATUAL: ME-ETAPA5-01
 - TIPO: DOCUMENTAL / CONTRATUAL
 - CLASSE: CONTRATO_INDIVIDUAL_ETAPA5_MOTOR_TEMPORAL_CONJUNTO
 - ALTERA CÓDIGO: NÃO
@@ -26,37 +27,81 @@ Este documento é o contrato individual canônico da **Etapa 5 — Motor tempora
 
 Ele é subordinado ao contrato operacional mestre e ao modelo matemático-estatístico-financeiro oficial.
 
+A Etapa 5 é a camada de transição formal entre:
+
+```text
+Etapa 4 -> EstadoTemporalInicial -> Etapa 5 -> ResultadoMotorTemporalConjunto -> Etapa 6
+```
+
 ## 3. Função da etapa
 
 A Etapa 5 consome a saída formal da Etapa 4 e inicia a camada do motor temporal conjunto.
 
 A Etapa 5 não refaz a Etapa 4. Sua função inicial é montar a estrutura interna do motor a partir do `EstadoTemporalInicial`, preservando a separação entre estado inicial, motor, ledger, saída canônica, console e XLSX.
 
+Na primeira implementação funcional, a Etapa 5 deve produzir a saída canônica da própria etapa com preenchimento estrutural inicial, sem criar artefato provisório, compatível ou transitório.
+
 ## 4. Entrada formal da etapa
 
-A entrada formal obrigatória da Etapa 5 é:
+A entrada formal obrigatória e exclusiva da Etapa 5 é:
 
 `EstadoTemporalInicial`
 
 A Etapa 5 deve consumir esse artefato diretamente.
 
-## 5. Saída formal da etapa
+A Etapa 5 não pode reconstruir `EstadoTemporalInicial` a partir de:
 
-A saída formal da Etapa 5 é:
+- dados das Etapas 1–3;
+- planilha original;
+- console;
+- XLSX;
+- saída observável;
+- logs;
+- relatórios históricos;
+- scripts diagnósticos;
+- CSVs auxiliares;
+- artefatos derivados de renderização.
+
+## 5. O que já pertence à Etapa 4
+
+A Etapa 5 não deve refazer, recanonizar ou reclassificar os componentes que já pertencem à Etapa 4, incluindo:
+
+- `pagamentos_temporais`;
+- `recebidos_temporais`;
+- `fontes_temporais`;
+- `inventario_temporal`;
+- `switching_temporal_realizado`;
+- restrições temporais;
+- elegibilidades temporais preliminares;
+- auditoria temporal;
+- status temporal dos lotes;
+- fontes disponíveis ou indisponíveis já resolvidas pela Etapa 4.
+
+A Etapa 5 pode apenas consumir, referenciar e indexar esses componentes para iniciar o motor temporal conjunto.
+
+## 6. Saída formal da etapa
+
+A saída formal obrigatória da Etapa 5 é:
 
 `ResultadoMotorTemporalConjunto`
 
 Esse artefato deve nascer com nome canônico desde a primeira implementação funcional da etapa e ser enriquecido progressivamente conforme novas microetapas funcionais forem contratadas.
 
-Não deve ser criado artefato transitório de saída com nome provisório para a Etapa 5.
+É proibido criar artefato transitório de saída para a Etapa 5, incluindo, mas não limitado a:
 
-## 6. Relação com a Etapa 6
+- `ResultadoMotorTemporalMinimo`;
+- wrappers compatíveis;
+- resultados shadow;
+- resultados paralelos;
+- aliases temporários de saída.
+
+## 7. Contrato de interface com a Etapa 6
 
 A Etapa 6 deve consumir exclusivamente:
 
 `ResultadoMotorTemporalConjunto`
 
-A Etapa 6 não deve consumir diretamente:
+A Etapa 6 não pode consumir diretamente:
 
 - `EstadoTemporalInicial`;
 - dados das Etapas 1–4;
@@ -66,13 +111,12 @@ A Etapa 6 não deve consumir diretamente:
 - saída observável;
 - logs;
 - relatórios históricos;
-- scripts diagnósticos.
+- scripts diagnósticos;
+- qualquer artefato interno da Etapa 5 que não seja `ResultadoMotorTemporalConjunto`.
 
-A relação formal é:
+A Etapa 6 deve depender exclusivamente da saída formal da Etapa 5, preservando a mesma lógica sequencial das etapas anteriores: cada etapa consome a saída formal da etapa imediatamente anterior.
 
-`Etapa 4 -> EstadoTemporalInicial -> Etapa 5 -> ResultadoMotorTemporalConjunto -> Etapa 6`
-
-## 7. Escopo inicial da Etapa 5
+## 8. Escopo inicial da Etapa 5
 
 Na primeira implementação funcional, a Etapa 5 pode preencher apenas a porção inicial estrutural de `ResultadoMotorTemporalConjunto`.
 
@@ -88,7 +132,9 @@ Essa porção inicial pode conter:
 - status de interface da Etapa 5;
 - auditoria de consumo do `EstadoTemporalInicial`.
 
-## 8. O que a Etapa 5 pode fazer inicialmente
+Esses campos representam preparação do motor, não decisão econômica completa.
+
+## 9. O que a Etapa 5 pode fazer inicialmente
 
 A Etapa 5 pode:
 
@@ -100,7 +146,9 @@ A Etapa 5 pode:
 - montar auditoria de consumo da entrada formal;
 - retornar `ResultadoMotorTemporalConjunto`.
 
-## 9. O que a Etapa 5 não pode fazer inicialmente
+A verificação permitida é apenas de interface contratual. Ela não autoriza revalidação profunda, correção, reconstrução ou nova canonização dos componentes produzidos pela Etapa 4.
+
+## 10. O que a Etapa 5 não pode fazer inicialmente
 
 A Etapa 5 não pode:
 
@@ -110,6 +158,7 @@ A Etapa 5 não pode:
 - recanonizar fontes;
 - recanonizar inventário;
 - reinterpretar switchings realizados;
+- recalcular disponibilidade preliminar já resolvida;
 - escolher fonte ótima final;
 - selecionar lote de pagamento;
 - executar pagamento;
@@ -138,12 +187,14 @@ A Etapa 5 não pode:
 - reintroduzir `ContextoBaseline`;
 - reintroduzir `ContextoSaidaCanonicaCompat`.
 
-## 10. Funções previstas
+## 11. Funções previstas
 
 As funções previstas para a primeira implementação funcional devem ser restritas ao início do motor:
 
 ```python
-def verificar_interface_estado_temporal_inicial(estado: EstadoTemporalInicial) -> StatusInterfaceEtapa5:
+def verificar_interface_estado_temporal_inicial(
+    estado: EstadoTemporalInicial,
+) -> StatusInterfaceEtapa5:
     ...
 
 
@@ -191,7 +242,19 @@ def construir_resultado_motor_temporal_conjunto(
 
 Essas funções não devem refazer a Etapa 4. Elas apenas inicializam a camada de motor a partir da saída formal da Etapa 4.
 
-## 11. Fluxograma
+## 12. Entradas e saídas das funções previstas
+
+| Função | Entrada | Saída | Motivo | Limite |
+|---|---|---|---|---|
+| `verificar_interface_estado_temporal_inicial` | `EstadoTemporalInicial` | `StatusInterfaceEtapa5` | confirmar que a Etapa 5 recebeu a saída formal da Etapa 4 | não revalidar semanticamente pagamentos, fontes, inventário ou switchings |
+| `definir_horizonte_motor_temporal` | `EstadoTemporalInicial`, `ParametrosEtapa5` | `HorizonteMotorTemporal` | definir janela operacional do motor | não criar eventos ou obrigações novas |
+| `montar_indice_temporal_motor` | `EstadoTemporalInicial`, `HorizonteMotorTemporal` | `IndiceTemporalMotor` | criar índice interno de navegação temporal | não recanonizar dados da Etapa 4 |
+| `inicializar_estado_simulacao_motor` | `EstadoTemporalInicial`, `IndiceTemporalMotor` | `EstadoSimulacaoMotorTemporal` | criar estado inicial interno do motor | não executar pagamento, switching ou consumo de fonte |
+| `montar_eventos_temporais_base` | `EstadoTemporalInicial`, `IndiceTemporalMotor` | `EventosTemporaisBase` | referenciar eventos já presentes no estado | não gerar, ranquear ou promover eventos novos |
+| `montar_auditoria_consumo_etapa5` | `EstadoTemporalInicial`, `StatusInterfaceEtapa5` | `AuditoriaConsumoEtapa5` | registrar consumo direto da saída formal da Etapa 4 | não usar logs históricos como fonte normativa |
+| `construir_resultado_motor_temporal_conjunto` | `EstadoTemporalInicial`, `ParametrosEtapa5` | `ResultadoMotorTemporalConjunto` | orquestrar a primeira abertura funcional da Etapa 5 | não chamar ledger, console, XLSX, saída canônica ou diagnóstico auxiliar |
+
+## 13. Fluxograma
 
 ```mermaid
 flowchart TD
@@ -210,6 +273,6 @@ flowchart TD
     G --> E6[Etapa 6<br/>consome exclusivamente ResultadoMotorTemporalConjunto]
 ```
 
-## 12. Condição de parada
+## 14. Condição de parada
 
-Qualquer necessidade de escolher fonte ótima, executar pagamento, promover switching, criar ledger oficial, gerar saída canônica final, alterar console ou alterar XLSX deve interromper a microetapa funcional em curso e exigir novo contrato específico antes da implementação.
+Qualquer necessidade de escolher fonte ótima, executar pagamento, promover switching, criar ledger oficial, gerar saída canônica final, alterar console, alterar XLSX, usar diagnóstico auxiliar como motor ou reconstruir estado a partir de renderização deve interromper a microetapa funcional em curso e exigir novo contrato específico antes da implementação.
