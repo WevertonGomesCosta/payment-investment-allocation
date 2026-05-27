@@ -5,3 +5,4 @@
   2) `Reconciliação patrimonial / auditoria`.
 - Não houve alteração de cálculo econômico: apenas ordenação/rotulagem na apresentação.
 - Métricas de reconciliação e de switching foram mantidas para rastreabilidade auditável, mas separadas do bloco principal.
+- Escopo intencionalmente restrito a `nucleo/saida_observavel.py` e este registro da microetapa.
