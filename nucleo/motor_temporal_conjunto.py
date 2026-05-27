@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
@@ -141,6 +141,63 @@ class AuditoriaMotorTemporalConjunto:
 
 
 @dataclass(slots=True)
+class FonteCandidataPacoteTemporal:
+    fonte_id: str | None
+    tipo_fonte: str | None
+    origem_fonte: str | None
+    referencia_estado_temporal: dict[str, Any]
+
+
+@dataclass(slots=True)
+class SwitchingCandidatoPacoteTemporal:
+    switching_id: str | None
+    lote_origem_id: str | None
+    lote_destino_id: str | None
+    tipo_switching: str
+    referencia_estado_temporal: dict[str, Any]
+
+
+@dataclass(slots=True)
+class TransicaoCandidataPacoteTemporal:
+    tipo_transicao: str
+    status_transicao: str
+    referencias: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class PacoteTemporalCandidato:
+    pacote_id: str
+    data_referencia: date
+    tipo_pacote: str
+    obrigacoes_referenciadas: list[dict[str, Any]]
+    fontes_candidatas: list[FonteCandidataPacoteTemporal]
+    switchings_candidatos: list[SwitchingCandidatoPacoteTemporal]
+    transicoes_candidatas: list[TransicaoCandidataPacoteTemporal]
+    status_factibilidade: str
+    motivos_bloqueio: list[str]
+    valor_obrigacoes: float | None = None
+    valor_cobertura_referencial: float | None = None
+    metadados_auditoria: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class SchemaPacoteTemporalCandidato:
+    nome: str
+    versao: str
+    tipos_pacote_previstos: list[str]
+    status_factibilidade_previstos: list[str]
+    campos_obrigatorios: list[str]
+    campos_proibidos_decisao: list[str]
+
+
+@dataclass(slots=True)
+class AuditoriaSchemaPacoteTemporalCandidato:
+    ok: bool
+    avisos: list[str]
+    resumo: dict[str, Any]
+
+
+@dataclass(slots=True)
 class ResultadoMotorTemporalConjunto:
     data_referencia: date
     horizonte_motor: HorizonteMotorTemporal
@@ -162,6 +219,9 @@ class ResultadoMotorTemporalConjunto:
     cobertura_estrutural_por_data: dict[date, CoberturaEstruturalReferencialDia] | None = None
     bloqueios_estruturais: list[BloqueioEstruturalEtapa5] | None = None
     auditoria_motor_temporal_conjunto: AuditoriaMotorTemporalConjunto | None = None
+    schema_pacote_temporal_candidato: SchemaPacoteTemporalCandidato | None = None
+    pacotes_temporais_candidatos_por_data: dict[date, list[PacoteTemporalCandidato]] | None = None
+    auditoria_schema_pacote_temporal_candidato: AuditoriaSchemaPacoteTemporalCandidato | None = None
 
 
 _CAMPOS_OBRIGATORIOS_ESTADO = [
@@ -244,7 +304,7 @@ def definir_horizonte_motor_temporal(
     data_inicio = parametros.data_inicio or min(datas)
     data_fim = parametros.data_fim or max(datas)
     total_dias = (data_fim - data_inicio).days
-    datas_temporais = [data_inicio.fromordinal(data_inicio.toordinal() + deslocamento) for deslocamento in range(total_dias + 1)]
+    datas_temporais = [date.fromordinal(data_inicio.toordinal() + deslocamento) for deslocamento in range(total_dias + 1)]
 
     return HorizonteMotorTemporal(
         data_referencia=data_referencia,
@@ -432,6 +492,81 @@ def montar_estado_diario_motor_temporal(
     )
 
 
+def montar_schema_pacote_temporal_candidato() -> SchemaPacoteTemporalCandidato:
+    return SchemaPacoteTemporalCandidato(
+        nome='PacoteTemporalCandidato',
+        versao='ME-ETAPA5-06',
+        tipos_pacote_previstos=[
+            'sem_obrigacao',
+            'sem_cobertura',
+            'pagamento_fonte_unica',
+            'pagamento_combinacao_fontes',
+            'switching_integral_simples',
+            'switching_integral_agregado',
+            'switching_mais_pagamento',
+        ],
+        status_factibilidade_previstos=[
+            'schema_definido_sem_geracao',
+            'factivel_referencialmente',
+            'bloqueado_estruturalmente',
+            'nao_avaliado',
+        ],
+        campos_obrigatorios=[
+            'pacote_id',
+            'data_referencia',
+            'tipo_pacote',
+            'obrigacoes_referenciadas',
+            'fontes_candidatas',
+            'switchings_candidatos',
+            'transicoes_candidatas',
+            'status_factibilidade',
+            'motivos_bloqueio',
+            'metadados_auditoria',
+        ],
+        campos_proibidos_decisao=[
+            'fonte_otima_escolhida',
+            'lote_escolhido',
+            'pagamento_executado',
+            'switching_promovido',
+            'pacote_vencedor',
+            'ledger_evento_id',
+            'patrimonio_terminal_otimo',
+        ],
+    )
+
+
+def inicializar_pacotes_temporais_candidatos_por_data(
+    dias_motor: list[DiaMotorTemporal],
+) -> dict[date, list[PacoteTemporalCandidato]]:
+    return {dia.data: [] for dia in dias_motor}
+
+
+def montar_auditoria_schema_pacote_temporal_candidato(
+    resultado: ResultadoMotorTemporalConjunto,
+) -> AuditoriaSchemaPacoteTemporalCandidato:
+    schema = resultado.schema_pacote_temporal_candidato
+    pacotes_por_data = resultado.pacotes_temporais_candidatos_por_data or {}
+    horizonte = resultado.horizonte_motor.datas_temporais
+    avisos: list[str] = []
+
+    if schema is None:
+        avisos.append('schema_pacote_temporal_candidato_ausente')
+    if set(pacotes_por_data) != set(horizonte):
+        avisos.append('mapa_pacotes_candidatos_nao_cobre_horizonte')
+
+    resumo = {
+        'schema_definido': schema is not None,
+        'qtd_tipos_pacote_previstos': len(schema.tipos_pacote_previstos) if schema else 0,
+        'qtd_status_factibilidade_previstos': len(schema.status_factibilidade_previstos) if schema else 0,
+        'qtd_datas_horizonte': len(horizonte),
+        'qtd_datas_com_lista_pacotes': len(pacotes_por_data),
+        'qtd_pacotes_gerados': sum(len(pacotes) for pacotes in pacotes_por_data.values()),
+        'geracao_pacotes_adiada': True,
+    }
+
+    return AuditoriaSchemaPacoteTemporalCandidato(ok=not avisos, avisos=avisos, resumo=resumo)
+
+
 def montar_auditoria_consumo_etapa5(
     estado: EstadoTemporalInicial,
     status_interface: StatusInterfaceEtapa5,
@@ -538,7 +673,6 @@ def auditar_integridade_resultado_motor_temporal_conjunto(
         bloqueios.append('indice_recebidos_maior_que_eventos_base')
     if qtd_switchings_indexados > len(eventos.switchings_realizados):
         bloqueios.append('indice_switchings_maior_que_eventos_base')
-
     if not eventos.pagamentos and not eventos.recebidos and not eventos.switchings_realizados:
         bloqueios.append('eventos_temporais_base_vazios')
 
@@ -612,6 +746,8 @@ def construir_resultado_motor_temporal_conjunto(
 
     auditoria = montar_auditoria_consumo_etapa5(estado, status_interface)
     metadados_estado = getattr(estado, 'metadados', {}) or {}
+    schema_pacote = montar_schema_pacote_temporal_candidato()
+    pacotes_por_data = inicializar_pacotes_temporais_candidatos_por_data(dias_motor)
 
     resultado = ResultadoMotorTemporalConjunto(
         data_referencia=horizonte.data_referencia,
@@ -626,7 +762,7 @@ def construir_resultado_motor_temporal_conjunto(
         metadados={
             'etapa': '5',
             'artefato': 'ResultadoMotorTemporalConjunto',
-            'versao_contrato': 'ME-ETAPA5-05',
+            'versao_contrato': 'ME-ETAPA5-06',
             'sem_decisao_economica': True,
             'sem_ledger': True,
             'sem_console_xlsx': True,
@@ -639,8 +775,11 @@ def construir_resultado_motor_temporal_conjunto(
         switchings_realizados_por_data=switchings_realizados_por_data,
         cobertura_estrutural_por_data=cobertura_por_data,
         bloqueios_estruturais=bloqueios_estruturais,
+        schema_pacote_temporal_candidato=schema_pacote,
+        pacotes_temporais_candidatos_por_data=pacotes_por_data,
     )
     resultado.auditoria_motor_temporal_conjunto = montar_auditoria_motor_temporal_conjunto(resultado)
+    resultado.auditoria_schema_pacote_temporal_candidato = montar_auditoria_schema_pacote_temporal_candidato(resultado)
     resultado.auditoria_integridade_resultado = auditar_integridade_resultado_motor_temporal_conjunto(resultado)
     return resultado
 
@@ -649,27 +788,35 @@ __all__ = [
     'AuditoriaConsumoEtapa5',
     'AuditoriaIntegridadeResultadoMotorTemporalConjunto',
     'AuditoriaMotorTemporalConjunto',
+    'AuditoriaSchemaPacoteTemporalCandidato',
     'BloqueioEstruturalEtapa5',
     'CoberturaEstruturalReferencialDia',
     'DiaMotorTemporal',
     'EstadoDiarioMotorTemporal',
     'EstadoSimulacaoMotorTemporal',
     'EventosTemporaisBase',
+    'FonteCandidataPacoteTemporal',
     'FontesTemporaisReferenciadasDia',
     'HorizonteMotorTemporal',
     'IndiceTemporalMotor',
     'ObrigacoesTemporaisDia',
+    'PacoteTemporalCandidato',
     'ParametrosEtapa5',
     'RecebidosTemporaisDia',
     'ResultadoMotorTemporalConjunto',
+    'SchemaPacoteTemporalCandidato',
     'StatusInterfaceEtapa5',
+    'SwitchingCandidatoPacoteTemporal',
     'SwitchingsRealizadosDia',
+    'TransicaoCandidataPacoteTemporal',
     'auditar_integridade_resultado_motor_temporal_conjunto',
     'construir_resultado_motor_temporal_conjunto',
     'definir_horizonte_motor_temporal',
     'inicializar_estado_simulacao_motor',
+    'inicializar_pacotes_temporais_candidatos_por_data',
     'montar_auditoria_consumo_etapa5',
     'montar_auditoria_motor_temporal_conjunto',
+    'montar_auditoria_schema_pacote_temporal_candidato',
     'montar_dias_motor_temporal',
     'montar_estado_diario_motor_temporal',
     'montar_eventos_temporais_base',
@@ -677,6 +824,7 @@ __all__ = [
     'montar_indice_temporal_motor',
     'montar_obrigacoes_temporais_dia',
     'montar_recebidos_temporais_dia',
+    'montar_schema_pacote_temporal_candidato',
     'montar_switchings_realizados_dia',
     'sintetizar_cobertura_estrutural_referencial_dia',
     'verificar_interface_estado_temporal_inicial',
