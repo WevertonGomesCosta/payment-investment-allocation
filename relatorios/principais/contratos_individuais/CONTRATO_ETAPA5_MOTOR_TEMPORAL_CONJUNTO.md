@@ -1,18 +1,38 @@
 # CONTRATO INDIVIDUAL DA ETAPA 5 — MOTOR TEMPORAL CONJUNTO
 
-## 1. Status
+> Cópia canônica derivada do contrato individual já existente:
+>
+> `relatorios/principais/CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md`
+>
+> O arquivo original da raiz de `relatorios/principais/` é removido nesta microetapa para evitar duplicidade normativa. Esta cópia organiza o contrato individual na pasta canônica `relatorios/principais/contratos_individuais/`.
+
+## 1. Identificação documental
+
+- MICROETAPA DE CRIAÇÃO DO CONTRATO: ME-ETAPA5-00
+- MICROETAPA DE ORGANIZAÇÃO: ME-CONTRATOS-01
+- TIPO: DOCUMENTAL / CONTRATUAL
+- CLASSE: CONTRATO_INDIVIDUAL_ETAPA5_MOTOR_TEMPORAL_CONJUNTO
+- ALTERA CÓDIGO: NÃO
+- ALTERA MOTOR: NÃO
+- ALTERA LEDGER: NÃO
+- ALTERA SAÍDA CANÔNICA: NÃO
+- ALTERA DADOS: NÃO
+- ALTERA CONSOLE: NÃO
+- ALTERA XLSX: NÃO
+
+## 2. Status normativo
 
 Este documento é o contrato individual canônico da **Etapa 5 — Motor temporal conjunto**.
 
 Ele é subordinado ao contrato operacional mestre e ao modelo matemático-estatístico-financeiro oficial.
 
-## 2. Função da etapa
+## 3. Função da etapa
 
 A Etapa 5 consome a saída formal da Etapa 4 e inicia a camada do motor temporal conjunto.
 
 A Etapa 5 não refaz a Etapa 4. Sua função inicial é montar a estrutura interna do motor a partir do `EstadoTemporalInicial`, preservando a separação entre estado inicial, motor, ledger, saída canônica, console e XLSX.
 
-## 3. Entrada formal da etapa
+## 4. Entrada formal da etapa
 
 A entrada formal obrigatória da Etapa 5 é:
 
@@ -20,7 +40,7 @@ A entrada formal obrigatória da Etapa 5 é:
 
 A Etapa 5 deve consumir esse artefato diretamente.
 
-## 4. Saída formal da etapa
+## 5. Saída formal da etapa
 
 A saída formal da Etapa 5 é:
 
@@ -30,7 +50,7 @@ Esse artefato deve nascer com nome canônico desde a primeira implementação fu
 
 Não deve ser criado artefato transitório de saída com nome provisório para a Etapa 5.
 
-## 5. Relação com a Etapa 6
+## 6. Relação com a Etapa 6
 
 A Etapa 6 deve consumir exclusivamente:
 
@@ -52,7 +72,7 @@ A relação formal é:
 
 `Etapa 4 -> EstadoTemporalInicial -> Etapa 5 -> ResultadoMotorTemporalConjunto -> Etapa 6`
 
-## 6. Escopo inicial da Etapa 5
+## 7. Escopo inicial da Etapa 5
 
 Na primeira implementação funcional, a Etapa 5 pode preencher apenas a porção inicial estrutural de `ResultadoMotorTemporalConjunto`.
 
@@ -68,7 +88,7 @@ Essa porção inicial pode conter:
 - status de interface da Etapa 5;
 - auditoria de consumo do `EstadoTemporalInicial`.
 
-## 7. O que a Etapa 5 pode fazer inicialmente
+## 8. O que a Etapa 5 pode fazer inicialmente
 
 A Etapa 5 pode:
 
@@ -80,7 +100,7 @@ A Etapa 5 pode:
 - montar auditoria de consumo da entrada formal;
 - retornar `ResultadoMotorTemporalConjunto`.
 
-## 8. O que a Etapa 5 não pode fazer inicialmente
+## 9. O que a Etapa 5 não pode fazer inicialmente
 
 A Etapa 5 não pode:
 
@@ -118,7 +138,7 @@ A Etapa 5 não pode:
 - reintroduzir `ContextoBaseline`;
 - reintroduzir `ContextoSaidaCanonicaCompat`.
 
-## 9. Funções previstas
+## 10. Funções previstas
 
 As funções previstas para a primeira implementação funcional devem ser restritas ao início do motor:
 
@@ -171,7 +191,7 @@ def construir_resultado_motor_temporal_conjunto(
 
 Essas funções não devem refazer a Etapa 4. Elas apenas inicializam a camada de motor a partir da saída formal da Etapa 4.
 
-## 10. Fluxograma
+## 11. Fluxograma
 
 ```mermaid
 flowchart TD
@@ -190,6 +210,6 @@ flowchart TD
     G --> E6[Etapa 6<br/>consome exclusivamente ResultadoMotorTemporalConjunto]
 ```
 
-## 11. Condição de parada
+## 12. Condição de parada
 
 Qualquer necessidade de escolher fonte ótima, executar pagamento, promover switching, criar ledger oficial, gerar saída canônica final, alterar console ou alterar XLSX deve interromper a microetapa funcional em curso e exigir novo contrato específico antes da implementação.
