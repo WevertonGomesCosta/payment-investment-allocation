@@ -9,7 +9,8 @@
 DOCUMENTAL / GOVERNANÇA DOCUMENTAL
 
 ## Classe
-nOrganização de contratos individuais sem alteração funcional.
+
+Organização de contratos individuais sem alteração funcional.
 
 ## Branch
 
