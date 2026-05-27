@@ -243,7 +243,8 @@ def definir_horizonte_motor_temporal(
 
     data_inicio = parametros.data_inicio or min(datas)
     data_fim = parametros.data_fim or max(datas)
-    datas_temporais = sorted(data for data in datas if data_inicio <= data <= data_fim)
+    total_dias = (data_fim - data_inicio).days
+    datas_temporais = [data_inicio.fromordinal(data_inicio.toordinal() + deslocamento) for deslocamento in range(total_dias + 1)]
 
     return HorizonteMotorTemporal(
         data_referencia=data_referencia,
@@ -349,11 +350,19 @@ def montar_fontes_temporais_referenciadas_dia(
     data_motor: date,
 ) -> FontesTemporaisReferenciadasDia:
     campos_temporais = ('data', 'data_disponibilidade', 'data_referencia', 'data_inicio', 'data_vencimento')
-    fontes = [
-        fonte
-        for fonte in (estado.fontes_temporais or [])
-        if isinstance(fonte, dict) and any(isinstance(fonte.get(campo), date) for campo in campos_temporais)
-    ]
+    fontes: list[dict[str, Any]] = []
+    for fonte in estado.fontes_temporais or []:
+        if not isinstance(fonte, dict):
+            continue
+        datas_fonte = [
+            valor
+            for campo in campos_temporais
+            if isinstance((valor := fonte.get(campo)), date)
+        ]
+        if not datas_fonte:
+            continue
+        if data_motor >= min(datas_fonte):
+            fontes.append(fonte)
     if not fontes:
         return FontesTemporaisReferenciadasDia(
             data=data_motor,
@@ -476,7 +485,16 @@ def montar_auditoria_motor_temporal_conjunto(
         'qtd_bloqueios_estruturais': len(bloqueios),
     }
 
-    return AuditoriaMotorTemporalConjunto(ok=not avisos, avisos=avisos, resumo=resumo)
+    possui_bloqueios_relevantes = any(
+        bloqueio.codigo in {'estrutura_insuficiente', 'obrigacao_sem_fonte_referenciada'}
+        for bloqueio in bloqueios
+    )
+
+    return AuditoriaMotorTemporalConjunto(
+        ok=not avisos and not possui_bloqueios_relevantes,
+        avisos=avisos,
+        resumo=resumo,
+    )
 
 
 def auditar_integridade_resultado_motor_temporal_conjunto(

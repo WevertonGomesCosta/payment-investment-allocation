@@ -76,3 +76,8 @@ Consolidar camada estrutural diária referencial em memória da Etapa 5 no `Resu
 - Não alterado ledger.
 - Não alterados scripts diagnósticos.
 - Não alterados arquivos em `dados/*`.
+
+## Ajustes pós-review (P2)
+- `datas_temporais`/`dias_motor` passaram a cobrir todos os dias corridos entre `data_inicio` e `data_fim` (malha diária contínua), não apenas dias com eventos indexados.
+- `montar_fontes_temporais_referenciadas_dia(...)` passou a anexar fontes por `data_motor` apenas quando a data corrente é igual ou posterior à menor data temporal explícita da fonte (`data`, `data_disponibilidade`, `data_referencia`, `data_inicio`, `data_vencimento`), sem recalcular disponibilidade/elegibilidade/liquidez/carência/imposto/saldo.
+- `AuditoriaMotorTemporalConjunto.ok` passou a retornar `False` quando existirem `bloqueios_estruturais` relevantes (`estrutura_insuficiente` e `obrigacao_sem_fonte_referenciada`), evitando sinalização de resultado estruturalmente limpo com obrigações bloqueadas.
