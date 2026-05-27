@@ -824,7 +824,7 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
         2,
     )
 
-    bloco_principal = [
+    bloco_patrimonio_economico_principal = [
         {'Métrica': '--- Patrimônio econômico principal ---', 'Valor': ''},
         {'Métrica': 'Valor original total', 'Valor': valor_original_total},
         {'Métrica': 'Valor total investido em carteira', 'Valor': valor_total_investido_em_carteira},
@@ -850,7 +850,7 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
         {'Métrica': 'Rendimento líquido atual — reconciliado contra valor original observado', 'Valor': rendimento_reconciliado_contra_valor_original_observado},
     ]
 
-    return bloco_principal + bloco_reconciliacao
+    return bloco_patrimonio_economico_principal + bloco_reconciliacao
 
 
 def construir_blocos_situacao_atual(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
