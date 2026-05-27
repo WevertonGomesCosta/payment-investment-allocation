@@ -824,8 +824,8 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
         2,
     )
 
-    return [
-        # Métricas antigas preservadas para compatibilidade.
+    bloco_principal = [
+        {'Métrica': '--- Patrimônio econômico principal ---', 'Valor': ''},
         {'Métrica': 'Valor original total', 'Valor': valor_original_total},
         {'Métrica': 'Valor total investido em carteira', 'Valor': valor_total_investido_em_carteira},
         {'Métrica': 'Valor total bruto sacado', 'Valor': valor_total_bruto_sacado},
@@ -834,8 +834,10 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
         {'Métrica': 'Valor líquido atual', 'Valor': valor_liquido_atual},
         {'Métrica': 'Patrimônio líquido atual', 'Valor': patrimonio_liquido_atual},
         {'Métrica': 'Rendimento líquido atual', 'Valor': rendimento_liquido_atual},
+    ]
 
-        # Métricas novas e explícitas para reconciliação econômica.
+    bloco_reconciliacao = [
+        {'Métrica': '--- Reconciliação patrimonial / auditoria ---', 'Valor': ''},
         {'Métrica': 'Valor original total — observado', 'Valor': valor_original_total},
         {'Métrica': 'Valor original destinos pós-switching ativos/sintéticos atuais', 'Valor': valor_original_destinos_pos_switching},
         {'Métrica': 'Valor original observado sem destinos pós-switching sintéticos', 'Valor': valor_original_observado_sem_destinos_sinteticos},
@@ -847,6 +849,8 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
         {'Métrica': 'Rendimento líquido atual — reconciliado contra recebidos', 'Valor': rendimento_reconciliado_contra_recebidos},
         {'Métrica': 'Rendimento líquido atual — reconciliado contra valor original observado', 'Valor': rendimento_reconciliado_contra_valor_original_observado},
     ]
+
+    return bloco_principal + bloco_reconciliacao
 
 
 def construir_blocos_situacao_atual(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
