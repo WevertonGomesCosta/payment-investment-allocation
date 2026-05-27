@@ -654,7 +654,7 @@ A Etapa 3 pode gerar internamente lotes destino derivados desses switchings já 
 
 A Etapa 3 transforma o quadro estrutural resolvido de `lotes`, em conjunto com os switchings já realizados canônicos, em `inventario_canonico_base`, `inventario_canonico_completo`, auditoria de inventário e auditoria do inventário canônico completo.
 
-O nome técnico transitório atual `inventario_lotes_expandido` deve ser interpretado conceitualmente como:
+Qualquer referência técnica a `inventario_lotes_expandido` deve ser interpretada conceitualmente como:
 
 `inventario_canonico_completo`
 
@@ -771,23 +771,28 @@ A Etapa 4 não pode:
 - corrigir saída;
 - renderizar console;
 - gerar XLSX;
-- substituir `ContextoBaseline` por adaptador;
-- promover `ContextoSaidaCanonicaCompat`;
-- usar fallback legado como regra normativa;
-- usar pontes shadow ou compatíveis como rota viva;
+- reconstruir estado temporal a partir de console, XLSX, saída observável, relatórios, logs, diagnósticos ou artefatos históricos;
+- usar artefatos históricos, adaptadores, wrappers ou rotas alternativas como fonte normativa de estado;
 - iniciar funcionalmente a Etapa 5.
 
-`ContextoBaseline` permanece classificado como runtime legado/transitório, aceito apenas enquanto a rota oficial ainda depender dele. Ele não deve ser expandido como alvo arquitetural nem usado para justificar novas pontes compatíveis.
+`ContextoOperacionalCanonico` é o contexto operacional vigente das Etapas 1–4. A evolução arquitetural deve preservar esse contexto como base canônica, sem criar rotas paralelas com status equivalente.
 
-`ContextoOperacionalCanonico` é o alvo canônico das Etapas 1–4. A evolução arquitetural deve convergir para esse contexto, sem criar rotas paralelas com status equivalente.
+A saída formal da Etapa 4 é o `EstadoTemporalInicial`.
 
-`ContextoSaidaCanonicaCompat` é apenas artefato diagnóstico de equivalência observável concluída. Ele não é camada normativa, não é runtime oficial, não é arquitetura viva, não deve ser promovido e não deve ser mantido como ponte canônica antes da Etapa 5.
+O `EstadoTemporalInicial` deve consolidar, no mínimo:
 
-A comparação observável entre `ContextoBaseline` e `ContextoSaidaCanonicaCompat`, quando `ok=True` e `divergencias=0`, serve apenas como evidência diagnóstica de equivalência. Ela não justifica manter `ContextoSaidaCanonicaCompat` como arquitetura viva.
+- `pagamentos_temporais`;
+- `recebidos_temporais`;
+- `fontes_temporais`;
+- `inventario_temporal`;
+- `switching_temporal_realizado`;
+- restrições temporais;
+- elegibilidades temporais preliminares;
+- auditoria temporal.
 
-Nenhuma ponte legado/canônico, adaptador compatível, fallback legado, linguagem shadow ou contexto amplo transitório pode virar rota viva antes da Etapa 5.
+A Etapa 5 deve consumir o `EstadoTemporalInicial` como entrada formal. É vedado reconstruir estado temporal a partir de console, XLSX, saída observável, relatórios, logs, diagnósticos ou artefatos históricos.
 
-Qualquer remoção física de `ContextoSaidaCanonicaCompat` e comparadores associados deve ocorrer em microetapa própria posterior, fora da ME-PRE-ETAPA5-01.
+Console, XLSX e saída observável são renderizações de conferência e validação humana. Eles não são fonte normativa de estado para a Etapa 5.
 
 O estado temporal inicial não depende diretamente do ranking para existir. A dependência direta do ranking ocorre principalmente no motor temporal conjunto, em especial na avaliação de switchings e destinos econômicos.
 
@@ -969,9 +974,9 @@ Diagnósticos que leem a planilha final podem ser usados para validar fidelidade
 
 É vedado usar diagnóstico pós-planilha como mecanismo principal para decidir se switching foi aplicado corretamente ao estado temporal.
 
-### 7-E.14. Vedação a pontes de renderização com efeito econômico
+### 7-E.14. Vedação a renderizações com efeito econômico
 
-Pontes, adaptadores ou wrappers de saída podem existir apenas como mecanismos transitórios de apresentação, desde que não alterem a decisão econômica nem sejam tratados como integração funcional do motor.
+Console, XLSX, saída observável e demais renderizações são artefatos de apresentação, conferência e validação humana.
 
 Qualquer integração com efeito econômico deve ocorrer antes da construção da saída canônica, dentro do motor temporal conjunto ou de camada explicitamente subordinada a ele.
 
@@ -1740,7 +1745,7 @@ Qualquer evolução funcional deve permanecer compatível com a fonte única de 
 
 Produtos do tipo Tesouro Direto, Tesouro IPCA, Tesouro Educa, Tesouro Prefixado, Tesouro Selic e demais titulos publicos ou produtos cuja valorizacao dependa de curva de mercado, indexador de inflacao, marcacao a mercado ou preco de venda em data futura nao devem ser promovidos como recomendacao operacional de switching enquanto nao existir uma camada auditavel especifica para esse tipo de ativo.
 
-A existencia de ganho estimado em analise shadow ou diagnostica nao e suficiente para liberar a promocao operacional desses produtos. Enquanto a camada especifica nao estiver implementada, esses casos devem permanecer registrados apenas como oportunidade futura de modelagem.
+A existencia de ganho estimado em analise experimental ou diagnostica nao e suficiente para liberar a promocao operacional desses produtos. Enquanto a camada especifica nao estiver implementada, esses casos devem permanecer registrados apenas como oportunidade futura de modelagem.
 
 A promocao operacional desses produtos somente pode ocorrer quando o projeto suportar, de forma auditavel:
 
