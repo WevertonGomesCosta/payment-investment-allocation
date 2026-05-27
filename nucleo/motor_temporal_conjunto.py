@@ -73,6 +73,74 @@ class AuditoriaIntegridadeResultadoMotorTemporalConjunto:
 
 
 @dataclass(slots=True)
+class ObrigacoesTemporaisDia:
+    data: date
+    indices_pagamentos: list[int]
+    pagamentos_referenciados: list[dict[str, Any]]
+
+
+@dataclass(slots=True)
+class RecebidosTemporaisDia:
+    data: date
+    indices_recebidos: list[int]
+    recebidos_referenciados: list[dict[str, Any]]
+
+
+@dataclass(slots=True)
+class FontesTemporaisReferenciadasDia:
+    data: date
+    fontes_referenciadas: list[dict[str, Any]]
+    possui_campo_temporal_explicito: bool
+    aviso_estrutural: str | None = None
+
+
+@dataclass(slots=True)
+class SwitchingsRealizadosDia:
+    data: date
+    indices_switchings: list[int]
+    switchings_referenciados: list[dict[str, Any]]
+
+
+@dataclass(slots=True)
+class CoberturaEstruturalReferencialDia:
+    data: date
+    status: str
+    possui_obrigacao: bool
+    possui_recebidos_referenciados: bool
+    possui_fonte_referenciada: bool
+
+
+@dataclass(slots=True)
+class BloqueioEstruturalEtapa5:
+    data: date
+    codigo: str
+    detalhe: str
+
+
+@dataclass(slots=True)
+class EstadoDiarioMotorTemporal:
+    data: date
+    obrigacoes: ObrigacoesTemporaisDia
+    recebidos: RecebidosTemporaisDia
+    fontes_referenciadas: FontesTemporaisReferenciadasDia
+    switchings_realizados: SwitchingsRealizadosDia
+    cobertura_estrutural: CoberturaEstruturalReferencialDia
+
+
+@dataclass(slots=True)
+class DiaMotorTemporal:
+    data: date
+    possui_eventos_indexados: bool
+
+
+@dataclass(slots=True)
+class AuditoriaMotorTemporalConjunto:
+    ok: bool
+    avisos: list[str]
+    resumo: dict[str, Any]
+
+
+@dataclass(slots=True)
 class ResultadoMotorTemporalConjunto:
     data_referencia: date
     horizonte_motor: HorizonteMotorTemporal
@@ -85,6 +153,15 @@ class ResultadoMotorTemporalConjunto:
     auditoria_consumo_estado_temporal: AuditoriaConsumoEtapa5
     metadados: dict[str, Any]
     auditoria_integridade_resultado: AuditoriaIntegridadeResultadoMotorTemporalConjunto | None = None
+    dias_motor: list[DiaMotorTemporal] | None = None
+    estado_diario_motor: dict[date, EstadoDiarioMotorTemporal] | None = None
+    obrigacoes_por_data: dict[date, ObrigacoesTemporaisDia] | None = None
+    recebidos_por_data: dict[date, RecebidosTemporaisDia] | None = None
+    fontes_referenciadas_por_data: dict[date, FontesTemporaisReferenciadasDia] | None = None
+    switchings_realizados_por_data: dict[date, SwitchingsRealizadosDia] | None = None
+    cobertura_estrutural_por_data: dict[date, CoberturaEstruturalReferencialDia] | None = None
+    bloqueios_estruturais: list[BloqueioEstruturalEtapa5] | None = None
+    auditoria_motor_temporal_conjunto: AuditoriaMotorTemporalConjunto | None = None
 
 
 _CAMPOS_OBRIGATORIOS_ESTADO = [
@@ -166,7 +243,8 @@ def definir_horizonte_motor_temporal(
 
     data_inicio = parametros.data_inicio or min(datas)
     data_fim = parametros.data_fim or max(datas)
-    datas_temporais = sorted(data for data in datas if data_inicio <= data <= data_fim)
+    total_dias = (data_fim - data_inicio).days
+    datas_temporais = [data_inicio.fromordinal(data_inicio.toordinal() + deslocamento) for deslocamento in range(total_dias + 1)]
 
     return HorizonteMotorTemporal(
         data_referencia=data_referencia,
@@ -235,6 +313,125 @@ def montar_eventos_temporais_base(
     )
 
 
+def montar_dias_motor_temporal(
+    estado: EstadoTemporalInicial,
+    horizonte: HorizonteMotorTemporal,
+    indice: IndiceTemporalMotor,
+) -> list[DiaMotorTemporal]:
+    dias: list[DiaMotorTemporal] = []
+    datas_com_eventos = set(indice.datas_com_eventos)
+    for data_motor in horizonte.datas_temporais:
+        dias.append(DiaMotorTemporal(data=data_motor, possui_eventos_indexados=data_motor in datas_com_eventos))
+    return dias
+
+
+def montar_obrigacoes_temporais_dia(
+    estado: EstadoTemporalInicial,
+    indice: IndiceTemporalMotor,
+    data_motor: date,
+) -> ObrigacoesTemporaisDia:
+    indices = list(indice.pagamentos_por_data.get(data_motor, []))
+    pagamentos = [estado.pagamentos_temporais[i] for i in indices]
+    return ObrigacoesTemporaisDia(data=data_motor, indices_pagamentos=indices, pagamentos_referenciados=pagamentos)
+
+
+def montar_recebidos_temporais_dia(
+    estado: EstadoTemporalInicial,
+    indice: IndiceTemporalMotor,
+    data_motor: date,
+) -> RecebidosTemporaisDia:
+    indices = list(indice.recebidos_por_data.get(data_motor, []))
+    recebidos = [estado.recebidos_temporais[i] for i in indices]
+    return RecebidosTemporaisDia(data=data_motor, indices_recebidos=indices, recebidos_referenciados=recebidos)
+
+
+def montar_fontes_temporais_referenciadas_dia(
+    estado: EstadoTemporalInicial,
+    data_motor: date,
+) -> FontesTemporaisReferenciadasDia:
+    campos_temporais = ('data', 'data_disponibilidade', 'data_referencia', 'data_inicio', 'data_vencimento')
+    fontes: list[dict[str, Any]] = []
+    for fonte in estado.fontes_temporais or []:
+        if not isinstance(fonte, dict):
+            continue
+        datas_fonte = [
+            valor
+            for campo in campos_temporais
+            if isinstance((valor := fonte.get(campo)), date)
+        ]
+        if not datas_fonte:
+            continue
+        if data_motor >= min(datas_fonte):
+            fontes.append(fonte)
+    if not fontes:
+        return FontesTemporaisReferenciadasDia(
+            data=data_motor,
+            fontes_referenciadas=[],
+            possui_campo_temporal_explicito=False,
+            aviso_estrutural='fontes_sem_campo_temporal_explicito_no_estado',
+        )
+    return FontesTemporaisReferenciadasDia(
+        data=data_motor,
+        fontes_referenciadas=fontes,
+        possui_campo_temporal_explicito=True,
+    )
+
+
+def montar_switchings_realizados_dia(
+    estado: EstadoTemporalInicial,
+    indice: IndiceTemporalMotor,
+    data_motor: date,
+) -> SwitchingsRealizadosDia:
+    indices = list(indice.switchings_por_data.get(data_motor, []))
+    switchings = [estado.switching_temporal_realizado[i] for i in indices]
+    return SwitchingsRealizadosDia(data=data_motor, indices_switchings=indices, switchings_referenciados=switchings)
+
+
+def sintetizar_cobertura_estrutural_referencial_dia(
+    obrigacoes: ObrigacoesTemporaisDia,
+    fontes_referenciadas: FontesTemporaisReferenciadasDia,
+    recebidos: RecebidosTemporaisDia,
+) -> CoberturaEstruturalReferencialDia:
+    possui_obrigacao = bool(obrigacoes.pagamentos_referenciados)
+    possui_fonte = bool(fontes_referenciadas.fontes_referenciadas)
+    possui_recebidos = bool(recebidos.recebidos_referenciados)
+
+    if not possui_obrigacao:
+        status = 'sem_obrigacao'
+    elif not fontes_referenciadas.possui_campo_temporal_explicito:
+        status = 'estrutura_insuficiente'
+    elif possui_fonte or possui_recebidos:
+        status = 'obrigacao_com_fonte_referenciada'
+    else:
+        status = 'obrigacao_sem_fonte_referenciada'
+
+    return CoberturaEstruturalReferencialDia(
+        data=obrigacoes.data,
+        status=status,
+        possui_obrigacao=possui_obrigacao,
+        possui_recebidos_referenciados=possui_recebidos,
+        possui_fonte_referenciada=possui_fonte,
+    )
+
+
+def montar_estado_diario_motor_temporal(
+    dia: DiaMotorTemporal,
+    obrigacoes: ObrigacoesTemporaisDia,
+    recebidos: RecebidosTemporaisDia,
+    fontes_referenciadas: FontesTemporaisReferenciadasDia,
+    switchings_realizados: SwitchingsRealizadosDia,
+    cobertura_estrutural: CoberturaEstruturalReferencialDia,
+) -> EstadoDiarioMotorTemporal:
+    return EstadoDiarioMotorTemporal(
+        data=dia.data,
+        obrigacoes=obrigacoes,
+        recebidos=recebidos,
+        fontes_referenciadas=fontes_referenciadas,
+        switchings_realizados=switchings_realizados,
+        cobertura_estrutural=cobertura_estrutural,
+    )
+
+
 def montar_auditoria_consumo_etapa5(
     estado: EstadoTemporalInicial,
     status_interface: StatusInterfaceEtapa5,
@@ -256,6 +453,50 @@ def montar_auditoria_consumo_etapa5(
     )
 
 
+def montar_auditoria_motor_temporal_conjunto(
+    resultado: ResultadoMotorTemporalConjunto,
+) -> AuditoriaMotorTemporalConjunto:
+    dias_motor = resultado.dias_motor or []
+    estado_diario_motor = resultado.estado_diario_motor or {}
+    cobertura_por_data = resultado.cobertura_estrutural_por_data or {}
+    obrigacoes_por_data = resultado.obrigacoes_por_data or {}
+    fontes_por_data = resultado.fontes_referenciadas_por_data or {}
+    bloqueios = resultado.bloqueios_estruturais or []
+
+    avisos: list[str] = []
+    datas_horizonte = resultado.horizonte_motor.datas_temporais
+    datas_dias_motor = [dia.data for dia in dias_motor]
+    if datas_dias_motor != datas_horizonte:
+        avisos.append('dias_motor_divergentes_do_horizonte')
+    if set(estado_diario_motor) != set(datas_horizonte):
+        avisos.append('estado_diario_incompleto_ou_com_datas_extras')
+
+    qtd_cobertura_insuficiente = sum(1 for c in cobertura_por_data.values() if c.status == 'estrutura_insuficiente')
+    qtd_obrigacao_sem_fonte = sum(1 for c in cobertura_por_data.values() if c.status == 'obrigacao_sem_fonte_referenciada')
+
+    resumo = {
+        'qtd_dias_horizonte': len(datas_horizonte),
+        'qtd_dias_motor': len(dias_motor),
+        'qtd_estados_diarios': len(estado_diario_motor),
+        'qtd_obrigacoes_indexadas': sum(len(o.indices_pagamentos) for o in obrigacoes_por_data.values()),
+        'qtd_fontes_referenciadas_dia': sum(1 for f in fontes_por_data.values() if f.fontes_referenciadas),
+        'qtd_cobertura_estrutura_insuficiente': qtd_cobertura_insuficiente,
+        'qtd_obrigacao_sem_fonte_referenciada': qtd_obrigacao_sem_fonte,
+        'qtd_bloqueios_estruturais': len(bloqueios),
+    }
+
+    possui_bloqueios_relevantes = any(
+        bloqueio.codigo in {'estrutura_insuficiente', 'obrigacao_sem_fonte_referenciada'}
+        for bloqueio in bloqueios
+    )
+
+    return AuditoriaMotorTemporalConjunto(
+        ok=not avisos and not possui_bloqueios_relevantes,
+        avisos=avisos,
+        resumo=resumo,
+    )
+
+
 def auditar_integridade_resultado_motor_temporal_conjunto(
     resultado: ResultadoMotorTemporalConjunto,
 ) -> AuditoriaIntegridadeResultadoMotorTemporalConjunto:
@@ -270,16 +511,12 @@ def auditar_integridade_resultado_motor_temporal_conjunto(
 
     if not status_interface.ok:
         bloqueios.append('interface_estado_temporal_inicial_invalida')
-
     if resultado.data_referencia != horizonte.data_referencia:
         bloqueios.append('data_referencia_divergente_do_horizonte')
-
     if horizonte.data_inicio > horizonte.data_fim:
         bloqueios.append('horizonte_motor_com_inicio_apos_fim')
-
     if resultado.janela_temporal_motor != horizonte.datas_temporais:
         bloqueios.append('janela_temporal_divergente_do_horizonte')
-
     if not horizonte.datas_temporais:
         bloqueios.append('horizonte_motor_sem_datas_temporais')
 
@@ -307,7 +544,6 @@ def auditar_integridade_resultado_motor_temporal_conjunto(
 
     if auditoria_consumo.origem_artefato != 'EstadoTemporalInicial':
         avisos.append('auditoria_consumo_origem_diferente_de_estado_temporal_inicial')
-
     if 'estado_temporal_inicial_consumido_diretamente' not in auditoria_consumo.observacoes:
         bloqueios.append('auditoria_consumo_sem_confirmacao_consumo_direto')
 
@@ -323,14 +559,11 @@ def auditar_integridade_resultado_motor_temporal_conjunto(
         'qtd_campos_interface_presentes': len(status_interface.campos_presentes),
         'qtd_campos_interface_ausentes': len(status_interface.campos_ausentes),
         'qtd_avisos_interface': len(status_interface.avisos),
+        'qtd_dias_motor': len(resultado.dias_motor or []),
+        'qtd_estados_diarios': len(resultado.estado_diario_motor or {}),
     }
 
-    return AuditoriaIntegridadeResultadoMotorTemporalConjunto(
-        ok=not bloqueios,
-        bloqueios=bloqueios,
-        avisos=avisos,
-        resumo=resumo,
-    )
+    return AuditoriaIntegridadeResultadoMotorTemporalConjunto(ok=not bloqueios, bloqueios=bloqueios, avisos=avisos, resumo=resumo)
 
 
 def construir_resultado_motor_temporal_conjunto(
@@ -343,6 +576,40 @@ def construir_resultado_motor_temporal_conjunto(
     indice = montar_indice_temporal_motor(estado, horizonte)
     estado_simulacao = inicializar_estado_simulacao_motor(estado, indice)
     eventos_base = montar_eventos_temporais_base(estado, indice)
+    dias_motor = montar_dias_motor_temporal(estado, horizonte, indice)
+
+    obrigacoes_por_data: dict[date, ObrigacoesTemporaisDia] = {}
+    recebidos_por_data: dict[date, RecebidosTemporaisDia] = {}
+    fontes_referenciadas_por_data: dict[date, FontesTemporaisReferenciadasDia] = {}
+    switchings_realizados_por_data: dict[date, SwitchingsRealizadosDia] = {}
+    cobertura_por_data: dict[date, CoberturaEstruturalReferencialDia] = {}
+    estado_diario_motor: dict[date, EstadoDiarioMotorTemporal] = {}
+    bloqueios_estruturais: list[BloqueioEstruturalEtapa5] = []
+
+    for dia in dias_motor:
+        obrigacoes = montar_obrigacoes_temporais_dia(estado, indice, dia.data)
+        recebidos = montar_recebidos_temporais_dia(estado, indice, dia.data)
+        fontes = montar_fontes_temporais_referenciadas_dia(estado, dia.data)
+        switchings = montar_switchings_realizados_dia(estado, indice, dia.data)
+        cobertura = sintetizar_cobertura_estrutural_referencial_dia(obrigacoes, fontes, recebidos)
+        estado_diario = montar_estado_diario_motor_temporal(dia, obrigacoes, recebidos, fontes, switchings, cobertura)
+
+        obrigacoes_por_data[dia.data] = obrigacoes
+        recebidos_por_data[dia.data] = recebidos
+        fontes_referenciadas_por_data[dia.data] = fontes
+        switchings_realizados_por_data[dia.data] = switchings
+        cobertura_por_data[dia.data] = cobertura
+        estado_diario_motor[dia.data] = estado_diario
+
+        if cobertura.status in {'estrutura_insuficiente', 'obrigacao_sem_fonte_referenciada'}:
+            bloqueios_estruturais.append(
+                BloqueioEstruturalEtapa5(
+                    data=dia.data,
+                    codigo=cobertura.status,
+                    detalhe='bloqueio_estrutural_referencial_sem_decisao_economica',
+                ),
+            )
+
     auditoria = montar_auditoria_consumo_etapa5(estado, status_interface)
     metadados_estado = getattr(estado, 'metadados', {}) or {}
 
@@ -359,12 +626,21 @@ def construir_resultado_motor_temporal_conjunto(
         metadados={
             'etapa': '5',
             'artefato': 'ResultadoMotorTemporalConjunto',
-            'versao_contrato': 'ME-ETAPA5-04',
+            'versao_contrato': 'ME-ETAPA5-05',
             'sem_decisao_economica': True,
             'sem_ledger': True,
             'sem_console_xlsx': True,
         },
+        dias_motor=dias_motor,
+        estado_diario_motor=estado_diario_motor,
+        obrigacoes_por_data=obrigacoes_por_data,
+        recebidos_por_data=recebidos_por_data,
+        fontes_referenciadas_por_data=fontes_referenciadas_por_data,
+        switchings_realizados_por_data=switchings_realizados_por_data,
+        cobertura_estrutural_por_data=cobertura_por_data,
+        bloqueios_estruturais=bloqueios_estruturais,
     )
+    resultado.auditoria_motor_temporal_conjunto = montar_auditoria_motor_temporal_conjunto(resultado)
     resultado.auditoria_integridade_resultado = auditar_integridade_resultado_motor_temporal_conjunto(resultado)
     return resultado
 
@@ -372,19 +648,36 @@ def construir_resultado_motor_temporal_conjunto(
 __all__ = [
     'AuditoriaConsumoEtapa5',
     'AuditoriaIntegridadeResultadoMotorTemporalConjunto',
+    'AuditoriaMotorTemporalConjunto',
+    'BloqueioEstruturalEtapa5',
+    'CoberturaEstruturalReferencialDia',
+    'DiaMotorTemporal',
+    'EstadoDiarioMotorTemporal',
     'EstadoSimulacaoMotorTemporal',
     'EventosTemporaisBase',
+    'FontesTemporaisReferenciadasDia',
     'HorizonteMotorTemporal',
     'IndiceTemporalMotor',
+    'ObrigacoesTemporaisDia',
     'ParametrosEtapa5',
+    'RecebidosTemporaisDia',
     'ResultadoMotorTemporalConjunto',
     'StatusInterfaceEtapa5',
+    'SwitchingsRealizadosDia',
     'auditar_integridade_resultado_motor_temporal_conjunto',
     'construir_resultado_motor_temporal_conjunto',
     'definir_horizonte_motor_temporal',
     'inicializar_estado_simulacao_motor',
     'montar_auditoria_consumo_etapa5',
+    'montar_auditoria_motor_temporal_conjunto',
+    'montar_dias_motor_temporal',
+    'montar_estado_diario_motor_temporal',
     'montar_eventos_temporais_base',
+    'montar_fontes_temporais_referenciadas_dia',
     'montar_indice_temporal_motor',
+    'montar_obrigacoes_temporais_dia',
+    'montar_recebidos_temporais_dia',
+    'montar_switchings_realizados_dia',
+    'sintetizar_cobertura_estrutural_referencial_dia',
     'verificar_interface_estado_temporal_inicial',
 ]
