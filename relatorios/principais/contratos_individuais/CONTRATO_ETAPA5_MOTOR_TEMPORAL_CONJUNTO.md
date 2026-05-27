@@ -1,0 +1,215 @@
+# CONTRATO INDIVIDUAL DA ETAPA 5 — MOTOR TEMPORAL CONJUNTO
+
+> Cópia canônica derivada do contrato individual já existente:
+>
+> `relatorios/principais/CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md`
+>
+> O arquivo original da raiz de `relatorios/principais/` é removido nesta microetapa para evitar duplicidade normativa. Esta cópia organiza o contrato individual na pasta canônica `relatorios/principais/contratos_individuais/`.
+
+## 1. Identificação documental
+
+- MICROETAPA DE CRIAÇÃO DO CONTRATO: ME-ETAPA5-00
+- MICROETAPA DE ORGANIZAÇÃO: ME-CONTRATOS-01
+- TIPO: DOCUMENTAL / CONTRATUAL
+- CLASSE: CONTRATO_INDIVIDUAL_ETAPA5_MOTOR_TEMPORAL_CONJUNTO
+- ALTERA CÓDIGO: NÃO
+- ALTERA MOTOR: NÃO
+- ALTERA LEDGER: NÃO
+- ALTERA SAÍDA CANÔNICA: NÃO
+- ALTERA DADOS: NÃO
+- ALTERA CONSOLE: NÃO
+- ALTERA XLSX: NÃO
+
+## 2. Status normativo
+
+Este documento é o contrato individual canônico da **Etapa 5 — Motor temporal conjunto**.
+
+Ele é subordinado ao contrato operacional mestre e ao modelo matemático-estatístico-financeiro oficial.
+
+## 3. Função da etapa
+
+A Etapa 5 consome a saída formal da Etapa 4 e inicia a camada do motor temporal conjunto.
+
+A Etapa 5 não refaz a Etapa 4. Sua função inicial é montar a estrutura interna do motor a partir do `EstadoTemporalInicial`, preservando a separação entre estado inicial, motor, ledger, saída canônica, console e XLSX.
+
+## 4. Entrada formal da etapa
+
+A entrada formal obrigatória da Etapa 5 é:
+
+`EstadoTemporalInicial`
+
+A Etapa 5 deve consumir esse artefato diretamente.
+
+## 5. Saída formal da etapa
+
+A saída formal da Etapa 5 é:
+
+`ResultadoMotorTemporalConjunto`
+
+Esse artefato deve nascer com nome canônico desde a primeira implementação funcional da etapa e ser enriquecido progressivamente conforme novas microetapas funcionais forem contratadas.
+
+Não deve ser criado artefato transitório de saída com nome provisório para a Etapa 5.
+
+## 6. Relação com a Etapa 6
+
+A Etapa 6 deve consumir exclusivamente:
+
+`ResultadoMotorTemporalConjunto`
+
+A Etapa 6 não deve consumir diretamente:
+
+- `EstadoTemporalInicial`;
+- dados das Etapas 1–4;
+- planilha original;
+- console;
+- XLSX;
+- saída observável;
+- logs;
+- relatórios históricos;
+- scripts diagnósticos.
+
+A relação formal é:
+
+`Etapa 4 -> EstadoTemporalInicial -> Etapa 5 -> ResultadoMotorTemporalConjunto -> Etapa 6`
+
+## 7. Escopo inicial da Etapa 5
+
+Na primeira implementação funcional, a Etapa 5 pode preencher apenas a porção inicial estrutural de `ResultadoMotorTemporalConjunto`.
+
+Essa porção inicial pode conter:
+
+- data de referência;
+- horizonte do motor;
+- identificador ou evidência de origem do `EstadoTemporalInicial`;
+- janela temporal do motor;
+- índice temporal interno do motor;
+- estado inicial de simulação do motor;
+- eventos temporais base referenciados a partir do estado recebido;
+- status de interface da Etapa 5;
+- auditoria de consumo do `EstadoTemporalInicial`.
+
+## 8. O que a Etapa 5 pode fazer inicialmente
+
+A Etapa 5 pode:
+
+- verificar apenas a interface contratual mínima do `EstadoTemporalInicial`;
+- definir horizonte ou janela do motor;
+- montar índice temporal interno para iteração do motor;
+- inicializar o estado interno de simulação a partir do estado recebido;
+- referenciar eventos temporais já presentes no `EstadoTemporalInicial`;
+- montar auditoria de consumo da entrada formal;
+- retornar `ResultadoMotorTemporalConjunto`.
+
+## 9. O que a Etapa 5 não pode fazer inicialmente
+
+A Etapa 5 não pode:
+
+- reconstruir `EstadoTemporalInicial`;
+- recanonizar pagamentos;
+- recanonizar recebidos;
+- recanonizar fontes;
+- recanonizar inventário;
+- reinterpretar switchings realizados;
+- escolher fonte ótima final;
+- selecionar lote de pagamento;
+- executar pagamento;
+- liquidar conta;
+- escolher pacote vencedor;
+- decidir switching candidato;
+- promover switching candidato;
+- executar switching novo;
+- materializar novo lote pós-switching;
+- criar ledger oficial;
+- criar saída canônica final;
+- alterar console;
+- alterar XLSX;
+- alterar dados;
+- alterar planilha operacional;
+- alterar ranking da Carteira;
+- alterar regras econômicas;
+- usar saída observável como fonte de estado;
+- usar log histórico como norma viva;
+- usar diagnóstico como motor auxiliar;
+- criar fallback legado;
+- criar wrapper transitório;
+- criar rota paralela;
+- criar sentinela;
+- criar script diagnóstico;
+- reintroduzir `ContextoBaseline`;
+- reintroduzir `ContextoSaidaCanonicaCompat`.
+
+## 10. Funções previstas
+
+As funções previstas para a primeira implementação funcional devem ser restritas ao início do motor:
+
+```python
+def verificar_interface_estado_temporal_inicial(estado: EstadoTemporalInicial) -> StatusInterfaceEtapa5:
+    ...
+
+
+def definir_horizonte_motor_temporal(
+    estado: EstadoTemporalInicial,
+    parametros: ParametrosEtapa5,
+) -> HorizonteMotorTemporal:
+    ...
+
+
+def montar_indice_temporal_motor(
+    estado: EstadoTemporalInicial,
+    horizonte: HorizonteMotorTemporal,
+) -> IndiceTemporalMotor:
+    ...
+
+
+def inicializar_estado_simulacao_motor(
+    estado: EstadoTemporalInicial,
+    indice: IndiceTemporalMotor,
+) -> EstadoSimulacaoMotorTemporal:
+    ...
+
+
+def montar_eventos_temporais_base(
+    estado: EstadoTemporalInicial,
+    indice: IndiceTemporalMotor,
+) -> EventosTemporaisBase:
+    ...
+
+
+def montar_auditoria_consumo_etapa5(
+    estado: EstadoTemporalInicial,
+    status_interface: StatusInterfaceEtapa5,
+) -> AuditoriaConsumoEtapa5:
+    ...
+
+
+def construir_resultado_motor_temporal_conjunto(
+    estado: EstadoTemporalInicial,
+    parametros: ParametrosEtapa5,
+) -> ResultadoMotorTemporalConjunto:
+    ...
+```
+
+Essas funções não devem refazer a Etapa 4. Elas apenas inicializam a camada de motor a partir da saída formal da Etapa 4.
+
+## 11. Fluxograma
+
+```mermaid
+flowchart TD
+    E4[Etapa 4<br/>EstadoTemporalInicial] --> E5IN[Entrada formal da Etapa 5<br/>EstadoTemporalInicial]
+
+    subgraph E5[Etapa 5 — Motor temporal conjunto]
+        E5IN --> A[verificar_interface_estado_temporal_inicial]
+        A --> B[definir_horizonte_motor_temporal]
+        B --> C[montar_indice_temporal_motor]
+        C --> D[inicializar_estado_simulacao_motor]
+        D --> E[montar_eventos_temporais_base]
+        E --> F[montar_auditoria_consumo_etapa5]
+        F --> G[ResultadoMotorTemporalConjunto<br/>saída formal da Etapa 5]
+    end
+
+    G --> E6[Etapa 6<br/>consome exclusivamente ResultadoMotorTemporalConjunto]
+```
+
+## 12. Condição de parada
+
+Qualquer necessidade de escolher fonte ótima, executar pagamento, promover switching, criar ledger oficial, gerar saída canônica final, alterar console ou alterar XLSX deve interromper a microetapa funcional em curso e exigir novo contrato específico antes da implementação.
