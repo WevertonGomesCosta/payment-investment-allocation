@@ -65,6 +65,14 @@ class AuditoriaConsumoEtapa5:
 
 
 @dataclass(slots=True)
+class AuditoriaIntegridadeResultadoMotorTemporalConjunto:
+    ok: bool
+    bloqueios: list[str]
+    avisos: list[str]
+    resumo: dict[str, Any]
+
+
+@dataclass(slots=True)
 class ResultadoMotorTemporalConjunto:
     data_referencia: date
     horizonte_motor: HorizonteMotorTemporal
@@ -76,6 +84,7 @@ class ResultadoMotorTemporalConjunto:
     status_interface_etapa5: StatusInterfaceEtapa5
     auditoria_consumo_estado_temporal: AuditoriaConsumoEtapa5
     metadados: dict[str, Any]
+    auditoria_integridade_resultado: AuditoriaIntegridadeResultadoMotorTemporalConjunto | None = None
 
 
 _CAMPOS_OBRIGATORIOS_ESTADO = [
@@ -104,6 +113,10 @@ def _adicionar_indice_por_data(indice: dict[date, list[int]], data_evento: date 
     if data_evento is None:
         return
     indice.setdefault(data_evento, []).append(posicao)
+
+
+def _contar_itens_indexados(indice: dict[date, list[int]]) -> int:
+    return sum(len(posicoes) for posicoes in indice.values())
 
 
 def verificar_interface_estado_temporal_inicial(estado: EstadoTemporalInicial) -> StatusInterfaceEtapa5:
@@ -243,6 +256,83 @@ def montar_auditoria_consumo_etapa5(
     )
 
 
+def auditar_integridade_resultado_motor_temporal_conjunto(
+    resultado: ResultadoMotorTemporalConjunto,
+) -> AuditoriaIntegridadeResultadoMotorTemporalConjunto:
+    bloqueios: list[str] = []
+    avisos: list[str] = []
+
+    status_interface = resultado.status_interface_etapa5
+    horizonte = resultado.horizonte_motor
+    indice = resultado.indice_temporal_motor
+    eventos = resultado.eventos_temporais_base
+    auditoria_consumo = resultado.auditoria_consumo_estado_temporal
+
+    if not status_interface.ok:
+        bloqueios.append('interface_estado_temporal_inicial_invalida')
+
+    if resultado.data_referencia != horizonte.data_referencia:
+        bloqueios.append('data_referencia_divergente_do_horizonte')
+
+    if horizonte.data_inicio > horizonte.data_fim:
+        bloqueios.append('horizonte_motor_com_inicio_apos_fim')
+
+    if resultado.janela_temporal_motor != horizonte.datas_temporais:
+        bloqueios.append('janela_temporal_divergente_do_horizonte')
+
+    if not horizonte.datas_temporais:
+        bloqueios.append('horizonte_motor_sem_datas_temporais')
+
+    datas_fora_horizonte = [
+        data_evento
+        for data_evento in indice.datas_com_eventos
+        if data_evento < horizonte.data_inicio or data_evento > horizonte.data_fim
+    ]
+    if datas_fora_horizonte:
+        bloqueios.append('indice_temporal_com_datas_fora_do_horizonte')
+
+    qtd_pagamentos_indexados = _contar_itens_indexados(indice.pagamentos_por_data)
+    qtd_recebidos_indexados = _contar_itens_indexados(indice.recebidos_por_data)
+    qtd_switchings_indexados = _contar_itens_indexados(indice.switchings_por_data)
+
+    if qtd_pagamentos_indexados > len(eventos.pagamentos):
+        bloqueios.append('indice_pagamentos_maior_que_eventos_base')
+    if qtd_recebidos_indexados > len(eventos.recebidos):
+        bloqueios.append('indice_recebidos_maior_que_eventos_base')
+    if qtd_switchings_indexados > len(eventos.switchings_realizados):
+        bloqueios.append('indice_switchings_maior_que_eventos_base')
+
+    if not eventos.pagamentos and not eventos.recebidos and not eventos.switchings_realizados:
+        bloqueios.append('eventos_temporais_base_vazios')
+
+    if auditoria_consumo.origem_artefato != 'EstadoTemporalInicial':
+        avisos.append('auditoria_consumo_origem_diferente_de_estado_temporal_inicial')
+
+    if 'estado_temporal_inicial_consumido_diretamente' not in auditoria_consumo.observacoes:
+        bloqueios.append('auditoria_consumo_sem_confirmacao_consumo_direto')
+
+    resumo = {
+        'qtd_datas_horizonte': len(horizonte.datas_temporais),
+        'qtd_datas_com_eventos': len(indice.datas_com_eventos),
+        'qtd_pagamentos_base': len(eventos.pagamentos),
+        'qtd_pagamentos_indexados': qtd_pagamentos_indexados,
+        'qtd_recebidos_base': len(eventos.recebidos),
+        'qtd_recebidos_indexados': qtd_recebidos_indexados,
+        'qtd_switchings_base': len(eventos.switchings_realizados),
+        'qtd_switchings_indexados': qtd_switchings_indexados,
+        'qtd_campos_interface_presentes': len(status_interface.campos_presentes),
+        'qtd_campos_interface_ausentes': len(status_interface.campos_ausentes),
+        'qtd_avisos_interface': len(status_interface.avisos),
+    }
+
+    return AuditoriaIntegridadeResultadoMotorTemporalConjunto(
+        ok=not bloqueios,
+        bloqueios=bloqueios,
+        avisos=avisos,
+        resumo=resumo,
+    )
+
+
 def construir_resultado_motor_temporal_conjunto(
     estado: EstadoTemporalInicial,
     parametros: ParametrosEtapa5 | None = None,
@@ -256,7 +346,7 @@ def construir_resultado_motor_temporal_conjunto(
     auditoria = montar_auditoria_consumo_etapa5(estado, status_interface)
     metadados_estado = getattr(estado, 'metadados', {}) or {}
 
-    return ResultadoMotorTemporalConjunto(
+    resultado = ResultadoMotorTemporalConjunto(
         data_referencia=horizonte.data_referencia,
         horizonte_motor=horizonte,
         estado_temporal_inicial_id=metadados_estado.get('id'),
@@ -269,16 +359,19 @@ def construir_resultado_motor_temporal_conjunto(
         metadados={
             'etapa': '5',
             'artefato': 'ResultadoMotorTemporalConjunto',
-            'versao_contrato': 'ME-ETAPA5-02',
+            'versao_contrato': 'ME-ETAPA5-04',
             'sem_decisao_economica': True,
             'sem_ledger': True,
             'sem_console_xlsx': True,
         },
     )
+    resultado.auditoria_integridade_resultado = auditar_integridade_resultado_motor_temporal_conjunto(resultado)
+    return resultado
 
 
 __all__ = [
     'AuditoriaConsumoEtapa5',
+    'AuditoriaIntegridadeResultadoMotorTemporalConjunto',
     'EstadoSimulacaoMotorTemporal',
     'EventosTemporaisBase',
     'HorizonteMotorTemporal',
@@ -286,6 +379,7 @@ __all__ = [
     'ParametrosEtapa5',
     'ResultadoMotorTemporalConjunto',
     'StatusInterfaceEtapa5',
+    'auditar_integridade_resultado_motor_temporal_conjunto',
     'construir_resultado_motor_temporal_conjunto',
     'definir_horizonte_motor_temporal',
     'inicializar_estado_simulacao_motor',
