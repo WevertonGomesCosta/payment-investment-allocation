@@ -32,6 +32,19 @@ Em caso de divergência, prevalecem o contrato mestre e o modelo oficial.
 - `CONTRATO_ETAPA4_ESTADO_TEMPORAL_INICIAL.md`
 - `CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md`
 
+## Fontes históricas preservadas
+
+Os contratos das Etapas 1–4 foram derivados de documentos contratuais já existentes em `logs/iteracoes/`, preservando a lógica, as fronteiras e os fluxogramas já formalizados:
+
+| Contrato individual | Documento-fonte preservado |
+|---|---|
+| `CONTRATO_ETAPA1_ENTRADA_RESOLVIDA.md` | `logs/iteracoes/ME-V17-F0-V32A_FORMALIZA_ETAPA1_PACOTE_ENTRADA_RESOLVIDA.md` |
+| `CONTRATO_ETAPA2_VALIDACAO_PRE_EXECUCAO.md` | `logs/iteracoes/ME-V17-F0-V32B_FORMALIZA_ETAPA2_VALIDACAO_PACOTE_ENTRADA_RESOLVIDA.md` |
+| `CONTRATO_ETAPA3_DADOS_OPERACIONAIS_CANONICOS.md` | `logs/iteracoes/ME-V17-F0-V32C_FORMALIZA_ETAPA3_CANONIZACAO_OPERACIONAL.md` |
+| `CONTRATO_ETAPA4_ESTADO_TEMPORAL_INICIAL.md` | `logs/iteracoes/ME-V17-F0-V4B_ESPECIFICA_CONTRATOS_FLUXOGRAMA_ETAPA4.md` |
+
+Os documentos-fonte permanecem no local original como logs históricos. Esta pasta contém cópias canônicas organizadas para consulta normativa individual por etapa.
+
 ## Regra de escopo
 
 Esta pasta deve conter apenas contratos individuais de etapas.
