@@ -1423,12 +1423,17 @@ def _extrair_recebidos_referenciados_pacote(pacote: PacoteTemporalCandidato) -> 
     return recebidos
 
 
-def _identificar_recebido_referencial(recebido: dict[str, Any], posicao: int) -> str:
+def _identificar_recebido_referencial(
+    recebido: dict[str, Any],
+    data_ref: date,
+    pacote_id: str,
+    posicao: int,
+) -> str:
     for campo in ('recebido_id', 'id', 'identificador', 'codigo'):
         valor = recebido.get(campo)
         if valor is not None:
             return f'recebido:{valor}'
-    return f'recebido_sem_id:{posicao}'
+    return f'recebido_sem_id:{data_ref.isoformat()}:{pacote_id}:{posicao}'
 
 
 def _valor_total_obrigacoes_pacote(pacote: PacoteTemporalCandidato) -> tuple[float, list[str]]:
@@ -1539,7 +1544,7 @@ def _reservar_recebidos_referenciais(
     for posicao, recebido in enumerate(_extrair_recebidos_referenciados_pacote(pacote), start=1):
         if restante <= 0.0:
             break
-        fonte_id = _identificar_recebido_referencial(recebido, posicao)
+        fonte_id = _identificar_recebido_referencial(recebido, data_ref, pacote.pacote_id, posicao)
         valor_recebido, avisos_recebido = extrair_valor_recebido_referencial(recebido)
         alertas.extend(avisos_recebido)
         if valor_recebido is None:
@@ -1570,6 +1575,41 @@ def _reservar_recebidos_referenciais(
     return reservas, valor_necessario - restante, alertas
 
 
+def _bloquear_obrigacoes_individualmente(
+    data_ref: date,
+    pacote: PacoteTemporalCandidato,
+    motivo: str,
+    valor_cobertura_referencial: float = 0.0,
+) -> tuple[list[ObrigacaoBloqueadaTemporalmente], list[str]]:
+    bloqueadas: list[ObrigacaoBloqueadaTemporalmente] = []
+    alertas: list[str] = []
+    for obrigacao in pacote.obrigacoes_referenciadas:
+        valor_obrigacao, avisos_obrigacao = extrair_valor_obrigacao_referencial(obrigacao)
+        obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao)
+        alertas.extend(avisos_obrigacao)
+        alertas.extend(avisos_id)
+        bloqueadas.append(ObrigacaoBloqueadaTemporalmente(
+            data=data_ref,
+            obrigacao_id=obrigacao_id,
+            pacote_id=pacote.pacote_id,
+            motivo_bloqueio_referencial=motivo,
+            valor_obrigacao_referencial=float(valor_obrigacao or 0.0),
+            valor_cobertura_referencial=valor_cobertura_referencial,
+            referencia_obrigacao_temporal=obrigacao,
+        ))
+    if not pacote.obrigacoes_referenciadas:
+        bloqueadas.append(ObrigacaoBloqueadaTemporalmente(
+            data=data_ref,
+            obrigacao_id=None,
+            pacote_id=pacote.pacote_id,
+            motivo_bloqueio_referencial=motivo,
+            valor_obrigacao_referencial=0.0,
+            valor_cobertura_referencial=valor_cobertura_referencial,
+            referencia_obrigacao_temporal={},
+        ))
+    return bloqueadas, alertas
+
+
 def _cobrir_obrigacoes_referencialmente(
     data_ref: date,
     pacote: PacoteTemporalCandidato,
@@ -1577,25 +1617,19 @@ def _cobrir_obrigacoes_referencialmente(
     valor_coberto: float,
 ) -> tuple[list[ObrigacaoCobertaTemporalmente], list[ObrigacaoBloqueadaTemporalmente], list[str]]:
     cobertas: list[ObrigacaoCobertaTemporalmente] = []
-    bloqueadas: list[ObrigacaoBloqueadaTemporalmente] = []
     alertas: list[str] = []
     valor_obrigacoes, avisos_valor = _valor_total_obrigacoes_pacote(pacote)
     alertas.extend(avisos_valor)
     if valor_obrigacoes <= 0.0:
-        return cobertas, bloqueadas, alertas
+        return cobertas, [], alertas
     if valor_coberto + 0.000001 < valor_obrigacoes:
-        obrigacao_ref = pacote.obrigacoes_referenciadas[0] if pacote.obrigacoes_referenciadas else {}
-        obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao_ref)
-        alertas.extend(avisos_id)
-        bloqueadas.append(ObrigacaoBloqueadaTemporalmente(
-            data=data_ref,
-            obrigacao_id=obrigacao_id,
-            pacote_id=pacote.pacote_id,
-            motivo_bloqueio_referencial='cobertura_referencial_insuficiente_na_aplicacao_interna',
-            valor_obrigacao_referencial=valor_obrigacoes,
-            valor_cobertura_referencial=valor_coberto,
-            referencia_obrigacao_temporal=obrigacao_ref,
-        ))
+        bloqueadas, avisos_bloqueio = _bloquear_obrigacoes_individualmente(
+            data_ref,
+            pacote,
+            'cobertura_referencial_insuficiente_na_aplicacao_interna',
+            valor_coberto,
+        )
+        alertas.extend(avisos_bloqueio)
         return cobertas, bloqueadas, alertas
     for obrigacao in pacote.obrigacoes_referenciadas:
         valor_obrigacao, avisos_obrigacao = extrair_valor_obrigacao_referencial(obrigacao)
@@ -1612,7 +1646,7 @@ def _cobrir_obrigacoes_referencialmente(
             fontes_reservadas_ids=[r.fonte_id for r in reservas],
             referencia_obrigacao_temporal=obrigacao,
         ))
-    return cobertas, bloqueadas, alertas
+    return cobertas, [], alertas
 
 
 def _saldos_do_dia(data_ref: date, saldos_disponiveis: dict[str, float], reservas_acumuladas: dict[str, float]) -> list[SaldoReferencialFonteTemporal]:
@@ -1679,23 +1713,18 @@ def aplicar_pacote_temporal_vencedor_dia(
             status_referencial='sem_obrigacao_a_cobrir',
         ))
     elif pacote.tipo_pacote == 'sem_cobertura':
-        valor_obrigacoes, avisos_valor = _valor_total_obrigacoes_pacote(pacote)
-        alertas.extend(avisos_valor)
-        obrigacao_ref = pacote.obrigacoes_referenciadas[0] if pacote.obrigacoes_referenciadas else {}
-        obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao_ref)
-        alertas.extend(avisos_id)
-        bloqueadas.append(ObrigacaoBloqueadaTemporalmente(
-            data=data_ref,
-            obrigacao_id=obrigacao_id,
-            pacote_id=pacote.pacote_id,
-            motivo_bloqueio_referencial='pacote_vencedor_sem_cobertura_referencial',
-            valor_obrigacao_referencial=valor_obrigacoes,
-            valor_cobertura_referencial=0.0,
-            referencia_obrigacao_temporal=obrigacao_ref,
-        ))
+        bloqueadas, avisos_bloqueio = _bloquear_obrigacoes_individualmente(
+            data_ref,
+            pacote,
+            'pacote_vencedor_sem_cobertura_referencial',
+            0.0,
+        )
+        alertas.extend(avisos_bloqueio)
     else:
         valor_necessario, avisos_valor = _valor_total_obrigacoes_pacote(pacote)
         alertas.extend(avisos_valor)
+        saldos_antes_reserva = dict(saldos_disponiveis)
+        reservas_antes_reserva = dict(reservas_acumuladas)
         obrigacao_ref = pacote.obrigacoes_referenciadas[0] if pacote.obrigacoes_referenciadas else {}
         obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao_ref) if obrigacao_ref else (None, [])
         alertas.extend(avisos_id)
@@ -1736,6 +1765,13 @@ def aplicar_pacote_temporal_vencedor_dia(
                 valor_coberto,
             )
             alertas.extend(alertas_cobertura)
+            if bloqueadas and reservas:
+                saldos_disponiveis.clear()
+                saldos_disponiveis.update(saldos_antes_reserva)
+                reservas_acumuladas.clear()
+                reservas_acumuladas.update(reservas_antes_reserva)
+                reservas = []
+                alertas.append('reservas_referenciais_desfeitas_por_pacote_bloqueado')
             if cobertas:
                 eventos.append(EventoTrajetoriaTemporalInterna(
                     data=data_ref,
@@ -1815,6 +1851,13 @@ def aplicar_trajetoria_temporal_interna(
     )
 
 
+def _chave_obrigacao_referencial_auditoria(obrigacao: dict[str, Any]) -> str:
+    obrigacao_id, _ = extrair_identificador_obrigacao_pacote(obrigacao)
+    if obrigacao_id is not None:
+        return f'id:{obrigacao_id}'
+    return f'ref:{id(obrigacao)}'
+
+
 def auditar_trajetoria_temporal_interna(
     resultado: ResultadoMotorTemporalConjunto,
 ) -> AuditoriaTrajetoriaTemporalInterna:
@@ -1834,17 +1877,52 @@ def auditar_trajetoria_temporal_interna(
     if datas_estado != datas_horizonte:
         bloqueios.append('estado_temporal_interno_nao_cobre_horizonte')
 
+    vencedores = resultado.pacote_vencedor_por_data or {}
     for data_ref in resultado.horizonte_motor.datas_temporais:
         estado_dia = trajetoria.estado_temporal_interno_por_data.get(data_ref)
         decisao = (resultado.decisoes_temporais_por_data or {}).get(data_ref)
         if decisao is not None and estado_dia is None:
             bloqueios.append(f'decisao_sem_estado_interno:{data_ref.isoformat()}')
-        elif decisao is not None and estado_dia is not None and not estado_dia.eventos_internos and not estado_dia.obrigacoes_bloqueadas:
+            continue
+        if decisao is not None and estado_dia is not None and not estado_dia.eventos_internos and not estado_dia.obrigacoes_bloqueadas:
             bloqueios.append(f'decisao_sem_evento_ou_bloqueio:{data_ref.isoformat()}')
+        pacote = vencedores.get(data_ref)
+        if estado_dia is None or pacote is None or not pacote.obrigacoes_referenciadas:
+            continue
+        chaves_obrigacoes = {
+            _chave_obrigacao_referencial_auditoria(obrigacao)
+            for obrigacao in pacote.obrigacoes_referenciadas
+        }
+        chaves_cobertas = {
+            _chave_obrigacao_referencial_auditoria(coberta.referencia_obrigacao_temporal)
+            for coberta in estado_dia.obrigacoes_cobertas
+        }
+        chaves_bloqueadas = {
+            _chave_obrigacao_referencial_auditoria(bloqueada.referencia_obrigacao_temporal)
+            for bloqueada in estado_dia.obrigacoes_bloqueadas
+        }
+        chaves_tratadas = chaves_cobertas | chaves_bloqueadas
+        if not chaves_obrigacoes.issubset(chaves_tratadas):
+            bloqueios.append(f'obrigacao_aberta_sem_cobertura_ou_bloqueio_individual:{data_ref.isoformat()}')
+        if len(pacote.obrigacoes_referenciadas) > 1 and estado_dia.obrigacoes_bloqueadas:
+            if len(estado_dia.obrigacoes_bloqueadas) not in {len(pacote.obrigacoes_referenciadas), len(chaves_bloqueadas)}:
+                bloqueios.append(f'bloqueio_agregado_indevido_em_multiplas_obrigacoes:{data_ref.isoformat()}')
+            if len(estado_dia.obrigacoes_bloqueadas) == 1 and len(chaves_obrigacoes) > 1:
+                bloqueios.append(f'bloqueio_agregado_indevido_em_multiplas_obrigacoes:{data_ref.isoformat()}')
+        if estado_dia.status_referencial == 'bloqueado_referencialmente' and estado_dia.fontes_reservadas:
+            bloqueios.append(f'reserva_persistida_para_pacote_bloqueado:{data_ref.isoformat()}')
 
     disponibilidade_inicial: dict[str, float] = {}
     reservado_por_fonte: dict[str, float] = {}
+    ids_recebidos_anonimos: dict[str, set[date]] = {}
     for reserva in trajetoria.fontes_reservadas_temporalmente:
+        if reserva.valor_reservado_referencial > reserva.valor_disponivel_antes_referencial + 0.000001:
+            bloqueios.append(f'reserva_acima_disponivel_referencial:{reserva.fonte_id}')
+        valor_depois_esperado = reserva.valor_disponivel_antes_referencial - reserva.valor_reservado_referencial
+        if abs(valor_depois_esperado - reserva.valor_disponivel_depois_referencial) > 0.000001:
+            bloqueios.append(f'saldo_referencial_inconsistente_apos_reserva:{reserva.fonte_id}')
+        if reserva.fonte_id.startswith('recebido_sem_id:'):
+            ids_recebidos_anonimos.setdefault(reserva.fonte_id, set()).add(reserva.data)
         disponibilidade_inicial[reserva.fonte_id] = max(
             disponibilidade_inicial.get(reserva.fonte_id, 0.0),
             reserva.valor_disponivel_antes_referencial + reservado_por_fonte.get(reserva.fonte_id, 0.0),
@@ -1852,6 +1930,9 @@ def auditar_trajetoria_temporal_interna(
         reservado_por_fonte[reserva.fonte_id] = reservado_por_fonte.get(reserva.fonte_id, 0.0) + reserva.valor_reservado_referencial
         if reservado_por_fonte[reserva.fonte_id] > disponibilidade_inicial[reserva.fonte_id] + 0.000001:
             bloqueios.append(f'fonte_sobrecomprometida:{reserva.fonte_id}')
+    for fonte_id, datas in ids_recebidos_anonimos.items():
+        if len(datas) > 1:
+            bloqueios.append(f'recebido_anonimo_com_id_duplicado_entre_datas:{fonte_id}')
 
     cobertas_insuficientes = [
         c

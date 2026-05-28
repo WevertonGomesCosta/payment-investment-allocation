@@ -106,3 +106,51 @@ Aplicar internamente, de forma referencial e sem efeitos colaterais externos, a 
 - XLSX não foi alterado por este diff.
 - Saída canônica não foi alterada por este diff.
 - Dados não foram alterados por este diff.
+
+## Correção P2 da PR #417
+
+### Baseline da correção
+
+- Correção aplicada sobre a branch atual da PR #417.
+- Commit base local observado antes da correção: `851ccf1 Implementa aplicação referencial da trajetória temporal interna (MACRO-ETAPA5-C)`.
+- A orientação da correção foi manter o escopo restrito aos dois arquivos já alterados pela PR.
+
+### Ajustes materiais aplicados
+
+1. **Dias sem cobertura com múltiplas obrigações**
+   - `sem_cobertura` passou a bloquear cada obrigação referenciada individualmente.
+   - Cada bloqueio preserva identificador, valor individual, referência original, data e motivo.
+
+2. **Cobertura parcial / insuficiente**
+   - Cobertura insuficiente agora gera bloqueios individuais por obrigação.
+   - Para evitar reserva parcial insegura, reservas referenciais tentadas são desfeitas quando o pacote termina bloqueado.
+
+3. **Recebidos anônimos**
+   - IDs de recebidos sem identificador canônico agora incluem data, pacote e posição: `recebido_sem_id:{data_iso}:{pacote_id}:{posicao}`.
+
+4. **Rollback de reservas**
+   - A aplicação diária captura o estado acumulado antes das reservas e restaura `saldos_disponiveis` e `reservas_acumuladas` quando o pacote permanece bloqueado.
+   - Reservas parciais não são propagadas para datas futuras.
+
+5. **Auditoria reforçada**
+   - A auditoria passou a detectar obrigação aberta sem cobertura/bloqueio individual, bloqueio agregado indevido, duplicidade de recebido anônimo entre datas, reserva persistida em pacote bloqueado e inconsistência/sobrecomprometimento de reserva referencial.
+
+### Limites preservados na correção
+
+- Não criou ledger.
+- Não executou pagamento.
+- Não executou switching.
+- Não alterou console.
+- Não alterou XLSX.
+- Não alterou saída canônica.
+- Não alterou dados.
+- Não criou scripts diagnósticos.
+
+### Validações da correção P2
+
+- `git diff --name-only origin/main...HEAD` — não pôde ser concluído por ausência de `origin/main` no ambiente.
+- `python -m py_compile nucleo/motor_temporal_conjunto.py` — passou.
+- `python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py` — passou.
+- `python -B aplicacao/principal.py` — passou; continuou usando fallback local para planilha por limitação de proxy externo e cache local do BCB.
+- `git status --short` — mostrou apenas os dois arquivos permitidos modificados antes do commit corretivo.
+- `dados/cache_bcb.json` não ficou modificado/rastreado após a execução.
