@@ -36,6 +36,8 @@ Para preservar encadeamento estrito, a Etapa 7 não deve consumir diretamente `R
 
 Informações sobre estado temporal final, decisões finais, ranking e auditorias só podem ser usadas se estiverem materializadas ou explicitamente referenciadas no próprio `LedgerTemporalCanonico`.
 
+Referências existentes no ledger devem funcionar apenas como evidências internas, metadados, identificadores ou rastreabilidade já materializada. Elas não podem ser interpretadas como autorização para buscar, carregar, importar, reconstruir, consultar ou consumir diretamente artefatos anteriores.
+
 ## 4. Arquivos alterados
 
 - `relatorios/principais/contratos_individuais/CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md`
@@ -48,6 +50,9 @@ O contrato da Etapa 7 foi ajustado para explicitar que:
 - `LedgerTemporalCanonico` é entrada formal obrigatória e exclusiva;
 - informações sobre estado temporal final, decisões econômicas finais, ranking oficial utilizado e auditorias compatíveis não são entradas paralelas;
 - tais informações só podem ser usadas quando materializadas ou referenciadas no ledger;
+- referências contidas no ledger são apenas evidências internas, metadados, identificadores ou rastreabilidade já materializada;
+- referências do ledger não autorizam busca, reconstrução, importação, consulta ou consumo direto de `EstadoTemporalInicial`, `ResultadoMotorTemporalConjunto`, objetos das Etapas 1–5, planilha, logs, diagnósticos, console, XLSX ou saída observável;
+- a cláusula ambígua "ou referenciados no LedgerTemporalCanonico" foi fechada;
 - a Etapa 7 não pode consumir diretamente `ResultadoMotorTemporalConjunto`;
 - a Etapa 7 não pode consumir diretamente `EstadoTemporalInicial`;
 - a função prevista `validar_gates_nucleo(...)` deve receber apenas `LedgerTemporalCanonico` e parâmetros opcionais;
