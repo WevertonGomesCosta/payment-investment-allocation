@@ -814,6 +814,52 @@ def extrair_valor_switching_referencial(switching: dict[str, Any]) -> tuple[floa
     return None, avisos
 
 
+def _chave_fonte_temporal_referencial(fonte: dict[str, Any]) -> str | None:
+    for campo in ('fonte_id', 'id', 'identificador', 'codigo'):
+        valor = fonte.get(campo)
+        if valor is not None:
+            return str(valor)
+    return None
+
+
+def _data_temporal_referencial_fonte(fonte: dict[str, Any], data_motor: date) -> date | None:
+    campos_temporais = ('data', 'data_disponibilidade', 'data_referencia', 'data_inicio', 'data_vencimento')
+    datas_ate_data_motor = [
+        valor
+        for campo in campos_temporais
+        if isinstance((valor := fonte.get(campo)), date) and valor <= data_motor
+    ]
+    return max(datas_ate_data_motor) if datas_ate_data_motor else None
+
+
+def deduplicar_fontes_temporais_referenciadas(
+    fontes: list[dict[str, Any]],
+    data_motor: date,
+) -> list[dict[str, Any]]:
+    fontes_unicas: list[dict[str, Any]] = []
+    posicoes_por_chave: dict[str, int] = {}
+    datas_por_chave: dict[str, date | None] = {}
+
+    for fonte in fontes:
+        chave = _chave_fonte_temporal_referencial(fonte)
+        if chave is None:
+            fontes_unicas.append(fonte)
+            continue
+
+        data_comparavel = _data_temporal_referencial_fonte(fonte, data_motor)
+        if chave not in posicoes_por_chave:
+            posicoes_por_chave[chave] = len(fontes_unicas)
+            datas_por_chave[chave] = data_comparavel
+            fontes_unicas.append(fonte)
+            continue
+
+        data_atual = datas_por_chave.get(chave)
+        if data_comparavel is not None and (data_atual is None or data_comparavel > data_atual):
+            fontes_unicas[posicoes_por_chave[chave]] = fonte
+            datas_por_chave[chave] = data_comparavel
+
+    return fontes_unicas
+
 def montar_fonte_candidata_pacote_temporal(fonte: dict[str, Any]) -> FonteCandidataPacoteTemporal:
     return FonteCandidataPacoteTemporal(
         fonte_id=str(fonte.get('fonte_id') or fonte.get('id')) if (fonte.get('fonte_id') is not None or fonte.get('id') is not None) else None,
@@ -922,7 +968,10 @@ def gerar_pacotes_pagamento_fonte_unica(estado_dia: EstadoDiarioMotorTemporal) -
     pacotes: list[PacoteTemporalCandidato] = []
     if not estado_dia.obrigacoes.pagamentos_referenciados:
         return pacotes
-    fontes_disponiveis = [f for f in estado_dia.fontes_referenciadas.fontes_referenciadas if _fonte_disponivel_referencialmente(f)]
+    fontes_disponiveis = deduplicar_fontes_temporais_referenciadas(
+        [f for f in estado_dia.fontes_referenciadas.fontes_referenciadas if _fonte_disponivel_referencialmente(f)],
+        estado_dia.data,
+    )
     for idx, fonte in enumerate(fontes_disponiveis, start=1):
         pacote = _montar_pacote_base(estado_dia.data, 'pagamento_fonte_unica', str(idx))
         pacote.obrigacoes_referenciadas = list(estado_dia.obrigacoes.pagamentos_referenciados)
@@ -947,7 +996,10 @@ def gerar_pacotes_pagamento_fonte_unica(estado_dia: EstadoDiarioMotorTemporal) -
 
 
 def gerar_pacote_pagamento_combinacao_fontes(estado_dia: EstadoDiarioMotorTemporal) -> PacoteTemporalCandidato | None:
-    fontes_disponiveis = [f for f in estado_dia.fontes_referenciadas.fontes_referenciadas if _fonte_disponivel_referencialmente(f)]
+    fontes_disponiveis = deduplicar_fontes_temporais_referenciadas(
+        [f for f in estado_dia.fontes_referenciadas.fontes_referenciadas if _fonte_disponivel_referencialmente(f)],
+        estado_dia.data,
+    )
     if not estado_dia.obrigacoes.pagamentos_referenciados or len(fontes_disponiveis) < 2:
         return None
     pacote = _montar_pacote_base(estado_dia.data, 'pagamento_combinacao_fontes', '1')
@@ -1668,6 +1720,28 @@ def _bloquear_obrigacoes_individualmente(
     return bloqueadas, alertas
 
 
+def _bloquear_obrigacoes_sem_pacote_vencedor(
+    data_ref: date,
+    obrigacoes_do_dia: ObrigacoesTemporaisDia | None,
+) -> tuple[list[ObrigacaoBloqueadaTemporalmente], list[str]]:
+    bloqueadas: list[ObrigacaoBloqueadaTemporalmente] = []
+    alertas: list[str] = []
+    for obrigacao in (obrigacoes_do_dia.pagamentos_referenciados if obrigacoes_do_dia else []):
+        valor_obrigacao, avisos_obrigacao = extrair_valor_obrigacao_referencial(obrigacao)
+        obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao)
+        alertas.extend(avisos_obrigacao)
+        alertas.extend(avisos_id)
+        bloqueadas.append(ObrigacaoBloqueadaTemporalmente(
+            data=data_ref,
+            obrigacao_id=obrigacao_id,
+            pacote_id=None,
+            motivo_bloqueio_referencial='sem_pacote_valido_para_obrigacao_temporal',
+            valor_obrigacao_referencial=float(valor_obrigacao or 0.0),
+            valor_cobertura_referencial=0.0,
+            referencia_obrigacao_temporal=obrigacao,
+        ))
+    return bloqueadas, alertas
+
 def _cobrir_obrigacoes_referencialmente(
     data_ref: date,
     pacote: PacoteTemporalCandidato,
@@ -1725,6 +1799,7 @@ def aplicar_pacote_temporal_vencedor_dia(
     pacote: PacoteTemporalCandidato | None,
     saldos_disponiveis: dict[str, float],
     reservas_acumuladas: dict[str, float],
+    obrigacoes_do_dia: ObrigacoesTemporaisDia | None = None,
 ) -> EstadoTemporalInternoDia:
     eventos: list[EventoTrajetoriaTemporalInterna] = []
     reservas: list[FonteReservadaTemporalmente] = []
@@ -1734,6 +1809,8 @@ def aplicar_pacote_temporal_vencedor_dia(
     alertas: list[str] = []
 
     if pacote is None:
+        bloqueadas, alertas_bloqueio = _bloquear_obrigacoes_sem_pacote_vencedor(data_ref, obrigacoes_do_dia)
+        alertas.extend(alertas_bloqueio)
         eventos.append(EventoTrajetoriaTemporalInterna(
             data=data_ref,
             tipo_evento_interno='sem_pacote_vencedor',
@@ -1889,6 +1966,7 @@ def aplicar_trajetoria_temporal_interna(
             vencedores.get(data_ref),
             saldos_disponiveis,
             reservas_acumuladas,
+            (resultado.estado_diario_motor.get(data_ref).obrigacoes if resultado.estado_diario_motor.get(data_ref) else None),
         )
         estados[data_ref] = estado_dia
         eventos.extend(estado_dia.eventos_internos)
@@ -1945,7 +2023,24 @@ def auditar_trajetoria_temporal_interna(
         if decisao is not None and estado_dia is not None and not estado_dia.eventos_internos and not estado_dia.obrigacoes_bloqueadas:
             bloqueios.append(f'decisao_sem_evento_ou_bloqueio:{data_ref.isoformat()}')
         pacote = vencedores.get(data_ref)
-        if estado_dia is None or pacote is None or not pacote.obrigacoes_referenciadas:
+        if estado_dia is None:
+            continue
+        if pacote is None:
+            obrigacoes_abertas = list((resultado.estado_diario_motor.get(data_ref).obrigacoes.pagamentos_referenciados if resultado.estado_diario_motor.get(data_ref) else []))
+            if obrigacoes_abertas:
+                chaves_obrigacoes = {_chave_obrigacao_referencial_auditoria(obrigacao) for obrigacao in obrigacoes_abertas}
+                chaves_bloqueadas = {
+                    _chave_obrigacao_referencial_auditoria(bloqueada.referencia_obrigacao_temporal)
+                    for bloqueada in estado_dia.obrigacoes_bloqueadas
+                    if bloqueada.pacote_id is None
+                    and bloqueada.motivo_bloqueio_referencial == 'sem_pacote_valido_para_obrigacao_temporal'
+                }
+                if not chaves_obrigacoes.issubset(chaves_bloqueadas):
+                    bloqueios.append(f'obrigacao_sem_pacote_valido_sem_bloqueio_individual:{data_ref.isoformat()}')
+            if estado_dia.fontes_reservadas:
+                bloqueios.append(f'reserva_persistida_sem_pacote_vencedor:{data_ref.isoformat()}')
+            continue
+        if not pacote.obrigacoes_referenciadas:
             continue
         chaves_obrigacoes = {
             _chave_obrigacao_referencial_auditoria(obrigacao)
@@ -2265,7 +2360,7 @@ def auditar_consistencia_final_etapa5(
             chaves_bloqueadas_sem_vencedor = {
                 _chave_obrigacao_referencial_auditoria(b.referencia_obrigacao_temporal)
                 for b in bloqueios_individuais_existentes
-                if b.motivo_bloqueio_referencial == 'sem_pacote_vencedor_para_obrigacao_aberta'
+                if b.motivo_bloqueio_referencial == 'sem_pacote_valido_para_obrigacao_temporal'
             }
             for obrigacao in obrigacoes_abertas:
                 chave_obrigacao = _chave_obrigacao_referencial_auditoria(obrigacao)
@@ -2600,6 +2695,7 @@ __all__ = [
     'extrair_identificador_obrigacao_pacote',
     'extrair_valor_reservavel_fonte_pacote',
     'fechar_resultado_motor_temporal_conjunto',
+    'deduplicar_fontes_temporais_referenciadas',
     'definir_horizonte_motor_temporal',
     'inicializar_estado_simulacao_motor',
     'inicializar_pacotes_temporais_candidatos_por_data',
