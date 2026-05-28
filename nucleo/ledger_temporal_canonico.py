@@ -303,7 +303,12 @@ def _obrigacao_bloqueada_para_ledger(obrigacao: Any, avisos: list[str]) -> Lanca
 
 def _switching_para_ledger(switching: Any) -> LancamentoSwitchingLedger:
     referencia = _dict_referencia(_valor(switching, 'referencia_estado_temporal', {}))
-    valor_migrado = referencia.get('valor_liquido_migrado') or referencia.get('valor_liquido') or referencia.get('valor')
+    valor_migrado = (
+        referencia.get('valor_liquido_migrado')
+        or referencia.get('valor_migrado')
+        or referencia.get('valor_liquido')
+        or referencia.get('valor')
+    )
     return LancamentoSwitchingLedger(
         data=_valor(switching, 'data'),
         tipo='switching_escolhido_referencialmente',
