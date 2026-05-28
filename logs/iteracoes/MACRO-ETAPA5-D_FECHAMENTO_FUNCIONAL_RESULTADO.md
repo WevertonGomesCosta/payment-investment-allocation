@@ -144,3 +144,11 @@ Fontes proibidas como origem normativa alternativa para a Etapa 6:
 - `git status --short` — antes do commit mostrou apenas `nucleo/motor_temporal_conjunto.py` e este log da macroetapa como alterações.
 - Verificação adicional por construção do contexto confirmou `pronto_para_etapa6 = False` no cenário operacional atual, com bloqueios finais concentrados em decisões temporais com obrigação sem vencedor materializado.
 - `dados/cache_bcb.json` não ficou modificado/rastreado após as validações.
+
+## Correção de baseline da entrega D
+
+- Tentativa de sincronização com `origin/main` foi repetida, mas o remoto não está configurado/acessível neste ambiente.
+- O commit esperado `67504700e945859daf4ba77172ee98df57d6b59e` não existe no objeto local disponível; por isso não foi possível rebasear mecanicamente sobre a main pós-PR #417 dentro do container.
+- Foi criada a branch local `macro-etapa5-d-fechamento-funcional-resultado-clean` para manter a correção da MACRO-ETAPA5-D isolada.
+- Esta correção não altera nem recria `logs/iteracoes/MACRO-ETAPA5-C_APLICA_TRAJETORIA_TEMPORAL_INTERNA.md`.
+- O escopo funcional continua restrito ao fechamento da Etapa 5; a MACRO-ETAPA5-C não foi reaplicada nesta correção.
