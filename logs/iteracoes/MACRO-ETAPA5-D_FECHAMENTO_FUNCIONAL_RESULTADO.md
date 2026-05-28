@@ -124,3 +124,25 @@ Fontes proibidas para consumo normativo alternativo:
 - Verificação adicional por construção do contexto confirmou `pronto_para_etapa6 = False` no cenário operacional atual.
 - A mesma verificação confirmou `154` bloqueios finais individualizados com código `sem_pacote_vencedor_para_obrigacao_aberta`.
 - `dados/cache_bcb.json` não ficou modificado/rastreado após as validações.
+
+## Ajuste pós-review — promoção de bloqueios finais
+
+Foram aplicadas correções na auditoria final da Etapa 5 para impedir falso `pronto_para_etapa6=True` quando auditorias internas ainda indicam bloqueios materiais.
+
+Correções aplicadas:
+
+- `auditoria_motor_temporal_conjunto.ok == False` passa a gerar bloqueio final `motor_temporal_conjunto_nao_ok`;
+- `bloqueios_estruturais` passam a ser promovidos para bloqueios finais `bloqueio_estrutural_etapa5`;
+- `auditoria_trajetoria_temporal_interna.ok == False` passa a gerar bloqueio final `trajetoria_temporal_nao_ok`;
+- `obrigacoes_bloqueadas_temporalmente` passam a gerar bloqueios finais `obrigacao_bloqueada_na_trajetoria`.
+
+Limites preservados:
+
+- não criou ledger;
+- não executou pagamento;
+- não executou switching;
+- não alterou console;
+- não alterou XLSX;
+- não alterou saída canônica;
+- não alterou dados;
+- não criou scripts diagnósticos.

@@ -2178,15 +2178,67 @@ def auditar_consistencia_final_etapa5(
 
     if not resultado.status_interface_etapa5.ok:
         _adicionar_bloqueio_final(bloqueios, 'interface_etapa5_invalida', 'auditoria de interface da Etapa 5 não está ok')
+
+    if resultado.auditoria_motor_temporal_conjunto and not resultado.auditoria_motor_temporal_conjunto.ok:
+        _adicionar_bloqueio_final(
+            bloqueios,
+            'motor_temporal_conjunto_nao_ok',
+            'auditoria do motor temporal conjunto não está ok',
+        )
+
+    for bloqueio_estrutural in resultado.bloqueios_estruturais or []:
+        data_bloqueio = None
+        if isinstance(bloqueio_estrutural, dict):
+            data_bloqueio = (
+                bloqueio_estrutural.get('data')
+                or bloqueio_estrutural.get('data_referencia')
+                or bloqueio_estrutural.get('data_motor')
+            )
+        else:
+            data_bloqueio = (
+                getattr(bloqueio_estrutural, 'data', None)
+                or getattr(bloqueio_estrutural, 'data_referencia', None)
+                or getattr(bloqueio_estrutural, 'data_motor', None)
+            )
+        _adicionar_bloqueio_final(
+            bloqueios,
+            'bloqueio_estrutural_etapa5',
+            f'bloqueio_estrutural={bloqueio_estrutural!r}',
+            data_bloqueio,
+        )
+
     if resultado.auditoria_integridade_resultado and resultado.auditoria_integridade_resultado.bloqueios:
         for bloqueio in resultado.auditoria_integridade_resultado.bloqueios:
             _adicionar_bloqueio_final(bloqueios, 'integridade_resultado_bloqueada', bloqueio)
     if resultado.auditoria_decisao_temporal_conjunto and not resultado.auditoria_decisao_temporal_conjunto.ok:
         for aviso in resultado.auditoria_decisao_temporal_conjunto.avisos:
             _adicionar_bloqueio_final(bloqueios, 'decisao_temporal_inconsistente', aviso)
+
+    if resultado.auditoria_trajetoria_temporal_interna and not resultado.auditoria_trajetoria_temporal_interna.ok:
+        _adicionar_bloqueio_final(
+            bloqueios,
+            'trajetoria_temporal_nao_ok',
+            'auditoria da trajetória temporal interna não está ok',
+        )
+
     if resultado.auditoria_trajetoria_temporal_interna and resultado.auditoria_trajetoria_temporal_interna.bloqueios:
         for bloqueio in resultado.auditoria_trajetoria_temporal_interna.bloqueios:
             _adicionar_bloqueio_final(bloqueios, 'trajetoria_temporal_inconsistente', bloqueio)
+
+    for obrigacao_bloqueada in resultado.obrigacoes_bloqueadas_temporalmente or []:
+        data_bloqueio = getattr(obrigacao_bloqueada, 'data', None)
+        detalhe = (
+            f'obrigacao_id={getattr(obrigacao_bloqueada, "obrigacao_id", None)};'
+            f'motivo={getattr(obrigacao_bloqueada, "motivo_bloqueio_referencial", None)};'
+            f'valor_referencial={float(getattr(obrigacao_bloqueada, "valor_obrigacao_referencial", 0.0) or 0.0)};'
+            f'referencia_obrigacao={getattr(obrigacao_bloqueada, "referencia_obrigacao_temporal", None)!r}'
+        )
+        _adicionar_bloqueio_final(
+            bloqueios,
+            'obrigacao_bloqueada_na_trajetoria',
+            detalhe,
+            data_bloqueio,
+        )
     if resultado.auditoria_schema_pacote_temporal_candidato and not resultado.auditoria_schema_pacote_temporal_candidato.ok:
         avisos.extend(f'pacotes_candidatos_aviso_nao_impeditivo:{a}' for a in resultado.auditoria_schema_pacote_temporal_candidato.avisos)
 
