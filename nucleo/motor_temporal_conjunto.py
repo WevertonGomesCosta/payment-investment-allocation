@@ -250,6 +250,106 @@ class AuditoriaDecisaoTemporalConjunto:
 
 
 @dataclass(slots=True)
+class EventoTrajetoriaTemporalInterna:
+    data: date
+    tipo_evento_interno: str
+    pacote_id: str | None
+    tipo_pacote: str | None
+    status_referencial: str
+    detalhes: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class FonteReservadaTemporalmente:
+    data: date
+    fonte_id: str
+    pacote_id: str
+    tipo_fonte: str | None
+    origem_fonte: str | None
+    valor_reservado_referencial: float
+    valor_disponivel_antes_referencial: float
+    valor_disponivel_depois_referencial: float
+    obrigacao_id: str | None = None
+    referencia_estado_temporal: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ObrigacaoCobertaTemporalmente:
+    data: date
+    obrigacao_id: str | None
+    pacote_id: str
+    valor_obrigacao_referencial: float
+    valor_coberto_referencial: float
+    fontes_reservadas_ids: list[str]
+    referencia_obrigacao_temporal: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ObrigacaoBloqueadaTemporalmente:
+    data: date
+    obrigacao_id: str | None
+    pacote_id: str | None
+    motivo_bloqueio_referencial: str
+    valor_obrigacao_referencial: float
+    valor_cobertura_referencial: float
+    referencia_obrigacao_temporal: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class SwitchingEscolhidoTemporalmente:
+    data: date
+    switching_id: str | None
+    pacote_id: str
+    lote_origem_id: str | None
+    lote_destino_id: str | None
+    tipo_switching: str
+    status_referencial: str
+    referencia_estado_temporal: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class SaldoReferencialFonteTemporal:
+    data: date
+    fonte_id: str
+    valor_disponivel_referencial: float
+    valor_reservado_acumulado_referencial: float
+
+
+@dataclass(slots=True)
+class EstadoTemporalInternoDia:
+    data: date
+    pacote_id: str | None
+    tipo_pacote: str | None
+    status_referencial: str
+    eventos_internos: list[EventoTrajetoriaTemporalInterna] = field(default_factory=list)
+    saldos_fontes_referenciais: list[SaldoReferencialFonteTemporal] = field(default_factory=list)
+    fontes_reservadas: list[FonteReservadaTemporalmente] = field(default_factory=list)
+    obrigacoes_cobertas: list[ObrigacaoCobertaTemporalmente] = field(default_factory=list)
+    obrigacoes_bloqueadas: list[ObrigacaoBloqueadaTemporalmente] = field(default_factory=list)
+    switchings_escolhidos: list[SwitchingEscolhidoTemporalmente] = field(default_factory=list)
+    alertas: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class TrajetoriaTemporalInternaEscolhida:
+    estado_temporal_interno_por_data: dict[date, EstadoTemporalInternoDia]
+    eventos_trajetoria_temporal: list[EventoTrajetoriaTemporalInterna]
+    fontes_reservadas_temporalmente: list[FonteReservadaTemporalmente]
+    obrigacoes_cobertas_temporalmente: list[ObrigacaoCobertaTemporalmente]
+    obrigacoes_bloqueadas_temporalmente: list[ObrigacaoBloqueadaTemporalmente]
+    switchings_escolhidos_temporalmente: list[SwitchingEscolhidoTemporalmente]
+    saldos_referenciais_fontes_temporais: dict[date, list[SaldoReferencialFonteTemporal]]
+
+
+@dataclass(slots=True)
+class AuditoriaTrajetoriaTemporalInterna:
+    ok: bool
+    avisos: list[str]
+    bloqueios: list[str]
+    resumo: dict[str, Any]
+
+
+@dataclass(slots=True)
 class ResultadoMotorTemporalConjunto:
     data_referencia: date
     horizonte_motor: HorizonteMotorTemporal
@@ -279,6 +379,14 @@ class ResultadoMotorTemporalConjunto:
     decisoes_temporais_por_data: dict[date, DecisaoTemporalDia] | None = None
     pacotes_descartados_por_data: dict[date, list[PacoteTemporalDescartado]] | None = None
     auditoria_decisao_temporal_conjunto: AuditoriaDecisaoTemporalConjunto | None = None
+    trajetoria_temporal_interna_escolhida: TrajetoriaTemporalInternaEscolhida | None = None
+    eventos_trajetoria_temporal: list[EventoTrajetoriaTemporalInterna] | None = None
+    estado_temporal_interno_por_data: dict[date, EstadoTemporalInternoDia] | None = None
+    fontes_reservadas_temporalmente: list[FonteReservadaTemporalmente] | None = None
+    obrigacoes_cobertas_temporalmente: list[ObrigacaoCobertaTemporalmente] | None = None
+    obrigacoes_bloqueadas_temporalmente: list[ObrigacaoBloqueadaTemporalmente] | None = None
+    switchings_escolhidos_temporalmente: list[SwitchingEscolhidoTemporalmente] | None = None
+    auditoria_trajetoria_temporal_interna: AuditoriaTrajetoriaTemporalInterna | None = None
 
 
 _CAMPOS_OBRIGATORIOS_ESTADO = [
@@ -1258,6 +1366,543 @@ def selecionar_pacotes_temporais_vencedores(
     return decisoes, vencedores, descartados
 
 
+
+def _normalizar_valor_referencial(valor: Any) -> float | None:
+    if isinstance(valor, bool):
+        return None
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    return None
+
+
+def extrair_identificador_fonte_pacote(fonte: FonteCandidataPacoteTemporal) -> tuple[str | None, str | None]:
+    if fonte.fonte_id:
+        return fonte.fonte_id, None
+    referencia = fonte.referencia_estado_temporal or {}
+    for campo in ('fonte_id', 'id', 'identificador', 'codigo'):
+        valor = referencia.get(campo)
+        if valor is not None:
+            return str(valor), None
+    return None, 'fonte_sem_identificador_estavel_para_reserva_referencial'
+
+
+def extrair_valor_reservavel_fonte_pacote(
+    fonte: FonteCandidataPacoteTemporal,
+    pacote: PacoteTemporalCandidato | None = None,
+) -> tuple[float | None, list[str]]:
+    avisos: list[str] = []
+    referencia = fonte.referencia_estado_temporal or {}
+    for campo in ('valor_estimado', 'valor_disponivel', 'saldo_disponivel', 'saldo', 'valor'):
+        valor = _normalizar_valor_referencial(referencia.get(campo))
+        if valor is not None:
+            return valor, avisos
+    if pacote is not None and len(pacote.fontes_candidatas) == 1:
+        valor_pacote = _normalizar_valor_referencial(pacote.valor_cobertura_referencial)
+        if valor_pacote is not None:
+            avisos.append('valor_reservavel_obtido_da_cobertura_referencial_do_pacote')
+            return valor_pacote, avisos
+    avisos.append('valor_reservavel_fonte_ausente_no_pacote')
+    return None, avisos
+
+
+def extrair_identificador_obrigacao_pacote(obrigacao: dict[str, Any]) -> tuple[str | None, list[str]]:
+    avisos: list[str] = []
+    for campo in ('obrigacao_id', 'pagamento_id', 'id', 'identificador', 'codigo'):
+        valor = obrigacao.get(campo)
+        if valor is not None:
+            return str(valor), avisos
+    avisos.append('obrigacao_sem_identificador_canonico_disponivel')
+    return None, avisos
+
+
+def _extrair_recebidos_referenciados_pacote(pacote: PacoteTemporalCandidato) -> list[dict[str, Any]]:
+    recebidos: list[dict[str, Any]] = []
+    for item in pacote.metadados_auditoria.get('recebidos_referenciados', []):
+        if isinstance(item, dict) and isinstance(item.get('referencia'), dict):
+            recebidos.append(item['referencia'])
+    return recebidos
+
+
+def _identificar_recebido_referencial(recebido: dict[str, Any], posicao: int) -> str:
+    for campo in ('recebido_id', 'id', 'identificador', 'codigo'):
+        valor = recebido.get(campo)
+        if valor is not None:
+            return f'recebido:{valor}'
+    return f'recebido_sem_id:{posicao}'
+
+
+def _valor_total_obrigacoes_pacote(pacote: PacoteTemporalCandidato) -> tuple[float, list[str]]:
+    avisos: list[str] = []
+    if pacote.valor_obrigacoes is not None:
+        return float(pacote.valor_obrigacoes), avisos
+    total = 0.0
+    for obrigacao in pacote.obrigacoes_referenciadas:
+        valor, avisos_obrigacao = extrair_valor_obrigacao_referencial(obrigacao)
+        avisos.extend(avisos_obrigacao)
+        total += float(valor or 0.0)
+    return total, avisos
+
+
+def _registrar_switchings_escolhidos(
+    data_ref: date,
+    pacote: PacoteTemporalCandidato,
+) -> tuple[list[SwitchingEscolhidoTemporalmente], list[EventoTrajetoriaTemporalInterna]]:
+    switchings: list[SwitchingEscolhidoTemporalmente] = []
+    eventos: list[EventoTrajetoriaTemporalInterna] = []
+    for switching in pacote.switchings_candidatos:
+        escolhido = SwitchingEscolhidoTemporalmente(
+            data=data_ref,
+            switching_id=switching.switching_id,
+            pacote_id=pacote.pacote_id,
+            lote_origem_id=switching.lote_origem_id,
+            lote_destino_id=switching.lote_destino_id,
+            tipo_switching=switching.tipo_switching,
+            status_referencial='escolhido_internamente_nao_executado',
+            referencia_estado_temporal=switching.referencia_estado_temporal,
+        )
+        switchings.append(escolhido)
+        eventos.append(EventoTrajetoriaTemporalInterna(
+            data=data_ref,
+            tipo_evento_interno='switching_escolhido_referencialmente',
+            pacote_id=pacote.pacote_id,
+            tipo_pacote=pacote.tipo_pacote,
+            status_referencial='nao_executado_oficialmente',
+            detalhes={'switching_id': switching.switching_id},
+        ))
+    return switchings, eventos
+
+
+def _reservar_fontes_referenciais(
+    data_ref: date,
+    pacote: PacoteTemporalCandidato,
+    valor_necessario: float,
+    saldos_disponiveis: dict[str, float],
+    reservas_acumuladas: dict[str, float],
+    obrigacao_id: str | None,
+) -> tuple[list[FonteReservadaTemporalmente], float, list[str]]:
+    reservas: list[FonteReservadaTemporalmente] = []
+    alertas: list[str] = []
+    restante = valor_necessario
+    fontes_ordenadas = sorted(
+        pacote.fontes_candidatas,
+        key=lambda f: (f.fonte_id or '', f.tipo_fonte or '', f.origem_fonte or ''),
+    )
+    for fonte in fontes_ordenadas:
+        if restante <= 0.0:
+            break
+        fonte_id, alerta_id = extrair_identificador_fonte_pacote(fonte)
+        if alerta_id:
+            alertas.append(alerta_id)
+            continue
+        assert fonte_id is not None
+        valor_fonte, avisos_valor = extrair_valor_reservavel_fonte_pacote(fonte, pacote)
+        alertas.extend(avisos_valor)
+        if valor_fonte is None:
+            continue
+        if fonte_id not in saldos_disponiveis:
+            saldos_disponiveis[fonte_id] = max(float(valor_fonte) - reservas_acumuladas.get(fonte_id, 0.0), 0.0)
+        antes = saldos_disponiveis.get(fonte_id, 0.0)
+        valor_reserva = min(antes, restante)
+        if valor_reserva <= 0.0:
+            alertas.append(f'fonte_sem_saldo_referencial_disponivel:{fonte_id}')
+            continue
+        depois = antes - valor_reserva
+        saldos_disponiveis[fonte_id] = depois
+        reservas_acumuladas[fonte_id] = reservas_acumuladas.get(fonte_id, 0.0) + valor_reserva
+        reservas.append(FonteReservadaTemporalmente(
+            data=data_ref,
+            fonte_id=fonte_id,
+            pacote_id=pacote.pacote_id,
+            tipo_fonte=fonte.tipo_fonte,
+            origem_fonte=fonte.origem_fonte,
+            valor_reservado_referencial=valor_reserva,
+            valor_disponivel_antes_referencial=antes,
+            valor_disponivel_depois_referencial=depois,
+            obrigacao_id=obrigacao_id,
+            referencia_estado_temporal=fonte.referencia_estado_temporal,
+        ))
+        restante -= valor_reserva
+    return reservas, valor_necessario - restante, alertas
+
+
+def _reservar_recebidos_referenciais(
+    data_ref: date,
+    pacote: PacoteTemporalCandidato,
+    valor_necessario: float,
+    saldos_disponiveis: dict[str, float],
+    reservas_acumuladas: dict[str, float],
+    obrigacao_id: str | None,
+) -> tuple[list[FonteReservadaTemporalmente], float, list[str]]:
+    reservas: list[FonteReservadaTemporalmente] = []
+    alertas: list[str] = []
+    restante = valor_necessario
+    for posicao, recebido in enumerate(_extrair_recebidos_referenciados_pacote(pacote), start=1):
+        if restante <= 0.0:
+            break
+        fonte_id = _identificar_recebido_referencial(recebido, posicao)
+        valor_recebido, avisos_recebido = extrair_valor_recebido_referencial(recebido)
+        alertas.extend(avisos_recebido)
+        if valor_recebido is None:
+            continue
+        if fonte_id not in saldos_disponiveis:
+            saldos_disponiveis[fonte_id] = max(float(valor_recebido) - reservas_acumuladas.get(fonte_id, 0.0), 0.0)
+        antes = saldos_disponiveis.get(fonte_id, 0.0)
+        valor_reserva = min(antes, restante)
+        if valor_reserva <= 0.0:
+            alertas.append(f'recebido_sem_saldo_referencial_disponivel:{fonte_id}')
+            continue
+        depois = antes - valor_reserva
+        saldos_disponiveis[fonte_id] = depois
+        reservas_acumuladas[fonte_id] = reservas_acumuladas.get(fonte_id, 0.0) + valor_reserva
+        reservas.append(FonteReservadaTemporalmente(
+            data=data_ref,
+            fonte_id=fonte_id,
+            pacote_id=pacote.pacote_id,
+            tipo_fonte='recebido_referencial',
+            origem_fonte='pacote_temporal_vencedor',
+            valor_reservado_referencial=valor_reserva,
+            valor_disponivel_antes_referencial=antes,
+            valor_disponivel_depois_referencial=depois,
+            obrigacao_id=obrigacao_id,
+            referencia_estado_temporal=recebido,
+        ))
+        restante -= valor_reserva
+    return reservas, valor_necessario - restante, alertas
+
+
+def _cobrir_obrigacoes_referencialmente(
+    data_ref: date,
+    pacote: PacoteTemporalCandidato,
+    reservas: list[FonteReservadaTemporalmente],
+    valor_coberto: float,
+) -> tuple[list[ObrigacaoCobertaTemporalmente], list[ObrigacaoBloqueadaTemporalmente], list[str]]:
+    cobertas: list[ObrigacaoCobertaTemporalmente] = []
+    bloqueadas: list[ObrigacaoBloqueadaTemporalmente] = []
+    alertas: list[str] = []
+    valor_obrigacoes, avisos_valor = _valor_total_obrigacoes_pacote(pacote)
+    alertas.extend(avisos_valor)
+    if valor_obrigacoes <= 0.0:
+        return cobertas, bloqueadas, alertas
+    if valor_coberto + 0.000001 < valor_obrigacoes:
+        obrigacao_ref = pacote.obrigacoes_referenciadas[0] if pacote.obrigacoes_referenciadas else {}
+        obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao_ref)
+        alertas.extend(avisos_id)
+        bloqueadas.append(ObrigacaoBloqueadaTemporalmente(
+            data=data_ref,
+            obrigacao_id=obrigacao_id,
+            pacote_id=pacote.pacote_id,
+            motivo_bloqueio_referencial='cobertura_referencial_insuficiente_na_aplicacao_interna',
+            valor_obrigacao_referencial=valor_obrigacoes,
+            valor_cobertura_referencial=valor_coberto,
+            referencia_obrigacao_temporal=obrigacao_ref,
+        ))
+        return cobertas, bloqueadas, alertas
+    for obrigacao in pacote.obrigacoes_referenciadas:
+        valor_obrigacao, avisos_obrigacao = extrair_valor_obrigacao_referencial(obrigacao)
+        obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao)
+        alertas.extend(avisos_obrigacao)
+        alertas.extend(avisos_id)
+        valor = float(valor_obrigacao or 0.0)
+        cobertas.append(ObrigacaoCobertaTemporalmente(
+            data=data_ref,
+            obrigacao_id=obrigacao_id,
+            pacote_id=pacote.pacote_id,
+            valor_obrigacao_referencial=valor,
+            valor_coberto_referencial=valor,
+            fontes_reservadas_ids=[r.fonte_id for r in reservas],
+            referencia_obrigacao_temporal=obrigacao,
+        ))
+    return cobertas, bloqueadas, alertas
+
+
+def _saldos_do_dia(data_ref: date, saldos_disponiveis: dict[str, float], reservas_acumuladas: dict[str, float]) -> list[SaldoReferencialFonteTemporal]:
+    return [
+        SaldoReferencialFonteTemporal(
+            data=data_ref,
+            fonte_id=fonte_id,
+            valor_disponivel_referencial=saldos_disponiveis.get(fonte_id, 0.0),
+            valor_reservado_acumulado_referencial=reservas_acumuladas.get(fonte_id, 0.0),
+        )
+        for fonte_id in sorted(set(saldos_disponiveis) | set(reservas_acumuladas))
+    ]
+
+
+def aplicar_pacote_temporal_vencedor_dia(
+    data_ref: date,
+    decisao: DecisaoTemporalDia | None,
+    pacote: PacoteTemporalCandidato | None,
+    saldos_disponiveis: dict[str, float],
+    reservas_acumuladas: dict[str, float],
+) -> EstadoTemporalInternoDia:
+    eventos: list[EventoTrajetoriaTemporalInterna] = []
+    reservas: list[FonteReservadaTemporalmente] = []
+    cobertas: list[ObrigacaoCobertaTemporalmente] = []
+    bloqueadas: list[ObrigacaoBloqueadaTemporalmente] = []
+    switchings: list[SwitchingEscolhidoTemporalmente] = []
+    alertas: list[str] = []
+
+    if pacote is None:
+        eventos.append(EventoTrajetoriaTemporalInterna(
+            data=data_ref,
+            tipo_evento_interno='sem_pacote_vencedor',
+            pacote_id=None,
+            tipo_pacote=None,
+            status_referencial='bloqueado_sem_pacote_vencedor',
+            detalhes={'status_decisao': decisao.status_decisao if decisao else None},
+        ))
+        return EstadoTemporalInternoDia(
+            data=data_ref,
+            pacote_id=None,
+            tipo_pacote=None,
+            status_referencial='bloqueado_sem_pacote_vencedor',
+            eventos_internos=eventos,
+            saldos_fontes_referenciais=_saldos_do_dia(data_ref, saldos_disponiveis, reservas_acumuladas),
+            obrigacoes_bloqueadas=bloqueadas,
+            alertas=alertas,
+        )
+
+    eventos.append(EventoTrajetoriaTemporalInterna(
+        data=data_ref,
+        tipo_evento_interno='pacote_temporal_vencedor_aplicado_internamente',
+        pacote_id=pacote.pacote_id,
+        tipo_pacote=pacote.tipo_pacote,
+        status_referencial='aplicacao_referencial_sem_efeito_externo',
+        detalhes={'status_decisao': decisao.status_decisao if decisao else None},
+    ))
+
+    if pacote.tipo_pacote == 'sem_obrigacao':
+        eventos.append(EventoTrajetoriaTemporalInterna(
+            data=data_ref,
+            tipo_evento_interno='dia_sem_obrigacao_referencial',
+            pacote_id=pacote.pacote_id,
+            tipo_pacote=pacote.tipo_pacote,
+            status_referencial='sem_obrigacao_a_cobrir',
+        ))
+    elif pacote.tipo_pacote == 'sem_cobertura':
+        valor_obrigacoes, avisos_valor = _valor_total_obrigacoes_pacote(pacote)
+        alertas.extend(avisos_valor)
+        obrigacao_ref = pacote.obrigacoes_referenciadas[0] if pacote.obrigacoes_referenciadas else {}
+        obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao_ref)
+        alertas.extend(avisos_id)
+        bloqueadas.append(ObrigacaoBloqueadaTemporalmente(
+            data=data_ref,
+            obrigacao_id=obrigacao_id,
+            pacote_id=pacote.pacote_id,
+            motivo_bloqueio_referencial='pacote_vencedor_sem_cobertura_referencial',
+            valor_obrigacao_referencial=valor_obrigacoes,
+            valor_cobertura_referencial=0.0,
+            referencia_obrigacao_temporal=obrigacao_ref,
+        ))
+    else:
+        valor_necessario, avisos_valor = _valor_total_obrigacoes_pacote(pacote)
+        alertas.extend(avisos_valor)
+        obrigacao_ref = pacote.obrigacoes_referenciadas[0] if pacote.obrigacoes_referenciadas else {}
+        obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao_ref) if obrigacao_ref else (None, [])
+        alertas.extend(avisos_id)
+
+        if pacote.tipo_pacote in {'switching_integral_simples', 'switching_integral_agregado', 'switching_mais_pagamento'}:
+            switchings, eventos_switch = _registrar_switchings_escolhidos(data_ref, pacote)
+            eventos.extend(eventos_switch)
+
+        valor_coberto = 0.0
+        if pacote.tipo_pacote in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'}:
+            reservas, valor_coberto, alertas_reserva = _reservar_fontes_referenciais(
+                data_ref,
+                pacote,
+                valor_necessario,
+                saldos_disponiveis,
+                reservas_acumuladas,
+                obrigacao_id,
+            )
+            alertas.extend(alertas_reserva)
+        elif pacote.tipo_pacote == 'pagamento_com_recebido':
+            reservas, valor_coberto, alertas_reserva = _reservar_recebidos_referenciais(
+                data_ref,
+                pacote,
+                valor_necessario,
+                saldos_disponiveis,
+                reservas_acumuladas,
+                obrigacao_id,
+            )
+            alertas.extend(alertas_reserva)
+        elif pacote.tipo_pacote == 'switching_mais_pagamento':
+            valor_coberto = float(pacote.valor_cobertura_referencial or 0.0)
+
+        if pacote.obrigacoes_referenciadas:
+            cobertas, bloqueadas, alertas_cobertura = _cobrir_obrigacoes_referencialmente(
+                data_ref,
+                pacote,
+                reservas,
+                valor_coberto,
+            )
+            alertas.extend(alertas_cobertura)
+            if cobertas:
+                eventos.append(EventoTrajetoriaTemporalInterna(
+                    data=data_ref,
+                    tipo_evento_interno='pagamento_coberto_referencialmente',
+                    pacote_id=pacote.pacote_id,
+                    tipo_pacote=pacote.tipo_pacote,
+                    status_referencial='coberto_internamente_sem_pagamento_oficial',
+                    detalhes={'valor_coberto_referencial': valor_coberto},
+                ))
+            if bloqueadas:
+                eventos.append(EventoTrajetoriaTemporalInterna(
+                    data=data_ref,
+                    tipo_evento_interno='obrigacao_bloqueada_referencialmente',
+                    pacote_id=pacote.pacote_id,
+                    tipo_pacote=pacote.tipo_pacote,
+                    status_referencial='bloqueado_internamente',
+                    detalhes={'valor_coberto_referencial': valor_coberto},
+                ))
+
+    status = 'aplicado_referencialmente'
+    if bloqueadas:
+        status = 'bloqueado_referencialmente'
+    return EstadoTemporalInternoDia(
+        data=data_ref,
+        pacote_id=pacote.pacote_id,
+        tipo_pacote=pacote.tipo_pacote,
+        status_referencial=status,
+        eventos_internos=eventos,
+        saldos_fontes_referenciais=_saldos_do_dia(data_ref, saldos_disponiveis, reservas_acumuladas),
+        fontes_reservadas=reservas,
+        obrigacoes_cobertas=cobertas,
+        obrigacoes_bloqueadas=bloqueadas,
+        switchings_escolhidos=switchings,
+        alertas=alertas,
+    )
+
+
+def aplicar_trajetoria_temporal_interna(
+    resultado: ResultadoMotorTemporalConjunto,
+) -> TrajetoriaTemporalInternaEscolhida:
+    saldos_disponiveis: dict[str, float] = {}
+    reservas_acumuladas: dict[str, float] = {}
+    estados: dict[date, EstadoTemporalInternoDia] = {}
+    eventos: list[EventoTrajetoriaTemporalInterna] = []
+    reservas: list[FonteReservadaTemporalmente] = []
+    cobertas: list[ObrigacaoCobertaTemporalmente] = []
+    bloqueadas: list[ObrigacaoBloqueadaTemporalmente] = []
+    switchings: list[SwitchingEscolhidoTemporalmente] = []
+    saldos_por_data: dict[date, list[SaldoReferencialFonteTemporal]] = {}
+
+    decisoes = resultado.decisoes_temporais_por_data or {}
+    vencedores = resultado.pacote_vencedor_por_data or {}
+    for data_ref in sorted(resultado.horizonte_motor.datas_temporais):
+        estado_dia = aplicar_pacote_temporal_vencedor_dia(
+            data_ref,
+            decisoes.get(data_ref),
+            vencedores.get(data_ref),
+            saldos_disponiveis,
+            reservas_acumuladas,
+        )
+        estados[data_ref] = estado_dia
+        eventos.extend(estado_dia.eventos_internos)
+        reservas.extend(estado_dia.fontes_reservadas)
+        cobertas.extend(estado_dia.obrigacoes_cobertas)
+        bloqueadas.extend(estado_dia.obrigacoes_bloqueadas)
+        switchings.extend(estado_dia.switchings_escolhidos)
+        saldos_por_data[data_ref] = estado_dia.saldos_fontes_referenciais
+
+    return TrajetoriaTemporalInternaEscolhida(
+        estado_temporal_interno_por_data=estados,
+        eventos_trajetoria_temporal=eventos,
+        fontes_reservadas_temporalmente=reservas,
+        obrigacoes_cobertas_temporalmente=cobertas,
+        obrigacoes_bloqueadas_temporalmente=bloqueadas,
+        switchings_escolhidos_temporalmente=switchings,
+        saldos_referenciais_fontes_temporais=saldos_por_data,
+    )
+
+
+def auditar_trajetoria_temporal_interna(
+    resultado: ResultadoMotorTemporalConjunto,
+) -> AuditoriaTrajetoriaTemporalInterna:
+    avisos: list[str] = []
+    bloqueios: list[str] = []
+    trajetoria = resultado.trajetoria_temporal_interna_escolhida
+    if trajetoria is None:
+        return AuditoriaTrajetoriaTemporalInterna(
+            ok=False,
+            avisos=[],
+            bloqueios=['trajetoria_temporal_interna_ausente'],
+            resumo={},
+        )
+
+    datas_horizonte = set(resultado.horizonte_motor.datas_temporais)
+    datas_estado = set(trajetoria.estado_temporal_interno_por_data)
+    if datas_estado != datas_horizonte:
+        bloqueios.append('estado_temporal_interno_nao_cobre_horizonte')
+
+    for data_ref in resultado.horizonte_motor.datas_temporais:
+        estado_dia = trajetoria.estado_temporal_interno_por_data.get(data_ref)
+        decisao = (resultado.decisoes_temporais_por_data or {}).get(data_ref)
+        if decisao is not None and estado_dia is None:
+            bloqueios.append(f'decisao_sem_estado_interno:{data_ref.isoformat()}')
+        elif decisao is not None and estado_dia is not None and not estado_dia.eventos_internos and not estado_dia.obrigacoes_bloqueadas:
+            bloqueios.append(f'decisao_sem_evento_ou_bloqueio:{data_ref.isoformat()}')
+
+    disponibilidade_inicial: dict[str, float] = {}
+    reservado_por_fonte: dict[str, float] = {}
+    for reserva in trajetoria.fontes_reservadas_temporalmente:
+        disponibilidade_inicial[reserva.fonte_id] = max(
+            disponibilidade_inicial.get(reserva.fonte_id, 0.0),
+            reserva.valor_disponivel_antes_referencial + reservado_por_fonte.get(reserva.fonte_id, 0.0),
+        )
+        reservado_por_fonte[reserva.fonte_id] = reservado_por_fonte.get(reserva.fonte_id, 0.0) + reserva.valor_reservado_referencial
+        if reservado_por_fonte[reserva.fonte_id] > disponibilidade_inicial[reserva.fonte_id] + 0.000001:
+            bloqueios.append(f'fonte_sobrecomprometida:{reserva.fonte_id}')
+
+    cobertas_insuficientes = [
+        c
+        for c in trajetoria.obrigacoes_cobertas_temporalmente
+        if c.valor_coberto_referencial + 0.000001 < c.valor_obrigacao_referencial
+    ]
+    if cobertas_insuficientes:
+        bloqueios.append('obrigacao_coberta_com_cobertura_insuficiente')
+
+    for switching in trajetoria.switchings_escolhidos_temporalmente:
+        if switching.status_referencial != 'escolhido_internamente_nao_executado':
+            bloqueios.append(f'switching_com_status_nao_referencial:{switching.switching_id}')
+
+    for evento in trajetoria.eventos_trajetoria_temporal:
+        texto = f'{evento.tipo_evento_interno} {evento.status_referencial}'.lower()
+        if 'ledger' in texto:
+            bloqueios.append(f'evento_interno_indica_ledger:{evento.pacote_id}')
+        if 'oficial' in texto and 'nao_' not in texto and 'sem_' not in texto:
+            avisos.append(f'evento_interno_com_termo_oficial:{evento.pacote_id}')
+
+    avisos.extend([
+        'trajetoria_sem_alteracao_de_dados',
+        'trajetoria_sem_console_xlsx_saida_canonica_como_fonte',
+        'switching_escolhido_apenas_referencialmente',
+    ])
+    qtd_alertas_reserva_insuficiente = sum(
+        1
+        for estado_dia in trajetoria.estado_temporal_interno_por_data.values()
+        for alerta in estado_dia.alertas
+        if 'sem_saldo' in alerta or 'insuficiente' in alerta or 'ausente' in alerta
+    )
+    qtd_alertas_fonte_sobrecomprometida = sum(1 for b in bloqueios if b.startswith('fonte_sobrecomprometida:'))
+    resumo = {
+        'qtd_datas_horizonte': len(resultado.horizonte_motor.datas_temporais),
+        'qtd_datas_com_estado_interno': len(trajetoria.estado_temporal_interno_por_data),
+        'qtd_eventos_internos': len(trajetoria.eventos_trajetoria_temporal),
+        'qtd_obrigacoes_cobertas_referencialmente': len(trajetoria.obrigacoes_cobertas_temporalmente),
+        'qtd_obrigacoes_bloqueadas': len(trajetoria.obrigacoes_bloqueadas_temporalmente),
+        'qtd_fontes_reservadas': len(trajetoria.fontes_reservadas_temporalmente),
+        'qtd_switchings_escolhidos': len(trajetoria.switchings_escolhidos_temporalmente),
+        'qtd_alertas_reserva_insuficiente': qtd_alertas_reserva_insuficiente,
+        'qtd_alertas_fonte_sobrecomprometida': qtd_alertas_fonte_sobrecomprometida,
+        'ok': not bloqueios and not trajetoria.obrigacoes_bloqueadas_temporalmente,
+    }
+    return AuditoriaTrajetoriaTemporalInterna(
+        ok=bool(resumo['ok']),
+        avisos=avisos,
+        bloqueios=bloqueios,
+        resumo=resumo,
+    )
+
 def auditar_decisoes_temporais(resultado: ResultadoMotorTemporalConjunto) -> AuditoriaDecisaoTemporalConjunto:
     avisos: list[str] = []
     schema = resultado.schema_pacote_temporal_candidato
@@ -1392,9 +2037,10 @@ def construir_resultado_motor_temporal_conjunto(
         metadados={
             'etapa': '5',
             'artefato': 'ResultadoMotorTemporalConjunto',
-            'versao_contrato': 'MACRO-ETAPA5-B',
+            'versao_contrato': 'MACRO-ETAPA5-C',
             'com_valoracao_pacotes_temporais': True,
             'com_selecao_pacote_temporal': True,
+            'com_trajetoria_temporal_interna_escolhida': True,
             'sem_execucao_pagamento': True,
             'sem_execucao_switching': True,
             'sem_ledger': True,
@@ -1424,6 +2070,14 @@ def construir_resultado_motor_temporal_conjunto(
         resultado.pacotes_temporais_valorados_por_data,
     )
     resultado.auditoria_decisao_temporal_conjunto = auditar_decisoes_temporais(resultado)
+    resultado.trajetoria_temporal_interna_escolhida = aplicar_trajetoria_temporal_interna(resultado)
+    resultado.eventos_trajetoria_temporal = resultado.trajetoria_temporal_interna_escolhida.eventos_trajetoria_temporal
+    resultado.estado_temporal_interno_por_data = resultado.trajetoria_temporal_interna_escolhida.estado_temporal_interno_por_data
+    resultado.fontes_reservadas_temporalmente = resultado.trajetoria_temporal_interna_escolhida.fontes_reservadas_temporalmente
+    resultado.obrigacoes_cobertas_temporalmente = resultado.trajetoria_temporal_interna_escolhida.obrigacoes_cobertas_temporalmente
+    resultado.obrigacoes_bloqueadas_temporalmente = resultado.trajetoria_temporal_interna_escolhida.obrigacoes_bloqueadas_temporalmente
+    resultado.switchings_escolhidos_temporalmente = resultado.trajetoria_temporal_interna_escolhida.switchings_escolhidos_temporalmente
+    resultado.auditoria_trajetoria_temporal_interna = auditar_trajetoria_temporal_interna(resultado)
     resultado.auditoria_integridade_resultado = auditar_integridade_resultado_motor_temporal_conjunto(resultado)
     return resultado
 
@@ -1433,18 +2087,24 @@ __all__ = [
     'AuditoriaDecisaoTemporalConjunto',
     'AuditoriaIntegridadeResultadoMotorTemporalConjunto',
     'AuditoriaMotorTemporalConjunto',
+    'AuditoriaTrajetoriaTemporalInterna',
     'AuditoriaSchemaPacoteTemporalCandidato',
     'BloqueioEstruturalEtapa5',
     'CoberturaEstruturalReferencialDia',
     'DiaMotorTemporal',
     'EstadoDiarioMotorTemporal',
     'EstadoSimulacaoMotorTemporal',
+    'EstadoTemporalInternoDia',
+    'EventoTrajetoriaTemporalInterna',
     'EventosTemporaisBase',
     'FonteCandidataPacoteTemporal',
+    'FonteReservadaTemporalmente',
     'FontesTemporaisReferenciadasDia',
     'HorizonteMotorTemporal',
     'IndiceTemporalMotor',
     'JustificativaDecisaoTemporal',
+    'ObrigacaoBloqueadaTemporalmente',
+    'ObrigacaoCobertaTemporalmente',
     'ObrigacoesTemporaisDia',
     'PacoteTemporalCandidato',
     'PacoteTemporalDescartado',
@@ -1453,14 +2113,23 @@ __all__ = [
     'RecebidosTemporaisDia',
     'ResultadoMotorTemporalConjunto',
     'SchemaPacoteTemporalCandidato',
+    'SaldoReferencialFonteTemporal',
     'StatusInterfaceEtapa5',
     'SwitchingCandidatoPacoteTemporal',
+    'SwitchingEscolhidoTemporalmente',
     'SwitchingsRealizadosDia',
+    'TrajetoriaTemporalInternaEscolhida',
     'TransicaoCandidataPacoteTemporal',
     'ValoracaoPacoteTemporal',
+    'aplicar_pacote_temporal_vencedor_dia',
+    'aplicar_trajetoria_temporal_interna',
     'auditar_decisoes_temporais',
     'auditar_integridade_resultado_motor_temporal_conjunto',
+    'auditar_trajetoria_temporal_interna',
     'construir_resultado_motor_temporal_conjunto',
+    'extrair_identificador_fonte_pacote',
+    'extrair_identificador_obrigacao_pacote',
+    'extrair_valor_reservavel_fonte_pacote',
     'definir_horizonte_motor_temporal',
     'inicializar_estado_simulacao_motor',
     'inicializar_pacotes_temporais_candidatos_por_data',
