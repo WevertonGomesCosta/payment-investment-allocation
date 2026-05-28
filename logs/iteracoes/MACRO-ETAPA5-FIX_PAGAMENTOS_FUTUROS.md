@@ -29,6 +29,7 @@
 - Quando `pacote is None`, a trajetória passa a bloquear individualmente cada obrigação do dia com motivo `sem_pacote_valido_para_obrigacao_temporal`, `pacote_id=None`, `valor_cobertura_referencial=0.0` e preservação da referência original da obrigação.
 - Auditoria interna da trajetória passou a exigir bloqueio individual para obrigação aberta em data sem pacote vencedor e a continuar bloqueando reservas indevidas sem pacote.
 - Auditoria final passou a reconhecer o motivo explícito `sem_pacote_valido_para_obrigacao_temporal` como tratamento individual válido nesse cenário.
+- Correção P1 pós-auditoria: a deduplicação agora desempata datas iguais mantendo a posição original no resultado, mas substituindo pelo snapshot mais recente observado na lista de entrada; quando ambos os registros não têm data comparável, também prevalece a ocorrência mais recente.
 
 ## Datas de auditoria direta
 
@@ -43,6 +44,7 @@
 - `python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py`: sucesso.
 - `python -B aplicacao/principal.py`: sucesso; execução operacional manteve limitação ambiental já existente de download da planilha via Google Docs por `ProxyError`/403 e usou fallback/cache local.
 - Auditoria direta inline sem criação de script diagnóstico: sucesso.
+- Revalidação P1: regra de desempate da deduplicação ajustada para `data_comparavel >= data_atual` e para empate sem data comparável, sem somar snapshots duplicados.
 - `git status --short`: conferido durante a implementação; somente arquivos permitidos aparecem antes do commit.
 
 ## Limitações

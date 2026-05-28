@@ -854,7 +854,13 @@ def deduplicar_fontes_temporais_referenciadas(
             continue
 
         data_atual = datas_por_chave.get(chave)
-        if data_comparavel is not None and (data_atual is None or data_comparavel > data_atual):
+        substituir = (
+            (data_atual is None and data_comparavel is not None)
+            or (data_atual is not None and data_comparavel is not None and data_comparavel >= data_atual)
+            or (data_atual is None and data_comparavel is None)
+        )
+        if substituir:
+            # Em empate de data, a ocorrência mais recente na lista é o snapshot mais atualizado observado no pipeline.
             fontes_unicas[posicoes_por_chave[chave]] = fonte
             datas_por_chave[chave] = data_comparavel
 
