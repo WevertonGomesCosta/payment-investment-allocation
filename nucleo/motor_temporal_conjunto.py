@@ -350,6 +350,59 @@ class AuditoriaTrajetoriaTemporalInterna:
 
 
 @dataclass(slots=True)
+class SumarioFinalEtapa5:
+    qtd_datas_horizonte: int
+    qtd_dias_motor: int
+    qtd_pacotes_candidatos: int
+    qtd_pacotes_valorados: int
+    qtd_decisoes_temporais: int
+    qtd_pacotes_vencedores: int
+    qtd_eventos_trajetoria: int
+    qtd_obrigacoes_cobertas: int
+    qtd_obrigacoes_bloqueadas: int
+    qtd_fontes_reservadas: int
+    qtd_switchings_escolhidos: int
+    qtd_bloqueios_estruturais: int
+    qtd_bloqueios_trajetoria: int
+    qtd_avisos_relevantes: int
+
+
+@dataclass(slots=True)
+class BloqueioFinalEtapa5:
+    codigo: str
+    detalhe: str
+    data: date | None = None
+    severidade: str = 'bloqueio'
+
+
+@dataclass(slots=True)
+class AuditoriaFinalResultadoMotorTemporalConjunto:
+    ok: bool
+    pronto_para_etapa6: bool
+    bloqueios: list[BloqueioFinalEtapa5]
+    avisos: list[str]
+    resumo: dict[str, Any]
+
+
+@dataclass(slots=True)
+class FechamentoFuncionalEtapa5:
+    etapa5_fechada_funcionalmente: bool
+    pronto_para_etapa6: bool
+    criterios_fechamento: list[str]
+    criterios_atendidos: list[str]
+    criterios_bloqueados: list[str]
+    limites_preservados: list[str]
+
+
+@dataclass(slots=True)
+class ContratoConsumoEtapa6:
+    artefato_exclusivo_consumo: str
+    blocos_consumo: list[str]
+    fontes_proibidas: list[str]
+    observacoes: list[str]
+
+
+@dataclass(slots=True)
 class ResultadoMotorTemporalConjunto:
     data_referencia: date
     horizonte_motor: HorizonteMotorTemporal
@@ -387,6 +440,11 @@ class ResultadoMotorTemporalConjunto:
     obrigacoes_bloqueadas_temporalmente: list[ObrigacaoBloqueadaTemporalmente] | None = None
     switchings_escolhidos_temporalmente: list[SwitchingEscolhidoTemporalmente] | None = None
     auditoria_trajetoria_temporal_interna: AuditoriaTrajetoriaTemporalInterna | None = None
+    sumario_final_etapa5: SumarioFinalEtapa5 | None = None
+    auditoria_final_etapa5: AuditoriaFinalResultadoMotorTemporalConjunto | None = None
+    fechamento_funcional_etapa5: FechamentoFuncionalEtapa5 | None = None
+    contrato_consumo_etapa6: ContratoConsumoEtapa6 | None = None
+    pronto_para_etapa6: bool = False
 
 
 _CAMPOS_OBRIGATORIOS_ESTADO = [
@@ -2057,6 +2115,329 @@ def auditar_decisoes_temporais(resultado: ResultadoMotorTemporalConjunto) -> Aud
     return AuditoriaDecisaoTemporalConjunto(ok=not avisos, avisos=avisos, resumo=resumo)
 
 
+
+def montar_sumario_final_etapa5(resultado: ResultadoMotorTemporalConjunto) -> SumarioFinalEtapa5:
+    auditoria_trajetoria = resultado.auditoria_trajetoria_temporal_interna
+    auditorias_avisos = [
+        resultado.status_interface_etapa5.avisos,
+        resultado.auditoria_motor_temporal_conjunto.avisos if resultado.auditoria_motor_temporal_conjunto else [],
+        resultado.auditoria_schema_pacote_temporal_candidato.avisos if resultado.auditoria_schema_pacote_temporal_candidato else [],
+        resultado.auditoria_decisao_temporal_conjunto.avisos if resultado.auditoria_decisao_temporal_conjunto else [],
+        auditoria_trajetoria.avisos if auditoria_trajetoria else [],
+        resultado.auditoria_integridade_resultado.avisos if resultado.auditoria_integridade_resultado else [],
+    ]
+    return SumarioFinalEtapa5(
+        qtd_datas_horizonte=len(resultado.horizonte_motor.datas_temporais),
+        qtd_dias_motor=len(resultado.dias_motor or []),
+        qtd_pacotes_candidatos=sum(len(p) for p in (resultado.pacotes_temporais_candidatos_por_data or {}).values()),
+        qtd_pacotes_valorados=sum(len(p) for p in (resultado.pacotes_temporais_valorados_por_data or {}).values()),
+        qtd_decisoes_temporais=len(resultado.decisoes_temporais_por_data or {}),
+        qtd_pacotes_vencedores=sum(1 for p in (resultado.pacote_vencedor_por_data or {}).values() if p is not None),
+        qtd_eventos_trajetoria=len(resultado.eventos_trajetoria_temporal or []),
+        qtd_obrigacoes_cobertas=len(resultado.obrigacoes_cobertas_temporalmente or []),
+        qtd_obrigacoes_bloqueadas=len(resultado.obrigacoes_bloqueadas_temporalmente or []),
+        qtd_fontes_reservadas=len(resultado.fontes_reservadas_temporalmente or []),
+        qtd_switchings_escolhidos=len(resultado.switchings_escolhidos_temporalmente or []),
+        qtd_bloqueios_estruturais=len(resultado.bloqueios_estruturais or []),
+        qtd_bloqueios_trajetoria=len(auditoria_trajetoria.bloqueios) if auditoria_trajetoria else 0,
+        qtd_avisos_relevantes=sum(len(a) for a in auditorias_avisos),
+    )
+
+
+def _adicionar_bloqueio_final(
+    bloqueios: list[BloqueioFinalEtapa5],
+    codigo: str,
+    detalhe: str,
+    data_ref: date | None = None,
+) -> None:
+    bloqueios.append(BloqueioFinalEtapa5(codigo=codigo, detalhe=detalhe, data=data_ref))
+
+
+def _detalhar_obrigacao_bloqueio_final(obrigacao: dict[str, Any]) -> str:
+    obrigacao_id, _ = extrair_identificador_obrigacao_pacote(obrigacao)
+    valor_obrigacao, _ = extrair_valor_obrigacao_referencial(obrigacao)
+    return (
+        f'obrigacao_id={obrigacao_id};'
+        f'valor_referencial={float(valor_obrigacao or 0.0)};'
+        f'referencia_obrigacao={obrigacao!r}'
+    )
+
+
+def auditar_consistencia_final_etapa5(
+    resultado: ResultadoMotorTemporalConjunto,
+) -> AuditoriaFinalResultadoMotorTemporalConjunto:
+    bloqueios: list[BloqueioFinalEtapa5] = []
+    avisos: list[str] = []
+    datas_horizonte = set(resultado.horizonte_motor.datas_temporais)
+    estado_diario = resultado.estado_diario_motor or {}
+    pacotes_candidatos = resultado.pacotes_temporais_candidatos_por_data or {}
+    decisoes = resultado.decisoes_temporais_por_data or {}
+    vencedores = resultado.pacote_vencedor_por_data or {}
+    trajetoria = resultado.trajetoria_temporal_interna_escolhida
+    estados_internos = resultado.estado_temporal_interno_por_data or {}
+
+    if not resultado.status_interface_etapa5.ok:
+        _adicionar_bloqueio_final(bloqueios, 'interface_etapa5_invalida', 'auditoria de interface da Etapa 5 não está ok')
+
+    if resultado.auditoria_motor_temporal_conjunto and not resultado.auditoria_motor_temporal_conjunto.ok:
+        _adicionar_bloqueio_final(
+            bloqueios,
+            'motor_temporal_conjunto_nao_ok',
+            'auditoria do motor temporal conjunto não está ok',
+        )
+
+    for bloqueio_estrutural in resultado.bloqueios_estruturais or []:
+        data_bloqueio = None
+        if isinstance(bloqueio_estrutural, dict):
+            data_bloqueio = (
+                bloqueio_estrutural.get('data')
+                or bloqueio_estrutural.get('data_referencia')
+                or bloqueio_estrutural.get('data_motor')
+            )
+        else:
+            data_bloqueio = (
+                getattr(bloqueio_estrutural, 'data', None)
+                or getattr(bloqueio_estrutural, 'data_referencia', None)
+                or getattr(bloqueio_estrutural, 'data_motor', None)
+            )
+        _adicionar_bloqueio_final(
+            bloqueios,
+            'bloqueio_estrutural_etapa5',
+            f'bloqueio_estrutural={bloqueio_estrutural!r}',
+            data_bloqueio,
+        )
+
+    if resultado.auditoria_integridade_resultado and resultado.auditoria_integridade_resultado.bloqueios:
+        for bloqueio in resultado.auditoria_integridade_resultado.bloqueios:
+            _adicionar_bloqueio_final(bloqueios, 'integridade_resultado_bloqueada', bloqueio)
+    if resultado.auditoria_decisao_temporal_conjunto and not resultado.auditoria_decisao_temporal_conjunto.ok:
+        for aviso in resultado.auditoria_decisao_temporal_conjunto.avisos:
+            _adicionar_bloqueio_final(bloqueios, 'decisao_temporal_inconsistente', aviso)
+
+    if resultado.auditoria_trajetoria_temporal_interna and not resultado.auditoria_trajetoria_temporal_interna.ok:
+        _adicionar_bloqueio_final(
+            bloqueios,
+            'trajetoria_temporal_nao_ok',
+            'auditoria da trajetória temporal interna não está ok',
+        )
+
+    if resultado.auditoria_trajetoria_temporal_interna and resultado.auditoria_trajetoria_temporal_interna.bloqueios:
+        for bloqueio in resultado.auditoria_trajetoria_temporal_interna.bloqueios:
+            _adicionar_bloqueio_final(bloqueios, 'trajetoria_temporal_inconsistente', bloqueio)
+
+    for obrigacao_bloqueada in resultado.obrigacoes_bloqueadas_temporalmente or []:
+        data_bloqueio = getattr(obrigacao_bloqueada, 'data', None)
+        detalhe = (
+            f'obrigacao_id={getattr(obrigacao_bloqueada, "obrigacao_id", None)};'
+            f'motivo={getattr(obrigacao_bloqueada, "motivo_bloqueio_referencial", None)};'
+            f'valor_referencial={float(getattr(obrigacao_bloqueada, "valor_obrigacao_referencial", 0.0) or 0.0)};'
+            f'referencia_obrigacao={getattr(obrigacao_bloqueada, "referencia_obrigacao_temporal", None)!r}'
+        )
+        _adicionar_bloqueio_final(
+            bloqueios,
+            'obrigacao_bloqueada_na_trajetoria',
+            detalhe,
+            data_bloqueio,
+        )
+    if resultado.auditoria_schema_pacote_temporal_candidato and not resultado.auditoria_schema_pacote_temporal_candidato.ok:
+        avisos.extend(f'pacotes_candidatos_aviso_nao_impeditivo:{a}' for a in resultado.auditoria_schema_pacote_temporal_candidato.avisos)
+
+    for data_ref in resultado.horizonte_motor.datas_temporais:
+        if data_ref not in estado_diario:
+            _adicionar_bloqueio_final(bloqueios, 'data_sem_estado_diario', 'data do horizonte sem estado diário', data_ref)
+        if data_ref not in pacotes_candidatos:
+            _adicionar_bloqueio_final(bloqueios, 'data_sem_lista_pacotes_candidatos', 'data do horizonte sem lista de pacotes candidatos', data_ref)
+        if data_ref not in decisoes:
+            _adicionar_bloqueio_final(bloqueios, 'data_sem_decisao_temporal', 'data do horizonte sem decisão temporal', data_ref)
+        if data_ref not in estados_internos:
+            _adicionar_bloqueio_final(bloqueios, 'data_sem_estado_temporal_interno', 'data do horizonte sem estado interno da trajetória', data_ref)
+
+        decisao = decisoes.get(data_ref)
+        vencedor = vencedores.get(data_ref)
+        estado_interno = estados_internos.get(data_ref)
+        if decisao and decisao.pacote_vencedor_id and vencedor is None:
+            _adicionar_bloqueio_final(bloqueios, 'decisao_sem_pacote_vencedor_materializado', 'decisão referencia pacote vencedor ausente', data_ref)
+        obrigacoes_abertas = []
+        if estado_diario.get(data_ref):
+            obrigacoes_abertas = list(estado_diario[data_ref].obrigacoes.pagamentos_referenciados)
+        if decisao and decisao.pacote_vencedor_id is None and obrigacoes_abertas:
+            bloqueios_individuais_existentes = estado_interno.obrigacoes_bloqueadas if estado_interno else []
+            chaves_bloqueadas_sem_vencedor = {
+                _chave_obrigacao_referencial_auditoria(b.referencia_obrigacao_temporal)
+                for b in bloqueios_individuais_existentes
+                if b.motivo_bloqueio_referencial == 'sem_pacote_vencedor_para_obrigacao_aberta'
+            }
+            for obrigacao in obrigacoes_abertas:
+                chave_obrigacao = _chave_obrigacao_referencial_auditoria(obrigacao)
+                if chave_obrigacao not in chaves_bloqueadas_sem_vencedor:
+                    _adicionar_bloqueio_final(
+                        bloqueios,
+                        'sem_pacote_vencedor_para_obrigacao_aberta',
+                        _detalhar_obrigacao_bloqueio_final(obrigacao),
+                        data_ref,
+                    )
+        elif decisao and decisao.pacote_vencedor_id is None and estado_interno and not estado_interno.obrigacoes_bloqueadas and estado_interno.status_referencial != 'bloqueado_sem_pacote_vencedor':
+            _adicionar_bloqueio_final(bloqueios, 'decisao_sem_vencedor_sem_bloqueio_explicito', 'decisão sem vencedor não possui bloqueio explícito', data_ref)
+        if vencedor and vencedor.data_referencia != data_ref:
+            _adicionar_bloqueio_final(bloqueios, 'pacote_vencedor_data_divergente', vencedor.pacote_id, data_ref)
+        if decisao and decisao.executa_pagamento:
+            _adicionar_bloqueio_final(bloqueios, 'decisao_indica_execucao_pagamento', 'decisão não pode executar pagamento na Etapa 5', data_ref)
+        if decisao and decisao.executa_switching:
+            _adicionar_bloqueio_final(bloqueios, 'decisao_indica_execucao_switching', 'decisão não pode executar switching na Etapa 5', data_ref)
+        if decisao and decisao.gera_ledger:
+            _adicionar_bloqueio_final(bloqueios, 'decisao_indica_ledger', 'decisão não pode gerar ledger na Etapa 5', data_ref)
+
+        if vencedor and vencedor.obrigacoes_referenciadas and estado_interno:
+            chaves_obrigacoes = {_chave_obrigacao_referencial_auditoria(o) for o in vencedor.obrigacoes_referenciadas}
+            chaves_cobertas = {_chave_obrigacao_referencial_auditoria(o.referencia_obrigacao_temporal) for o in estado_interno.obrigacoes_cobertas}
+            chaves_bloqueadas = {_chave_obrigacao_referencial_auditoria(o.referencia_obrigacao_temporal) for o in estado_interno.obrigacoes_bloqueadas}
+            if not chaves_obrigacoes.issubset(chaves_cobertas | chaves_bloqueadas):
+                _adicionar_bloqueio_final(bloqueios, 'obrigacao_aberta_sem_tratamento_referencial', 'obrigação aberta sem cobertura ou bloqueio individual', data_ref)
+            if estado_interno.status_referencial == 'bloqueado_referencialmente' and estado_interno.fontes_reservadas:
+                _adicionar_bloqueio_final(bloqueios, 'reserva_persistida_em_pacote_bloqueado', 'pacote bloqueado reteve reservas referenciais', data_ref)
+
+    if trajetoria is None:
+        _adicionar_bloqueio_final(bloqueios, 'trajetoria_temporal_interna_ausente', 'trajetória temporal interna não foi anexada')
+    elif set(trajetoria.estado_temporal_interno_por_data) != datas_horizonte:
+        _adicionar_bloqueio_final(bloqueios, 'trajetoria_nao_cobre_horizonte', 'trajetória interna não cobre exatamente o horizonte')
+
+    for reserva in resultado.fontes_reservadas_temporalmente or []:
+        if reserva.valor_reservado_referencial > reserva.valor_disponivel_antes_referencial + 0.000001:
+            _adicionar_bloqueio_final(bloqueios, 'reserva_acima_disponibilidade_referencial', reserva.fonte_id, reserva.data)
+        if reserva.valor_disponivel_depois_referencial < -0.000001:
+            _adicionar_bloqueio_final(bloqueios, 'saldo_referencial_negativo_apos_reserva', reserva.fonte_id, reserva.data)
+
+    for switching in resultado.switchings_escolhidos_temporalmente or []:
+        if switching.status_referencial != 'escolhido_internamente_nao_executado':
+            _adicionar_bloqueio_final(bloqueios, 'switching_nao_referencial', str(switching.switching_id), switching.data)
+
+    for evento in resultado.eventos_trajetoria_temporal or []:
+        texto = f'{evento.tipo_evento_interno} {evento.status_referencial}'.lower()
+        if 'ledger' in texto:
+            _adicionar_bloqueio_final(bloqueios, 'evento_interno_indica_ledger', str(evento.pacote_id), evento.data)
+        indica_pagamento_oficial = 'pagamento_oficial' in texto and 'sem_pagamento_oficial' not in texto
+        indica_execucao_oficial = 'executado_oficial' in texto and 'nao_executado_oficial' not in texto
+        if indica_pagamento_oficial or indica_execucao_oficial or 'liquidado_oficial' in texto:
+            _adicionar_bloqueio_final(bloqueios, 'evento_interno_indica_execucao_oficial', str(evento.pacote_id), evento.data)
+
+    avisos.extend([
+        'sem_alteracao_dados_confirmado_por_escopo_do_fechamento',
+        'sem_console_xlsx_saida_canonica_como_fonte_confirmado_por_escopo_do_fechamento',
+        'etapa6_deve_consumir_exclusivamente_resultado_motor_temporal_conjunto',
+    ])
+    resumo = {
+        'qtd_datas_horizonte': len(datas_horizonte),
+        'qtd_bloqueios_finais': len(bloqueios),
+        'qtd_avisos_finais': len(avisos),
+        'sem_ledger': True,
+        'sem_execucao_pagamento': True,
+        'sem_execucao_switching': True,
+        'sem_console_xlsx': True,
+        'sem_saida_canonica_final': True,
+        'sem_alteracao_dados': True,
+    }
+    return AuditoriaFinalResultadoMotorTemporalConjunto(
+        ok=not bloqueios,
+        pronto_para_etapa6=not bloqueios,
+        bloqueios=bloqueios,
+        avisos=avisos,
+        resumo=resumo,
+    )
+
+
+def montar_contrato_consumo_etapa6(resultado: ResultadoMotorTemporalConjunto) -> ContratoConsumoEtapa6:
+    return ContratoConsumoEtapa6(
+        artefato_exclusivo_consumo='ResultadoMotorTemporalConjunto',
+        blocos_consumo=[
+            'data_referencia',
+            'horizonte_motor',
+            'decisoes_temporais_por_data',
+            'pacote_vencedor_por_data',
+            'trajetoria_temporal_interna_escolhida',
+            'eventos_trajetoria_temporal',
+            'estado_temporal_interno_por_data',
+            'fontes_reservadas_temporalmente',
+            'obrigacoes_cobertas_temporalmente',
+            'obrigacoes_bloqueadas_temporalmente',
+            'switchings_escolhidos_temporalmente',
+            'auditoria_final_etapa5',
+            'metadados',
+        ],
+        fontes_proibidas=[
+            'console',
+            'XLSX',
+            'saida_canonica',
+            'logs',
+            'scripts_diagnosticos',
+            'dados_brutos_como_fonte_normativa_alternativa',
+        ],
+        observacoes=[
+            'consumo_exclusivo_pela_etapa6',
+            'sem_ledger_oficial',
+            'sem_execucao_oficial_pagamento_ou_switching',
+        ],
+    )
+
+
+def fechar_resultado_motor_temporal_conjunto(
+    resultado: ResultadoMotorTemporalConjunto,
+) -> ResultadoMotorTemporalConjunto:
+    resultado.sumario_final_etapa5 = montar_sumario_final_etapa5(resultado)
+    resultado.auditoria_final_etapa5 = auditar_consistencia_final_etapa5(resultado)
+    resultado.contrato_consumo_etapa6 = montar_contrato_consumo_etapa6(resultado)
+    criterios = [
+        'interface_etapa5_ok',
+        'integridade_resultado_sem_bloqueios_criticos',
+        'pacotes_candidatos_presentes_por_data',
+        'decisoes_temporais_consistentes',
+        'trajetoria_interna_sem_bloqueios_criticos',
+        'horizonte_com_decisao_e_estado_interno',
+        'obrigacoes_abertas_cobertas_ou_bloqueadas_referencialmente',
+        'sem_ledger',
+        'sem_execucao_pagamento',
+        'sem_execucao_switching',
+        'sem_dependencia_console_xlsx_saida_logs_diagnosticos',
+    ]
+    criterios_bloqueados = [b.codigo for b in resultado.auditoria_final_etapa5.bloqueios]
+    criterios_atendidos = criterios if not criterios_bloqueados else [
+        'sem_ledger',
+        'sem_execucao_pagamento',
+        'sem_execucao_switching',
+        'sem_dependencia_console_xlsx_saida_logs_diagnosticos',
+    ]
+    resultado.pronto_para_etapa6 = resultado.auditoria_final_etapa5.pronto_para_etapa6
+    resultado.fechamento_funcional_etapa5 = FechamentoFuncionalEtapa5(
+        etapa5_fechada_funcionalmente=True,
+        pronto_para_etapa6=resultado.pronto_para_etapa6,
+        criterios_fechamento=criterios,
+        criterios_atendidos=criterios_atendidos,
+        criterios_bloqueados=criterios_bloqueados,
+        limites_preservados=[
+            'sem_ledger',
+            'sem_execucao_pagamento',
+            'sem_execucao_switching',
+            'sem_console_xlsx',
+            'sem_saida_canonica_final',
+            'sem_alteracao_dados',
+        ],
+    )
+    resultado.metadados.update({
+        'etapa': '5',
+        'artefato': 'ResultadoMotorTemporalConjunto',
+        'versao_contrato': 'MACRO-ETAPA5-D',
+        'etapa5_fechada_funcionalmente': True,
+        'pronto_para_etapa6': resultado.pronto_para_etapa6,
+        'consumo_exclusivo_pela_etapa6': True,
+        'sem_ledger': True,
+        'sem_execucao_pagamento': True,
+        'sem_execucao_switching': True,
+        'sem_console_xlsx': True,
+        'sem_saida_canonica_final': True,
+        'sem_alteracao_dados': True,
+    })
+    resultado.sumario_final_etapa5 = montar_sumario_final_etapa5(resultado)
+    return resultado
+
 def construir_resultado_motor_temporal_conjunto(
     estado: EstadoTemporalInicial,
     parametros: ParametrosEtapa5 | None = None,
@@ -2160,24 +2541,29 @@ def construir_resultado_motor_temporal_conjunto(
     resultado.switchings_escolhidos_temporalmente = resultado.trajetoria_temporal_interna_escolhida.switchings_escolhidos_temporalmente
     resultado.auditoria_trajetoria_temporal_interna = auditar_trajetoria_temporal_interna(resultado)
     resultado.auditoria_integridade_resultado = auditar_integridade_resultado_motor_temporal_conjunto(resultado)
+    resultado = fechar_resultado_motor_temporal_conjunto(resultado)
     return resultado
 
 
 __all__ = [
     'AuditoriaConsumoEtapa5',
     'AuditoriaDecisaoTemporalConjunto',
+    'AuditoriaFinalResultadoMotorTemporalConjunto',
     'AuditoriaIntegridadeResultadoMotorTemporalConjunto',
     'AuditoriaMotorTemporalConjunto',
     'AuditoriaTrajetoriaTemporalInterna',
     'AuditoriaSchemaPacoteTemporalCandidato',
+    'BloqueioFinalEtapa5',
     'BloqueioEstruturalEtapa5',
     'CoberturaEstruturalReferencialDia',
+    'ContratoConsumoEtapa6',
     'DiaMotorTemporal',
     'EstadoDiarioMotorTemporal',
     'EstadoSimulacaoMotorTemporal',
     'EstadoTemporalInternoDia',
     'EventoTrajetoriaTemporalInterna',
     'EventosTemporaisBase',
+    'FechamentoFuncionalEtapa5',
     'FonteCandidataPacoteTemporal',
     'FonteReservadaTemporalmente',
     'FontesTemporaisReferenciadasDia',
@@ -2196,6 +2582,7 @@ __all__ = [
     'SchemaPacoteTemporalCandidato',
     'SaldoReferencialFonteTemporal',
     'StatusInterfaceEtapa5',
+    'SumarioFinalEtapa5',
     'SwitchingCandidatoPacoteTemporal',
     'SwitchingEscolhidoTemporalmente',
     'SwitchingsRealizadosDia',
@@ -2204,6 +2591,7 @@ __all__ = [
     'ValoracaoPacoteTemporal',
     'aplicar_pacote_temporal_vencedor_dia',
     'aplicar_trajetoria_temporal_interna',
+    'auditar_consistencia_final_etapa5',
     'auditar_decisoes_temporais',
     'auditar_integridade_resultado_motor_temporal_conjunto',
     'auditar_trajetoria_temporal_interna',
@@ -2211,12 +2599,14 @@ __all__ = [
     'extrair_identificador_fonte_pacote',
     'extrair_identificador_obrigacao_pacote',
     'extrair_valor_reservavel_fonte_pacote',
+    'fechar_resultado_motor_temporal_conjunto',
     'definir_horizonte_motor_temporal',
     'inicializar_estado_simulacao_motor',
     'inicializar_pacotes_temporais_candidatos_por_data',
     'montar_auditoria_consumo_etapa5',
     'montar_auditoria_motor_temporal_conjunto',
     'montar_auditoria_schema_pacote_temporal_candidato',
+    'montar_contrato_consumo_etapa6',
     'montar_dias_motor_temporal',
     'montar_estado_diario_motor_temporal',
     'montar_eventos_temporais_base',
@@ -2225,6 +2615,7 @@ __all__ = [
     'montar_obrigacoes_temporais_dia',
     'montar_recebidos_temporais_dia',
     'montar_schema_pacote_temporal_candidato',
+    'montar_sumario_final_etapa5',
     'montar_switchings_realizados_dia',
     'selecionar_pacote_temporal_vencedor_dia',
     'selecionar_pacotes_temporais_vencedores',
