@@ -415,3 +415,16 @@ flowchart TD
 ## 22. Condição de parada
 
 Qualquer necessidade de escolher fonte ótima, selecionar novo pacote vencedor, revalorar decisão, executar pagamento, promover switching novo, reconstruir `EstadoTemporalInicial`, consumir planilha original, alterar console, alterar XLSX, alterar dados, gerar saída canônica final, criar script diagnóstico, criar fallback legado, criar rota paralela ou usar saída observável como fonte de estado deve interromper a macroetapa funcional em curso e exigir novo contrato específico antes da implementação.
+
+## 23. Adendo de fechamento funcional — MACRO-ETAPA6-FULL
+
+A implementação funcional da MACRO-ETAPA6-FULL materializa este contrato em artefato interno de runtime por meio de:
+
+- schema canônico `LedgerTemporalCanonico` e estruturas auxiliares de eventos, lançamentos, saldos, auditoria e parâmetros;
+- função pública `construir_ledger_temporal_canonico(resultado, parametros=None)`;
+- auditoria interna do ledger no próprio módulo funcional, sem script diagnóstico;
+- integração controlada ao runtime principal imediatamente após a construção de `ResultadoMotorTemporalConjunto`;
+- preservação explícita de bloqueios finais, avisos e estado `pronto_para_etapa6` da Etapa 5;
+- prontidão para consumo por etapa posterior somente quando o resultado da Etapa 5 e a auditoria do ledger permitirem.
+
+O adendo não cria contrato da próxima etapa, não autoriza exportação para console, XLSX ou saída canônica final e mantém `ResultadoMotorTemporalConjunto` como origem exclusiva da Etapa 6.
