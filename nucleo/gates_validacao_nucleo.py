@@ -1,0 +1,734 @@
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, field, is_dataclass
+from datetime import date
+from typing import Any
+
+from nucleo.ledger_temporal_canonico import LedgerTemporalCanonico
+
+
+_ORIGEM_FORMAL = 'LedgerTemporalCanonico'
+_ORIGEM_ETAPA6_ESPERADA = 'ResultadoMotorTemporal' + 'Conjunto'
+_FONTES_DIRETAS_PROIBIDAS = {
+    'console',
+    'xlsx',
+    'xls',
+    'saida_observavel',
+    'saída observável',
+    'logs',
+    'log',
+    'diagnostico',
+    'diagnóstico',
+    'script_diagnostico',
+    'script diagnóstico',
+    'estado_temporal' + '_inicial',
+    'resultado_motor_temporal' + '_conjunto',
+}
+
+
+@dataclass(slots=True)
+class ParametrosGatesValidacaoNucleo:
+    tolerancia_valor: float = 0.01
+    tolerancia_residual: float = 0.20
+    bloquear_sem_evidencia_minima: bool = False
+    validar_liquidez_carencia_quando_disponivel: bool = True
+    validar_aderencia_terminal_quando_disponivel: bool = True
+
+
+@dataclass(slots=True)
+class EvidenciaGateNucleo:
+    gate_id: str
+    data_referencia: date | None
+    entidade_tipo: str
+    entidade_id: str | None
+    campo: str | None
+    valor_observado: object | None
+    valor_esperado: object | None
+    diferenca: float | None
+    severidade: str
+    mensagem: str
+    referencias_ledger: dict[str, object]
+
+
+@dataclass(slots=True)
+class BloqueioGateNucleo:
+    gate_id: str
+    codigo: str
+    mensagem: str
+    data_referencia: date | None
+    entidade_tipo: str
+    entidade_id: str | None
+    severidade: str = 'bloqueio'
+    evidencias: list[EvidenciaGateNucleo] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class AvisoGateNucleo:
+    gate_id: str
+    codigo: str
+    mensagem: str
+    data_referencia: date | None
+    entidade_tipo: str
+    entidade_id: str | None
+    severidade: str = 'aviso'
+    evidencias: list[EvidenciaGateNucleo] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class GateValidacaoNucleo:
+    gate_id: str
+    nome: str
+    executado: bool
+    aprovado: bool
+    nao_aplicavel: bool
+    motivo_nao_aplicavel: str | None
+    bloqueios: list[BloqueioGateNucleo] = field(default_factory=list)
+    avisos: list[AvisoGateNucleo] = field(default_factory=list)
+    evidencias: list[EvidenciaGateNucleo] = field(default_factory=list)
+    resumo: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ResumoGatesValidacaoNucleo:
+    qtd_gates: int
+    qtd_gates_executados: int
+    qtd_gates_aprovados: int
+    qtd_gates_reprovados: int
+    qtd_gates_nao_aplicaveis: int
+    qtd_bloqueios: int
+    qtd_avisos: int
+    qtd_obrigacoes_cobertas: int
+    qtd_obrigacoes_bloqueadas: int
+    qtd_fontes_utilizadas: int
+    qtd_fontes_reservadas: int
+    qtd_switchings: int
+    pronto_para_etapa8: bool
+
+
+@dataclass(slots=True)
+class ResultadoGatesValidacaoNucleo:
+    ok: bool
+    pronto_para_etapa8: bool
+    origem_formal: str
+    gates: list[GateValidacaoNucleo]
+    bloqueios: list[BloqueioGateNucleo]
+    avisos: list[AvisoGateNucleo]
+    evidencias: list[EvidenciaGateNucleo]
+    resumo: ResumoGatesValidacaoNucleo
+    metadados: dict[str, object]
+
+
+def _valor(objeto: Any, campo: str, padrao: Any = None) -> Any:
+    if isinstance(objeto, dict):
+        return objeto.get(campo, padrao)
+    return getattr(objeto, campo, padrao)
+
+
+def _dict_referencia(valor: Any) -> dict[str, object]:
+    if valor is None:
+        return {}
+    if isinstance(valor, dict):
+        return dict(valor)
+    if is_dataclass(valor):
+        return asdict(valor)
+    return {'valor': valor}
+
+
+def _float_ou_none(valor: Any) -> float | None:
+    if valor is None:
+        return None
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        return None
+
+
+def _id_entidade(objeto: Any, *campos: str) -> str | None:
+    for campo in campos:
+        valor = _valor(objeto, campo)
+        if valor not in (None, ''):
+            return str(valor)
+    return None
+
+
+def _referencias(objeto: Any, indice: int | None = None) -> dict[str, object]:
+    refs = {
+        'origem_formal': _ORIGEM_FORMAL,
+        'tipo_ledger': type(objeto).__name__ if objeto is not None else None,
+    }
+    if indice is not None:
+        refs['indice_ledger'] = indice
+    if objeto is not None:
+        metadados = _valor(objeto, 'metadados')
+        if isinstance(metadados, dict):
+            refs['metadados'] = dict(metadados)
+        referencia_original = _valor(objeto, 'referencia_original')
+        if isinstance(referencia_original, dict):
+            refs['referencia_original'] = dict(referencia_original)
+    return refs
+
+
+def _nova_evidencia(
+    gate_id: str,
+    data_referencia: date | None,
+    entidade_tipo: str,
+    entidade_id: str | None,
+    campo: str | None,
+    valor_observado: object | None,
+    valor_esperado: object | None,
+    diferenca: float | None,
+    severidade: str,
+    mensagem: str,
+    referencias_ledger: dict[str, object],
+) -> EvidenciaGateNucleo:
+    return EvidenciaGateNucleo(
+        gate_id=gate_id,
+        data_referencia=data_referencia,
+        entidade_tipo=entidade_tipo,
+        entidade_id=entidade_id,
+        campo=campo,
+        valor_observado=valor_observado,
+        valor_esperado=valor_esperado,
+        diferenca=diferenca,
+        severidade=severidade,
+        mensagem=mensagem,
+        referencias_ledger=referencias_ledger,
+    )
+
+
+def _adicionar_bloqueio(
+    gate: GateValidacaoNucleo,
+    codigo: str,
+    mensagem: str,
+    data_referencia: date | None,
+    entidade_tipo: str,
+    entidade_id: str | None,
+    evidencia: EvidenciaGateNucleo | None = None,
+) -> None:
+    evidencias = [evidencia] if evidencia else []
+    gate.bloqueios.append(
+        BloqueioGateNucleo(
+            gate_id=gate.gate_id,
+            codigo=codigo,
+            mensagem=mensagem,
+            data_referencia=data_referencia,
+            entidade_tipo=entidade_tipo,
+            entidade_id=entidade_id,
+            evidencias=evidencias,
+        )
+    )
+    if evidencia:
+        gate.evidencias.append(evidencia)
+
+
+def _adicionar_aviso(
+    gate: GateValidacaoNucleo,
+    codigo: str,
+    mensagem: str,
+    data_referencia: date | None,
+    entidade_tipo: str,
+    entidade_id: str | None,
+    evidencia: EvidenciaGateNucleo | None = None,
+) -> None:
+    evidencias = [evidencia] if evidencia else []
+    gate.avisos.append(
+        AvisoGateNucleo(
+            gate_id=gate.gate_id,
+            codigo=codigo,
+            mensagem=mensagem,
+            data_referencia=data_referencia,
+            entidade_tipo=entidade_tipo,
+            entidade_id=entidade_id,
+            evidencias=evidencias,
+        )
+    )
+    if evidencia:
+        gate.evidencias.append(evidencia)
+
+
+def _novo_gate(gate_id: str, nome: str) -> GateValidacaoNucleo:
+    return GateValidacaoNucleo(
+        gate_id=gate_id,
+        nome=nome,
+        executado=True,
+        aprovado=True,
+        nao_aplicavel=False,
+        motivo_nao_aplicavel=None,
+    )
+
+
+def _finalizar_gate(gate: GateValidacaoNucleo, total_itens: int | None = None, motivo_nao_aplicavel: str | None = None) -> GateValidacaoNucleo:
+    if motivo_nao_aplicavel is not None:
+        gate.nao_aplicavel = True
+        gate.motivo_nao_aplicavel = motivo_nao_aplicavel
+    gate.aprovado = not gate.bloqueios
+    gate.resumo.update(
+        {
+            'qtd_bloqueios': len(gate.bloqueios),
+            'qtd_avisos': len(gate.avisos),
+            'qtd_evidencias': len(gate.evidencias),
+        }
+    )
+    if total_itens is not None:
+        gate.resumo['qtd_itens_avaliados'] = total_itens
+    return gate
+
+
+def _contem_fonte_direta_proibida(valor: Any) -> bool:
+    texto = str(valor).lower()
+    return any(fonte in texto for fonte in _FONTES_DIRETAS_PROIBIDAS)
+
+
+def _gate_origem_exclusiva_ledger(ledger: LedgerTemporalCanonico) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_origem_exclusiva_ledger', 'Origem exclusiva no ledger temporal canônico')
+    metadados = dict(ledger.metadados or {})
+    evidencia_tipo = _nova_evidencia(
+        gate.gate_id,
+        ledger.data_referencia,
+        'ledger',
+        None,
+        'tipo',
+        type(ledger).__name__,
+        _ORIGEM_FORMAL,
+        None,
+        'info',
+        'Objeto de entrada formal identificado como ledger temporal canônico.',
+        {'metadados_ledger': metadados},
+    )
+    gate.evidencias.append(evidencia_tipo)
+
+    origem_etapa6 = metadados.get('origem_exclusiva')
+    if origem_etapa6 != _ORIGEM_ETAPA6_ESPERADA:
+        evidencia = _nova_evidencia(
+            gate.gate_id,
+            ledger.data_referencia,
+            'ledger',
+            None,
+            'metadados.origem_exclusiva',
+            origem_etapa6,
+            _ORIGEM_ETAPA6_ESPERADA,
+            None,
+            'bloqueio',
+            'Origem histórica da Etapa 6 não está materializada conforme esperado nos metadados do ledger.',
+            {'metadados_ledger': metadados},
+        )
+        _adicionar_bloqueio(
+            gate,
+            'origem_etapa6_invalida',
+            'Metadados do ledger não confirmam a origem histórica esperada da Etapa 6.',
+            ledger.data_referencia,
+            'ledger',
+            None,
+            evidencia,
+        )
+
+    entrada_direta_etapa7 = metadados.get('entrada_direta_etapa7') or metadados.get('entrada_formal_etapa7')
+    if entrada_direta_etapa7 and str(entrada_direta_etapa7) != _ORIGEM_FORMAL:
+        evidencia = _nova_evidencia(
+            gate.gate_id,
+            ledger.data_referencia,
+            'ledger',
+            None,
+            'metadados.entrada_etapa7',
+            entrada_direta_etapa7,
+            _ORIGEM_FORMAL,
+            None,
+            'bloqueio',
+            'Entrada direta declarada para a Etapa 7 difere do ledger temporal canônico.',
+            {'metadados_ledger': metadados},
+        )
+        _adicionar_bloqueio(gate, 'entrada_etapa7_nao_ledger', 'Entrada direta da Etapa 7 não é o ledger.', ledger.data_referencia, 'ledger', None, evidencia)
+
+    fontes_declaradas = metadados.get('fontes_diretas_etapa7') or metadados.get('fontes_consumidas_etapa7') or []
+    if fontes_declaradas and _contem_fonte_direta_proibida(fontes_declaradas):
+        evidencia = _nova_evidencia(
+            gate.gate_id,
+            ledger.data_referencia,
+            'ledger',
+            None,
+            'metadados.fontes_etapa7',
+            fontes_declaradas,
+            _ORIGEM_FORMAL,
+            None,
+            'bloqueio',
+            'Metadados indicam fonte direta proibida para a Etapa 7.',
+            {'metadados_ledger': metadados},
+        )
+        _adicionar_bloqueio(gate, 'fonte_direta_proibida_etapa7', 'Fonte direta proibida declarada para a Etapa 7.', ledger.data_referencia, 'ledger', None, evidencia)
+
+    gate.resumo['origem_resultado_etapa7'] = _ORIGEM_FORMAL
+    gate.resumo['origem_historica_etapa6'] = origem_etapa6
+    return _finalizar_gate(gate)
+
+
+def _gate_auditoria_ledger(ledger: LedgerTemporalCanonico) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_auditoria_ledger', 'Auditoria interna do ledger')
+    auditoria = ledger.auditoria
+    if auditoria is None:
+        evidencia = _nova_evidencia(gate.gate_id, ledger.data_referencia, 'ledger', None, 'auditoria', None, 'AuditoriaLedgerTemporalCanonico', None, 'bloqueio', 'Auditoria do ledger ausente.', {'origem_formal': _ORIGEM_FORMAL})
+        _adicionar_bloqueio(gate, 'auditoria_ledger_ausente', 'Ledger não possui auditoria interna materializada.', ledger.data_referencia, 'ledger', None, evidencia)
+        return _finalizar_gate(gate)
+
+    gate.evidencias.append(
+        _nova_evidencia(gate.gate_id, ledger.data_referencia, 'auditoria_ledger', None, 'ok', auditoria.ok, True, None, 'info', 'Auditoria interna do ledger foi lida do próprio ledger.', {'auditoria_resumo': dict(auditoria.resumo or {})})
+    )
+    if not auditoria.ok:
+        evidencia = _nova_evidencia(gate.gate_id, ledger.data_referencia, 'auditoria_ledger', None, 'ok', auditoria.ok, True, None, 'bloqueio', 'Auditoria interna do ledger reprovada.', {'auditoria_bloqueios': list(auditoria.bloqueios or [])})
+        _adicionar_bloqueio(gate, 'auditoria_ledger_reprovada', 'Auditoria interna do ledger reprovou o artefato.', ledger.data_referencia, 'auditoria_ledger', None, evidencia)
+
+    for indice, bloqueio in enumerate(ledger.bloqueios or []):
+        evidencia = _nova_evidencia(gate.gate_id, _valor(bloqueio, 'data'), 'bloqueio_ledger', _id_entidade(bloqueio, 'codigo', 'pacote_id', 'obrigacao_id'), 'bloqueios', _dict_referencia(bloqueio), 'preservado', None, 'bloqueio', 'Bloqueio do ledger preservado nos gates de núcleo.', _referencias(bloqueio, indice))
+        _adicionar_bloqueio(gate, str(_valor(bloqueio, 'codigo', 'bloqueio_ledger_preservado')), str(_valor(bloqueio, 'motivo', 'Bloqueio do ledger preservado.')), _valor(bloqueio, 'data'), 'bloqueio_ledger', _id_entidade(bloqueio, 'codigo', 'pacote_id', 'obrigacao_id'), evidencia)
+
+    for indice, aviso in enumerate(ledger.avisos or []):
+        evidencia = _nova_evidencia(gate.gate_id, ledger.data_referencia, 'aviso_ledger', None, 'avisos', aviso, 'preservado', None, 'aviso', 'Aviso do ledger preservado nos gates de núcleo.', {'indice_ledger': indice, 'origem_formal': _ORIGEM_FORMAL})
+        _adicionar_aviso(gate, 'aviso_ledger_preservado', str(aviso), ledger.data_referencia, 'aviso_ledger', None, evidencia)
+
+    if auditoria.avisos:
+        for indice, aviso in enumerate(auditoria.avisos):
+            evidencia = _nova_evidencia(gate.gate_id, ledger.data_referencia, 'aviso_auditoria_ledger', None, 'auditoria.avisos', aviso, 'preservado', None, 'aviso', 'Aviso da auditoria do ledger preservado.', {'indice_auditoria': indice, 'origem_formal': _ORIGEM_FORMAL})
+            _adicionar_aviso(gate, 'aviso_auditoria_ledger_preservado', str(aviso), ledger.data_referencia, 'aviso_auditoria_ledger', None, evidencia)
+
+    gate.resumo['qtd_bloqueios_ledger_preservados'] = len(ledger.bloqueios or [])
+    gate.resumo['qtd_avisos_ledger_preservados'] = len(ledger.avisos or []) + len(auditoria.avisos or [])
+    return _finalizar_gate(gate)
+
+
+def _validar_valor_nao_negativo(gate: GateValidacaoNucleo, item: Any, campo: str, entidade_tipo: str, entidade_id: str | None, indice: int, tolerancia: float) -> None:
+    valor = _float_ou_none(_valor(item, campo))
+    if valor is not None and valor < -abs(tolerancia):
+        evidencia = _nova_evidencia(gate.gate_id, _valor(item, 'data'), entidade_tipo, entidade_id, campo, valor, '>= 0', valor, 'bloqueio', f'Valor negativo incompatível no campo {campo}.', _referencias(item, indice))
+        _adicionar_bloqueio(gate, f'{campo}_negativo', f'Valor negativo incompatível no campo {campo}.', _valor(item, 'data'), entidade_tipo, entidade_id, evidencia)
+
+
+def _gate_obrigacoes_cobertas(ledger: LedgerTemporalCanonico, parametros: ParametrosGatesValidacaoNucleo) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_obrigacoes_cobertas', 'Obrigações cobertas')
+    obrigacoes = list(ledger.obrigacoes_cobertas or [])
+    if not obrigacoes:
+        return _finalizar_gate(gate, 0, 'Ledger não disponibiliza obrigações cobertas para validação.')
+
+    for indice, obrigacao in enumerate(obrigacoes):
+        entidade_id = _id_entidade(obrigacao, 'obrigacao_id', 'pacote_id')
+        if _valor(obrigacao, 'data') is None:
+            evidencia = _nova_evidencia(gate.gate_id, None, 'obrigacao_coberta', entidade_id, 'data', None, 'data válida', None, 'bloqueio', 'Obrigação coberta sem data.', _referencias(obrigacao, indice))
+            _adicionar_bloqueio(gate, 'obrigacao_coberta_sem_data', 'Obrigação coberta não possui data.', None, 'obrigacao_coberta', entidade_id, evidencia)
+        if entidade_id is None:
+            evidencia = _nova_evidencia(gate.gate_id, _valor(obrigacao, 'data'), 'obrigacao_coberta', None, 'identificador', None, 'obrigacao_id ou pacote_id', None, 'bloqueio', 'Obrigação coberta sem identificador mínimo.', _referencias(obrigacao, indice))
+            _adicionar_bloqueio(gate, 'obrigacao_coberta_sem_identificador', 'Obrigação coberta não possui identificador mínimo.', _valor(obrigacao, 'data'), 'obrigacao_coberta', None, evidencia)
+        _validar_valor_nao_negativo(gate, obrigacao, 'valor_coberto_referencial', 'obrigacao_coberta', entidade_id, indice, parametros.tolerancia_valor)
+
+        valor_obrigacao = _float_ou_none(_valor(obrigacao, 'valor_obrigacao_referencial'))
+        valor_coberto = _float_ou_none(_valor(obrigacao, 'valor_coberto_referencial'))
+        if valor_obrigacao is not None and valor_coberto is not None:
+            diferenca = round(valor_coberto - valor_obrigacao, 10)
+            if abs(diferenca) > parametros.tolerancia_valor:
+                evidencia = _nova_evidencia(gate.gate_id, _valor(obrigacao, 'data'), 'obrigacao_coberta', entidade_id, 'valor_coberto_referencial', valor_coberto, valor_obrigacao, diferenca, 'bloqueio', 'Cobertura referencial incompatível com o valor da obrigação.', _referencias(obrigacao, indice))
+                _adicionar_bloqueio(gate, 'cobertura_obrigacao_incompativel', 'Obrigação coberta possui diferença material entre valor coberto e valor da obrigação.', _valor(obrigacao, 'data'), 'obrigacao_coberta', entidade_id, evidencia)
+
+        fontes = list(_valor(obrigacao, 'fontes_referenciadas', []) or [])
+        if 'fontes_referenciadas' in _dict_referencia(obrigacao) and not fontes:
+            evidencia = _nova_evidencia(gate.gate_id, _valor(obrigacao, 'data'), 'obrigacao_coberta', entidade_id, 'fontes_referenciadas', fontes, 'fonte associada quando evidenciada', None, 'aviso', 'Obrigação coberta não possui fonte associada no ledger.', _referencias(obrigacao, indice))
+            _adicionar_aviso(gate, 'obrigacao_coberta_sem_fonte_associada', 'Obrigação coberta sem fonte associada no ledger.', _valor(obrigacao, 'data'), 'obrigacao_coberta', entidade_id, evidencia)
+
+    return _finalizar_gate(gate, len(obrigacoes))
+
+
+def _gate_obrigacoes_bloqueadas(ledger: LedgerTemporalCanonico) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_obrigacoes_bloqueadas', 'Obrigações bloqueadas')
+    obrigacoes = list(ledger.obrigacoes_bloqueadas or [])
+    if not obrigacoes:
+        return _finalizar_gate(gate, 0, 'Ledger não disponibiliza obrigações bloqueadas para validação.')
+
+    for indice, obrigacao in enumerate(obrigacoes):
+        entidade_id = _id_entidade(obrigacao, 'obrigacao_id', 'pacote_id')
+        motivo = _valor(obrigacao, 'motivo')
+        if not motivo:
+            evidencia = _nova_evidencia(gate.gate_id, _valor(obrigacao, 'data'), 'obrigacao_bloqueada', entidade_id, 'motivo', motivo, 'motivo explícito', None, 'bloqueio', 'Obrigação bloqueada sem motivo explícito.', _referencias(obrigacao, indice))
+            _adicionar_bloqueio(gate, 'obrigacao_bloqueada_sem_motivo', 'Obrigação bloqueada não possui motivo explícito.', _valor(obrigacao, 'data'), 'obrigacao_bloqueada', entidade_id, evidencia)
+        if _valor(obrigacao, 'data') is None and not _valor(obrigacao, 'referencia_original'):
+            evidencia = _nova_evidencia(gate.gate_id, None, 'obrigacao_bloqueada', entidade_id, 'data', None, 'data ou referência temporal', None, 'bloqueio', 'Obrigação bloqueada sem data ou referência temporal mínima.', _referencias(obrigacao, indice))
+            _adicionar_bloqueio(gate, 'obrigacao_bloqueada_sem_referencia_temporal', 'Obrigação bloqueada não possui data ou referência temporal mínima.', None, 'obrigacao_bloqueada', entidade_id, evidencia)
+        valor = _float_ou_none(_valor(obrigacao, 'valor_obrigacao_referencial'))
+        if valor is None:
+            evidencia = _nova_evidencia(gate.gate_id, _valor(obrigacao, 'data'), 'obrigacao_bloqueada', entidade_id, 'valor_obrigacao_referencial', None, 'valor quando disponível', None, 'aviso', 'Valor da obrigação bloqueada não está disponível no ledger.', _referencias(obrigacao, indice))
+            _adicionar_aviso(gate, 'obrigacao_bloqueada_sem_valor_disponivel', 'Valor da obrigação bloqueada ausente no ledger.', _valor(obrigacao, 'data'), 'obrigacao_bloqueada', entidade_id, evidencia)
+    gate.resumo['qtd_bloqueios_finais_ledger'] = len(ledger.bloqueios or [])
+    return _finalizar_gate(gate, len(obrigacoes))
+
+
+def _gate_fontes_utilizadas(ledger: LedgerTemporalCanonico, parametros: ParametrosGatesValidacaoNucleo) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_fontes_utilizadas', 'Fontes utilizadas')
+    fontes = list(ledger.fontes_utilizadas or [])
+    if not fontes:
+        return _finalizar_gate(gate, 0, 'Ledger não disponibiliza fontes utilizadas para validação.')
+
+    for indice, fonte in enumerate(fontes):
+        entidade_id = _id_entidade(fonte, 'fonte_id', 'pacote_id')
+        if not _valor(fonte, 'fonte_id'):
+            evidencia = _nova_evidencia(gate.gate_id, _valor(fonte, 'data'), 'fonte_utilizada', entidade_id, 'fonte_id', _valor(fonte, 'fonte_id'), 'identificador de fonte', None, 'bloqueio', 'Fonte utilizada sem identificador.', _referencias(fonte, indice))
+            _adicionar_bloqueio(gate, 'fonte_utilizada_sem_identificador', 'Fonte utilizada não possui identificador.', _valor(fonte, 'data'), 'fonte_utilizada', entidade_id, evidencia)
+        if _valor(fonte, 'data') is None:
+            evidencia = _nova_evidencia(gate.gate_id, None, 'fonte_utilizada', entidade_id, 'data', None, 'data de uso', None, 'bloqueio', 'Fonte utilizada sem data de uso.', _referencias(fonte, indice))
+            _adicionar_bloqueio(gate, 'fonte_utilizada_sem_data', 'Fonte utilizada não possui data de uso.', None, 'fonte_utilizada', entidade_id, evidencia)
+        for campo in ('valor_referencial', 'valor_disponivel_antes_referencial', 'valor_disponivel_depois_referencial'):
+            _validar_valor_nao_negativo(gate, fonte, campo, 'fonte_utilizada', entidade_id, indice, parametros.tolerancia_valor)
+        antes = _float_ou_none(_valor(fonte, 'valor_disponivel_antes_referencial'))
+        depois = _float_ou_none(_valor(fonte, 'valor_disponivel_depois_referencial'))
+        uso = _float_ou_none(_valor(fonte, 'valor_referencial'))
+        if antes is not None and depois is not None and uso is not None:
+            diferenca = round((antes - uso) - depois, 10)
+            if abs(diferenca) > parametros.tolerancia_residual:
+                evidencia = _nova_evidencia(gate.gate_id, _valor(fonte, 'data'), 'fonte_utilizada', entidade_id, 'saldo_depois', depois, antes - uso, diferenca, 'bloqueio', 'Saldo depois da fonte utilizada é incompatível com saldo antes e valor usado.', _referencias(fonte, indice))
+                _adicionar_bloqueio(gate, 'saldo_fonte_utilizada_incompativel', 'Saldo depois de fonte utilizada incompatível.', _valor(fonte, 'data'), 'fonte_utilizada', entidade_id, evidencia)
+        if _valor(fonte, 'obrigacao_id') is None and _valor(fonte, 'pacote_id') is None:
+            evidencia = _nova_evidencia(gate.gate_id, _valor(fonte, 'data'), 'fonte_utilizada', entidade_id, 'obrigacao_id', None, 'obrigação ou evento associado', None, 'aviso', 'Fonte utilizada sem obrigação ou pacote associado no ledger.', _referencias(fonte, indice))
+            _adicionar_aviso(gate, 'fonte_utilizada_sem_associacao', 'Fonte utilizada sem obrigação ou pacote associado no ledger.', _valor(fonte, 'data'), 'fonte_utilizada', entidade_id, evidencia)
+    return _finalizar_gate(gate, len(fontes))
+
+
+def _gate_fontes_reservadas(ledger: LedgerTemporalCanonico, parametros: ParametrosGatesValidacaoNucleo) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_fontes_reservadas', 'Fontes reservadas')
+    reservas = list(ledger.fontes_reservadas or [])
+    if not reservas:
+        return _finalizar_gate(gate, 0, 'Ledger não disponibiliza fontes reservadas para validação.')
+
+    bloqueadas = {(_valor(o, 'obrigacao_id'), _valor(o, 'data')) for o in (ledger.obrigacoes_bloqueadas or []) if _valor(o, 'obrigacao_id')}
+    for indice, reserva in enumerate(reservas):
+        entidade_id = _id_entidade(reserva, 'fonte_id', 'pacote_id')
+        if not _valor(reserva, 'fonte_id'):
+            evidencia = _nova_evidencia(gate.gate_id, _valor(reserva, 'data'), 'fonte_reservada', entidade_id, 'fonte_id', _valor(reserva, 'fonte_id'), 'identificador de fonte', None, 'bloqueio', 'Reserva sem fonte.', _referencias(reserva, indice))
+            _adicionar_bloqueio(gate, 'reserva_sem_fonte', 'Reserva não possui fonte associada.', _valor(reserva, 'data'), 'fonte_reservada', entidade_id, evidencia)
+        if _valor(reserva, 'data') is None:
+            evidencia = _nova_evidencia(gate.gate_id, None, 'fonte_reservada', entidade_id, 'data', None, 'data da reserva', None, 'bloqueio', 'Reserva sem data.', _referencias(reserva, indice))
+            _adicionar_bloqueio(gate, 'reserva_sem_data', 'Reserva não possui data.', None, 'fonte_reservada', entidade_id, evidencia)
+        _validar_valor_nao_negativo(gate, reserva, 'valor_reservado_referencial', 'fonte_reservada', entidade_id, indice, parametros.tolerancia_valor)
+        antes = _float_ou_none(_valor(reserva, 'valor_disponivel_antes_referencial'))
+        depois = _float_ou_none(_valor(reserva, 'valor_disponivel_depois_referencial'))
+        reservado = _float_ou_none(_valor(reserva, 'valor_reservado_referencial'))
+        if antes is not None and depois is not None and reservado is not None:
+            diferenca = round((antes - reservado) - depois, 10)
+            if abs(diferenca) > parametros.tolerancia_residual:
+                evidencia = _nova_evidencia(gate.gate_id, _valor(reserva, 'data'), 'fonte_reservada', entidade_id, 'saldo_depois', depois, antes - reservado, diferenca, 'bloqueio', 'Saldo depois da reserva é incompatível com saldo antes e valor reservado.', _referencias(reserva, indice))
+                _adicionar_bloqueio(gate, 'saldo_reserva_incompativel', 'Saldo depois de reserva incompatível.', _valor(reserva, 'data'), 'fonte_reservada', entidade_id, evidencia)
+        chave_obrigacao = (_valor(reserva, 'obrigacao_id'), _valor(reserva, 'data'))
+        if chave_obrigacao in bloqueadas:
+            evidencia = _nova_evidencia(gate.gate_id, _valor(reserva, 'data'), 'fonte_reservada', entidade_id, 'obrigacao_id', _valor(reserva, 'obrigacao_id'), 'obrigação não bloqueada simultaneamente', None, 'bloqueio', 'Reserva persistida associada a obrigação bloqueada na mesma data.', _referencias(reserva, indice))
+            _adicionar_bloqueio(gate, 'reserva_para_obrigacao_bloqueada', 'Reserva associada a obrigação bloqueada identificável no ledger.', _valor(reserva, 'data'), 'fonte_reservada', entidade_id, evidencia)
+    return _finalizar_gate(gate, len(reservas))
+
+
+def _gate_saldos_residuais(ledger: LedgerTemporalCanonico, parametros: ParametrosGatesValidacaoNucleo) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_saldos_residuais', 'Saldos residuais')
+    saldos_por_data = dict(ledger.saldos_referenciais_por_data or {})
+    if not saldos_por_data:
+        return _finalizar_gate(gate, 0, 'Ledger não disponibiliza saldos referenciais por data para validação.')
+
+    qtd_saldos = 0
+    for data_ref, saldos in saldos_por_data.items():
+        if not saldos:
+            evidencia = _nova_evidencia(gate.gate_id, data_ref, 'saldo_referencial', None, 'saldos_referenciais_por_data', saldos, 'lista não vazia quando chave existe', None, 'aviso', 'Data de saldo referencial sem itens no ledger.', {'data_ledger': data_ref, 'origem_formal': _ORIGEM_FORMAL})
+            _adicionar_aviso(gate, 'data_saldo_sem_itens', 'Data de saldo referencial sem itens no ledger.', data_ref, 'saldo_referencial', None, evidencia)
+        for indice, saldo in enumerate(saldos):
+            qtd_saldos += 1
+            entidade_id = _id_entidade(saldo, 'fonte_id', 'pacote_id')
+            valor_disponivel = _float_ou_none(_valor(saldo, 'valor_disponivel_referencial'))
+            if valor_disponivel is not None and valor_disponivel < -abs(parametros.tolerancia_residual):
+                evidencia = _nova_evidencia(gate.gate_id, _valor(saldo, 'data', data_ref), 'saldo_referencial', entidade_id, 'valor_disponivel_referencial', valor_disponivel, '>= 0', valor_disponivel, 'bloqueio', 'Saldo referencial negativo além da tolerância residual.', _referencias(saldo, indice))
+                _adicionar_bloqueio(gate, 'saldo_referencial_negativo_material', 'Saldo referencial negativo além da tolerância.', _valor(saldo, 'data', data_ref), 'saldo_referencial', entidade_id, evidencia)
+            reservado = _float_ou_none(_valor(saldo, 'valor_reservado_acumulado_referencial'))
+            if reservado is not None and reservado < -abs(parametros.tolerancia_residual):
+                evidencia = _nova_evidencia(gate.gate_id, _valor(saldo, 'data', data_ref), 'saldo_referencial', entidade_id, 'valor_reservado_acumulado_referencial', reservado, '>= 0', reservado, 'bloqueio', 'Reservado acumulado negativo além da tolerância residual.', _referencias(saldo, indice))
+                _adicionar_bloqueio(gate, 'reservado_acumulado_negativo_material', 'Reservado acumulado negativo além da tolerância.', _valor(saldo, 'data', data_ref), 'saldo_referencial', entidade_id, evidencia)
+    return _finalizar_gate(gate, qtd_saldos)
+
+
+def _gate_switchings(ledger: LedgerTemporalCanonico, parametros: ParametrosGatesValidacaoNucleo) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_switchings', 'Switchings materializados no ledger')
+    switchings = list(ledger.switchings_escolhidos or [])
+    if not switchings:
+        return _finalizar_gate(gate, 0, 'Ledger não disponibiliza switchings escolhidos para validação.')
+
+    for indice, switching in enumerate(switchings):
+        entidade_id = _id_entidade(switching, 'switching_id', 'pacote_id')
+        if not _valor(switching, 'lote_origem_id'):
+            evidencia = _nova_evidencia(gate.gate_id, _valor(switching, 'data'), 'switching', entidade_id, 'lote_origem_id', _valor(switching, 'lote_origem_id'), 'origem quando disponível', None, 'aviso', 'Switching sem origem materializada no ledger.', _referencias(switching, indice))
+            _adicionar_aviso(gate, 'switching_sem_origem', 'Switching sem origem materializada no ledger.', _valor(switching, 'data'), 'switching', entidade_id, evidencia)
+        if not _valor(switching, 'lote_destino_id'):
+            evidencia = _nova_evidencia(gate.gate_id, _valor(switching, 'data'), 'switching', entidade_id, 'lote_destino_id', _valor(switching, 'lote_destino_id'), 'destino quando disponível', None, 'aviso', 'Switching sem destino materializado no ledger.', _referencias(switching, indice))
+            _adicionar_aviso(gate, 'switching_sem_destino', 'Switching sem destino materializada no ledger.', _valor(switching, 'data'), 'switching', entidade_id, evidencia)
+        _validar_valor_nao_negativo(gate, switching, 'valor_liquido_migrado_referencial', 'switching', entidade_id, indice, parametros.tolerancia_valor)
+        status = str(_valor(switching, 'status', '') or '').lower()
+        if 'candidato' in status and 'escolhido' not in status:
+            evidencia = _nova_evidencia(gate.gate_id, _valor(switching, 'data'), 'switching', entidade_id, 'status', status, 'switching escolhido/materializado', None, 'bloqueio', 'Switching do ledger parece ser apenas candidato não materializado.', _referencias(switching, indice))
+            _adicionar_bloqueio(gate, 'switching_candidato_nao_materializado', 'Switching escolhido não pode ser apenas candidato.', _valor(switching, 'data'), 'switching', entidade_id, evidencia)
+        if _valor(switching, 'lote_origem_id') and _valor(switching, 'lote_destino_id') and _valor(switching, 'lote_origem_id') == _valor(switching, 'lote_destino_id'):
+            evidencia = _nova_evidencia(gate.gate_id, _valor(switching, 'data'), 'switching', entidade_id, 'lote_destino_id', _valor(switching, 'lote_destino_id'), 'diferente da origem', None, 'bloqueio', 'Switching possui origem e destino iguais.', _referencias(switching, indice))
+            _adicionar_bloqueio(gate, 'switching_origem_destino_iguais', 'Switching possui origem e destino iguais.', _valor(switching, 'data'), 'switching', entidade_id, evidencia)
+    return _finalizar_gate(gate, len(switchings))
+
+
+def _gate_dupla_contagem(ledger: LedgerTemporalCanonico, parametros: ParametrosGatesValidacaoNucleo) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_dupla_contagem', 'Dupla contagem evidente')
+    _ = parametros
+    cobertas = {(_valor(o, 'obrigacao_id'), _valor(o, 'data')): o for o in (ledger.obrigacoes_cobertas or []) if _valor(o, 'obrigacao_id')}
+    for indice, bloqueada in enumerate(ledger.obrigacoes_bloqueadas or []):
+        chave = (_valor(bloqueada, 'obrigacao_id'), _valor(bloqueada, 'data'))
+        if chave[0] and chave in cobertas and 'parcial' not in str(_valor(bloqueada, 'motivo', '')).lower():
+            evidencia = _nova_evidencia(gate.gate_id, _valor(bloqueada, 'data'), 'obrigacao', str(chave[0]), 'obrigacao_id/data', chave, 'não simultânea coberta e bloqueada', None, 'bloqueio', 'Mesma obrigação aparece como coberta e bloqueada sem motivo explícito de parcialidade.', _referencias(bloqueada, indice))
+            _adicionar_bloqueio(gate, 'obrigacao_coberta_e_bloqueada', 'Obrigação aparece simultaneamente como coberta e bloqueada.', _valor(bloqueada, 'data'), 'obrigacao', str(chave[0]), evidencia)
+
+    usos_por_chave: dict[tuple[object, object], float] = {}
+    for fonte in ledger.fontes_utilizadas or []:
+        chave = (_valor(fonte, 'fonte_id'), _valor(fonte, 'data'))
+        usos_por_chave[chave] = usos_por_chave.get(chave, 0.0) + (_float_ou_none(_valor(fonte, 'valor_referencial')) or 0.0)
+    reservas_por_chave: dict[tuple[object, object], float] = {}
+    for reserva in ledger.fontes_reservadas or []:
+        chave = (_valor(reserva, 'fonte_id'), _valor(reserva, 'data'))
+        reservas_por_chave[chave] = reservas_por_chave.get(chave, 0.0) + (_float_ou_none(_valor(reserva, 'valor_reservado_referencial')) or 0.0)
+    for chave, valor_uso in usos_por_chave.items():
+        valor_reserva = reservas_por_chave.get(chave)
+        if chave[0] and valor_reserva is not None and abs(valor_uso - valor_reserva) > parametros.tolerancia_residual:
+            evidencia = _nova_evidencia(gate.gate_id, chave[1], 'fonte', str(chave[0]), 'uso_reserva_mesma_data', {'uso': valor_uso, 'reserva': valor_reserva}, 'compatível', round(valor_uso - valor_reserva, 10), 'bloqueio', 'Fonte usada e reservada com valores materialmente incompatíveis na mesma data.', {'fonte_id': chave[0], 'data': chave[1], 'origem_formal': _ORIGEM_FORMAL})
+            _adicionar_bloqueio(gate, 'fonte_usada_reservada_incompativel', 'Fonte usada e reservada de modo incompatível na mesma data.', chave[1], 'fonte', str(chave[0]), evidencia)
+
+    eventos_vistos: set[tuple[object, object, object]] = set()
+    for indice, evento in enumerate(ledger.eventos or []):
+        chave = (_id_entidade(evento, 'pacote_id'), _valor(evento, 'tipo'), _valor(evento, 'data'))
+        if chave[0] is not None and chave in eventos_vistos:
+            evidencia = _nova_evidencia(gate.gate_id, _valor(evento, 'data'), 'evento', str(chave[0]), 'pacote_id/tipo/data', chave, 'evento único', None, 'bloqueio', 'Evento duplicado com mesmo identificador, tipo e data.', _referencias(evento, indice))
+            _adicionar_bloqueio(gate, 'evento_duplicado', 'Evento duplicado no ledger.', _valor(evento, 'data'), 'evento', str(chave[0]), evidencia)
+        if chave[0] is not None:
+            eventos_vistos.add(chave)
+
+    gate.resumo['qtd_chaves_fontes_utilizadas'] = len(usos_por_chave)
+    gate.resumo['qtd_chaves_fontes_reservadas'] = len(reservas_por_chave)
+    gate.resumo['qtd_eventos_avaliados'] = len(ledger.eventos or [])
+    total = len(cobertas) + len(ledger.obrigacoes_bloqueadas or []) + len(usos_por_chave) + len(reservas_por_chave) + len(ledger.eventos or [])
+    return _finalizar_gate(gate, total)
+
+
+def _gate_bloqueios_prontidao(ledger: LedgerTemporalCanonico, gates_anteriores: list[GateValidacaoNucleo]) -> GateValidacaoNucleo:
+    gate = _novo_gate('gate_bloqueios_prontidao', 'Bloqueios e prontidão para a Etapa 8')
+    qtd_bloqueios_gates = sum(len(g.bloqueios) for g in gates_anteriores)
+    auditoria_ok = bool(ledger.auditoria and ledger.auditoria.ok)
+    pronto = auditoria_ok and not ledger.bloqueios and qtd_bloqueios_gates == 0
+    gate.evidencias.append(
+        _nova_evidencia(
+            gate.gate_id,
+            ledger.data_referencia,
+            'prontidao',
+            None,
+            'pronto_para_etapa8',
+            pronto,
+            True,
+            None,
+            'info' if pronto else 'bloqueio',
+            'Prontidão calculada exclusivamente a partir de auditoria e bloqueios já materializados no ledger/gates.',
+            {'qtd_bloqueios_ledger': len(ledger.bloqueios or []), 'qtd_bloqueios_gates': qtd_bloqueios_gates, 'auditoria_ok': auditoria_ok},
+        )
+    )
+    if ledger.bloqueios:
+        _adicionar_bloqueio(gate, 'ledger_com_bloqueios_impeditivos', 'Ledger possui bloqueios impeditivos preservados.', ledger.data_referencia, 'ledger', None)
+    if not auditoria_ok:
+        _adicionar_bloqueio(gate, 'auditoria_ledger_nao_ok', 'Auditoria do ledger não está aprovada.', ledger.data_referencia, 'auditoria_ledger', None)
+    if qtd_bloqueios_gates:
+        _adicionar_bloqueio(gate, 'gates_com_bloqueios_impeditivos', 'Há bloqueios impeditivos gerados pelos gates de núcleo.', ledger.data_referencia, 'gates_validacao_nucleo', None)
+    gate.resumo['pronto_para_etapa8'] = pronto
+    return _finalizar_gate(gate)
+
+
+def validar_gates_nucleo(
+    ledger: LedgerTemporalCanonico,
+    parametros: ParametrosGatesValidacaoNucleo | None = None,
+) -> ResultadoGatesValidacaoNucleo:
+    parametros = parametros or ParametrosGatesValidacaoNucleo()
+    if not isinstance(ledger, LedgerTemporalCanonico):
+        gate = GateValidacaoNucleo(
+            gate_id='gate_origem_exclusiva_ledger',
+            nome='Origem exclusiva no ledger temporal canônico',
+            executado=True,
+            aprovado=False,
+            nao_aplicavel=False,
+            motivo_nao_aplicavel=None,
+        )
+        evidencia = _nova_evidencia(gate.gate_id, None, 'entrada', None, 'tipo', type(ledger).__name__, _ORIGEM_FORMAL, None, 'bloqueio', 'Objeto recebido não é o ledger temporal canônico.', {'origem_formal': _ORIGEM_FORMAL})
+        _adicionar_bloqueio(gate, 'entrada_nao_ledger_temporal_canonico', 'Entrada formal da Etapa 7 deve ser o ledger temporal canônico.', None, 'entrada', None, evidencia)
+        gate = _finalizar_gate(gate)
+        resumo = ResumoGatesValidacaoNucleo(
+            qtd_gates=1,
+            qtd_gates_executados=1,
+            qtd_gates_aprovados=0,
+            qtd_gates_reprovados=1,
+            qtd_gates_nao_aplicaveis=0,
+            qtd_bloqueios=len(gate.bloqueios),
+            qtd_avisos=0,
+            qtd_obrigacoes_cobertas=0,
+            qtd_obrigacoes_bloqueadas=0,
+            qtd_fontes_utilizadas=0,
+            qtd_fontes_reservadas=0,
+            qtd_switchings=0,
+            pronto_para_etapa8=False,
+        )
+        return ResultadoGatesValidacaoNucleo(False, False, _ORIGEM_FORMAL, [gate], gate.bloqueios, [], gate.evidencias, resumo, {'entrada_formal_exclusiva': _ORIGEM_FORMAL})
+
+    gates: list[GateValidacaoNucleo] = []
+    gates.append(_gate_origem_exclusiva_ledger(ledger))
+    gates.append(_gate_auditoria_ledger(ledger))
+    gates.append(_gate_obrigacoes_cobertas(ledger, parametros))
+    gates.append(_gate_obrigacoes_bloqueadas(ledger))
+    gates.append(_gate_fontes_utilizadas(ledger, parametros))
+    gates.append(_gate_fontes_reservadas(ledger, parametros))
+    gates.append(_gate_saldos_residuais(ledger, parametros))
+    gates.append(_gate_switchings(ledger, parametros))
+    gates.append(_gate_dupla_contagem(ledger, parametros))
+    gates.append(_gate_bloqueios_prontidao(ledger, gates))
+
+    bloqueios = [bloqueio for gate in gates for bloqueio in gate.bloqueios]
+    avisos = [aviso for gate in gates for aviso in gate.avisos]
+    evidencias = [evidencia for gate in gates for evidencia in gate.evidencias]
+    pronto_para_etapa8 = not bloqueios and bool(ledger.auditoria and ledger.auditoria.ok)
+    resumo = ResumoGatesValidacaoNucleo(
+        qtd_gates=len(gates),
+        qtd_gates_executados=sum(1 for gate in gates if gate.executado),
+        qtd_gates_aprovados=sum(1 for gate in gates if gate.aprovado),
+        qtd_gates_reprovados=sum(1 for gate in gates if not gate.aprovado and not gate.nao_aplicavel),
+        qtd_gates_nao_aplicaveis=sum(1 for gate in gates if gate.nao_aplicavel),
+        qtd_bloqueios=len(bloqueios),
+        qtd_avisos=len(avisos),
+        qtd_obrigacoes_cobertas=len(ledger.obrigacoes_cobertas or []),
+        qtd_obrigacoes_bloqueadas=len(ledger.obrigacoes_bloqueadas or []),
+        qtd_fontes_utilizadas=len(ledger.fontes_utilizadas or []),
+        qtd_fontes_reservadas=len(ledger.fontes_reservadas or []),
+        qtd_switchings=len(ledger.switchings_escolhidos or []),
+        pronto_para_etapa8=pronto_para_etapa8,
+    )
+    return ResultadoGatesValidacaoNucleo(
+        ok=not bloqueios,
+        pronto_para_etapa8=pronto_para_etapa8,
+        origem_formal=_ORIGEM_FORMAL,
+        gates=gates,
+        bloqueios=bloqueios,
+        avisos=avisos,
+        evidencias=evidencias,
+        resumo=resumo,
+        metadados={
+            'artefato': 'ResultadoGatesValidacaoNucleo',
+            'entrada_formal_exclusiva': _ORIGEM_FORMAL,
+            'origem_formal': _ORIGEM_FORMAL,
+            'sem_mutacao_ledger': True,
+            'sem_consulta_fontes_externas': True,
+            'parametros': asdict(parametros),
+        },
+    )
+
+
+__all__ = [
+    'AvisoGateNucleo',
+    'BloqueioGateNucleo',
+    'EvidenciaGateNucleo',
+    'GateValidacaoNucleo',
+    'ParametrosGatesValidacaoNucleo',
+    'ResultadoGatesValidacaoNucleo',
+    'ResumoGatesValidacaoNucleo',
+    'validar_gates_nucleo',
+]
