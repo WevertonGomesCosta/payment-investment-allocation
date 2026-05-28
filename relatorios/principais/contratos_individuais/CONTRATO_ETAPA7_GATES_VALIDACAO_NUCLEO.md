@@ -48,6 +48,8 @@ Informações sobre estado temporal final, decisões econômicas finais, ranking
 
 Essas informações não constituem entradas paralelas independentes.
 
+Referências contidas no `LedgerTemporalCanonico` servem apenas como evidências internas, metadados, identificadores ou rastreabilidade já materializada no próprio ledger. Elas não autorizam a Etapa 7 a buscar, reconstruir, importar, consultar ou consumir diretamente `EstadoTemporalInicial`, `ResultadoMotorTemporalConjunto`, objetos das Etapas 1–5, planilha, logs, diagnósticos, console, XLSX ou saída observável.
+
 A Etapa 7 não decide pagamentos, não escolhe fontes, não troca pacote vencedor, não reotimiza, não revalora, não materializa switching, não corrige saldo temporal e não altera o ledger.
 
 ## 4. Entrada formal da etapa
@@ -62,11 +64,13 @@ Informações sobre estado temporal final, decisões econômicas finais, ranking
 
 Essas informações não constituem entradas auxiliares paralelas e não autorizam reconstrução de estado, consulta ao motor da Etapa 5 ou acesso a artefatos anteriores.
 
+As referências contidas no `LedgerTemporalCanonico` podem ser usadas apenas como evidências internas, metadados, identificadores ou rastreabilidade já materializada no próprio ledger. Elas não autorizam a Etapa 7 a buscar, reconstruir, importar, consultar ou consumir diretamente `EstadoTemporalInicial`, `ResultadoMotorTemporalConjunto`, objetos das Etapas 1–5, planilha, logs, diagnósticos, console, XLSX ou saída observável.
+
 A Etapa 7 não pode consumir diretamente:
 
 - `EstadoTemporalInicial`;
 - `ResultadoMotorTemporalConjunto`;
-- objetos internos das Etapas 1–5 que não estejam materializados ou referenciados no `LedgerTemporalCanonico`;
+- objetos internos das Etapas 1–5, ainda que identificados ou referenciados no `LedgerTemporalCanonico`, quando isso exigir busca, carregamento, consulta ou consumo direto fora do próprio ledger;
 - planilha original;
 - console;
 - XLSX;
