@@ -198,6 +198,58 @@ class AuditoriaSchemaPacoteTemporalCandidato:
 
 
 @dataclass(slots=True)
+class ValoracaoPacoteTemporal:
+    valor_obrigacoes: float
+    valor_cobertura_referencial: float
+    valor_descoberto_referencial: float
+    cobertura_integral_referencial: bool
+    penalidade_bloqueio: float
+    penalidade_status: float
+    penalidade_switching: float
+    score_referencial: float
+
+
+@dataclass(slots=True)
+class PacoteTemporalValorado:
+    pacote_candidato: PacoteTemporalCandidato
+    valoracao: ValoracaoPacoteTemporal
+    valido_no_schema: bool
+
+
+@dataclass(slots=True)
+class JustificativaDecisaoTemporal:
+    criterio_principal: str
+    criterios_desempate_aplicados: list[str]
+    resumo: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class PacoteTemporalDescartado:
+    pacote_id: str
+    tipo_pacote: str
+    motivos_descarte: list[str]
+    score_referencial: float
+
+
+@dataclass(slots=True)
+class DecisaoTemporalDia:
+    data_referencia: date
+    pacote_vencedor_id: str | None
+    status_decisao: str
+    justificativa: JustificativaDecisaoTemporal
+    executa_pagamento: bool = False
+    executa_switching: bool = False
+    gera_ledger: bool = False
+
+
+@dataclass(slots=True)
+class AuditoriaDecisaoTemporalConjunto:
+    ok: bool
+    avisos: list[str]
+    resumo: dict[str, Any]
+
+
+@dataclass(slots=True)
 class ResultadoMotorTemporalConjunto:
     data_referencia: date
     horizonte_motor: HorizonteMotorTemporal
@@ -222,6 +274,11 @@ class ResultadoMotorTemporalConjunto:
     schema_pacote_temporal_candidato: SchemaPacoteTemporalCandidato | None = None
     pacotes_temporais_candidatos_por_data: dict[date, list[PacoteTemporalCandidato]] | None = None
     auditoria_schema_pacote_temporal_candidato: AuditoriaSchemaPacoteTemporalCandidato | None = None
+    pacotes_temporais_valorados_por_data: dict[date, list[PacoteTemporalValorado]] | None = None
+    pacote_vencedor_por_data: dict[date, PacoteTemporalCandidato | None] | None = None
+    decisoes_temporais_por_data: dict[date, DecisaoTemporalDia] | None = None
+    pacotes_descartados_por_data: dict[date, list[PacoteTemporalDescartado]] | None = None
+    auditoria_decisao_temporal_conjunto: AuditoriaDecisaoTemporalConjunto | None = None
 
 
 _CAMPOS_OBRIGATORIOS_ESTADO = [
@@ -390,8 +447,17 @@ def montar_obrigacoes_temporais_dia(
     indice: IndiceTemporalMotor,
     data_motor: date,
 ) -> ObrigacoesTemporaisDia:
-    indices = list(indice.pagamentos_por_data.get(data_motor, []))
-    pagamentos = [estado.pagamentos_temporais[i] for i in indices]
+    indices_brutos = list(indice.pagamentos_por_data.get(data_motor, []))
+    indices: list[int] = []
+    pagamentos = []
+    for i in indices_brutos:
+        pagamento = estado.pagamentos_temporais[i]
+        if pagamento.get('pago') is True:
+            continue
+        if pagamento.get('fonte_a_decidir') is False:
+            continue
+        indices.append(i)
+        pagamentos.append(pagamento)
     return ObrigacoesTemporaisDia(data=data_motor, indices_pagamentos=indices, pagamentos_referenciados=pagamentos)
 
 
@@ -572,6 +638,16 @@ def extrair_valor_recebido_referencial(recebido: dict[str, Any]) -> tuple[float 
     return None, avisos
 
 
+def extrair_valor_switching_referencial(switching: dict[str, Any]) -> tuple[float | None, list[str]]:
+    avisos: list[str] = []
+    for campo in ('valor_liquido_migrado', 'valor_migrado', 'valor'):
+        valor = switching.get(campo)
+        if isinstance(valor, (int, float)):
+            return float(valor), avisos
+    avisos.append('valor_switching_ausente')
+    return None, avisos
+
+
 def montar_fonte_candidata_pacote_temporal(fonte: dict[str, Any]) -> FonteCandidataPacoteTemporal:
     return FonteCandidataPacoteTemporal(
         fonte_id=str(fonte.get('fonte_id') or fonte.get('id')) if (fonte.get('fonte_id') is not None or fonte.get('id') is not None) else None,
@@ -595,6 +671,18 @@ def _fonte_disponivel_referencialmente(fonte: dict[str, Any]) -> bool:
     if fonte.get('disponivel_na_referencia') is False:
         return False
     if str(fonte.get('status_temporal') or '').lower() == 'indisponivel':
+        return False
+    return True
+
+
+def _recebido_disponivel_referencialmente(recebido: dict[str, Any]) -> bool:
+    if recebido.get('disponivel_na_referencia') is False:
+        return False
+    if recebido.get('aplicado') is True:
+        return False
+    if recebido.get('vinculado') is True:
+        return False
+    if recebido.get('futuro_indisponivel') is True:
         return False
     return True
 
@@ -677,7 +765,17 @@ def gerar_pacotes_pagamento_fonte_unica(estado_dia: EstadoDiarioMotorTemporal) -
         pacote.valor_obrigacoes = sum(extrair_valor_obrigacao_referencial(o)[0] or 0.0 for o in pacote.obrigacoes_referenciadas)
         valor_fonte, _ = extrair_valor_fonte_referencial(fonte)
         pacote.valor_cobertura_referencial = valor_fonte
-        pacote.status_factibilidade = 'factivel_referencialmente' if valor_fonte is not None else 'nao_avaliado'
+        if valor_fonte is None:
+            pacote.status_factibilidade = 'bloqueado_estruturalmente'
+            pacote.motivos_bloqueio.append('fonte_sem_valor_referencial')
+        elif valor_fonte <= 0.0:
+            pacote.status_factibilidade = 'bloqueado_estruturalmente'
+            pacote.motivos_bloqueio.append('fonte_sem_cobertura_referencial_positiva')
+        elif valor_fonte < (pacote.valor_obrigacoes or 0.0):
+            pacote.status_factibilidade = 'bloqueado_estruturalmente'
+            pacote.motivos_bloqueio.append('fonte_cobertura_referencial_insuficiente')
+        else:
+            pacote.status_factibilidade = 'factivel_referencialmente'
         pacotes.append(pacote)
     return pacotes
 
@@ -693,21 +791,39 @@ def gerar_pacote_pagamento_combinacao_fontes(estado_dia: EstadoDiarioMotorTempor
     ]
     pacote.valor_obrigacoes = sum(extrair_valor_obrigacao_referencial(o)[0] or 0.0 for o in pacote.obrigacoes_referenciadas)
     pacote.valor_cobertura_referencial = sum(extrair_valor_fonte_referencial(f)[0] or 0.0 for f in fontes_disponiveis)
-    pacote.status_factibilidade = 'factivel_referencialmente'
+    if (pacote.valor_cobertura_referencial or 0.0) <= 0.0:
+        pacote.status_factibilidade = 'bloqueado_estruturalmente'
+        pacote.motivos_bloqueio.append('combinacao_fontes_sem_cobertura_referencial_positiva')
+    elif (pacote.valor_cobertura_referencial or 0.0) < (pacote.valor_obrigacoes or 0.0):
+        pacote.status_factibilidade = 'bloqueado_estruturalmente'
+        pacote.motivos_bloqueio.append('combinacao_fontes_cobertura_referencial_insuficiente')
+    else:
+        pacote.status_factibilidade = 'factivel_referencialmente'
     return pacote
 
 
 def gerar_pacote_pagamento_com_recebido(estado_dia: EstadoDiarioMotorTemporal) -> PacoteTemporalCandidato | None:
     if not estado_dia.obrigacoes.pagamentos_referenciados or not estado_dia.recebidos.recebidos_referenciados:
         return None
+    recebidos_disponiveis = [r for r in estado_dia.recebidos.recebidos_referenciados if _recebido_disponivel_referencialmente(r)]
     pacote = _montar_pacote_base(estado_dia.data, 'pagamento_com_recebido', '1')
     pacote.obrigacoes_referenciadas = list(estado_dia.obrigacoes.pagamentos_referenciados)
     pacote.valor_obrigacoes = sum(extrair_valor_obrigacao_referencial(o)[0] or 0.0 for o in pacote.obrigacoes_referenciadas)
-    pacote.valor_cobertura_referencial = sum(extrair_valor_recebido_referencial(r)[0] or 0.0 for r in estado_dia.recebidos.recebidos_referenciados)
-    pacote.status_factibilidade = 'factivel_referencialmente'
+    pacote.valor_cobertura_referencial = sum(extrair_valor_recebido_referencial(r)[0] or 0.0 for r in recebidos_disponiveis)
+    if not recebidos_disponiveis:
+        pacote.status_factibilidade = 'bloqueado_estruturalmente'
+        pacote.motivos_bloqueio.append('recebidos_indisponiveis_na_referencia')
+    elif (pacote.valor_cobertura_referencial or 0.0) <= 0.0:
+        pacote.status_factibilidade = 'bloqueado_estruturalmente'
+        pacote.motivos_bloqueio.append('recebidos_sem_cobertura_referencial_positiva')
+    elif (pacote.valor_cobertura_referencial or 0.0) < (pacote.valor_obrigacoes or 0.0):
+        pacote.status_factibilidade = 'bloqueado_estruturalmente'
+        pacote.motivos_bloqueio.append('recebidos_cobertura_referencial_insuficiente')
+    else:
+        pacote.status_factibilidade = 'factivel_referencialmente'
     pacote.metadados_auditoria['recebidos_referenciados'] = [
         {'recebido_id': recebido.get('recebido_id') or recebido.get('id'), 'referencia': recebido}
-        for recebido in estado_dia.recebidos.recebidos_referenciados
+        for recebido in recebidos_disponiveis
     ]
     return pacote
 
@@ -718,12 +834,12 @@ def gerar_pacotes_switching_integral(estado_dia: EstadoDiarioMotorTemporal) -> l
     for idx, switching in enumerate(switchings, start=1):
         pacote = _montar_pacote_base(estado_dia.data, 'switching_integral_simples', str(idx))
         pacote.switchings_candidatos = [montar_switching_candidato_pacote_temporal(switching)]
-        pacote.status_factibilidade = 'factivel_referencialmente'
+        pacote.status_factibilidade = 'nao_avaliado' if estado_dia.obrigacoes.pagamentos_referenciados else 'factivel_referencialmente'
         pacotes.append(pacote)
     if len(switchings) > 1:
         pacote_agregado = _montar_pacote_base(estado_dia.data, 'switching_integral_agregado', '1')
         pacote_agregado.switchings_candidatos = [montar_switching_candidato_pacote_temporal(s) for s in switchings]
-        pacote_agregado.status_factibilidade = 'factivel_referencialmente'
+        pacote_agregado.status_factibilidade = 'nao_avaliado' if estado_dia.obrigacoes.pagamentos_referenciados else 'factivel_referencialmente'
         pacotes.append(pacote_agregado)
     return pacotes
 
@@ -737,7 +853,16 @@ def gerar_pacotes_switching_mais_pagamento(estado_dia: EstadoDiarioMotorTemporal
         montar_switching_candidato_pacote_temporal(s) for s in estado_dia.switchings_realizados.switchings_referenciados
     ]
     pacote.valor_obrigacoes = sum(extrair_valor_obrigacao_referencial(o)[0] or 0.0 for o in pacote.obrigacoes_referenciadas)
-    pacote.status_factibilidade = 'factivel_referencialmente'
+    valor_switchings = sum(extrair_valor_switching_referencial(s)[0] or 0.0 for s in estado_dia.switchings_realizados.switchings_referenciados)
+    pacote.valor_cobertura_referencial = valor_switchings
+    if valor_switchings <= 0.0:
+        pacote.status_factibilidade = 'bloqueado_estruturalmente'
+        pacote.motivos_bloqueio.append('switching_sem_cobertura_referencial_positiva')
+    elif valor_switchings < (pacote.valor_obrigacoes or 0.0):
+        pacote.status_factibilidade = 'bloqueado_estruturalmente'
+        pacote.motivos_bloqueio.append('switching_cobertura_referencial_insuficiente')
+    else:
+        pacote.status_factibilidade = 'factivel_referencialmente'
     return [pacote]
 
 
@@ -937,6 +1062,275 @@ def auditar_integridade_resultado_motor_temporal_conjunto(
     return AuditoriaIntegridadeResultadoMotorTemporalConjunto(ok=not bloqueios, bloqueios=bloqueios, avisos=avisos, resumo=resumo)
 
 
+def valorar_pacote_temporal_candidato(
+    pacote: PacoteTemporalCandidato,
+    schema: SchemaPacoteTemporalCandidato,
+) -> PacoteTemporalValorado:
+    valor_obrigacoes = float(pacote.valor_obrigacoes or 0.0)
+    valor_cobertura = float(pacote.valor_cobertura_referencial or 0.0)
+    valor_descoberto = max(valor_obrigacoes - valor_cobertura, 0.0)
+    cobertura_integral = valor_obrigacoes <= 0.0 or valor_descoberto <= 0.0
+
+    penalidade_bloqueio = 100.0 if pacote.status_factibilidade == 'bloqueado_estruturalmente' else 0.0
+    penalidade_status = 0.0
+    if pacote.status_factibilidade == 'nao_avaliado':
+        penalidade_status = 20.0
+    elif pacote.status_factibilidade not in schema.status_factibilidade_previstos:
+        penalidade_status = 200.0
+    penalidade_switching = float(len(pacote.switchings_candidatos)) * 5.0
+    if pacote.tipo_pacote == 'switching_integral_agregado':
+        penalidade_switching += 10.0
+
+    score = (valor_cobertura * 10.0) - (valor_descoberto * 8.0) - penalidade_bloqueio - penalidade_status - penalidade_switching
+    if cobertura_integral:
+        score += 50.0
+    if pacote.tipo_pacote in {'pagamento_fonte_unica', 'sem_obrigacao'}:
+        score += 5.0
+    if pacote.tipo_pacote == 'pagamento_combinacao_fontes':
+        score -= 2.0
+
+    valoracao = ValoracaoPacoteTemporal(
+        valor_obrigacoes=valor_obrigacoes,
+        valor_cobertura_referencial=valor_cobertura,
+        valor_descoberto_referencial=valor_descoberto,
+        cobertura_integral_referencial=cobertura_integral,
+        penalidade_bloqueio=penalidade_bloqueio,
+        penalidade_status=penalidade_status,
+        penalidade_switching=penalidade_switching,
+        score_referencial=score,
+    )
+    valido = pacote.tipo_pacote in schema.tipos_pacote_previstos and pacote.status_factibilidade in schema.status_factibilidade_previstos
+    return PacoteTemporalValorado(pacote_candidato=pacote, valoracao=valoracao, valido_no_schema=valido)
+
+
+def valorar_pacotes_temporais_candidatos(resultado: ResultadoMotorTemporalConjunto) -> dict[date, list[PacoteTemporalValorado]]:
+    schema = resultado.schema_pacote_temporal_candidato or montar_schema_pacote_temporal_candidato()
+    valorados: dict[date, list[PacoteTemporalValorado]] = {}
+    for data_ref in resultado.horizonte_motor.datas_temporais:
+        pacotes = (resultado.pacotes_temporais_candidatos_por_data or {}).get(data_ref, [])
+        valorados[data_ref] = [valorar_pacote_temporal_candidato(p, schema) for p in pacotes]
+    return valorados
+
+
+def selecionar_pacote_temporal_vencedor_dia(data_ref: date, pacotes_valorados: list[PacoteTemporalValorado]) -> tuple[DecisaoTemporalDia, list[PacoteTemporalDescartado], PacoteTemporalCandidato | None]:
+    validos = [pv for pv in pacotes_valorados if pv.valido_no_schema]
+    possui_obrigacao_aberta = any(pv.pacote_candidato.obrigacoes_referenciadas for pv in validos)
+    if possui_obrigacao_aberta:
+        validos = [
+            pv
+            for pv in validos
+            if not (
+                pv.pacote_candidato.tipo_pacote in {'switching_integral_simples', 'switching_integral_agregado'}
+                and not pv.pacote_candidato.obrigacoes_referenciadas
+            )
+        ]
+    if not validos:
+        decisao = DecisaoTemporalDia(
+            data_referencia=data_ref,
+            pacote_vencedor_id=None,
+            status_decisao='sem_pacote_valido',
+            justificativa=JustificativaDecisaoTemporal(
+                criterio_principal='ausencia_de_pacote_valido_no_schema',
+                criterios_desempate_aplicados=[],
+            ),
+        )
+        return decisao, [], None
+
+    sem_obrigacao = [pv for pv in validos if pv.pacote_candidato.status_factibilidade == 'sem_obrigacao']
+    if sem_obrigacao:
+        vencedor = sorted(sem_obrigacao, key=lambda pv: pv.pacote_candidato.pacote_id)[0]
+        criterio = 'data_sem_obrigacao_prioriza_pacote_sem_obrigacao'
+    else:
+        ordenados = sorted(
+            validos,
+            key=lambda pv: (
+                0 if pv.pacote_candidato.status_factibilidade == 'factivel_referencialmente' else 1,
+                0 if pv.valoracao.cobertura_integral_referencial else 1,
+                -pv.valoracao.valor_cobertura_referencial,
+                pv.valoracao.valor_descoberto_referencial,
+                0 if pv.pacote_candidato.tipo_pacote in {'pagamento_fonte_unica', 'pagamento_com_recebido', 'sem_cobertura'} else 1,
+                -pv.valoracao.score_referencial,
+                pv.pacote_candidato.pacote_id,
+            ),
+        )
+        vencedor = ordenados[0]
+        criterio = 'ordenacao_heuristica_referencial'
+
+    descartados = [
+        PacoteTemporalDescartado(
+            pacote_id=pv.pacote_candidato.pacote_id,
+            tipo_pacote=pv.pacote_candidato.tipo_pacote,
+            motivos_descarte=['nao_selecionado_na_data'],
+            score_referencial=pv.valoracao.score_referencial,
+        )
+        for pv in validos
+        if pv.pacote_candidato.pacote_id != vencedor.pacote_candidato.pacote_id
+    ]
+    decisao = DecisaoTemporalDia(
+        data_referencia=data_ref,
+        pacote_vencedor_id=vencedor.pacote_candidato.pacote_id,
+        status_decisao='vencedor_selecionado',
+        justificativa=JustificativaDecisaoTemporal(
+            criterio_principal=criterio,
+            criterios_desempate_aplicados=[
+                'factivel_antes_bloqueado',
+                'cobertura_integral_antes_parcial',
+                'maior_cobertura_referencial',
+                'menor_descoberto_referencial',
+                'simplicidade_tipo',
+                'ordem_estavel_pacote_id',
+            ],
+            resumo={'score_vencedor': vencedor.valoracao.score_referencial},
+        ),
+    )
+    return decisao, descartados, vencedor.pacote_candidato
+
+
+def selecionar_pacotes_temporais_vencedores(
+    resultado: ResultadoMotorTemporalConjunto,
+    pacotes_valorados: dict[date, list[PacoteTemporalValorado]],
+) -> tuple[dict[date, DecisaoTemporalDia], dict[date, PacoteTemporalCandidato | None], dict[date, list[PacoteTemporalDescartado]]]:
+    decisoes: dict[date, DecisaoTemporalDia] = {}
+    vencedores: dict[date, PacoteTemporalCandidato | None] = {}
+    descartados: dict[date, list[PacoteTemporalDescartado]] = {}
+    reserva_por_fonte: dict[str, float] = {}
+    for data_ref in resultado.horizonte_motor.datas_temporais:
+        pacotes_data = list(pacotes_valorados.get(data_ref, []))
+        filtrados: list[PacoteTemporalValorado] = []
+        descartes_reserva: list[PacoteTemporalDescartado] = []
+        for pv in pacotes_data:
+            pacote = pv.pacote_candidato
+            if pacote.tipo_pacote not in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'}:
+                filtrados.append(pv)
+                continue
+            if not pacote.obrigacoes_referenciadas:
+                filtrados.append(pv)
+                continue
+            fontes = pacote.fontes_candidatas
+            if not fontes:
+                descartes_reserva.append(PacoteTemporalDescartado(
+                    pacote_id=pacote.pacote_id,
+                    tipo_pacote=pacote.tipo_pacote,
+                    motivos_descarte=['fonte_ausente_para_reserva_referencial'],
+                    score_referencial=pv.valoracao.score_referencial,
+                ))
+                continue
+            valor_obrig = float(pacote.valor_obrigacoes or 0.0)
+            valor_cob = float(pacote.valor_cobertura_referencial or 0.0)
+            if valor_cob <= 0.0:
+                descartes_reserva.append(PacoteTemporalDescartado(
+                    pacote_id=pacote.pacote_id,
+                    tipo_pacote=pacote.tipo_pacote,
+                    motivos_descarte=['fonte_sem_cobertura_referencial_positiva_para_reserva'],
+                    score_referencial=pv.valoracao.score_referencial,
+                ))
+                continue
+            valor_por_fonte = valor_cob / float(len(fontes))
+            excedeu = False
+            for fonte in fontes:
+                if not fonte.fonte_id:
+                    excedeu = True
+                    break
+                reservado = reserva_por_fonte.get(fonte.fonte_id, 0.0)
+                if reservado + valor_por_fonte > valor_por_fonte and valor_obrig > 0.0 and reservado > 0.0:
+                    excedeu = True
+                    break
+            if excedeu:
+                descartes_reserva.append(PacoteTemporalDescartado(
+                    pacote_id=pacote.pacote_id,
+                    tipo_pacote=pacote.tipo_pacote,
+                    motivos_descarte=['fonte_referencial_ja_reservada_em_data_anterior'],
+                    score_referencial=pv.valoracao.score_referencial,
+                ))
+                continue
+            filtrados.append(pv)
+        decisao, lista_descartados, vencedor = selecionar_pacote_temporal_vencedor_dia(data_ref, filtrados)
+        lista_descartados.extend(descartes_reserva)
+        decisoes[data_ref] = decisao
+        vencedores[data_ref] = vencedor
+        descartados[data_ref] = lista_descartados
+        if vencedor and vencedor.tipo_pacote in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'} and vencedor.fontes_candidatas:
+            valor_cob = float(vencedor.valor_cobertura_referencial or 0.0)
+            valor_por_fonte = valor_cob / float(len(vencedor.fontes_candidatas))
+            for fonte in vencedor.fontes_candidatas:
+                if fonte.fonte_id:
+                    reserva_por_fonte[fonte.fonte_id] = reserva_por_fonte.get(fonte.fonte_id, 0.0) + valor_por_fonte
+    return decisoes, vencedores, descartados
+
+
+def auditar_decisoes_temporais(resultado: ResultadoMotorTemporalConjunto) -> AuditoriaDecisaoTemporalConjunto:
+    avisos: list[str] = []
+    schema = resultado.schema_pacote_temporal_candidato
+    status_validos = set(schema.status_factibilidade_previstos) if schema else set()
+    pacotes_por_data = resultado.pacotes_temporais_candidatos_por_data or {}
+    decisoes = resultado.decisoes_temporais_por_data or {}
+    estado_diario = resultado.estado_diario_motor or {}
+    vencedores = resultado.pacote_vencedor_por_data or {}
+    for data_ref in resultado.horizonte_motor.datas_temporais:
+        decisao = decisoes.get(data_ref)
+        if decisao is None:
+            avisos.append(f'data_sem_decisao:{data_ref.isoformat()}')
+            continue
+        if estado_diario.get(data_ref) and estado_diario[data_ref].obrigacoes.pagamentos_referenciados and decisao.pacote_vencedor_id is None:
+            avisos.append(f'data_com_obrigacao_sem_vencedor:{data_ref.isoformat()}')
+        if estado_diario.get(data_ref):
+            obrigacoes = estado_diario[data_ref].obrigacoes
+            if len(obrigacoes.indices_pagamentos) != len(obrigacoes.pagamentos_referenciados):
+                avisos.append(f'inconsistencia_indices_pagamentos_referenciados:{data_ref.isoformat()}')
+        vencedor = vencedores.get(data_ref)
+        ids = {p.pacote_id for p in pacotes_por_data.get(data_ref, [])}
+        if decisao.pacote_vencedor_id and decisao.pacote_vencedor_id not in ids:
+            avisos.append(f'vencedor_nao_pertence_a_data:{data_ref.isoformat()}')
+        if vencedor and vencedor.status_factibilidade not in status_validos:
+            avisos.append(f'status_vencedor_fora_schema:{data_ref.isoformat()}')
+        possui_obrigacao_aberta = bool(estado_diario.get(data_ref) and estado_diario[data_ref].obrigacoes.pagamentos_referenciados)
+        if (
+            possui_obrigacao_aberta
+            and vencedor
+            and vencedor.tipo_pacote in {'switching_integral_simples', 'switching_integral_agregado'}
+            and not vencedor.obrigacoes_referenciadas
+        ):
+            avisos.append(f'vencedor_switching_only_com_obrigacao_aberta:{data_ref.isoformat()}')
+        if (
+            vencedor
+            and bool(vencedor.obrigacoes_referenciadas)
+            and (vencedor.valor_obrigacoes or 0.0) > (vencedor.valor_cobertura_referencial or 0.0)
+            and vencedor.status_factibilidade != 'bloqueado_estruturalmente'
+        ):
+            avisos.append(f'vencedor_com_descoberto_sem_bloqueio:{data_ref.isoformat()}')
+        if vencedor and vencedor.tipo_pacote == 'pagamento_com_recebido' and vencedor.status_factibilidade == 'factivel_referencialmente':
+            refs = vencedor.metadados_auditoria.get('recebidos_referenciados', [])
+            indisponivel = any(
+                r.get('referencia', {}).get('disponivel_na_referencia') is False
+                or r.get('referencia', {}).get('aplicado') is True
+                or r.get('referencia', {}).get('vinculado') is True
+                or r.get('referencia', {}).get('futuro_indisponivel') is True
+                for r in refs
+                if isinstance(r, dict)
+            )
+            if indisponivel:
+                avisos.append(f'pagamento_com_recebido_factivel_com_recebido_indisponivel:{data_ref.isoformat()}')
+            if (vencedor.valor_cobertura_referencial or 0.0) < (vencedor.valor_obrigacoes or 0.0):
+                avisos.append(f'pagamento_com_recebido_factivel_com_cobertura_parcial:{data_ref.isoformat()}')
+        if vencedor and vencedor.tipo_pacote in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'}:
+            if any(f.fonte_id is None for f in vencedor.fontes_candidatas):
+                avisos.append(f'vencedor_com_fonte_sem_id:{data_ref.isoformat()}')
+            if vencedor.valor_cobertura_referencial is None:
+                avisos.append(f'vencedor_com_fonte_sem_valor_conhecido:{data_ref.isoformat()}')
+        if decisao.executa_pagamento:
+            avisos.append(f'decisao_indica_execucao_pagamento:{data_ref.isoformat()}')
+        if decisao.executa_switching:
+            avisos.append(f'decisao_indica_execucao_switching:{data_ref.isoformat()}')
+        if decisao.gera_ledger:
+            avisos.append(f'decisao_indica_ledger:{data_ref.isoformat()}')
+    resumo = {
+        'qtd_datas_horizonte': len(resultado.horizonte_motor.datas_temporais),
+        'qtd_decisoes': len(decisoes),
+        'qtd_vencedores': len([v for v in vencedores.values() if v is not None]),
+    }
+    return AuditoriaDecisaoTemporalConjunto(ok=not avisos, avisos=avisos, resumo=resumo)
+
+
 def construir_resultado_motor_temporal_conjunto(
     estado: EstadoTemporalInicial,
     parametros: ParametrosEtapa5 | None = None,
@@ -998,8 +1392,11 @@ def construir_resultado_motor_temporal_conjunto(
         metadados={
             'etapa': '5',
             'artefato': 'ResultadoMotorTemporalConjunto',
-            'versao_contrato': 'ME-ETAPA5-A',
-            'sem_decisao_economica': True,
+            'versao_contrato': 'MACRO-ETAPA5-B',
+            'com_valoracao_pacotes_temporais': True,
+            'com_selecao_pacote_temporal': True,
+            'sem_execucao_pagamento': True,
+            'sem_execucao_switching': True,
             'sem_ledger': True,
             'sem_console_xlsx': True,
         },
@@ -1017,12 +1414,23 @@ def construir_resultado_motor_temporal_conjunto(
     resultado.auditoria_motor_temporal_conjunto = montar_auditoria_motor_temporal_conjunto(resultado)
     resultado.pacotes_temporais_candidatos_por_data = gerar_pacotes_temporais_candidatos(resultado)
     resultado.auditoria_schema_pacote_temporal_candidato = auditar_pacotes_temporais_candidatos(resultado)
+    resultado.pacotes_temporais_valorados_por_data = valorar_pacotes_temporais_candidatos(resultado)
+    (
+        resultado.decisoes_temporais_por_data,
+        resultado.pacote_vencedor_por_data,
+        resultado.pacotes_descartados_por_data,
+    ) = selecionar_pacotes_temporais_vencedores(
+        resultado,
+        resultado.pacotes_temporais_valorados_por_data,
+    )
+    resultado.auditoria_decisao_temporal_conjunto = auditar_decisoes_temporais(resultado)
     resultado.auditoria_integridade_resultado = auditar_integridade_resultado_motor_temporal_conjunto(resultado)
     return resultado
 
 
 __all__ = [
     'AuditoriaConsumoEtapa5',
+    'AuditoriaDecisaoTemporalConjunto',
     'AuditoriaIntegridadeResultadoMotorTemporalConjunto',
     'AuditoriaMotorTemporalConjunto',
     'AuditoriaSchemaPacoteTemporalCandidato',
@@ -1036,8 +1444,11 @@ __all__ = [
     'FontesTemporaisReferenciadasDia',
     'HorizonteMotorTemporal',
     'IndiceTemporalMotor',
+    'JustificativaDecisaoTemporal',
     'ObrigacoesTemporaisDia',
     'PacoteTemporalCandidato',
+    'PacoteTemporalDescartado',
+    'PacoteTemporalValorado',
     'ParametrosEtapa5',
     'RecebidosTemporaisDia',
     'ResultadoMotorTemporalConjunto',
@@ -1046,6 +1457,8 @@ __all__ = [
     'SwitchingCandidatoPacoteTemporal',
     'SwitchingsRealizadosDia',
     'TransicaoCandidataPacoteTemporal',
+    'ValoracaoPacoteTemporal',
+    'auditar_decisoes_temporais',
     'auditar_integridade_resultado_motor_temporal_conjunto',
     'construir_resultado_motor_temporal_conjunto',
     'definir_horizonte_motor_temporal',
@@ -1063,6 +1476,10 @@ __all__ = [
     'montar_recebidos_temporais_dia',
     'montar_schema_pacote_temporal_candidato',
     'montar_switchings_realizados_dia',
+    'selecionar_pacote_temporal_vencedor_dia',
+    'selecionar_pacotes_temporais_vencedores',
     'sintetizar_cobertura_estrutural_referencial_dia',
+    'valorar_pacote_temporal_candidato',
+    'valorar_pacotes_temporais_candidatos',
     'verificar_interface_estado_temporal_inicial',
 ]
