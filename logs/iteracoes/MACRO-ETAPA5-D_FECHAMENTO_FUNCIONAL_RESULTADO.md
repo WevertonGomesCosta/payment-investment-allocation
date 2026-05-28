@@ -2,16 +2,15 @@
 
 ## Baseline local usado
 
-- Branch inicial local observada: `work`.
-- Branch criada para a macroetapa: `macro-etapa5-d-fechamento-funcional-resultado`.
-- Limitação: `origin` não estava configurado/acessível no ambiente; `git fetch origin` e `git pull --ff-only origin main` falharam.
-- Limitação: a branch local `main` não estava disponível para checkout no ambiente.
-- Melhor base local disponível antes da implementação: `e3d485e Implementa aplicação referencial da trajetória temporal interna (MACRO-ETAPA5-C)`.
-- O histórico local continha a MACRO-ETAPA5-B e o commit operacional de cache BCB anterior; não foi possível confirmar o merge commit remoto `6750470` por ausência de remoto.
+- Branch limpa criada: `macro-etapa5-d-fechamento-funcional-resultado-clean2`.
+- Baseline funcional esperado: main após PR #417 (`6750470`) com MACRO-ETAPA5-C já presente.
+- Limitação do ambiente: `origin` não está configurado/acessível e o objeto `67504700e945859daf4ba77172ee98df57d6b59e` não existe no clone local.
+- Para permitir diff incremental limpo no ambiente local, a branch foi criada sobre uma base local sintética contendo apenas a MACRO-ETAPA5-C já presente em `nucleo/motor_temporal_conjunto.py`.
+- Esta entrega não altera nem recria `logs/iteracoes/MACRO-ETAPA5-C_APLICA_TRAJETORIA_TEMPORAL_INTERNA.md`.
 
 ## Objetivo
 
-Consolidar `ResultadoMotorTemporalConjunto` como artefato final da Etapa 5, anexando sumário final, auditoria final, fechamento funcional, contrato de consumo exclusivo pela Etapa 6 e indicador `pronto_para_etapa6`, sem redecidir pacotes e sem reexecutar trajetória temporal interna.
+Fechar funcionalmente `ResultadoMotorTemporalConjunto` como saída final da Etapa 5, consolidando sumário final, auditoria final, fechamento funcional, contrato de consumo exclusivo pela Etapa 6, `pronto_para_etapa6` e bloqueios finais, sem reexecutar a MACRO-ETAPA5-C.
 
 ## Arquivos alterados
 
@@ -36,7 +35,7 @@ Consolidar `ResultadoMotorTemporalConjunto` como artefato final da Etapa 5, anex
   - `fechamento_funcional_etapa5`
   - `contrato_consumo_etapa6`
   - `pronto_para_etapa6`
-- `metadados`, evoluídos de forma aditiva para `MACRO-ETAPA5-D`, com flags de fechamento, consumo exclusivo pela Etapa 6 e preservação de limites.
+- `metadados`, atualizados de forma aditiva para `MACRO-ETAPA5-D`.
 
 ## Funções criadas/modificadas
 
@@ -47,35 +46,33 @@ Consolidar `ResultadoMotorTemporalConjunto` como artefato final da Etapa 5, anex
 - `montar_contrato_consumo_etapa6`
 - `fechar_resultado_motor_temporal_conjunto`
 - `_adicionar_bloqueio_final`
+- `_detalhar_obrigacao_bloqueio_final`
 
 ### Modificadas
 
-- `construir_resultado_motor_temporal_conjunto`, que agora chama `fechar_resultado_motor_temporal_conjunto` após a aplicação da trajetória interna e as auditorias parciais.
-- `__all__`, atualizado para expor as novas estruturas e funções públicas da macroetapa.
+- `construir_resultado_motor_temporal_conjunto`, que agora chama `fechar_resultado_motor_temporal_conjunto` após a trajetória interna já existente.
+
+## Correção material obrigatória
+
+Quando uma data tem obrigações abertas e não há pacote vencedor materializado, a auditoria final registra um `BloqueioFinalEtapa5` individual por obrigação aberta com:
+
+- data da obrigação;
+- identificador canônico, quando existir;
+- valor individual referencial, quando disponível;
+- motivo `sem_pacote_vencedor_para_obrigacao_aberta`;
+- referência preservada no detalhamento do bloqueio.
+
+Assim, a Etapa 6 não recebe apenas um estado genérico bloqueado sem rastreabilidade das obrigações abertas.
 
 ## Critérios de fechamento
 
-O fechamento funcional marca `pronto_para_etapa6 = True` apenas se a auditoria final não registrar bloqueios críticos relacionados a:
-
-- interface inválida da Etapa 5;
-- bloqueios críticos da auditoria de integridade;
-- inconsistências críticas de decisões temporais;
-- bloqueios críticos de trajetória temporal interna;
-- datas do horizonte sem estado diário, pacotes candidatos, decisão ou estado interno;
-- decisão sem pacote vencedor ou bloqueio explícito;
-- pacote vencedor fora da data correta;
-- obrigação aberta sem cobertura ou bloqueio referencial individual;
-- reserva acima da disponibilidade referencial;
-- reserva persistida em pacote bloqueado;
-- switching escolhido com status não referencial;
-- evento interno com indicação de ledger ou execução oficial;
-- dependência de console, XLSX, saída canônica, logs ou diagnóstico como fonte de estado.
+`pronto_para_etapa6` só é verdadeiro quando a auditoria final não registra bloqueios críticos de interface, integridade, decisões, trajetória, horizonte incompleto, obrigação aberta sem cobertura/bloqueio referencial, reserva acima da disponibilidade, reserva persistida em pacote bloqueado, switching não referencial, ledger ou execução oficial.
 
 ## Contrato de consumo pela Etapa 6
 
 A Etapa 6 deve consumir exclusivamente `ResultadoMotorTemporalConjunto`.
 
-Blocos explicitados para consumo:
+Blocos de consumo:
 
 - `data_referencia`
 - `horizonte_motor`
@@ -91,7 +88,7 @@ Blocos explicitados para consumo:
 - `auditoria_final_etapa5`
 - `metadados`
 
-Fontes proibidas como origem normativa alternativa para a Etapa 6:
+Fontes proibidas para consumo normativo alternativo:
 
 - console;
 - XLSX;
@@ -102,53 +99,28 @@ Fontes proibidas como origem normativa alternativa para a Etapa 6:
 
 ## Limites explícitos
 
-- Não gera novos pacotes candidatos.
-- Não revalora pacotes.
-- Não redecide pacote vencedor.
-- Não reexecuta trajetória temporal.
+- Não cria ledger oficial.
 - Não executa pagamento.
 - Não executa switching.
-- Não materializa lote pós-switching oficial.
-- Não cria ledger oficial.
 - Não altera console.
 - Não altera XLSX.
 - Não altera saída canônica.
 - Não altera dados.
 - Não cria scripts diagnósticos.
-- Não cria rota paralela, fallback legado, shadow, sentinela ou `ResultadoMotorTemporalMinimo`.
+- Não redecide pacote vencedor.
+- Não reexecuta trajetória temporal por rota alternativa.
+- Não recria o log da MACRO-ETAPA5-C.
 
 ## Validações executadas
 
-- A executar após a implementação e registrar no relatório final.
+- A registrar após execução dos comandos de validação.
 
-## Falhas de validação / limitações esperadas
+## Resultado das validações
 
-- `origin` ausente/inacessível no ambiente.
-- `origin/main` pode não existir localmente.
-- Download externo da planilha pode falhar por proxy, com fallback local da aplicação.
-
-## Confirmações
-
-- Ledger oficial não foi criado.
-- Console não foi alterado.
-- XLSX não foi alterado por este diff.
-- Saída canônica não foi alterada por este diff.
-- Dados não foram alterados por este diff.
-
-## Resultado das validações da implementação
-
-- `git diff --name-only origin/main...HEAD` — falhou porque `origin/main` não existe no ambiente local.
+- `git diff --name-only origin/main...HEAD` — falhou porque `origin/main` não existe localmente.
 - `python -m py_compile nucleo/motor_temporal_conjunto.py` — passou.
 - `python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py` — passou.
 - `python -B aplicacao/principal.py` — passou; a aplicação usou fallback local da planilha por limitação de proxy externo e cache local do BCB.
-- `git status --short` — antes do commit mostrou apenas `nucleo/motor_temporal_conjunto.py` e este log da macroetapa como alterações.
-- Verificação adicional por construção do contexto confirmou `pronto_para_etapa6 = False` no cenário operacional atual, com bloqueios finais concentrados em decisões temporais com obrigação sem vencedor materializado.
+- Verificação adicional por construção do contexto confirmou `pronto_para_etapa6 = False` no cenário operacional atual.
+- A mesma verificação confirmou `154` bloqueios finais individualizados com código `sem_pacote_vencedor_para_obrigacao_aberta`.
 - `dados/cache_bcb.json` não ficou modificado/rastreado após as validações.
-
-## Correção de baseline da entrega D
-
-- Tentativa de sincronização com `origin/main` foi repetida, mas o remoto não está configurado/acessível neste ambiente.
-- O commit esperado `67504700e945859daf4ba77172ee98df57d6b59e` não existe no objeto local disponível; por isso não foi possível rebasear mecanicamente sobre a main pós-PR #417 dentro do container.
-- Foi criada a branch local `macro-etapa5-d-fechamento-funcional-resultado-clean` para manter a correção da MACRO-ETAPA5-D isolada.
-- Esta correção não altera nem recria `logs/iteracoes/MACRO-ETAPA5-C_APLICA_TRAJETORIA_TEMPORAL_INTERNA.md`.
-- O escopo funcional continua restrito ao fechamento da Etapa 5; a MACRO-ETAPA5-C não foi reaplicada nesta correção.

@@ -2153,6 +2153,16 @@ def _adicionar_bloqueio_final(
     bloqueios.append(BloqueioFinalEtapa5(codigo=codigo, detalhe=detalhe, data=data_ref))
 
 
+def _detalhar_obrigacao_bloqueio_final(obrigacao: dict[str, Any]) -> str:
+    obrigacao_id, _ = extrair_identificador_obrigacao_pacote(obrigacao)
+    valor_obrigacao, _ = extrair_valor_obrigacao_referencial(obrigacao)
+    return (
+        f'obrigacao_id={obrigacao_id};'
+        f'valor_referencial={float(valor_obrigacao or 0.0)};'
+        f'referencia_obrigacao={obrigacao!r}'
+    )
+
+
 def auditar_consistencia_final_etapa5(
     resultado: ResultadoMotorTemporalConjunto,
 ) -> AuditoriaFinalResultadoMotorTemporalConjunto:
@@ -2195,7 +2205,26 @@ def auditar_consistencia_final_etapa5(
         estado_interno = estados_internos.get(data_ref)
         if decisao and decisao.pacote_vencedor_id and vencedor is None:
             _adicionar_bloqueio_final(bloqueios, 'decisao_sem_pacote_vencedor_materializado', 'decisão referencia pacote vencedor ausente', data_ref)
-        if decisao and decisao.pacote_vencedor_id is None and estado_interno and not estado_interno.obrigacoes_bloqueadas and estado_interno.status_referencial != 'bloqueado_sem_pacote_vencedor':
+        obrigacoes_abertas = []
+        if estado_diario.get(data_ref):
+            obrigacoes_abertas = list(estado_diario[data_ref].obrigacoes.pagamentos_referenciados)
+        if decisao and decisao.pacote_vencedor_id is None and obrigacoes_abertas:
+            bloqueios_individuais_existentes = estado_interno.obrigacoes_bloqueadas if estado_interno else []
+            chaves_bloqueadas_sem_vencedor = {
+                _chave_obrigacao_referencial_auditoria(b.referencia_obrigacao_temporal)
+                for b in bloqueios_individuais_existentes
+                if b.motivo_bloqueio_referencial == 'sem_pacote_vencedor_para_obrigacao_aberta'
+            }
+            for obrigacao in obrigacoes_abertas:
+                chave_obrigacao = _chave_obrigacao_referencial_auditoria(obrigacao)
+                if chave_obrigacao not in chaves_bloqueadas_sem_vencedor:
+                    _adicionar_bloqueio_final(
+                        bloqueios,
+                        'sem_pacote_vencedor_para_obrigacao_aberta',
+                        _detalhar_obrigacao_bloqueio_final(obrigacao),
+                        data_ref,
+                    )
+        elif decisao and decisao.pacote_vencedor_id is None and estado_interno and not estado_interno.obrigacoes_bloqueadas and estado_interno.status_referencial != 'bloqueado_sem_pacote_vencedor':
             _adicionar_bloqueio_final(bloqueios, 'decisao_sem_vencedor_sem_bloqueio_explicito', 'decisão sem vencedor não possui bloqueio explícito', data_ref)
         if vencedor and vencedor.data_referencia != data_ref:
             _adicionar_bloqueio_final(bloqueios, 'pacote_vencedor_data_divergente', vencedor.pacote_id, data_ref)
