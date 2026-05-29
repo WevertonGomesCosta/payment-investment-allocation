@@ -31,19 +31,44 @@ Em caso de divergência, prevalecem o contrato mestre e o modelo oficial.
 - `CONTRATO_ETAPA3_DADOS_OPERACIONAIS_CANONICOS.md`
 - `CONTRATO_ETAPA4_ESTADO_TEMPORAL_INICIAL.md`
 - `CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md`
+- `CONTRATO_ETAPA6_LEDGER_TEMPORAL_CANONICO.md`
+- `CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md`
+
+## Cadeia funcional consolidada
+
+A cadeia documental vigente das Etapas 1–7 é:
+
+```text
+Etapa 1 -> PacoteEntradaResolvida
+Etapa 2 -> PacoteValidacaoPreExecucao
+Etapa 3 -> PacoteDadosOperacionaisCanonicos / UniversoEconomicoCanonico
+Etapa 4 -> EstadoTemporalInicial
+Etapa 5 -> ResultadoMotorTemporalConjunto
+Etapa 6 -> LedgerTemporalCanonico
+Etapa 7 -> ResultadoGatesValidacaoNucleo
+```
+
+## Histórico documental consolidado
+
+- Etapas 1–3 preservadas como padrão documental e operacional-explicativo.
+- Etapa 4 revisada para refletir `EstadoTemporalInicial` como saída formal.
+- Etapa 5 consolidada após fechamento funcional como motor temporal conjunto.
+- Etapa 6 criada e fechada como `LedgerTemporalCanonico`.
+- Etapa 7 criada, ajustada e funcionalizada como Gates de Validação de Núcleo.
 
 ## Fontes históricas preservadas
 
-Os contratos das Etapas 1–4 foram derivados de documentos contratuais já existentes em `logs/iteracoes/`, preservando a lógica, as fronteiras e os fluxogramas já formalizados:
+Os contratos foram derivados ou consolidados a partir de documentos contratuais e logs de iteração já existentes. Esses documentos permanecem no local original como histórico; esta pasta contém os contratos canônicos organizados para consulta normativa individual por etapa.
 
-| Contrato individual | Documento-fonte preservado |
+| Contrato individual | Situação documental |
 |---|---|
-| `CONTRATO_ETAPA1_ENTRADA_RESOLVIDA.md` | `logs/iteracoes/ME-V17-F0-V32A_FORMALIZA_ETAPA1_PACOTE_ENTRADA_RESOLVIDA.md` |
-| `CONTRATO_ETAPA2_VALIDACAO_PRE_EXECUCAO.md` | `logs/iteracoes/ME-V17-F0-V32B_FORMALIZA_ETAPA2_VALIDACAO_PACOTE_ENTRADA_RESOLVIDA.md` |
-| `CONTRATO_ETAPA3_DADOS_OPERACIONAIS_CANONICOS.md` | `logs/iteracoes/ME-V17-F0-V32C_FORMALIZA_ETAPA3_CANONIZACAO_OPERACIONAL.md` |
-| `CONTRATO_ETAPA4_ESTADO_TEMPORAL_INICIAL.md` | `logs/iteracoes/ME-V17-F0-V4B_ESPECIFICA_CONTRATOS_FLUXOGRAMA_ETAPA4.md` |
-
-Os documentos-fonte permanecem no local original como logs históricos. Esta pasta contém cópias canônicas organizadas para consulta normativa individual por etapa.
+| `CONTRATO_ETAPA1_ENTRADA_RESOLVIDA.md` | Preservado como padrão documental. |
+| `CONTRATO_ETAPA2_VALIDACAO_PRE_EXECUCAO.md` | Preservado como padrão documental. |
+| `CONTRATO_ETAPA3_DADOS_OPERACIONAIS_CANONICOS.md` | Preservado como padrão documental. |
+| `CONTRATO_ETAPA4_ESTADO_TEMPORAL_INICIAL.md` | Revisado para cadeia atual. |
+| `CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md` | Consolidado após fechamento funcional. |
+| `CONTRATO_ETAPA6_LEDGER_TEMPORAL_CANONICO.md` | Ajustado para apontar explicitamente à Etapa 7. |
+| `CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md` | Revisado para refletir a implementação funcional mergeada. |
 
 ## Regra de escopo
 

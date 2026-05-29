@@ -1,368 +1,228 @@
-# CONTRATO INDIVIDUAL DA ETAPA 7 — GATES DE VALIDAÇÃO DE NÚCLEO
+# Contrato Individual — Etapa 7 — Gates de Validação de Núcleo
 
 ## 1. Identificação documental
 
-- MACROETAPA DE CRIAÇÃO DO CONTRATO: MACRO-ETAPA7-0
-- MACROETAPA DE AJUSTE DOCUMENTAL: MACRO-ETAPA7-0A
-- TIPO: DOCUMENTAL / CONTRATUAL
-- CLASSE: CONTRATO_INDIVIDUAL_ETAPA7_GATES_VALIDACAO_NUCLEO
-- BASELINE DE CRIAÇÃO DO CONTRATO: `ecda2bdf79ea57fe977627b0ead69f5902573ed5`
-- BASELINE DO AJUSTE DOCUMENTAL: `0fcf3543531941a2137f15892da1585c223718c5`
-- ETAPA ANTERIOR: Etapa 6 — Ledger Temporal Canônico
-- SAÍDA FORMAL DA ETAPA ANTERIOR: `LedgerTemporalCanonico`
-- ETAPA CONTRATADA: Etapa 7 — Gates de Validação de Núcleo
-- ENTRADA FORMAL EXCLUSIVA DA ETAPA CONTRATADA: `LedgerTemporalCanonico`
-- SAÍDA FORMAL DA ETAPA CONTRATADA: `ResultadoGatesValidacaoNucleo`
-- ALTERA CÓDIGO: NÃO
-- ALTERA MOTOR: NÃO
-- ALTERA LEDGER FUNCIONAL: NÃO
-- ALTERA SAÍDA CANÔNICA: NÃO
-- ALTERA DADOS: NÃO
-- ALTERA CONSOLE: NÃO
-- ALTERA XLSX: NÃO
-- CRIA SCRIPT DIAGNÓSTICO: NÃO
+- **Etapa:** 7
+- **Nome:** Gates de Validação de Núcleo
+- **Entrada formal obrigatória e exclusiva:** `LedgerTemporalCanonico`
+- **Saída formal:** `ResultadoGatesValidacaoNucleo`
+- **Função pública implementada:** `validar_gates_nucleo(...)`
 
 ## 2. Status normativo
 
-Este documento é o contrato individual canônico da **Etapa 7 — Gates de Validação de Núcleo**.
+Este contrato reflete a implementação final mergeada na PR #426. Ele define a Etapa 7 como camada de validação do núcleo antes de qualquer progressão observável ou preparação de saída posterior.
 
-Ele é subordinado ao contrato operacional mestre, ao modelo matemático-estatístico-financeiro oficial e aos contratos individuais das Etapas 1–6.
-
-A Etapa 7 é a camada de validação formal entre:
+## 3. Posição na cadeia macro
 
 ```text
 Etapa 6 -> LedgerTemporalCanonico -> Etapa 7 -> ResultadoGatesValidacaoNucleo -> Etapa 8
 ```
 
-Logs, relatórios históricos, console, XLSX, scripts diagnósticos, saídas observáveis e artefatos renderizados não são fonte normativa de estado para esta etapa.
+A referência à Etapa 8 é apenas direcional. Este contrato não implementa a Etapa 8.
 
-A Etapa 7 não corrige decisões. Ela valida se o núcleo materializado até a Etapa 6 é coerente, completo, auditável e apto para alimentar a Etapa 8 — Saída Canônica Validada.
+## 4. Função da etapa
 
-## 3. Função da etapa
+A Etapa 7 valida o `LedgerTemporalCanonico` produzido pela Etapa 6 por meio de gates formais de núcleo. Ela preserva bloqueios e avisos, registra evidências, calcula prontidão para a próxima etapa e bloqueia progressão observável quando `pronto_para_etapa8=False`.
 
-A Etapa 7 consome **direta e exclusivamente** o `LedgerTemporalCanonico` produzido pela Etapa 6 para aplicar gates de validação de núcleo.
-
-Sua função é validar, de forma programática e auditável, a consistência entre pagamentos, fontes, saldos, switchings, bloqueios, liquidez, carência, residuais, dupla contagem e conservação de valor a partir das informações materializadas ou explicitamente referenciadas no próprio ledger.
-
-Informações sobre estado temporal final, decisões econômicas finais, ranking oficial utilizado e auditorias compatíveis só podem ser usadas pela Etapa 7 quando estiverem materializadas dentro do próprio `LedgerTemporalCanonico` ou explicitamente referenciadas por ele em metadados, eventos, lançamentos, saldos, bloqueios, avisos ou auditoria interna.
-
-Essas informações não constituem entradas paralelas independentes.
-
-Referências contidas no `LedgerTemporalCanonico` servem apenas como evidências internas, metadados, identificadores ou rastreabilidade já materializada no próprio ledger. Elas não autorizam a Etapa 7 a buscar, reconstruir, importar, consultar ou consumir diretamente `EstadoTemporalInicial`, `ResultadoMotorTemporalConjunto`, objetos das Etapas 1–5, planilha, logs, diagnósticos, console, XLSX ou saída observável.
-
-A Etapa 7 não decide pagamentos, não escolhe fontes, não troca pacote vencedor, não reotimiza, não revalora, não materializa switching, não corrige saldo temporal e não altera o ledger.
-
-## 4. Entrada formal da etapa
+## 5. Entrada formal obrigatória e exclusiva
 
 A entrada formal obrigatória e exclusiva da Etapa 7 é:
 
-`LedgerTemporalCanonico`
+```text
+LedgerTemporalCanonico
+```
 
-A Etapa 7 deve consumir esse artefato diretamente.
+Referências contidas no ledger são apenas evidências internas, metadados, identificadores ou rastreabilidade já materializada. Elas não autorizam busca, reconstrução, importação ou consumo direto de artefatos anteriores.
 
-Informações sobre estado temporal final, decisões econômicas finais, ranking oficial utilizado e auditorias compatíveis só podem ser utilizadas quando estiverem materializadas dentro do próprio `LedgerTemporalCanonico` ou referenciadas explicitamente por ele em seus metadados, eventos, lançamentos, saldos, bloqueios, avisos ou auditoria interna.
+## 6. Componentes consumíveis da entrada
 
-Essas informações não constituem entradas auxiliares paralelas e não autorizam reconstrução de estado, consulta ao motor da Etapa 5 ou acesso a artefatos anteriores.
+A Etapa 7 pode consumir somente componentes materializados no `LedgerTemporalCanonico`, incluindo:
 
-As referências contidas no `LedgerTemporalCanonico` podem ser usadas apenas como evidências internas, metadados, identificadores ou rastreabilidade já materializada no próprio ledger. Elas não autorizam a Etapa 7 a buscar, reconstruir, importar, consultar ou consumir diretamente `EstadoTemporalInicial`, `ResultadoMotorTemporalConjunto`, objetos das Etapas 1–5, planilha, logs, diagnósticos, console, XLSX ou saída observável.
+- metadados do ledger;
+- auditoria do ledger;
+- eventos;
+- lançamentos por data;
+- obrigações cobertas;
+- obrigações bloqueadas;
+- fontes utilizadas;
+- fontes reservadas;
+- saldos referenciais;
+- switchings escolhidos;
+- bloqueios preservados;
+- avisos preservados;
+- referências originais já embutidas no ledger.
 
-A Etapa 7 não pode consumir diretamente:
-
-- `EstadoTemporalInicial`;
-- `ResultadoMotorTemporalConjunto`;
-- objetos internos das Etapas 1–5, ainda que identificados ou referenciados no `LedgerTemporalCanonico`, quando isso exigir busca, carregamento, consulta ou consumo direto fora do próprio ledger;
-- planilha original;
-- console;
-- XLSX;
-- saída observável;
-- saída canônica ainda não validada;
-- logs;
-- relatórios históricos;
-- scripts diagnósticos;
-- CSVs auxiliares;
-- cache operacional como evidência decisória;
-- artefatos de renderização;
-- rotas paralelas, wrappers transitórios, fallbacks legados ou shadows.
-
-## 5. Saída formal da etapa
+## 7. Saída formal obrigatória
 
 A saída formal obrigatória da Etapa 7 é:
 
-`ResultadoGatesValidacaoNucleo`
+```text
+ResultadoGatesValidacaoNucleo
+```
 
-Esse artefato deve representar o resultado consolidado dos gates de núcleo aplicados sobre o `LedgerTemporalCanonico`.
+## 8. Componentes mínimos da saída
 
-O resultado deve conter, no mínimo:
+`ResultadoGatesValidacaoNucleo` deve conter, no mínimo:
 
-- indicador `ok` geral;
-- bloqueios de núcleo;
-- avisos de núcleo;
-- gates executados;
-- gates aprovados;
-- gates reprovados;
-- evidências mínimas por gate;
-- resumo quantitativo;
-- metadados de origem;
-- prontidão para Etapa 8.
-
-`ResultadoGatesValidacaoNucleo` não é saída canônica, não é console, não é XLSX e não é correção do ledger.
-
-## 6. Gates mínimos obrigatórios
-
-A Etapa 7 deve validar, no mínimo:
-
-1. conservação de valor;
-2. pagamento integral das obrigações cobertas;
-3. pagamento na data correta;
-4. fonte materializada antes do uso;
-5. liquidez das fontes usadas;
-6. carência das fontes usadas;
-7. ausência de saldo negativo indevido;
-8. impedimento de dupla contagem;
-9. consistência entre switching materializado e lotes/fonte destino;
-10. consistência entre pagamentos e fontes consumidas;
-11. consistência de saldos antes, consumo, imposto, líquido e saldo depois;
-12. consistência de residuais;
-13. preservação de bloqueios finais e motivos de bloqueio;
-14. aderência ao objetivo econômico terminal quando a evidência estiver no ledger;
-15. ausência de decisão nova na Etapa 7;
-16. ausência de uso de console, XLSX, saída observável, logs, diagnósticos, `ResultadoMotorTemporalConjunto` ou `EstadoTemporalInicial` como fonte de estado.
-
-## 7. Gate de conservação de valor
-
-O gate de conservação de valor deve verificar se os lançamentos do ledger preservam, de forma referencial e auditável, a relação entre:
-
-- valores de entrada;
-- valores consumidos;
-- impostos;
-- valores líquidos;
-- reservas;
-- saldos remanescentes;
+- `ok`;
+- `pronto_para_etapa8`;
+- origem formal;
+- lista de gates executados;
 - bloqueios;
-- valores transferidos por switching.
+- avisos;
+- evidências;
+- resumo consolidado;
+- metadados.
 
-A Etapa 7 pode bloquear a prontidão da Etapa 8 se houver inconsistência material de valor.
+## 9. Processo interno da etapa
 
-A Etapa 7 não pode corrigir valores, recalcular rendimentos ou substituir campos ausentes por inferência externa.
+A Etapa 7 deve executar, no mínimo:
 
-## 8. Gate de pagamento integral e data correta
+1. `gate_origem_exclusiva_ledger`;
+2. `gate_auditoria_ledger`;
+3. `gate_obrigacoes_cobertas`;
+4. `gate_obrigacoes_bloqueadas`;
+5. `gate_fontes_utilizadas`;
+6. `gate_fontes_reservadas`;
+7. `gate_saldos_residuais`;
+8. `gate_switchings`;
+9. `gate_dupla_contagem`;
+10. `gate_bloqueios_prontidao`;
+11. consolidação de bloqueios, avisos e evidências;
+12. cálculo final de `pronto_para_etapa8`.
 
-O gate de pagamento deve verificar, para obrigações cobertas, se:
+## 10. O que a etapa pode fazer
 
-- a obrigação possui identificador ou referência mínima;
-- a data do pagamento corresponde à data contratual da obrigação ou à trajetória materializada no ledger;
-- o valor coberto é compatível com o valor da obrigação;
-- a cobertura parcial indevida é bloqueada;
-- o motivo de bloqueio está explícito quando a obrigação não foi coberta.
+A Etapa 7 pode:
 
-A Etapa 7 não pode escolher outra fonte para completar pagamento nem alterar status de obrigação.
+- validar origem exclusiva do ledger;
+- validar auditoria do ledger;
+- validar obrigações cobertas;
+- validar obrigações bloqueadas;
+- validar fontes utilizadas;
+- validar fontes reservadas;
+- validar saldos e residuais;
+- validar switchings;
+- validar dupla contagem;
+- validar bloqueios e prontidão;
+- preservar bloqueios e avisos;
+- bloquear progressão observável quando `pronto_para_etapa8=False`;
+- registrar evidências e metadados do próprio processo de validação.
 
-## 9. Gate de fonte materializada antes do uso
-
-O gate de fonte deve verificar se toda fonte usada em pagamento, reserva ou switching:
-
-- possui identificador ou referência mínima;
-- está materializada antes do uso;
-- está temporalmente disponível na data do evento;
-- não está exaurida, futura, migrada sem materialização ou bloqueada no momento do uso;
-- não é apenas candidata, diagnóstica ou estimada.
-
-Campos operacionais não podem ser preenchidos com fontes candidatas ou não materializadas.
-
-## 10. Gate de liquidez e carência
-
-O gate de liquidez e carência deve verificar, quando a evidência existir no ledger, se a fonte usada:
-
-- é líquida ou resgatável na data;
-- não está em carência impeditiva;
-- respeita vencimento, disponibilidade e regras operacionais do produto;
-- não viola restrição fiscal ou operacional vigente.
-
-A ausência de evidência suficiente no ledger deve gerar aviso ou bloqueio conforme severidade definida na implementação funcional futura.
-
-## 11. Gate de saldos, consumo e residuais
-
-O gate de saldos deve verificar a consistência entre:
-
-- saldo antes;
-- valor bruto;
-- imposto;
-- valor líquido;
-- consumo;
-- saldo depois;
-- residual.
-
-Residuais devem respeitar o tratamento contratual vigente. Saldos negativos indevidos devem bloquear a prontidão para a Etapa 8.
-
-## 12. Gate de dupla contagem
-
-O gate de dupla contagem deve verificar se uma mesma fonte, valor, lote ou evento econômico não foi contado simultaneamente como:
-
-- fonte disponível e fonte consumida;
-- origem migrada e destino independente;
-- aporte externo e switching;
-- pagamento e resíduo disponível;
-- lote ativo e lote exaurido;
-- reserva e consumo efetivo incompatíveis.
-
-## 13. Gate de switching materializado
-
-O gate de switching deve verificar, quando houver switchings no ledger, se:
-
-- switching candidato, promovido e materializado estão corretamente diferenciados;
-- switching candidato ou promovido sem materialização não foi usado como fonte de pagamento;
-- origem, destino, produto, data, valor líquido migrado e pacote estão preservados quando disponíveis;
-- lotes destino não foram contados em duplicidade;
-- origem migrada não permaneceu como fonte operacional disponível após materialização incompatível.
-
-## 14. Gate de bloqueios
-
-O gate de bloqueios deve verificar se:
-
-- obrigações bloqueadas têm motivo explícito;
-- bloqueios finais da Etapa 5 preservados pela Etapa 6 continuam visíveis no ledger;
-- `pronto_para_etapa_posterior` ou indicador equivalente não é verdadeiro quando existem bloqueios impeditivos;
-- pendências não foram mascaradas por renderização ou saída observável.
-
-A Etapa 7 não pode fingir completude quando o ledger contém bloqueios.
-
-## 15. Relação com Etapa 8 — Saída Canônica Validada
-
-A Etapa 8 só pode consumir o resultado da Etapa 7 se os gates de núcleo forem aprovados ou se os bloqueios/avisos forem preservados explicitamente como parte da saída canônica validada.
-
-A saída canônica validada deve consumir exclusivamente:
-
-- `ResultadoGatesValidacaoNucleo`;
-- `LedgerTemporalCanonico` validado pela Etapa 7;
-- evidências e metadados já materializados ou explicitamente referenciados no ledger validado;
-- auditorias compatíveis produzidas pela Etapa 7.
-
-A Etapa 8 poderá organizar, nomear e estruturar informações para consumo humano ou operacional, mas não poderá recalcular decisão econômica, trocar fonte de pagamento, materializar switching, corrigir saldo temporal ou alterar o estado final.
-
-## 16. Relação com Etapa 9 — Renderização Oficial Unificada
-
-Console e XLSX pertencem à Etapa 9.
-
-A Etapa 7 não altera console e não altera XLSX.
-
-Problemas observados em console ou XLSX só podem ser tratados diretamente na renderização se a saída canônica validada da Etapa 8 já contiver a informação correta.
-
-Se a saída canônica não contiver a informação correta, o problema deve ser tratado na Etapa 8.
-
-Se o ledger ou os gates indicarem inconsistência de núcleo, o problema deve ser tratado nas etapas 5, 6 ou 7 conforme a origem, nunca por ajuste visual em console ou XLSX.
-
-## 17. Proibições da Etapa 7
+## 11. O que a etapa não pode fazer
 
 A Etapa 7 não pode:
 
-- decidir pagamento;
-- escolher fonte;
-- trocar lote sugerido;
-- selecionar novo pacote temporal;
-- reotimizar trajetória;
-- revalorar pacote;
-- recalcular ranking da Carteira;
-- executar pagamento bancário real;
+- alterar o ledger;
+- corrigir console;
+- gerar XLSX;
+- alterar saída canônica;
+- renderizar saída observável;
+- executar pagamento real;
 - executar switching real;
-- materializar switching novo;
-- corrigir saldo temporal;
-- alterar ledger;
-- alterar estado temporal final fora do ledger;
-- alterar dados;
-- alterar planilha;
-- alterar console;
-- alterar XLSX;
-- gerar saída canônica final;
-- usar diagnóstico como motor;
-- usar logs como fonte de estado;
-- usar saída observável como fonte de estado;
-- consumir diretamente `ResultadoMotorTemporalConjunto`;
-- consumir diretamente `EstadoTemporalInicial`;
-- reconstruir `EstadoTemporalInicial`;
-- recanonizar dados das Etapas 1–4;
-- criar fallback legado;
-- criar rota paralela;
-- criar wrapper transitório;
-- criar sentinela;
-- criar script diagnóstico;
-- reintroduzir `ContextoBaseline`;
-- reintroduzir `ContextoSaidaCanonicaCompat`.
+- reotimizar;
+- revalorar;
+- trocar pacote vencedor;
+- consultar `ResultadoMotorTemporalConjunto`;
+- consultar `EstadoTemporalInicial`;
+- consultar planilha;
+- consultar logs ou diagnósticos como fonte de estado;
+- criar scripts diagnósticos.
 
-## 18. Schema funcional previsto para macroetapa posterior
+## 12. Relação com a etapa anterior
 
-A macroetapa funcional posterior poderá definir estruturas equivalentes a:
+A Etapa 7 consome exclusivamente `LedgerTemporalCanonico` produzido pela Etapa 6. A Etapa 6 materializa as evidências que a Etapa 7 pode validar; a Etapa 7 não retorna ao motor temporal ou ao estado temporal inicial.
 
-- `ResultadoGatesValidacaoNucleo`;
-- `GateValidacaoNucleo`;
-- `EvidenciaGateNucleo`;
-- `BloqueioGateNucleo`;
-- `AvisoGateNucleo`;
-- `ResumoGatesValidacaoNucleo`;
-- `ParametrosGatesValidacaoNucleo`, se necessário.
+## 13. Relação com a etapa posterior
 
-Este contrato não cria essas estruturas. Ele apenas autoriza sua criação futura sob escopo funcional específico.
+A Etapa 7 entrega `ResultadoGatesValidacaoNucleo` para orientar a Etapa 8 — Saída Canônica Validada. A progressão observável deve ser bloqueada quando `pronto_para_etapa8=False`. Este contrato não implementa a Etapa 8.
 
-## 19. Função pública prevista para macroetapa posterior
+## 14. Schema/funções públicas previstas ou implementadas
 
-A macroetapa funcional posterior poderá implementar função pública equivalente a:
+Função pública implementada:
 
 ```python
-def validar_gates_nucleo(
+validar_gates_nucleo(
     ledger: LedgerTemporalCanonico,
     parametros: ParametrosGatesValidacaoNucleo | None = None,
-) -> ResultadoGatesValidacaoNucleo:
-    ...
+) -> ResultadoGatesValidacaoNucleo
 ```
 
-Essa previsão não autoriza implementação nesta macroetapa documental.
+Artefatos formais implementados:
 
-A função futura deverá consumir exclusivamente o `LedgerTemporalCanonico` como entrada formal de estado e não poderá consultar planilha, console, XLSX, logs, diagnósticos, `ResultadoMotorTemporalConjunto` ou `EstadoTemporalInicial` como fonte de estado.
+```python
+ParametrosGatesValidacaoNucleo
+EvidenciaGateNucleo
+BloqueioGateNucleo
+AvisoGateNucleo
+GateValidacaoNucleo
+ResumoGatesValidacaoNucleo
+ResultadoGatesValidacaoNucleo
+```
 
-## 20. Critérios de aceite da Etapa 7
+## 15. Auditoria esperada
 
-A Etapa 7 só poderá ser considerada concluída se:
+A auditoria da Etapa 7 deve registrar:
 
-1. `ResultadoGatesValidacaoNucleo` existir como artefato formal da Etapa 7;
-2. `validar_gates_nucleo(...)` consumir `LedgerTemporalCanonico` como entrada formal exclusiva;
-3. nenhum consumo direto de `ResultadoMotorTemporalConjunto` ou `EstadoTemporalInicial` existir na Etapa 7;
-4. os gates mínimos obrigatórios forem executados ou explicitamente classificados como não aplicáveis por ausência contratual de evidência no ledger;
-5. conservação de valor for validada ou bloqueada;
-6. pagamento integral e pagamento na data correta forem validados ou bloqueados;
-7. fonte materializada antes do uso for validada ou bloqueada;
-8. liquidez e carência forem validadas ou bloqueadas;
-9. saldos, consumos, impostos, líquidos e residuais forem validados ou bloqueados;
-10. dupla contagem for validada ou bloqueada;
-11. consistência entre switchings materializados e lotes destino for validada ou bloqueada;
-12. consistência entre pagamentos e fontes consumidas for validada ou bloqueada;
-13. bloqueios e motivos forem preservados;
-14. nenhuma decisão nova for criada;
-15. nenhum ajuste visual de console ou XLSX for feito;
-16. a Etapa 8 receber uma entrada validada, bloqueada ou explicitamente marcada como incompleta.
+- gates executados;
+- gates aprovados, reprovados e não aplicáveis;
+- bloqueios preservados do ledger;
+- avisos preservados do ledger;
+- bloqueios gerados pelos gates;
+- avisos gerados pelos gates;
+- contagens de obrigações cobertas e bloqueadas;
+- contagens de fontes utilizadas e reservadas;
+- contagens de switchings;
+- estado final de `pronto_para_etapa8`.
 
-## 21. Fluxograma da Etapa 7
+## 16. Critérios de aceite
+
+A Etapa 7 é aceita quando:
+
+1. consome somente `LedgerTemporalCanonico`;
+2. produz `ResultadoGatesValidacaoNucleo`;
+3. executa os dez gates mínimos;
+4. preserva bloqueios e avisos do ledger;
+5. bloqueia progressão observável quando `pronto_para_etapa8=False`;
+6. não altera ledger;
+7. não altera console, XLSX ou saída canônica;
+8. não consulta `ResultadoMotorTemporalConjunto`;
+9. não consulta `EstadoTemporalInicial`;
+10. não consulta planilha, logs ou diagnósticos como fonte de estado.
+
+## 17. Fluxograma operacional-explicativo completo
 
 ```mermaid
 flowchart TD
-    E6[Etapa 6<br/>LedgerTemporalCanonico] --> IN[Entrada formal exclusiva<br/>LedgerTemporalCanonico]
-
-    subgraph E7[Etapa 7 — Gates de Validação de Núcleo]
-        IN --> G0[Preparar evidências internas<br/>a partir do ledger]
-        G0 --> G1[Gate conservação de valor]
-        G1 --> G2[Gate pagamento integral e data correta]
-        G2 --> G3[Gate fonte materializada antes do uso]
-        G3 --> G4[Gate liquidez e carência]
-        G4 --> G5[Gate saldos, consumos e residuais]
-        G5 --> G6[Gate dupla contagem]
-        G6 --> G7[Gate switching materializado]
-        G7 --> G8[Gate bloqueios e pendências]
-        G8 --> OUT[ResultadoGatesValidacaoNucleo]
-    end
-
-    OUT --> E8[Etapa 8<br/>Saída Canônica Validada]
+    A[LedgerTemporalCanonico] --> B[validar_gates_nucleo]
+    B --> C[gate_origem_exclusiva_ledger]
+    C --> D[gate_auditoria_ledger]
+    D --> E[gate_obrigacoes_cobertas]
+    E --> F[gate_obrigacoes_bloqueadas]
+    F --> G[gate_fontes_utilizadas]
+    G --> H[gate_fontes_reservadas]
+    H --> I[gate_saldos_residuais]
+    I --> J[gate_switchings]
+    J --> K[gate_dupla_contagem]
+    K --> L[gate_bloqueios_prontidao]
+    L --> M[ResultadoGatesValidacaoNucleo]
+    M --> N[Etapa 8 — Saída Canônica Validada]
 ```
 
-## 22. Condição de parada
+## 18. Condição de parada
 
-Qualquer necessidade de escolher nova fonte, selecionar novo pacote vencedor, revalorar decisão, executar pagamento, promover switching, materializar destino, reconstruir estado temporal inicial, consumir `ResultadoMotorTemporalConjunto` diretamente, consumir planilha original, alterar console, alterar XLSX, alterar dados, gerar saída canônica final, criar script diagnóstico, criar fallback legado, criar rota paralela ou usar saída observável como fonte de estado deve interromper a macroetapa funcional em curso e exigir correção na etapa contratualmente responsável.
+A Etapa 7 deve bloquear progressão observável quando houver bloqueios impeditivos, quando a auditoria do ledger reprovar ou quando `ResultadoGatesValidacaoNucleo.pronto_para_etapa8=False`.
 
-A Etapa 7 não é camada de correção visual. Ela é camada de validação de núcleo.
+## 19. Adendos funcionais consolidados
+
+A implementação mergeada consolidou:
+
+- bloqueio de runtime antes de console/XLSX quando os gates reprovam;
+- validação de fonte utilizada sem valor referencial;
+- reconciliação conservadora de uso e reserva por fonte, data e pacote;
+- bloqueio de switching sem data;
+- validação de aderência terminal quando evidência estiver materializada;
+- reconciliação agregada de obrigações cobertas por pacote/data;
+- exigência de saldo residual para fonte movimentada.
+
+Essas regras integram o corpo vivo deste contrato.
