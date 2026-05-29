@@ -80,21 +80,30 @@ LedgerTemporalCanonico
 
 ## 9. Processo interno da etapa
 
+A Etapa 6 deve executar uma orquestração de materialização contábil-canônica em `construir_ledger_temporal_canonico(...)`. Essa orquestração consome exclusivamente `ResultadoMotorTemporalConjunto` e converte coleções já materializadas pela Etapa 5 em estruturas próprias de ledger.
+
+A ordem documental abaixo descreve a cadeia principal da função pública, mas não deve ser lida como dependência causal entre eventos, obrigações, fontes, reservas, switchings, saldos e bloqueios. Esses elementos são ramos independentes de materialização derivados da mesma entrada formal. A Etapa 6 não reotimiza, não revalora, não escolhe novo pacote, não troca fonte e não cria decisão nova.
+
 A Etapa 6 deve:
 
-1. verificar a interface contratual do `ResultadoMotorTemporalConjunto`;
-2. extrair horizonte e data de referência;
-3. materializar eventos de trajetória;
-4. converter obrigações cobertas em lançamentos de ledger;
-5. converter obrigações bloqueadas em lançamentos de ledger;
-6. converter fontes e reservas referenciais;
-7. converter switchings escolhidos;
-8. materializar saldos referenciais por data;
-9. preservar bloqueios finais;
-10. preservar avisos relevantes;
-11. registrar metadados de origem;
-12. auditar o ledger;
-13. emitir `LedgerTemporalCanonico`.
+1. inicializar `ParametrosLedgerTemporal` e declarar origem exclusiva como `ResultadoMotorTemporalConjunto`;
+2. verificar campos esperados da entrada formal;
+3. extrair horizonte temporal com `_horizonte(...)`;
+4. preservar `pronto_para_etapa6` da Etapa 5;
+5. preservar bloqueios finais com `_bloqueios_finais(...)`;
+6. preservar avisos finais com `_avisos_finais(...)`;
+7. inicializar `LedgerTemporalCanonico` com metadados de não reotimização, não revaloração, não execução real, ausência de decisão nova e fontes proibidas não consumidas;
+8. materializar eventos da trajetória por `_evento_para_ledger(...)` e indexá-los por `_registrar_lancamento(...)`;
+9. materializar obrigações cobertas por `_obrigacao_coberta_para_ledger(...)` e indexá-las por `_registrar_lancamento(...)`;
+10. materializar obrigações bloqueadas por `_obrigacao_bloqueada_para_ledger(...)` e indexá-las por `_registrar_lancamento(...)`;
+11. materializar reservas e fontes utilizadas a partir de `fontes_reservadas_temporalmente`, usando `_reserva_para_lancamentos(...)` e `_registrar_lancamento(...)`;
+12. materializar switchings escolhidos por `_switching_para_ledger(...)` e indexá-los por `_registrar_lancamento(...)`;
+13. materializar saldos referenciais por data com `_saldos_por_data(...)` e indexá-los por `_registrar_lancamento(...)`;
+14. materializar bloqueios finais da Etapa 5 como `LancamentoBloqueioLedger`;
+15. criar bloqueio explícito quando `ResultadoMotorTemporalConjunto.pronto_para_etapa6=False` e nenhum bloqueio final tiver sido preservado;
+16. auditar o ledger com `_auditar_ledger(...)`;
+17. definir `pronto_para_etapa_posterior` apenas quando o ledger estiver auditado e coerente;
+18. emitir `LedgerTemporalCanonico`.
 
 ## 10. O que a etapa pode fazer
 
@@ -187,17 +196,78 @@ A Etapa 6 é aceita quando:
 flowchart TD
     IN["Entrada formal<br/>ResultadoMotorTemporalConjunto"] --> ORQ["nucleo/ledger_temporal_canonico.py<br/>construir_ledger_temporal_canonico(...)"]
 
-    ORQ --> A["6A. Verificar interface contratual<br/>ResultadoMotorTemporalConjunto"]
-    A --> B["6B. Extrair horizonte e data de referência"]
-    B --> C["6C. Materializar eventos referenciais<br/>eventos de ledger"]
-    C --> D["6D. Materializar obrigações cobertas<br/>lancamentos_obrigacao"]
-    D --> E["6E. Materializar obrigações bloqueadas<br/>lancamentos_bloqueio"]
-    E --> F["6F. Materializar fontes utilizadas e reservadas<br/>lancamentos_fonte / lancamentos_reserva"]
-    F --> G["6G. Materializar switchings escolhidos<br/>lancamentos_switching"]
-    G --> H["6H. Materializar saldos referenciais por data"]
-    H --> I["6I. Preservar bloqueios, avisos e metadados"]
-    I --> J["6J. Auditar LedgerTemporalCanonico"]
-    J --> OUT["Saída formal<br/>LedgerTemporalCanonico"]
+    ORQ --> PARAM["ParametrosLedgerTemporal<br/>origem_exclusiva = ResultadoMotorTemporalConjunto"]
+    ORQ --> CAMPOS["Verificar campos esperados<br/>_CAMPOS_ESPERADOS_RESULTADO"]
+    ORQ --> HORIZ["_horizonte(...)"]
+    ORQ --> P6["Preservar pronto_para_etapa6"]
+    ORQ --> BF["_bloqueios_finais(...)"]
+    ORQ --> AV["_avisos_finais(...)"]
+
+    PARAM --> LEDGER0["Inicializar LedgerTemporalCanonico<br/>metadados de origem exclusiva<br/>sem reotimizacao<br/>sem revaloracao<br/>sem execucao real<br/>sem decisao nova"]
+    CAMPOS --> LEDGER0
+    HORIZ --> LEDGER0
+    P6 --> LEDGER0
+    BF --> LEDGER0
+    AV --> LEDGER0
+
+    LEDGER0 --> EVIN["eventos_trajetoria_temporal"]
+    LEDGER0 --> OBCIN["obrigacoes_cobertas_temporalmente"]
+    LEDGER0 --> OBBIN["obrigacoes_bloqueadas_temporalmente"]
+    LEDGER0 --> RESIN["fontes_reservadas_temporalmente"]
+    LEDGER0 --> SWIN["switchings_escolhidos_temporalmente"]
+    LEDGER0 --> SALIN["trajetoria/estado temporal interno<br/>saldos referenciais"]
+    LEDGER0 --> BLOQIN["auditoria_final_etapa5.bloqueios"]
+
+    EVIN --> EV["_evento_para_ledger(...)"]
+    EV --> LEV["EventoLedgerTemporal"]
+    LEV --> REG1["_registrar_lancamento(...)"]
+
+    OBCIN --> OBC["_obrigacao_coberta_para_ledger(...)"]
+    OBC --> LOBRC["LancamentoObrigacaoLedger<br/>obrigacao_coberta_referencialmente"]
+    LOBRC --> REG2["_registrar_lancamento(...)"]
+
+    OBBIN --> OBB["_obrigacao_bloqueada_para_ledger(...)"]
+    OBB --> LOBRB["LancamentoObrigacaoLedger<br/>obrigacao_bloqueada_referencialmente"]
+    LOBRB --> REG3["_registrar_lancamento(...)"]
+
+    RESIN --> RES["_reserva_para_lancamentos(...)"]
+    RES --> LRES["LancamentoReservaLedger"]
+    RES --> LFON["LancamentoFonteLedger<br/>uso_fonte_referencial_materializado_por_reserva"]
+    LRES --> REG4["_registrar_lancamento(...)"]
+    LFON --> REG5["_registrar_lancamento(...)"]
+
+    SWIN --> SW["_switching_para_ledger(...)"]
+    SW --> LSW["LancamentoSwitchingLedger"]
+    LSW --> REG6["_registrar_lancamento(...)"]
+
+    SALIN --> SAL["_saldos_por_data(...)"]
+    SAL --> LSAL["SaldoLedgerTemporal"]
+    LSAL --> REG7["_registrar_lancamento(...)"]
+
+    BLOQIN --> LBLOQ["LancamentoBloqueioLedger<br/>bloqueio_final_etapa5_preservado"]
+    LBLOQ --> REG8["_registrar_lancamento(...)"]
+
+    P6 --> P6FALSE{"pronto_para_etapa6=False?"}
+    P6FALSE -->|sim| BP6["LancamentoBloqueioLedger<br/>resultado_etapa5_nao_pronto_para_etapa6"]
+    P6FALSE -->|não| SEMBP6["Sem bloqueio adicional de prontidão"]
+    BP6 --> REG9["_registrar_lancamento(...)"]
+
+    REG1 --> LEDGER1["LedgerTemporalCanonico<br/>lançamentos por data"]
+    REG2 --> LEDGER1
+    REG3 --> LEDGER1
+    REG4 --> LEDGER1
+    REG5 --> LEDGER1
+    REG6 --> LEDGER1
+    REG7 --> LEDGER1
+    REG8 --> LEDGER1
+    REG9 --> LEDGER1
+    SEMBP6 --> LEDGER1
+
+    LEDGER1 --> AUD["_auditar_ledger(...)"]
+    AUD --> PAUD["AuditoriaLedgerTemporalCanonico"]
+    PAUD --> PRONTO["Definir pronto_para_etapa_posterior<br/>somente se auditoria.ok"]
+
+    PRONTO --> OUT["Saída formal<br/>LedgerTemporalCanonico"]
     OUT --> E7["Destino<br/>Etapa 7 — nucleo/gates_validacao_nucleo.py<br/>validar_gates_nucleo(...)"]
 ```
 
