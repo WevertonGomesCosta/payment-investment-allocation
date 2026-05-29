@@ -192,3 +192,15 @@ Foram corrigidos os quatro P2 atuais apontados após a reconciliação agregada:
 4. `gate_saldos_residuais` passou a exigir saldo residual para toda fonte/data movimentada em `fontes_utilizadas` ou `fontes_reservadas`; quando o saldo existe, continua reconciliando contra o menor `valor_disponivel_depois_referencial` materializado nos movimentos.
 
 A Etapa 7 continua consumindo exclusivamente `LedgerTemporalCanonico`, usando apenas `obrigacoes_cobertas`, `fontes_utilizadas`, `fontes_reservadas`, `saldos_referenciais_por_data` e campos/metadados/referências já materializados. Não houve alteração em console, XLSX, dados, saída canônica ou scripts diagnósticos.
+
+## Correção pós-reauditoria PR #426 — bloqueio de runtime e P2 remanescentes
+
+Foram corrigidos o P1 e os quatro P2 atuais:
+
+1. `aplicacao/principal.py` agora bloqueia a progressão observável quando `ResultadoGatesValidacaoNucleo.pronto_para_etapa8=False`, retornando antes de `render_console(...)` e `gerar_planilha_operacional(...)`. O layout do console e o XLSX não foram alterados; a execução apenas deixa de renderizar/exportar quando os gates reprovam.
+2. `gate_fontes_utilizadas` bloqueia fonte utilizada com `fonte_id` e `data` materializados, mas sem `valor_referencial`, pois não é possível validar consumo/saldos sem o valor usado.
+3. `gate_dupla_contagem` passou a reconciliar uso/reserva por `(fonte_id, data, pacote_id)`, com fallback para `(fonte_id, data)` apenas quando `pacote_id` não estiver materializado.
+4. `gate_switchings` bloqueia switching escolhido/materializado sem `data`, tratando a data como evidência temporal mínima obrigatória.
+5. `gate_bloqueios_prontidao` passou a dar efeito a `validar_aderencia_terminal_quando_disponivel`: quando campos terminais estiverem materializados no ledger, em `referencia_original` ou em metadados, bloqueia ganho terminal negativo, objetivo terminal explicitamente não atendido ou violação terminal explícita; sem evidência terminal, registra aviso/não aplicabilidade sem buscar fora do ledger.
+
+A Etapa 7 continua consumindo exclusivamente `LedgerTemporalCanonico` e suas evidências já materializadas. Não houve alteração em console, XLSX, dados, saída canônica ou scripts diagnósticos.

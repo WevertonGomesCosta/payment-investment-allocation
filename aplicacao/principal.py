@@ -45,7 +45,14 @@ def main():
 
     _ = resultado_motor_temporal_conjunto
     _ = ledger_temporal_canonico
-    _ = resultado_gates_validacao_nucleo
+
+    if not resultado_gates_validacao_nucleo.pronto_para_etapa8:
+        print(
+            "Execução bloqueada pelos gates de validação de núcleo: "
+            "ResultadoGatesValidacaoNucleo.pronto_para_etapa8=False. "
+            "Console e XLSX oficiais não foram gerados."
+        )
+        return None
 
     render_console(contexto_operacional_canonico, saida_canonica, estado_temporal_inicial=estado_temporal_inicial)
 
