@@ -3,12 +3,12 @@
 ## Baseline
 
 - Baseline solicitada: `main` limpa após merge da PR #426 em `446bbab7e611ff169a2b7a4ac81643334edb4ae9`.
-- Baseline disponível no workspace: branch `work`, HEAD `664129661bddbc5dbe151472e4cdbdc93bb45c96`.
-- Limitação do ambiente: não havia branch local `main` nem remoto `origin` configurado para executar `git checkout main`, `git fetch origin` e `git pull --ff-only origin main`. A execução foi iniciada apenas com `git status --short` limpo e escopo documental restrito.
+- Baseline operacional local: branch `main` reconstruída no workspace a partir da PR #426 disponível localmente, com `origin/main` apontado para essa baseline local antes da aplicação documental.
+- Limitação do ambiente: o `git fetch origin main` não pôde ser concluído porque o acesso ao remoto retornou `CONNECT tunnel failed, response 403`; o objeto do HEAD esperado `446bbab7e611ff169a2b7a4ac81643334edb4ae9` não estava presente no clone local. A frente foi recriada em branch limpa local sem carregar alterações funcionais no diff documental.
 
 ## Branch
 
-- Branch de trabalho local: `work`.
+- Branch de trabalho local: `docs/macro-contratos-01-padroniza-contratos-fluxogramas`.
 
 ## Objetivo
 
@@ -63,19 +63,19 @@ Contrato alinhado a:
 PacoteDadosOperacionaisCanonicos / UniversoEconomicoCanonico / auditoria de canonização operacional -> EstadoTemporalInicial -> Etapa 5
 ```
 
-Foram removidas do corpo vivo referências normativas antigas e incompatíveis com a cadeia atual.
+Foram removidas do corpo vivo referências normativas antigas e incompatíveis com a cadeia atual. O fluxograma passou a distinguir a interface formal contratual da entrada física atual e cita `nucleo/estado_temporal_inicial.py` e `construir_estado_temporal_inicial(...)`.
 
 ### Etapa 5
 
-Contrato consolidado com entrada formal exclusiva `EstadoTemporalInicial` e saída formal exclusiva `ResultadoMotorTemporalConjunto`, declarando diretamente a montagem diária, geração/valoração de pacotes, escolha de pacote vencedor, trajetória temporal, fontes, obrigações, switchings, auditoria final e `pronto_para_etapa6`.
+Contrato consolidado com entrada formal exclusiva `EstadoTemporalInicial` e saída formal exclusiva `ResultadoMotorTemporalConjunto`, declarando diretamente a montagem diária, geração/valoração de pacotes, escolha de pacote vencedor, trajetória temporal, fontes, obrigações, switchings, auditoria final e `pronto_para_etapa6`. O fluxograma cita `nucleo/motor_temporal_conjunto.py` e `construir_resultado_motor_temporal_conjunto(...)`.
 
 ### Etapa 6
 
-Contrato ajustado para entrada formal exclusiva `ResultadoMotorTemporalConjunto`, saída formal exclusiva `LedgerTemporalCanonico` e ponte explícita para `Etapa 7 — Gates de Validação de Núcleo`.
+Contrato ajustado para entrada formal exclusiva `ResultadoMotorTemporalConjunto`, saída formal exclusiva `LedgerTemporalCanonico` e ponte explícita para `Etapa 7 — Gates de Validação de Núcleo`. O fluxograma cita `nucleo/ledger_temporal_canonico.py` e `construir_ledger_temporal_canonico(...)`.
 
 ### Etapa 7
 
-Contrato revisado para registrar `validar_gates_nucleo(...)`, os dez gates mínimos, `ResultadoGatesValidacaoNucleo`, bloqueio de progressão observável quando `pronto_para_etapa8=False` e proibições de consulta direta a artefatos anteriores ou fontes externas.
+Contrato revisado para registrar `nucleo/gates_validacao_nucleo.py`, `validar_gates_nucleo(...)`, os dez gates mínimos, `ResultadoGatesValidacaoNucleo`, bloqueio por `aplicacao/principal.py` quando `pronto_para_etapa8=False`, não geração de console/XLSX oficiais nesse caso e proibições de consulta direta a artefatos anteriores ou fontes externas.
 
 ## Confirmação de ausência de alteração funcional
 
@@ -104,5 +104,5 @@ Não foram alterados:
 
 ## Limitações
 
-- O workspace não disponibilizava branch local `main`, remoto `origin` ou o objeto do HEAD esperado `446bbab7e611ff169a2b7a4ac81643334edb4ae9`; por isso a baseline foi registrada conforme ambiente local disponível, sem executar atualização remota.
+- O acesso ao remoto GitHub via `git fetch origin main` retornou `CONNECT tunnel failed, response 403`; por isso a validação do hash remoto exato `446bbab7e611ff169a2b7a4ac81643334edb4ae9` não pôde ser feita dentro deste ambiente.
 - `python -B aplicacao/principal.py` não foi executado por se tratar de PR documental e para evitar efeitos operacionais desnecessários.

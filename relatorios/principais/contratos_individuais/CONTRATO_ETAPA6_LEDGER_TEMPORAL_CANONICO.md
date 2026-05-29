@@ -175,18 +175,20 @@ A Etapa 6 é aceita quando:
 
 ```mermaid
 flowchart TD
-    A[ResultadoMotorTemporalConjunto] --> B[verificar interface contratual]
-    B --> C[extrair horizonte e data de referência]
-    C --> D[materializar eventos referenciais]
-    D --> E[materializar obrigações cobertas]
-    E --> F[materializar obrigações bloqueadas]
-    F --> G[materializar fontes utilizadas e reservadas]
-    G --> H[materializar switchings escolhidos]
-    H --> I[materializar saldos referenciais por data]
-    I --> J[preservar bloqueios e avisos]
-    J --> K[auditar LedgerTemporalCanonico]
-    K --> L[LedgerTemporalCanonico]
-    L --> M[Etapa 7 — Gates de Validação de Núcleo]
+    A[ResultadoMotorTemporalConjunto] --> B[nucleo/ledger_temporal_canonico.py]
+    B --> C[construir_ledger_temporal_canonico(...)]
+    C --> D[verificar interface contratual]
+    D --> E[extrair horizonte e data de referência]
+    E --> F[materializar eventos referenciais]
+    F --> G[materializar obrigações cobertas]
+    G --> H[materializar obrigações bloqueadas]
+    H --> I[materializar fontes utilizadas e reservadas]
+    I --> J[materializar switchings escolhidos]
+    J --> K[materializar saldos referenciais por data]
+    K --> L[preservar bloqueios e avisos]
+    L --> M[auditar LedgerTemporalCanonico]
+    M --> N[LedgerTemporalCanonico]
+    N --> O[Etapa 7 — Gates de Validação de Núcleo]
 ```
 
 ## 18. Condição de parada

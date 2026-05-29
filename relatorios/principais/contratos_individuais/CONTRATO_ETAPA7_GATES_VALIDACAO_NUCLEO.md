@@ -194,19 +194,23 @@ A Etapa 7 é aceita quando:
 
 ```mermaid
 flowchart TD
-    A[LedgerTemporalCanonico] --> B[validar_gates_nucleo]
-    B --> C[gate_origem_exclusiva_ledger]
-    C --> D[gate_auditoria_ledger]
-    D --> E[gate_obrigacoes_cobertas]
-    E --> F[gate_obrigacoes_bloqueadas]
-    F --> G[gate_fontes_utilizadas]
-    G --> H[gate_fontes_reservadas]
-    H --> I[gate_saldos_residuais]
-    I --> J[gate_switchings]
-    J --> K[gate_dupla_contagem]
-    K --> L[gate_bloqueios_prontidao]
-    L --> M[ResultadoGatesValidacaoNucleo]
-    M --> N[Etapa 8 — Saída Canônica Validada]
+    A[LedgerTemporalCanonico] --> B[nucleo/gates_validacao_nucleo.py]
+    B --> C[validar_gates_nucleo(...)]
+    C --> D[gate_origem_exclusiva_ledger]
+    D --> E[gate_auditoria_ledger]
+    E --> F[gate_obrigacoes_cobertas]
+    F --> G[gate_obrigacoes_bloqueadas]
+    G --> H[gate_fontes_utilizadas]
+    H --> I[gate_fontes_reservadas]
+    I --> J[gate_saldos_residuais]
+    J --> K[gate_switchings]
+    K --> L[gate_dupla_contagem]
+    L --> M[gate_bloqueios_prontidao]
+    M --> N[ResultadoGatesValidacaoNucleo]
+    N --> O{pronto_para_etapa8?}
+    O -- não --> P[aplicacao/principal.py bloqueia progressão observável]
+    P --> Q[console/XLSX oficiais não são gerados]
+    O -- sim --> R[Etapa 8 — Saída Canônica Validada]
 ```
 
 ## 18. Condição de parada

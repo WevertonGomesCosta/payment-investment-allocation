@@ -174,18 +174,20 @@ A Etapa 5 é aceita quando:
 
 ```mermaid
 flowchart TD
-    A[EstadoTemporalInicial] --> B[verificar interface contratual]
-    B --> C[definir horizonte e índice temporal]
-    C --> D[montar estrutura diária referencial]
-    D --> E[gerar pacotes candidatos conjuntos]
-    E --> F[valorar pacotes]
-    F --> G[selecionar pacote vencedor por data]
-    G --> H[aplicar trajetória temporal interna]
-    H --> I[registrar eventos internos referenciais]
-    I --> J[registrar fontes, obrigações e switchings referenciais]
-    J --> K[auditoria final e fechamento funcional]
-    K --> L[ResultadoMotorTemporalConjunto]
-    L --> M[Etapa 6 — Ledger Temporal Canônico]
+    A[EstadoTemporalInicial] --> B[nucleo/motor_temporal_conjunto.py]
+    B --> C[construir_resultado_motor_temporal_conjunto(...)]
+    C --> D[verificar interface contratual]
+    D --> E[definir horizonte e índice temporal]
+    E --> F[montar estrutura diária referencial]
+    F --> G[gerar pacotes candidatos conjuntos]
+    G --> H[valorar pacotes]
+    H --> I[selecionar pacote vencedor por data]
+    I --> J[aplicar trajetória temporal interna]
+    J --> K[registrar eventos internos referenciais]
+    K --> L[registrar fontes, obrigações e switchings referenciais]
+    L --> M[auditoria final e fechamento funcional]
+    M --> N[ResultadoMotorTemporalConjunto]
+    N --> O[Etapa 6 — Ledger Temporal Canônico]
 ```
 
 ## 18. Condição de parada

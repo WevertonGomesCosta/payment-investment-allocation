@@ -149,19 +149,21 @@ A Etapa 4 é aceita quando:
 
 ```mermaid
 flowchart TD
-    A[PacoteDadosOperacionaisCanonicos] --> D[construir_estado_temporal_inicial]
+    A[PacoteDadosOperacionaisCanonicos] --> D[interface formal contratual da Etapa 3]
     B[UniversoEconomicoCanonico] --> D
     C[PacoteAuditoriaCanonizacaoOperacional] --> D
-    D --> E[inventario_temporal]
-    E --> F[pagamentos_temporais]
-    F --> G[recebidos_temporais]
-    G --> H[fontes_temporais]
-    H --> I[switching_temporal_realizado]
-    I --> J[restricoes_temporais]
-    J --> K[elegibilidades_preliminares]
-    K --> L[auditoria_temporal]
-    L --> M[EstadoTemporalInicial]
-    M --> N[Etapa 5 — Motor Temporal Conjunto]
+    D --> E[interface física atual em nucleo/estado_temporal_inicial.py]
+    E --> F[construir_estado_temporal_inicial(...)]
+    F --> G[inventario_temporal]
+    G --> H[pagamentos_temporais]
+    H --> I[recebidos_temporais]
+    I --> J[fontes_temporais]
+    J --> K[switching_temporal_realizado]
+    K --> L[restricoes_temporais]
+    L --> M[elegibilidades_preliminares]
+    M --> N[auditoria_temporal]
+    N --> O[EstadoTemporalInicial]
+    O --> P[Etapa 5 — Motor Temporal Conjunto]
 ```
 
 ## 18. Condição de parada
