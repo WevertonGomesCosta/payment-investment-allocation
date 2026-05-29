@@ -137,3 +137,18 @@ Resultado resumido:
 - Estado temporal inicial não foi alterado.
 - Não houve renderização nova.
 - Não houve execução real de pagamento ou switching.
+
+## Correção pós-auditoria PR #426 — comentários P2
+
+Correção aplicada sobre a PR #426 para endereçar os seis comentários P2 ainda procedentes:
+
+1. `gate_dupla_contagem` deixou de usar deduplicação por `dict comprehension` em obrigações cobertas; agora itera com `seen set` e bloqueia duplicidade de `(obrigacao_id, data)` antes de manter a chave para comparações com obrigações bloqueadas.
+2. Foi criado helper interno para finalizar gates sem evidência mínima. Quando `ParametrosGatesValidacaoNucleo.bloquear_sem_evidencia_minima=True`, ausência de evidência mínima em obrigações cobertas, obrigações bloqueadas, fontes utilizadas, fontes reservadas, saldos residuais e switchings gera bloqueio em vez de apenas `nao_aplicavel`.
+3. `gate_obrigacoes_cobertas` agora compara `obrigacao.data` com datas preservadas em `referencia_original` (`data_pagamento`, `data_vencimento`, `Data`, `data`, `vencimento`) e bloqueia divergência material usando somente dados materializados no ledger.
+4. `gate_fontes_reservadas` agora valida liquidez/carência quando a evidência existe no próprio item, em `referencia_original` ou em metadados do lançamento: `elegivel_na_data_pagamento=False`, `elegivel=False`, `liquido=False` e `carencia_ate_origem`/`carencia_ate` posterior à data da reserva geram bloqueio.
+5. `gate_obrigacoes_cobertas` agora exige que cada `fonte_id` em `fontes_referenciadas` exista em `ledger.fontes_utilizadas` ou `ledger.fontes_reservadas` com compatibilidade mínima de data, pacote e obrigação quando esses campos estiverem disponíveis.
+6. `gate_fontes_reservadas` agora acumula reservas por `(fonte_id, data)` e bloqueia sobre-reserva quando a soma reservada excede o saldo disponível antes máximo preservado no ledger além de `tolerancia_residual`.
+
+As correções continuam consumindo exclusivamente `LedgerTemporalCanonico` como entrada formal de estado. Não houve consulta direta a `ResultadoMotorTemporalConjunto`, `EstadoTemporalInicial`, planilha, console, XLSX, dados brutos, logs externos, diagnósticos ou saída observável pela Etapa 7.
+
+Confirmação de escopo pós-correção: console, XLSX, dados, saída canônica e scripts diagnósticos não foram alterados.
