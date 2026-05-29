@@ -181,3 +181,14 @@ Regra conservadora para evitar dupla soma entre `fontes_utilizadas` e `fontes_re
 4. dentro do conjunto escolhido, movimentos com a mesma chave `(fonte_id, data, pacote_id)` são deduplicados de forma conservadora pelo maior valor materializado para evitar dupla contagem do mesmo movimento.
 
 A correção continua consumindo exclusivamente `LedgerTemporalCanonico` (`obrigacoes_cobertas`, `fontes_utilizadas`, `fontes_reservadas` e campos/metadados/referências já materializados). Não houve alteração em console, XLSX, dados, saída canônica ou scripts diagnósticos.
+
+## Correção pós-reauditoria PR #426 — P2 de reconciliação conservadora
+
+Foram corrigidos os quatro P2 atuais apontados após a reconciliação agregada:
+
+1. A reconciliação individual de `gate_obrigacoes_cobertas` passou a usar a mesma regra sem dupla soma da reconciliação agregada: fontes utilizadas compatíveis são preferenciais; fontes reservadas só entram quando não há fontes utilizadas compatíveis; o conjunto escolhido é deduplicado por `(fonte_id, data, pacote_id)` com o maior valor materializado.
+2. Obrigações cobertas sem `valor_obrigacao_referencial` ou sem `valor_coberto_referencial` agora geram bloqueio específico, pois o pagamento integral não pode ser validado sem esses valores mínimos materializados no ledger.
+3. `gate_fontes_utilizadas` passou a acumular usos por `(fonte_id, data)` e comparar a soma usada contra o saldo disponível antes máximo preservado no ledger, bloqueando sobreuso acumulado além de `tolerancia_residual`.
+4. `gate_saldos_residuais` passou a exigir saldo residual para toda fonte/data movimentada em `fontes_utilizadas` ou `fontes_reservadas`; quando o saldo existe, continua reconciliando contra o menor `valor_disponivel_depois_referencial` materializado nos movimentos.
+
+A Etapa 7 continua consumindo exclusivamente `LedgerTemporalCanonico`, usando apenas `obrigacoes_cobertas`, `fontes_utilizadas`, `fontes_reservadas`, `saldos_referenciais_por_data` e campos/metadados/referências já materializados. Não houve alteração em console, XLSX, dados, saída canônica ou scripts diagnósticos.

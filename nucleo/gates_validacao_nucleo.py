@@ -617,6 +617,12 @@ def _gate_obrigacoes_cobertas(ledger: LedgerTemporalCanonico, parametros: Parame
 
         valor_obrigacao = _float_ou_none(_valor(obrigacao, 'valor_obrigacao_referencial'))
         valor_coberto = _float_ou_none(_valor(obrigacao, 'valor_coberto_referencial'))
+        if valor_obrigacao is None:
+            evidencia = _nova_evidencia(gate.gate_id, data_obrigacao, 'obrigacao_coberta', entidade_id, 'valor_obrigacao_referencial', None, 'valor obrigatório materializado no ledger', None, 'bloqueio', 'Obrigação coberta sem valor de obrigação referencial mínimo.', _referencias(obrigacao, indice))
+            _adicionar_bloqueio(gate, 'obrigacao_coberta_sem_valor_obrigacao', 'Obrigação coberta não possui valor_obrigacao_referencial para validar pagamento integral.', data_obrigacao, 'obrigacao_coberta', entidade_id, evidencia)
+        if valor_coberto is None:
+            evidencia = _nova_evidencia(gate.gate_id, data_obrigacao, 'obrigacao_coberta', entidade_id, 'valor_coberto_referencial', None, 'valor coberto materializado no ledger', None, 'bloqueio', 'Obrigação coberta sem valor coberto referencial mínimo.', _referencias(obrigacao, indice))
+            _adicionar_bloqueio(gate, 'obrigacao_coberta_sem_valor_coberto', 'Obrigação coberta não possui valor_coberto_referencial para validar pagamento integral.', data_obrigacao, 'obrigacao_coberta', entidade_id, evidencia)
         if valor_obrigacao is not None and valor_coberto is not None:
             diferenca = round(valor_coberto - valor_obrigacao, 10)
             if abs(diferenca) > parametros.tolerancia_valor:
@@ -630,11 +636,17 @@ def _gate_obrigacoes_cobertas(ledger: LedgerTemporalCanonico, parametros: Parame
         fontes_compativeis: list[Any] = []
         for fonte_id in fontes:
             fonte_id_str = str(fonte_id)
-            fontes_da_obrigacao = [
+            utilizadas_da_obrigacao = [
                 fonte
-                for fonte in fontes_materializadas
+                for fonte in fontes_utilizadas
                 if str(_valor(fonte, 'fonte_id')) == fonte_id_str and _fonte_compativel_com_obrigacao(fonte, obrigacao)
             ]
+            reservadas_da_obrigacao = [
+                fonte
+                for fonte in fontes_reservadas
+                if str(_valor(fonte, 'fonte_id')) == fonte_id_str and _fonte_compativel_com_obrigacao(fonte, obrigacao)
+            ]
+            fontes_da_obrigacao = utilizadas_da_obrigacao if utilizadas_da_obrigacao else reservadas_da_obrigacao
             fontes_compativeis.extend(fontes_da_obrigacao)
             if not fontes_da_obrigacao:
                 evidencia = _nova_evidencia(
@@ -652,7 +664,7 @@ def _gate_obrigacoes_cobertas(ledger: LedgerTemporalCanonico, parametros: Parame
                 )
                 _adicionar_bloqueio(gate, 'fonte_referenciada_nao_materializada', 'Fonte referenciada pela obrigação coberta não foi materializada no ledger.', data_obrigacao, 'obrigacao_coberta', entidade_id, evidencia)
         if fontes and valor_coberto is not None:
-            soma_fontes = sum(_valor_movimento_fonte(fonte) or 0.0 for fonte in fontes_compativeis)
+            soma_fontes = _total_fontes_sem_dupla_soma(fontes_compativeis)
             diferenca_fontes = round(valor_coberto - soma_fontes, 10)
             if diferenca_fontes > parametros.tolerancia_valor:
                 evidencia = _nova_evidencia(
@@ -731,6 +743,7 @@ def _gate_obrigacoes_cobertas(ledger: LedgerTemporalCanonico, parametros: Parame
                 },
             )
             _adicionar_bloqueio(gate, 'valor_coberto_agregado_sem_lastro_em_fontes', 'Valor coberto agregado por pacote/data excede fontes materializadas compatíveis no ledger.', data_grupo, 'grupo_obrigacoes_cobertas', str(grupo_id) if grupo_id is not None else None, evidencia)
+    gate.resumo['regra_lastro_individual'] = 'fontes_utilizadas_preferenciais; fontes_reservadas_apenas_quando_sem_utilizadas; dedup_por_fonte_data_pacote'
     gate.resumo['regra_lastro_agregado'] = 'fontes_utilizadas_preferenciais; fontes_reservadas_apenas_quando_sem_utilizadas; sem_soma_dupla_utilizadas_reservadas'
     gate.resumo['qtd_grupos_cobertura_agregada'] = len(grupos_cobertura)
 
@@ -777,6 +790,7 @@ def _gate_fontes_utilizadas(ledger: LedgerTemporalCanonico, parametros: Parametr
             ledger.data_referencia,
         )
 
+    usos_por_chave: dict[tuple[object, object], dict[str, object]] = {}
     for indice, fonte in enumerate(fontes):
         entidade_id = _id_entidade(fonte, 'fonte_id', 'pacote_id')
         if not _valor(fonte, 'fonte_id'):
@@ -790,6 +804,16 @@ def _gate_fontes_utilizadas(ledger: LedgerTemporalCanonico, parametros: Parametr
         antes = _float_ou_none(_valor(fonte, 'valor_disponivel_antes_referencial'))
         depois = _float_ou_none(_valor(fonte, 'valor_disponivel_depois_referencial'))
         uso = _float_ou_none(_valor(fonte, 'valor_referencial'))
+        chave_uso = (_valor(fonte, 'fonte_id'), _valor(fonte, 'data'))
+        if chave_uso[0] is not None and uso is not None:
+            acumulado = usos_por_chave.setdefault(
+                chave_uso,
+                {'total': 0.0, 'saldo_antes_maximo': None, 'indice': indice, 'fonte': fonte},
+            )
+            acumulado['total'] = float(acumulado['total']) + uso
+            if antes is not None:
+                saldo_antes_maximo = acumulado['saldo_antes_maximo']
+                acumulado['saldo_antes_maximo'] = antes if saldo_antes_maximo is None else max(float(saldo_antes_maximo), antes)
         if antes is not None and depois is not None and uso is not None:
             diferenca = round((antes - uso) - depois, 10)
             if abs(diferenca) > parametros.tolerancia_residual:
@@ -800,6 +824,26 @@ def _gate_fontes_utilizadas(ledger: LedgerTemporalCanonico, parametros: Parametr
             _adicionar_aviso(gate, 'fonte_utilizada_sem_associacao', 'Fonte utilizada sem obrigação ou pacote associado no ledger.', _valor(fonte, 'data'), 'fonte_utilizada', entidade_id, evidencia)
         if parametros.validar_liquidez_carencia_quando_disponivel:
             _validar_liquidez_carencia_materializada(gate, fonte, 'fonte_utilizada', entidade_id, indice, _valor(fonte, 'data'))
+    for chave, acumulado in usos_por_chave.items():
+        saldo_antes_maximo = acumulado.get('saldo_antes_maximo')
+        total_usado = float(acumulado.get('total', 0.0))
+        if saldo_antes_maximo is not None and total_usado - float(saldo_antes_maximo) > parametros.tolerancia_residual:
+            fonte_referencia = acumulado.get('fonte')
+            evidencia = _nova_evidencia(
+                gate.gate_id,
+                chave[1],
+                'fonte_utilizada',
+                str(chave[0]),
+                'soma_usada_por_fonte_data',
+                total_usado,
+                saldo_antes_maximo,
+                round(total_usado - float(saldo_antes_maximo), 10),
+                'bloqueio',
+                'Soma acumulada de usos por fonte/data excede o saldo disponível antes preservado no ledger.',
+                _referencias(fonte_referencia, int(acumulado.get('indice', 0)) if fonte_referencia is not None else None),
+            )
+            _adicionar_bloqueio(gate, 'sobre_uso_acumulado', 'Usos acumulados excedem saldo disponível antes no ledger.', chave[1], 'fonte_utilizada', str(chave[0]), evidencia)
+    gate.resumo['qtd_chaves_fontes_utilizadas_acumuladas'] = len(usos_por_chave)
     return _finalizar_gate(gate, len(fontes))
 
 
@@ -878,21 +922,16 @@ def _gate_fontes_reservadas(ledger: LedgerTemporalCanonico, parametros: Parametr
 def _gate_saldos_residuais(ledger: LedgerTemporalCanonico, parametros: ParametrosGatesValidacaoNucleo) -> GateValidacaoNucleo:
     gate = _novo_gate('gate_saldos_residuais', 'Saldos residuais')
     saldos_por_data = dict(ledger.saldos_referenciais_por_data or {})
-    if not saldos_por_data:
-        return _finalizar_gate_sem_evidencia_minima(
-            gate,
-            parametros,
-            'Ledger não disponibiliza saldos referenciais por data para validação.',
-            'saldo_referencial',
-            ledger.data_referencia,
-        )
-
-    saldos_depois_movimentos: dict[tuple[object, object], dict[str, object]] = {}
     movimentos = list(ledger.fontes_utilizadas or []) + list(ledger.fontes_reservadas or [])
+    movimentos_por_chave: dict[tuple[object, object], dict[str, object]] = {}
+    saldos_depois_movimentos: dict[tuple[object, object], dict[str, object]] = {}
     for indice_movimento, movimento in enumerate(movimentos):
         chave = (_valor(movimento, 'fonte_id'), _valor(movimento, 'data'))
+        if chave[0] is None or chave[1] is None:
+            continue
+        movimentos_por_chave.setdefault(chave, {'movimento': movimento, 'indice': indice_movimento})
         saldo_depois = _float_ou_none(_valor(movimento, 'valor_disponivel_depois_referencial'))
-        if chave[0] is None or chave[1] is None or saldo_depois is None:
+        if saldo_depois is None:
             continue
         atual = saldos_depois_movimentos.get(chave)
         if atual is None or saldo_depois < float(atual['saldo_depois']):
@@ -902,6 +941,34 @@ def _gate_saldos_residuais(ledger: LedgerTemporalCanonico, parametros: Parametro
                 'indice': indice_movimento,
             }
 
+    if not saldos_por_data:
+        if not movimentos_por_chave:
+            return _finalizar_gate_sem_evidencia_minima(
+                gate,
+                parametros,
+                'Ledger não disponibiliza saldos referenciais por data para validação.',
+                'saldo_referencial',
+                ledger.data_referencia,
+            )
+        for chave, info_movimento in movimentos_por_chave.items():
+            evidencia = _nova_evidencia(
+                gate.gate_id,
+                chave[1],
+                'saldo_referencial',
+                str(chave[0]),
+                'saldos_referenciais_por_data',
+                None,
+                'saldo residual correspondente para fonte/data movimentada',
+                None,
+                'bloqueio',
+                'Fonte movimentada não possui saldo residual correspondente no ledger.',
+                _referencias(info_movimento.get('movimento'), int(info_movimento.get('indice', 0))),
+            )
+            _adicionar_bloqueio(gate, 'saldo_residual_ausente_para_fonte_movimentada', 'Fonte movimentada sem saldo residual correspondente no ledger.', chave[1], 'saldo_referencial', str(chave[0]), evidencia)
+        gate.resumo['qtd_fontes_movimentadas_sem_saldo'] = len(movimentos_por_chave)
+        return _finalizar_gate(gate, 0)
+
+    chaves_saldos: set[tuple[object, object]] = set()
     qtd_saldos = 0
     for data_ref, saldos in saldos_por_data.items():
         if not saldos:
@@ -911,6 +978,9 @@ def _gate_saldos_residuais(ledger: LedgerTemporalCanonico, parametros: Parametro
             qtd_saldos += 1
             entidade_id = _id_entidade(saldo, 'fonte_id', 'pacote_id')
             data_saldo = _valor(saldo, 'data', data_ref)
+            chave_saldo = (_valor(saldo, 'fonte_id'), data_saldo)
+            if chave_saldo[0] is not None and chave_saldo[1] is not None:
+                chaves_saldos.add(chave_saldo)
             valor_disponivel = _float_ou_none(_valor(saldo, 'valor_disponivel_referencial'))
             if valor_disponivel is not None and valor_disponivel < -abs(parametros.tolerancia_residual):
                 evidencia = _nova_evidencia(gate.gate_id, data_saldo, 'saldo_referencial', entidade_id, 'valor_disponivel_referencial', valor_disponivel, '>= 0', valor_disponivel, 'bloqueio', 'Saldo referencial negativo além da tolerância residual.', _referencias(saldo, indice))
@@ -919,7 +989,6 @@ def _gate_saldos_residuais(ledger: LedgerTemporalCanonico, parametros: Parametro
             if reservado is not None and reservado < -abs(parametros.tolerancia_residual):
                 evidencia = _nova_evidencia(gate.gate_id, data_saldo, 'saldo_referencial', entidade_id, 'valor_reservado_acumulado_referencial', reservado, '>= 0', reservado, 'bloqueio', 'Reservado acumulado negativo além da tolerância residual.', _referencias(saldo, indice))
                 _adicionar_bloqueio(gate, 'reservado_acumulado_negativo_material', 'Reservado acumulado negativo além da tolerância.', data_saldo, 'saldo_referencial', entidade_id, evidencia)
-            chave_saldo = (_valor(saldo, 'fonte_id'), data_saldo)
             movimento_restritivo = saldos_depois_movimentos.get(chave_saldo)
             if valor_disponivel is not None and movimento_restritivo is not None:
                 saldo_depois_movimento = float(movimento_restritivo['saldo_depois'])
@@ -943,7 +1012,25 @@ def _gate_saldos_residuais(ledger: LedgerTemporalCanonico, parametros: Parametro
                         },
                     )
                     _adicionar_bloqueio(gate, 'saldo_residual_divergente_movimento_fonte', 'Saldo residual diverge do saldo depois mais restritivo dos movimentos de fonte.', data_saldo, 'saldo_referencial', entidade_id, evidencia)
+    chaves_movimentos_sem_saldo = set(movimentos_por_chave) - chaves_saldos
+    for chave in chaves_movimentos_sem_saldo:
+        info_movimento = movimentos_por_chave[chave]
+        evidencia = _nova_evidencia(
+            gate.gate_id,
+            chave[1],
+            'saldo_referencial',
+            str(chave[0]),
+            'saldos_referenciais_por_data',
+            None,
+            'saldo residual correspondente para fonte/data movimentada',
+            None,
+            'bloqueio',
+            'Fonte movimentada não possui saldo residual correspondente no ledger.',
+            _referencias(info_movimento.get('movimento'), int(info_movimento.get('indice', 0))),
+        )
+        _adicionar_bloqueio(gate, 'saldo_residual_ausente_para_fonte_movimentada', 'Fonte movimentada sem saldo residual correspondente no ledger.', chave[1], 'saldo_referencial', str(chave[0]), evidencia)
     gate.resumo['criterio_movimentos_multiplos'] = 'menor_valor_disponivel_depois_referencial'
+    gate.resumo['qtd_fontes_movimentadas_sem_saldo'] = len(chaves_movimentos_sem_saldo)
     return _finalizar_gate(gate, qtd_saldos)
 
 def _gate_switchings(ledger: LedgerTemporalCanonico, parametros: ParametrosGatesValidacaoNucleo) -> GateValidacaoNucleo:
