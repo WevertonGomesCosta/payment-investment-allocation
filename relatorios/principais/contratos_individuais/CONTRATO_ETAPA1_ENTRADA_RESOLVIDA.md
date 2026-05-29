@@ -1,53 +1,69 @@
-# CONTRATO INDIVIDUAL DA ETAPA 1 — PACOTEENTRADARESOLVIDA
+# Contrato Individual — Etapa 1 — Entrada Resolvida
 
-> Cópia canônica derivada do documento-fonte já existente:
->
-> `logs/iteracoes/ME-V17-F0-V32A_FORMALIZA_ETAPA1_PACOTE_ENTRADA_RESOLVIDA.md`
->
-> O documento original permanece preservado como log histórico. Esta cópia organiza o mesmo contrato individual na pasta canônica `relatorios/principais/contratos_individuais/`.
+## 1. Identificação documental
 
-## 1. Identificação do documento-fonte
+- **Etapa:** 1
+- **Nome:** Entrada Resolvida
+- **Saída formal obrigatória:** `PacoteEntradaResolvida`
+- **Natureza:** resolução física, estrutural e auditável da entrada bruta
+- **Módulos centrais:** `nucleo/contexto_baseline.py`, `nucleo/ambiente.py`, `nucleo/carregador_config.py`, `nucleo/leitor_planilha.py`, `nucleo/cache_cdi_bcb.py`
+- **Função orquestradora histórica:** `carregar_contexto_baseline(...)`
 
-- MICROETAPA: V17-F0-V.3.2A
-- TIPO: DOCUMENTAL / ARQUITETURAL
-- CLASSE: FORMALIZA_ETAPA1_COMO_PACOTE_ENTRADA_RESOLVIDA
-- ALTERA CÓDIGO: NÃO
-- ALTERA MOTOR: NÃO
-- ALTERA SAÍDA CANÔNICA: NÃO
-- ALTERA DADOS: NÃO
-- ALTERA CACHE: NÃO
-- ALTERA RENDERIZAÇÃO: NÃO
+## 2. Status normativo
 
-## 2. Problema motivador
+Este contrato formaliza a Etapa 1 como produtora de um artefato único, auditável e consumível pelas etapas posteriores: `PacoteEntradaResolvida`.
 
-A Etapa 1 ainda podia ser lida como um conjunto solto de configuração, ambiente e planilha.
+A Etapa 1 resolve a entrada bruta, mas não produz dados operacionais canônicos, não decide pagamentos, não calcula rendimento econômico e não gera saída observável.
 
-Funções de aliases, resolução de abas, resolução de colunas e canonização estrutural estavam conceitualmente dispersas entre camadas. Como consequência, as Etapas 2 e 3 poderiam recriar resolução de entrada, aumentando duplicidade de funções, divergência semântica e dificuldade de continuidade do pipeline.
-
-A microetapa formalizou a Etapa 1 como produtora de um artefato único e auditável:
-
-`PacoteEntradaResolvida`
-
-## 3. Decisão arquitetural
-
-A Etapa 1 passa a ser formalizada como:
+## 3. Posição na cadeia macro
 
 ```text
-ambiente mínimo
-+ config operacional
-+ ambiente final com data de referência
-+ planilha
-+ resolução estrutural de abas e colunas
-+ janela bruta para CDI
-+ cache BCB/CDI auditado
-+ PacoteEntradaResolvida
+Origem física/configuração/planilha/cache -> Etapa 1 -> PacoteEntradaResolvida -> Etapa 2
 ```
 
-O `PacoteEntradaResolvida` deve ser validado pela Etapa 2 e consumido pela Etapa 3.
+## 4. Função da etapa
 
-## 4. Conteúdo conceitual do PacoteEntradaResolvida
+A Etapa 1 resolve ambiente, configuração, planilha, abas, colunas, quadros estruturais e cache CDI/BCB em um pacote único.
 
-O `PacoteEntradaResolvida` contém:
+Sua função é transformar entradas físicas dispersas em uma entrada resolvida, estruturalmente auditável e pronta para validação pré-execução pela Etapa 2.
+
+## 5. Entrada formal obrigatória e exclusiva
+
+A entrada da Etapa 1 é composta por insumos físicos e operacionais brutos:
+
+- ambiente mínimo de execução;
+- configuração operacional;
+- planilha operacional bruta;
+- aliases e regras de resolução estrutural;
+- cache CDI/BCB local ou série CDI obtida externamente;
+- data de referência operacional.
+
+Esses insumos ainda não são artefatos canônicos de etapas posteriores.
+
+## 6. Componentes consumíveis da entrada
+
+A Etapa 1 pode consumir:
+
+- `dados/config_atualizado.json`;
+- planilha local ou fonte configurada da planilha;
+- nomes físicos de abas;
+- colunas físicas dos quadros brutos;
+- aliases declarados para abas e colunas;
+- cache CDI/BCB;
+- série CDI/BCB para atualização do cache;
+- ambiente e dependências mínimas.
+
+## 7. Saída formal obrigatória
+
+A saída formal obrigatória da Etapa 1 é:
+
+```text
+PacoteEntradaResolvida
+```
+
+## 8. Componentes mínimos da saída
+
+`PacoteEntradaResolvida` deve conter, no mínimo:
 
 - `PacoteConfig`;
 - `ContextoExecucao`;
@@ -62,8 +78,6 @@ O `PacoteEntradaResolvida` contém:
 - `AuditoriaResolucaoEntrada`;
 - `AuditoriaCacheCDI`.
 
-## 5. Conteúdo normativo do PacotePlanilha
-
 O `PacotePlanilha`, dentro do `PacoteEntradaResolvida`, contém as cinco famílias operacionais em forma bruta e estruturalmente resolvida:
 
 1. `Carteira`;
@@ -72,57 +86,41 @@ O `PacotePlanilha`, dentro do `PacoteEntradaResolvida`, contém as cinco famíli
 4. `Inventário de Lotes`;
 5. `Switching` / switchings já realizados brutos.
 
-Esses quadros não são artefatos operacionais canônicos.
-
-Eles são entradas estruturais validáveis pela Etapa 2 e transformáveis pela Etapa 3.
-
-## 6. Distinção entre Etapa 1 e Etapa 3
-
-Na Etapa 1, `quadros_canonicos`, quando esse nome aparecer no código existente, deve ser interpretado conceitualmente como:
-
-`quadros_estruturais_resolvidos`
-
-Dados operacionais canônicos pertencem à Etapa 3.
-
-Não pertencem à Etapa 1:
-
-- carteira canônica;
-- gastos canônicos;
-- salários canônicos;
-- switching canônico;
-- inventário canônico;
-- integração entre `Inventário de Lotes` e switchings já realizados.
-
-## 7. Cache BCB/CDI
-
-O cache CDI/BCB entra na Etapa 1 como insumo externo bruto, cacheável e auditável.
+## 9. Processo interno da etapa
 
 A Etapa 1 deve:
 
-- obter a série CDI;
-- auditar origem;
-- registrar fetch ou fallback;
-- registrar janela de consulta;
-- registrar status de atualização do cache.
+1. resolver ambiente mínimo;
+2. carregar e validar configuração operacional;
+3. definir ambiente final e data de referência;
+4. localizar, baixar ou resolver a planilha operacional;
+5. resolver abas físicas para blocos canônicos estruturais;
+6. ler quadros brutos;
+7. resolver colunas;
+8. aplicar mecanicamente o mapa de colunas;
+9. produzir quadros estruturalmente resolvidos;
+10. derivar janela bruta para CDI/BCB;
+11. carregar, auditar e atualizar cache CDI/BCB quando aplicável;
+12. montar `PacotePlanilha`;
+13. registrar auditorias;
+14. emitir `PacoteEntradaResolvida`.
 
-A Etapa 1 não deve usar essa série para cálculo de rendimento, replay, valoração ou decisão econômica.
-
-O uso econômico da série CDI pertence às etapas posteriores.
-
-## 8. Fronteira da Etapa 1
+## 10. O que a etapa pode fazer
 
 A Etapa 1 pode:
 
 - resolver ambiente mínimo;
-- carregar config;
+- carregar configuração;
 - resolver data de referência definitiva;
 - obter planilha;
 - resolver abas;
 - resolver colunas;
 - produzir quadros estruturais resolvidos;
 - derivar janela bruta CDI;
-- carregar cache CDI;
+- carregar e atualizar cache CDI;
 - registrar auditorias.
+
+## 11. O que a etapa não pode fazer
 
 A Etapa 1 não pode:
 
@@ -131,56 +129,92 @@ A Etapa 1 não pode:
 - criar salários canônicos;
 - criar switching canônico;
 - criar inventário canônico;
-- integrar inventário com switching;
-- calcular rendimento;
+- integrar inventário com switching como decisão operacional;
+- calcular rendimento econômico;
 - executar replay;
 - montar estado temporal;
 - decidir pagamento;
 - decidir switching;
 - gerar ledger;
 - gerar saída canônica;
-- gerar console;
+- renderizar console;
 - gerar XLSX.
 
-## 9. Relação com Etapa 2
+## 12. Relação com a etapa anterior
 
-A Etapa 2 valida o `PacoteEntradaResolvida`.
+A Etapa 1 é a primeira etapa da cadeia operacional. Ela não consome artefato formal de etapa anterior; consome apenas insumos físicos e configuracionais brutos.
 
-A Etapa 2 não deve:
+## 13. Relação com a etapa posterior
 
-- reler planilha;
-- baixar planilha;
-- abrir workbook;
-- resolver aliases;
-- resolver colunas;
-- canonizar colunas;
-- carregar cache BCB;
-- corrigir dados;
-- transformar dados.
+A Etapa 1 entrega `PacoteEntradaResolvida` para a Etapa 2 — Validação Pré-Execução. A Etapa 2 deve validar esse pacote sem reler planilha, baixar planilha, resolver aliases, resolver colunas ou atualizar cache.
 
-A Etapa 2 deve retornar:
+## 14. Schema/funções públicas previstas ou implementadas
 
-- status;
-- erros;
-- avisos;
-- evidências.
+Módulos e funções centrais preservados no contrato:
 
-## 10. Relação com Etapa 3
+```text
+nucleo/contexto_baseline.py
+carregar_contexto_baseline(...)
 
-A Etapa 3 consome o `PacoteEntradaResolvida` validado e transforma os quadros estruturais resolvidos em artefatos operacionais canônicos.
+nucleo/ambiente.py
+detectar_raiz_repositorio(...)
+verificar_dependencias(...)
+configurar_warnings_rede(...)
+obter_data_referencia(...)
+bootstrap_ambiente(...)
 
-A Etapa 3 deve criar, entre outros:
+nucleo/carregador_config.py
+resolver_caminho_config(...)
+carregar_config(...)
+validar_config_nucleo(...)
 
-- carteira canônica;
-- gastos canônicos;
-- salários/recebidos canônicos;
-- switching canônico de switchings já realizados;
-- inventário canônico base;
-- inventário canônico completo, integrando `Inventário de Lotes` e switchings já realizados.
+nucleo/leitor_planilha.py
+carregar_planilha(...)
+_montar_url_download_planilha(...)
+_tentar_baixar_planilha(...)
+resolver_caminho_planilha(...)
 
-A Etapa 3 não deve recriar resolvedores locais de aliases e colunas quando o mapa resolvido da Etapa 1 já existir.
+nucleo/cache_cdi_bcb.py
+_ler_payload_cache(...)
+_cache_atualizado_para_referencia(...)
+_buscar_bcb(...)
+_salvar_cache(...)
+```
 
-## 11. Fluxograma da Etapa 1 — PacoteEntradaResolvida
+Artefato formal:
+
+```python
+PacoteEntradaResolvida
+```
+
+## 15. Auditoria esperada
+
+A auditoria da Etapa 1 deve registrar:
+
+- origem da planilha;
+- status de download ou fallback;
+- abas resolvidas;
+- colunas resolvidas;
+- quadros brutos lidos;
+- quadros estruturais resolvidos;
+- janela CDI/BCB;
+- origem do cache CDI/BCB;
+- status de atualização do cache;
+- avisos e inconsistências estruturais iniciais.
+
+## 16. Critérios de aceite
+
+A Etapa 1 é aceita quando:
+
+1. produz `PacoteEntradaResolvida`;
+2. contém config, contexto, planilha, mapas, quadros estruturais, CDI/cache e auditorias;
+3. resolve as cinco famílias operacionais mínimas;
+4. não cria dados operacionais canônicos;
+5. não calcula rendimento econômico;
+6. não executa decisão de pagamento ou switching;
+7. não gera ledger, saída canônica, console ou XLSX.
+
+## 17. Fluxograma operacional-explicativo completo
 
 ```mermaid
 flowchart TD
@@ -258,7 +292,7 @@ flowchart TD
     AUD0 --> AUD2["AuditoriaResolucaoEntrada"]
     AUD0 --> AUD3["AuditoriaCacheCDI"]
 
-    OUT_CFG --> PACK["Saída final<br/>PacoteEntradaResolvida"]
+    OUT_CFG --> PACK["Saída formal<br/>PacoteEntradaResolvida"]
     OUT_AMB --> PACK
     PP1 --> PACK
     CDI2 --> PACK
@@ -267,5 +301,19 @@ flowchart TD
     AUD2 --> PACK
     AUD3 --> PACK
 
-    PACK --> E2["Destino<br/>Etapa 2 — validar_pre_execucao(...)"]
+    PACK --> E2["Destino<br/>Etapa 2 — nucleo/validacao_pre_execucao.py<br/>validar_pre_execucao(...)"]
 ```
+
+## 18. Condição de parada
+
+A Etapa 1 deve parar com erro auditado quando não for possível resolver configuração mínima, ambiente mínimo, planilha operacional ou componentes estruturais obrigatórios para formar `PacoteEntradaResolvida`.
+
+## 19. Histórico documental / adendos funcionais consolidados
+
+Este contrato foi originalmente derivado de:
+
+```text
+logs/iteracoes/ME-V17-F0-V32A_FORMALIZA_ETAPA1_PACOTE_ENTRADA_RESOLVIDA.md
+```
+
+A versão atual apenas reorganiza o conteúdo no padrão estrutural único dos contratos individuais das Etapas 1–7, sem alterar a semântica da Etapa 1.
