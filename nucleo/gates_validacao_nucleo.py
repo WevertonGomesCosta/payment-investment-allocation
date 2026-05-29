@@ -375,6 +375,42 @@ def _valor_movimento_fonte(fonte: Any) -> float | None:
     return _float_ou_none(_valor(fonte, 'valor_reservado_referencial'))
 
 
+def _chave_movimento_fonte(fonte: Any) -> tuple[object, object, object]:
+    return (_valor(fonte, 'fonte_id'), _valor(fonte, 'data'), _valor(fonte, 'pacote_id'))
+
+
+def _fonte_compativel_com_grupo(
+    fonte: Any,
+    pacote_id: object | None,
+    data_grupo: object | None,
+    fontes_referenciadas: set[str],
+) -> bool:
+    fonte_id = _valor(fonte, 'fonte_id')
+    fonte_pacote = _valor(fonte, 'pacote_id')
+    fonte_data = _valor(fonte, 'data')
+    if data_grupo is not None and fonte_data is not None and fonte_data != data_grupo:
+        return False
+    if pacote_id is not None:
+        if fonte_pacote is not None and fonte_pacote != pacote_id:
+            return False
+        if fonte_pacote == pacote_id:
+            return True
+    if fonte_id is not None and str(fonte_id) in fontes_referenciadas:
+        return True
+    return pacote_id is None and not fontes_referenciadas
+
+
+def _total_fontes_sem_dupla_soma(fontes: list[Any]) -> float:
+    valores_por_chave: dict[tuple[object, object, object], float] = {}
+    for fonte in fontes:
+        valor = _valor_movimento_fonte(fonte)
+        if valor is None:
+            continue
+        chave = _chave_movimento_fonte(fonte)
+        valores_por_chave[chave] = max(valores_por_chave.get(chave, 0.0), valor)
+    return sum(valores_por_chave.values())
+
+
 def _validar_liquidez_carencia_materializada(
     gate: GateValidacaoNucleo,
     item: Any,
@@ -540,8 +576,11 @@ def _gate_obrigacoes_cobertas(ledger: LedgerTemporalCanonico, parametros: Parame
             ledger.data_referencia,
         )
 
-    fontes_materializadas = list(ledger.fontes_utilizadas or []) + list(ledger.fontes_reservadas or [])
+    fontes_utilizadas = list(ledger.fontes_utilizadas or [])
+    fontes_reservadas = list(ledger.fontes_reservadas or [])
+    fontes_materializadas = fontes_utilizadas + fontes_reservadas
     datas_referencia_original = ('data_pagamento', 'data_vencimento', 'Data', 'data', 'vencimento')
+    grupos_cobertura: dict[tuple[str, object, object], dict[str, object]] = {}
 
     for indice, obrigacao in enumerate(obrigacoes):
         entidade_id = _id_entidade(obrigacao, 'obrigacao_id', 'pacote_id')
@@ -630,6 +669,70 @@ def _gate_obrigacoes_cobertas(ledger: LedgerTemporalCanonico, parametros: Parame
                     {**_referencias(obrigacao, indice), 'qtd_fontes_compativeis': len(fontes_compativeis)},
                 )
                 _adicionar_bloqueio(gate, 'valor_coberto_sem_lastro_em_fontes', 'Valor coberto da obrigação excede a soma das fontes materializadas compatíveis no ledger.', data_obrigacao, 'obrigacao_coberta', entidade_id, evidencia)
+        pacote_id = _valor(obrigacao, 'pacote_id')
+        obrigacao_id = _valor(obrigacao, 'obrigacao_id')
+        chave_grupo = ('pacote', pacote_id, data_obrigacao) if pacote_id is not None else ('obrigacao', obrigacao_id, data_obrigacao)
+        grupo = grupos_cobertura.setdefault(
+            chave_grupo,
+            {
+                'total_coberto': 0.0,
+                'qtd_obrigacoes': 0,
+                'fontes_referenciadas': set(),
+                'indice': indice,
+                'obrigacao': obrigacao,
+            },
+        )
+        if valor_coberto is not None:
+            grupo['total_coberto'] = float(grupo['total_coberto']) + valor_coberto
+        grupo['qtd_obrigacoes'] = int(grupo['qtd_obrigacoes']) + 1
+        grupo['fontes_referenciadas'].update(str(fonte_id) for fonte_id in fontes)
+
+    for chave_grupo, grupo in grupos_cobertura.items():
+        tipo_grupo, grupo_id, data_grupo = chave_grupo
+        total_coberto_grupo = float(grupo['total_coberto'])
+        if total_coberto_grupo <= 0:
+            continue
+        pacote_id_grupo = grupo_id if tipo_grupo == 'pacote' else None
+        fontes_referenciadas = set(grupo['fontes_referenciadas'])
+        utilizadas_compativeis = [
+            fonte
+            for fonte in fontes_utilizadas
+            if _fonte_compativel_com_grupo(fonte, pacote_id_grupo, data_grupo, fontes_referenciadas)
+        ]
+        reservadas_compativeis = [
+            fonte
+            for fonte in fontes_reservadas
+            if _fonte_compativel_com_grupo(fonte, pacote_id_grupo, data_grupo, fontes_referenciadas)
+        ]
+        fontes_lastro = utilizadas_compativeis if utilizadas_compativeis else reservadas_compativeis
+        origem_lastro = 'fontes_utilizadas' if utilizadas_compativeis else 'fontes_reservadas'
+        total_fontes_grupo = _total_fontes_sem_dupla_soma(fontes_lastro)
+        diferenca_grupo = round(total_coberto_grupo - total_fontes_grupo, 10)
+        if diferenca_grupo > parametros.tolerancia_valor:
+            obrigacao_referencia = grupo['obrigacao']
+            evidencia = _nova_evidencia(
+                gate.gate_id,
+                data_grupo,
+                'grupo_obrigacoes_cobertas',
+                str(grupo_id) if grupo_id is not None else None,
+                'valor_coberto_referencial_agregado',
+                total_fontes_grupo,
+                total_coberto_grupo,
+                diferenca_grupo,
+                'bloqueio',
+                'Total coberto agregado por pacote/data excede o lastro de fontes materializadas compatíveis no ledger.',
+                {
+                    **_referencias(obrigacao_referencia, int(grupo['indice'])),
+                    'chave_grupo': chave_grupo,
+                    'qtd_obrigacoes_grupo': grupo['qtd_obrigacoes'],
+                    'origem_lastro': origem_lastro,
+                    'regra_deduplicacao': 'usa fontes_utilizadas quando existirem para a chave; caso contrário usa fontes_reservadas; não soma ambas',
+                    'qtd_fontes_lastro': len(fontes_lastro),
+                },
+            )
+            _adicionar_bloqueio(gate, 'valor_coberto_agregado_sem_lastro_em_fontes', 'Valor coberto agregado por pacote/data excede fontes materializadas compatíveis no ledger.', data_grupo, 'grupo_obrigacoes_cobertas', str(grupo_id) if grupo_id is not None else None, evidencia)
+    gate.resumo['regra_lastro_agregado'] = 'fontes_utilizadas_preferenciais; fontes_reservadas_apenas_quando_sem_utilizadas; sem_soma_dupla_utilizadas_reservadas'
+    gate.resumo['qtd_grupos_cobertura_agregada'] = len(grupos_cobertura)
 
     return _finalizar_gate(gate, len(obrigacoes))
 

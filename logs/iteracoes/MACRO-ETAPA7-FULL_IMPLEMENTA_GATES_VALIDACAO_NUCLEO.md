@@ -163,3 +163,21 @@ A reauditoria marcou os seis P2 anteriores como outdated/corrigidos. Nesta rodad
 4. `gate_saldos_residuais` passou a reconciliar `valor_disponivel_referencial` com movimentos de fontes utilizados/reservados na mesma `(fonte_id, data)`. Quando há múltiplos movimentos para a mesma chave, usa o menor `valor_disponivel_depois_referencial` como evidência mais restritiva.
 
 As correções continuam consumindo exclusivamente `LedgerTemporalCanonico`. Não houve alteração em console, XLSX, dados, saída canônica ou scripts diagnósticos.
+
+## Correção pós-reauditoria PR #426 — reconciliação agregada de cobertura
+
+A reconciliação individual de obrigações cobertas contra fontes materializadas foi complementada por reconciliação agregada por grupo mínimo:
+
+- chave preferencial: `(pacote_id, data)`;
+- fallback individual quando `pacote_id` não está materializado: `(obrigacao_id, data)`.
+
+Para cada grupo, a Etapa 7 soma `valor_coberto_referencial` das obrigações cobertas e compara com o lastro materializado compatível no próprio `LedgerTemporalCanonico`. A compatibilidade usa `pacote_id` e `data` quando disponíveis, além das `fontes_referenciadas` já materializadas nas obrigações.
+
+Regra conservadora para evitar dupla soma entre `fontes_utilizadas` e `fontes_reservadas`:
+
+1. se houver `fontes_utilizadas` compatíveis com a chave agregada, elas são o lastro principal;
+2. se não houver `fontes_utilizadas`, usa-se `fontes_reservadas` compatíveis;
+3. `fontes_utilizadas` e `fontes_reservadas` não são somadas simultaneamente para a mesma chave agregada;
+4. dentro do conjunto escolhido, movimentos com a mesma chave `(fonte_id, data, pacote_id)` são deduplicados de forma conservadora pelo maior valor materializado para evitar dupla contagem do mesmo movimento.
+
+A correção continua consumindo exclusivamente `LedgerTemporalCanonico` (`obrigacoes_cobertas`, `fontes_utilizadas`, `fontes_reservadas` e campos/metadados/referências já materializados). Não houve alteração em console, XLSX, dados, saída canônica ou scripts diagnósticos.
