@@ -13,7 +13,8 @@ Separar contratos individuais de:
 - adendos;
 - planos;
 - diagnósticos;
-- artefatos de auditoria.
+- artefatos de auditoria;
+- saídas observáveis.
 
 ## Hierarquia normativa
 
@@ -23,6 +24,30 @@ Os contratos individuais desta pasta são subordinados a:
 2. `relatorios/principais/MODELO_MATEMATICO_ESTATISTICO_FINANCEIRO_OFICIAL.md`.
 
 Em caso de divergência, prevalecem o contrato mestre e o modelo oficial.
+
+## Padrão estrutural único
+
+A partir da `MACRO-CONTRATOS-02`, todos os contratos individuais das Etapas 1–7 seguem a mesma estrutura documental de 19 seções:
+
+1. Identificação documental
+2. Status normativo
+3. Posição na cadeia macro
+4. Função da etapa
+5. Entrada formal obrigatória e exclusiva
+6. Componentes consumíveis da entrada
+7. Saída formal obrigatória
+8. Componentes mínimos da saída
+9. Processo interno da etapa
+10. O que a etapa pode fazer
+11. O que a etapa não pode fazer
+12. Relação com a etapa anterior
+13. Relação com a etapa posterior
+14. Schema/funções públicas previstas ou implementadas
+15. Auditoria esperada
+16. Critérios de aceite
+17. Fluxograma operacional-explicativo completo
+18. Condição de parada
+19. Histórico documental / adendos funcionais consolidados
 
 ## Contratos individuais vigentes
 
@@ -41,34 +66,38 @@ A cadeia documental vigente das Etapas 1–7 é:
 ```text
 Etapa 1 -> PacoteEntradaResolvida
 Etapa 2 -> PacoteValidacaoPreExecucao
-Etapa 3 -> PacoteDadosOperacionaisCanonicos / UniversoEconomicoCanonico
+Etapa 3 -> PacoteDadosOperacionaisCanonicos / UniversoEconomicoCanonico / PacoteAuditoriaCanonizacaoOperacional
 Etapa 4 -> EstadoTemporalInicial
 Etapa 5 -> ResultadoMotorTemporalConjunto
 Etapa 6 -> LedgerTemporalCanonico
 Etapa 7 -> ResultadoGatesValidacaoNucleo
 ```
 
-## Histórico documental consolidado
+## Padrão dos fluxogramas individuais
 
-- Etapas 1–3 preservadas como padrão documental e operacional-explicativo.
-- Etapa 4 revisada para refletir `EstadoTemporalInicial` como saída formal.
-- Etapa 5 consolidada após fechamento funcional como motor temporal conjunto.
-- Etapa 6 criada e fechada como `LedgerTemporalCanonico`.
-- Etapa 7 criada, ajustada e funcionalizada como Gates de Validação de Núcleo.
+Todos os fluxogramas individuais devem ser operacional-explicativos completos. Cada fluxograma deve explicitar:
 
-## Fontes históricas preservadas
+- entrada formal da etapa;
+- módulo ou função central, quando existir ou estiver contratada;
+- blocos internos principais;
+- artefatos intermediários relevantes;
+- auditoria, validação ou fechamento interno;
+- saída formal da etapa;
+- destino para a etapa seguinte contratual.
 
-Os contratos foram derivados ou consolidados a partir de documentos contratuais e logs de iteração já existentes. Esses documentos permanecem no local original como histórico; esta pasta contém os contratos canônicos organizados para consulta normativa individual por etapa.
+Fluxogramas não devem introduzir fonte de estado proibida, rota paralela, fallback legado, console, XLSX, saída canônica ou script diagnóstico fora do escopo formal da etapa.
+
+## Situação documental das etapas
 
 | Contrato individual | Situação documental |
 |---|---|
-| `CONTRATO_ETAPA1_ENTRADA_RESOLVIDA.md` | Preservado como padrão documental. |
-| `CONTRATO_ETAPA2_VALIDACAO_PRE_EXECUCAO.md` | Preservado como padrão documental. |
-| `CONTRATO_ETAPA3_DADOS_OPERACIONAIS_CANONICOS.md` | Preservado como padrão documental. |
-| `CONTRATO_ETAPA4_ESTADO_TEMPORAL_INICIAL.md` | Revisado para cadeia atual e fluxograma técnico. |
-| `CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md` | Consolidado após fechamento funcional. |
-| `CONTRATO_ETAPA6_LEDGER_TEMPORAL_CANONICO.md` | Ajustado para apontar explicitamente à Etapa 7. |
-| `CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md` | Revisado para refletir a implementação funcional mergeada. |
+| `CONTRATO_ETAPA1_ENTRADA_RESOLVIDA.md` | Padronizado estruturalmente sem alterar a semântica histórica. |
+| `CONTRATO_ETAPA2_VALIDACAO_PRE_EXECUCAO.md` | Padronizado estruturalmente como gate puro de pré-execução. |
+| `CONTRATO_ETAPA3_DADOS_OPERACIONAIS_CANONICOS.md` | Padronizado estruturalmente como canonização operacional. |
+| `CONTRATO_ETAPA4_ESTADO_TEMPORAL_INICIAL.md` | Padronizado como construção do estado temporal inicial. |
+| `CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md` | Padronizado como motor temporal conjunto e resultado fechado. |
+| `CONTRATO_ETAPA6_LEDGER_TEMPORAL_CANONICO.md` | Padronizado como ledger temporal canônico. |
+| `CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md` | Padronizado como gates de validação de núcleo. |
 
 ## Regra de escopo
 
@@ -83,4 +112,6 @@ Não devem ser movidos para esta pasta:
 - adendos transversais;
 - arquivos diagnósticos;
 - saídas observáveis;
-- CSVs auxiliares.
+- CSVs auxiliares;
+- arquivos de código;
+- dados ou caches operacionais.
