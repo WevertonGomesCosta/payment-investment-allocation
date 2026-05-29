@@ -1,316 +1,206 @@
-# CONTRATO INDIVIDUAL DA ETAPA 3 — CANONIZAÇÃO OPERACIONAL
+# Contrato Individual — Etapa 3 — Dados Operacionais Canônicos
 
-> Cópia canônica derivada do documento-fonte já existente:
->
-> `logs/iteracoes/ME-V17-F0-V32C_FORMALIZA_ETAPA3_CANONIZACAO_OPERACIONAL.md`
->
-> O documento original permanece preservado como log histórico. Esta cópia organiza o mesmo contrato individual na pasta canônica `relatorios/principais/contratos_individuais/`.
+## 1. Identificação documental
 
-## 1. Identificação do documento-fonte
+- **Etapa:** 3
+- **Nome:** Dados Operacionais Canônicos / Canonização Operacional
+- **Entrada formal obrigatória:** `PacoteEntradaResolvida` validado e `PacoteValidacaoPreExecucao` aprovado
+- **Saídas formais obrigatórias:** `PacoteDadosOperacionaisCanonicos`, `UniversoEconomicoCanonico`, `PacoteAuditoriaCanonizacaoOperacional`
+- **Natureza:** transformação operacional canônica da entrada validada
+- **Função orquestradora:** `construir_pacote_canonizacao_operacional(...)`
 
-- MICROETAPA: V17-F0-V.3.2C
-- TIPO: DOCUMENTAL / ARQUITETURAL
-- CLASSE: FORMALIZA_ETAPA3_COMO_CANONIZACAO_OPERACIONAL
-- ALTERA CÓDIGO: NÃO
-- ALTERA MOTOR: NÃO
-- ALTERA SAÍDA CANÔNICA: NÃO
-- ALTERA DADOS: NÃO
-- ALTERA CACHE: NÃO
-- ALTERA RENDERIZAÇÃO: NÃO
+## 2. Status normativo
 
-## 2. Problema motivador
+Este contrato formaliza a Etapa 3 como camada de transformação da entrada resolvida e validada em artefatos operacionais canônicos.
 
-Após a formalização da Etapa 1 como produtora do `PacoteEntradaResolvida` e da Etapa 2 como gate de validação desse pacote, a Etapa 3 deve ser formalizada como camada de transformação da entrada resolvida validada em artefatos operacionais canônicos.
+A Etapa 3 é a primeira etapa que transforma dados estruturais em entidades operacionais canônicas. Ela não decide pagamentos, não executa motor temporal, não gera ledger e não renderiza saída observável.
 
-Também era necessário eliminar ambiguidades conceituais sobre:
-
-- resolução local de aliases e colunas na Etapa 3;
-- distinção entre switchings já realizados e switchings candidatos do motor;
-- duplicidade entre switching canônico e lotes destino de switching;
-- uso normativo do termo `inventario_lotes_expandido`;
-- risco de expor lotes destino de switching como fonte operacional paralela.
-
-## 3. Decisão arquitetural
-
-A Etapa 3 passa a ser formalizada como:
+## 3. Posição na cadeia macro
 
 ```text
-Etapa 3 = canonização operacional do PacoteEntradaResolvida validado
+Etapa 2 -> PacoteValidacaoPreExecucao -> Etapa 3 -> PacoteDadosOperacionaisCanonicos / UniversoEconomicoCanonico / PacoteAuditoriaCanonizacaoOperacional -> Etapa 4
 ```
 
-A Etapa 3 recebe:
+## 4. Função da etapa
 
-- `PacoteEntradaResolvida` validado;
-- `PacoteValidacaoPreExecucao`.
+A Etapa 3 transforma os quadros estruturais resolvidos e validados em artefatos operacionais canônicos, distinguindo entrada estrutural de entidades econômicas operacionais.
 
-A Etapa 3 produz:
+Ela canoniza carteira, recebidos, gastos, switching já realizado e inventário, além de construir o universo econômico canônico e auditar a canonização.
 
-- `PacoteDadosOperacionaisCanonicos`;
-- `UniversoEconomicoCanonico`;
-- `PacoteAuditoriaCanonizacaoOperacional`.
+## 5. Entrada formal obrigatória e exclusiva
 
-## 4. Entrada normativa da Etapa 3
+A entrada formal da Etapa 3 é composta por:
 
-A entrada da Etapa 3 é:
+```text
+PacoteEntradaResolvida validado
+PacoteValidacaoPreExecucao aprovado
+```
 
-`PacoteEntradaResolvida validado`
+A Etapa 3 não deve reler planilha, redescobrir aliases ou resolver colunas novamente quando os mapas resolvidos da Etapa 1 e validados pela Etapa 2 já existirem.
 
-Composto por:
+## 6. Componentes consumíveis da entrada
+
+A Etapa 3 pode consumir:
 
 - `PacoteConfig`;
 - `ContextoExecucao`;
 - `PacotePlanilha`;
 - `MapaAbasResolvidas`;
 - `MapaColunasResolvidas`;
-- `quadros_brutos`;
-- `quadros_estruturais_resolvidos`;
-- `JanelaConsultaCDI`;
-- `PacoteCacheCDIDiario`;
-- `AuditoriaEntradaBruta`;
-- `AuditoriaResolucaoEntrada`;
-- `AuditoriaCacheCDI`.
+- `quadros_estruturais_resolvidos/carteira`;
+- `quadros_estruturais_resolvidos/salarios`;
+- `quadros_estruturais_resolvidos/despesas`;
+- `quadros_estruturais_resolvidos/lotes`;
+- `quadros_estruturais_resolvidos/switching`;
+- `PacoteValidacaoPreExecucao`;
+- auditorias da Etapa 1 e Etapa 2.
 
-A Etapa 3 também consome o `PacoteValidacaoPreExecucao` como evidência de validação pela Etapa 2.
+## 7. Saída formal obrigatória
 
-## 5. Saída normativa da Etapa 3
+As saídas formais obrigatórias da Etapa 3 são:
 
-As saídas normativas da Etapa 3 são:
+```text
+PacoteDadosOperacionaisCanonicos
+UniversoEconomicoCanonico
+PacoteAuditoriaCanonizacaoOperacional
+```
 
-- `PacoteDadosOperacionaisCanonicos`;
-- `UniversoEconomicoCanonico`;
-- `PacoteAuditoriaCanonizacaoOperacional`.
+## 8. Componentes mínimos da saída
 
-Composição normativa do `PacoteDadosOperacionaisCanonicos`:
-
-- `carteira_canonica`;
-- `universo_economico_canonico`;
-- `gastos_canonicos`;
-- `salarios_canonicos`;
-- `recebidos_canonicos`;
-- `switching_canonico`;
-- `inventario_canonico_base`;
-- `inventario_canonico_completo`;
-- auditorias;
-- validações.
-
-O pacote final não deve expor como saída normativa independente:
-
-`lotes_destino_switchings_realizados_normalizados`
-
-Esse artefato pode existir internamente, mas apenas como artefato intermediário de construção e auditoria do `inventario_canonico_completo`.
-
-## 6. Blocos normativos da Etapa 3
-
-### 6.1. Confirmar entrada validada
-
-A Etapa 3 consome as evidências do `PacoteValidacaoPreExecucao`.
-
-A Etapa 3 não corrige a entrada. Ela apenas consome entrada validada.
-
-### 6.2. Carteira canônica e universo econômico
-
-A Etapa 3 transforma o quadro estrutural resolvido de `carteira` em:
+A Etapa 3 deve produzir, no mínimo:
 
 - carteira canônica;
-- produtos canônicos;
-- mapa de produtos;
-- universo econômico canônico;
-- ranking da Carteira;
-- auditoria da Carteira;
-- validação da Carteira.
-
-Funções atuais relacionadas:
-
-- `normalizar_carteira_bruta(...)`;
-- `normalizar_nome_produto(...)`;
-- `gerar_produto_key(...)`.
-
-Arquivo atual relacionado:
-
-- `nucleo/carteira_canonica.py`.
-
-A Etapa 3 não deve redescobrir colunas da Carteira quando `MapaColunasResolvidas["carteira"]` já existir.
-
-### 6.3. Gastos / pagamentos canônicos
-
-A Etapa 3 transforma o quadro estrutural resolvido de `despesas` em:
-
-- gastos canônicos;
-- pagamentos canônicos;
-- auditoria de gastos.
-
-Função atual relacionada:
-
-- `carregar_gastos_canonicos(...)`.
-
-Arquivo atual relacionado:
-
-- `nucleo/dados_operacionais_canonicos.py`.
-
-A Etapa 3 não decide fonte de pagamento, não executa pagamento e não calcula saldo temporal.
-
-### 6.4. Salários / recebidos canônicos
-
-A Etapa 3 transforma o quadro estrutural resolvido de `salarios` em:
-
-- salários canônicos;
 - recebidos canônicos;
-- auditoria de salários.
-
-Função atual relacionada:
-
-- `carregar_salarios_canonicos(...)`.
-
-Arquivo atual relacionado:
-
-- `nucleo/dados_operacionais_canonicos.py`.
-
-A Etapa 3 não decide uso do recebido, aporte, pagamento, saldo livre ou estado temporal.
-
-### 6.5. Switchings já realizados canônicos
-
-A Etapa 3 transforma o quadro estrutural resolvido de `switching` em:
-
-- `switching_canonico`;
-- auditoria de switching.
-
-Funções atuais relacionadas:
-
-- `carregar_switching_canonico(...)`;
-- `normalizar_lotes_pos_switching_para_schema_inventario(...)`.
-
-Arquivos atuais relacionados:
-
-- `nucleo/dados_operacionais_canonicos.py`;
-- `nucleo/inventario_lotes_expandido_pos_switching.py`.
-
-A aba `Switching` representa switchings já realizados/declarados na entrada operacional.
-
-Ela não representa switchings candidatos, recomendados, promovidos ou simulados pelo motor.
-
-A Etapa 3 pode gerar internamente lotes destino derivados desses switchings já realizados, mas esses lotes são apenas artefato intermediário de construção do `inventario_canonico_completo`.
-
-### 6.6. Inventário de Lotes canônico completo
-
-A Etapa 3 transforma o quadro estrutural resolvido de `lotes`, em conjunto com os switchings já realizados canônicos, em:
-
-- `inventario_canonico_base`;
-- `inventario_canonico_completo`;
-- auditoria de inventário;
-- auditoria do inventário canônico completo.
-
-Funções atuais relacionadas:
-
-- `carregar_inventario_canonico(...)`;
-- `construir_inventario_lotes_expandido(...)`.
-
-Arquivos atuais relacionados:
-
-- `nucleo/dados_operacionais_canonicos.py`;
-- `nucleo/inventario_lotes_expandido_pos_switching.py`.
-
-O nome técnico transitório atual `inventario_lotes_expandido` deve ser interpretado conceitualmente como:
-
-`inventario_canonico_completo`
-
-O inventário operacional entregue às etapas posteriores é único.
-
-Nenhuma etapa posterior deve consumir uma lista paralela de lotes destino de switching como fonte operacional independente.
-
-### 6.7. Universo econômico canônico
-
-A Etapa 3 consolida:
-
-- produtos canônicos;
-- mapa de produtos;
-- elegibilidade básica;
-- ranking da Carteira;
-- auditoria do universo econômico.
-
-O ranking estrutura produtos e destinos, mas não decide pacote do dia, não materializa switching candidato e não liquida pagamento.
-
-### 6.8. Auditorias e validações da Etapa 3
-
-A Etapa 3 deve registrar auditorias de:
-
-- carteira;
-- gastos;
-- salários;
-- recebidos;
-- switching;
-- inventário;
+- salários canônicos, quando aplicável;
+- gastos canônicos;
+- contas pagas canônicas;
+- contas futuras canônicas;
+- switching canônico de switchings já realizados;
+- vínculos origem/destino de switching;
+- inventário canônico base;
+- lotes pós-switching normalizados;
+- origens migradas canônicas;
 - inventário canônico completo;
-- universo econômico.
+- inventário de lotes expandido como espelho/auditoria, quando aplicável;
+- universo econômico canônico;
+- auditorias por bloco;
+- pacote de auditoria da canonização operacional.
 
-As auditorias e validações da Etapa 3 são consolidadas em:
+## 9. Processo interno da etapa
 
-`PacoteAuditoriaCanonizacaoOperacional`
+A Etapa 3 deve:
 
-## 7. Fronteira da Etapa 3
+1. verificar entrada validada;
+2. orquestrar a canonização operacional;
+3. canonizar carteira;
+4. canonizar recebidos;
+5. canonizar gastos;
+6. canonizar switchings já realizados;
+7. canonizar inventário base;
+8. normalizar destinos pós-switching;
+9. classificar origens migradas por switching;
+10. construir inventário canônico completo;
+11. construir universo econômico canônico;
+12. auditar a canonização operacional;
+13. montar `PacoteDadosOperacionaisCanonicos`;
+14. emitir os artefatos formais da Etapa 3.
+
+## 10. O que a etapa pode fazer
 
 A Etapa 3 pode:
 
-- criar carteira canônica;
-- criar produtos canônicos;
-- criar universo econômico canônico;
-- criar ranking da Carteira;
-- criar gastos/pagamentos canônicos;
-- criar salários/recebidos canônicos;
-- criar switching canônico de switchings já realizados;
-- criar inventário canônico base;
-- gerar internamente lotes destino de switchings já realizados;
-- integrar esses lotes ao inventário canônico base;
-- criar inventário canônico completo;
-- resolver `produto_key` usando a Carteira canônica;
-- classificar minimamente lotes;
-- registrar auditorias e validações de canonização.
+- transformar quadros estruturais resolvidos em entidades canônicas;
+- padronizar campos operacionais;
+- criar identificadores canônicos;
+- integrar inventário com switchings já realizados;
+- construir universo econômico canônico;
+- produzir auditorias de canonização;
+- preservar espelhos/auditorias quando necessários para rastreabilidade.
+
+## 11. O que a etapa não pode fazer
 
 A Etapa 3 não pode:
 
+- reler planilha;
 - baixar planilha;
-- abrir workbook;
-- resolver abas físicas;
-- resolver aliases de colunas;
-- canonizar colunas estruturais;
-- buscar BCB online;
-- salvar cache BCB;
-- calcular rendimento;
-- executar replay passado;
-- montar estado temporal inicial;
-- normalizar vencimentos temporalmente;
+- redescobrir aliases;
+- resolver colunas novamente como rota paralela;
+- executar motor temporal;
 - decidir pagamento;
-- decidir switching candidato;
-- promover switching do motor;
-- materializar switching candidato;
-- executar pacote do dia;
+- decidir switching futuro;
+- calcular trajetória temporal conjunta;
 - gerar ledger;
-- aplicar gates de núcleo;
-- gerar saída canônica;
+- executar gates de validação de núcleo;
 - renderizar console;
 - gerar XLSX;
-- expor lotes destino de switching como fonte operacional paralela ao `inventario_canonico_completo`.
+- gerar saída canônica final.
 
-## 8. Relação com Etapa 4
+## 12. Relação com a etapa anterior
 
-A Etapa 4 deve receber:
+A Etapa 3 consome o `PacoteEntradaResolvida` da Etapa 1 após aprovação pela Etapa 2. A validação pré-execução é condição de entrada para a canonização operacional.
 
-- `PacoteDadosOperacionaisCanonicos`;
-- `inventario_canonico_completo`;
-- `gastos_canonicos`;
-- `salarios_canonicos`;
-- `switching_canonico`;
-- `carteira_canonica`;
-- `universo_economico_canonico`;
-- `PacoteCacheCDIDiario`;
-- `data_referencia`.
+## 13. Relação com a etapa posterior
 
-A Etapa 4 deve construir o estado temporal inicial.
+A Etapa 3 entrega `PacoteDadosOperacionaisCanonicos`, `UniversoEconomicoCanonico` e `PacoteAuditoriaCanonizacaoOperacional` para a Etapa 4 — Estado Temporal Inicial.
 
-A Etapa 3 não deve montar o estado temporal inicial.
+A Etapa 4 deve consumir os artefatos canonizados, sem retornar à planilha ou aos quadros brutos.
 
-## 9. Fluxograma da Etapa 3 — Canonização operacional final
+## 14. Schema/funções públicas previstas ou implementadas
 
-O fluxograma abaixo descreve a Etapa 3 normativa final. Os nomes de funções e scripts representam interfaces finais desejadas da canonização operacional e podem ser implementados por adaptação, renomeação ou encapsulamento das funções atualmente existentes.
+Funções centrais preservadas no contrato:
+
+```text
+construir_pacote_canonizacao_operacional(...)
+canonizar_carteira(...)
+canonizar_recebidos(...)
+canonizar_gastos(...)
+canonizar_switching(...)
+canonizar_inventario_base(...)
+normalizar_destinos_pos_switching(...)
+classificar_origens_migradas_switching(...)
+construir_inventario_canonico_completo(...)
+construir_universo_economico_canonico(...)
+auditar_canonizacao_operacional(...)
+montar_pacote_dados_operacionais_canonicos(...)
+```
+
+Artefatos formais:
+
+```python
+PacoteDadosOperacionaisCanonicos
+UniversoEconomicoCanonico
+PacoteAuditoriaCanonizacaoOperacional
+```
+
+## 15. Auditoria esperada
+
+A auditoria da Etapa 3 deve registrar:
+
+- completude da carteira canônica;
+- completude dos recebidos canônicos;
+- completude dos gastos canônicos;
+- consistência dos switchings já realizados;
+- consistência do inventário canônico;
+- vínculos origem/destino de switching;
+- inconsistências de canonização;
+- avisos e bloqueios por bloco;
+- aptidão dos artefatos para a Etapa 4.
+
+## 16. Critérios de aceite
+
+A Etapa 3 é aceita quando:
+
+1. consome apenas entrada resolvida e validada;
+2. produz `PacoteDadosOperacionaisCanonicos`;
+3. produz `UniversoEconomicoCanonico`;
+4. produz `PacoteAuditoriaCanonizacaoOperacional`;
+5. canoniza carteira, recebidos, gastos, switching e inventário;
+6. integra inventário e switchings já realizados de modo rastreável;
+7. não decide pagamentos ou switching futuro;
+8. não executa motor temporal;
+9. não gera ledger, console, XLSX ou saída canônica final.
+
+## 17. Fluxograma operacional-explicativo completo
 
 ```mermaid
 flowchart TD
@@ -374,4 +264,19 @@ flowchart TD
 
     IN --> F0
     F11 --> OUT
+    OUT --> E4["Destino<br/>Etapa 4 — nucleo/estado_temporal_inicial.py<br/>construir_estado_temporal_inicial(...)"]
 ```
+
+## 18. Condição de parada
+
+A Etapa 3 deve bloquear a progressão para a Etapa 4 quando os artefatos canônicos mínimos não puderem ser construídos ou auditados de modo suficiente para formar o estado temporal inicial.
+
+## 19. Histórico documental / adendos funcionais consolidados
+
+Este contrato foi originalmente derivado de:
+
+```text
+logs/iteracoes/ME-V17-F0-V32C_FORMALIZA_ETAPA3_CANONIZACAO_OPERACIONAL.md
+```
+
+A versão atual apenas reorganiza o conteúdo no padrão estrutural único dos contratos individuais das Etapas 1–7, preservando a semântica da Etapa 3 como canonização operacional.
