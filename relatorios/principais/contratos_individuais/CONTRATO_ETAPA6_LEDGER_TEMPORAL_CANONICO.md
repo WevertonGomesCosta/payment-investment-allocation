@@ -1,430 +1,210 @@
-# CONTRATO INDIVIDUAL DA ETAPA 6 — LEDGER TEMPORAL CANÔNICO
+# Contrato Individual — Etapa 6 — Ledger Temporal Canônico
 
 ## 1. Identificação documental
 
-- MACROETAPA DE CRIAÇÃO DO CONTRATO: MACRO-ETAPA6-0
-- TIPO: DOCUMENTAL / CONTRATUAL
-- CLASSE: CONTRATO_INDIVIDUAL_ETAPA6_LEDGER_TEMPORAL_CANONICO
-- BASELINE DE ENTRADA: `5a8033c`
-- ETAPA ANTERIOR: Etapa 5 — Motor temporal conjunto
-- SAÍDA FORMAL DA ETAPA ANTERIOR: `ResultadoMotorTemporalConjunto`
-- ETAPA CONTRATADA: Etapa 6 — Ledger Temporal Canônico
-- SAÍDA FORMAL DA ETAPA CONTRATADA: `LedgerTemporalCanonico`
-- ALTERA CÓDIGO: NÃO
-- ALTERA MOTOR: NÃO
-- ALTERA LEDGER FUNCIONAL: NÃO
-- ALTERA SAÍDA CANÔNICA: NÃO
-- ALTERA DADOS: NÃO
-- ALTERA CONSOLE: NÃO
-- ALTERA XLSX: NÃO
-- CRIA SCRIPT DIAGNÓSTICO: NÃO
+- **Etapa:** 6
+- **Nome:** Ledger Temporal Canônico
+- **Entrada formal exclusiva:** `ResultadoMotorTemporalConjunto`
+- **Saída formal exclusiva:** `LedgerTemporalCanonico`
+- **Módulo funcional:** `nucleo/ledger_temporal_canonico.py`
+- **Função pública implementada:** `construir_ledger_temporal_canonico(...)`
 
 ## 2. Status normativo
 
-Este documento é o contrato individual canônico da **Etapa 6 — Ledger Temporal Canônico**.
+Este contrato é normativo para a Etapa 6 e formaliza o ledger como artefato canônico intermediário entre o motor temporal conjunto e os gates de validação de núcleo.
 
-Ele é subordinado ao contrato operacional mestre, ao modelo matemático-estatístico-financeiro oficial, aos contratos individuais das Etapas 1–5 e ao contrato individual final da Etapa 5 pós-MACRO-ETAPA5-D.
-
-A Etapa 6 é a camada de transição formal entre:
+## 3. Posição na cadeia macro
 
 ```text
-Etapa 5 -> ResultadoMotorTemporalConjunto -> Etapa 6 -> LedgerTemporalCanonico -> Etapa posterior
+Etapa 5 -> ResultadoMotorTemporalConjunto -> Etapa 6 -> LedgerTemporalCanonico -> Etapa 7
 ```
 
-Logs, relatórios históricos, console, XLSX, scripts diagnósticos e saídas observáveis não são fonte normativa de estado para esta etapa.
+## 4. Função da etapa
 
-## 3. Função da etapa
+A Etapa 6 transforma o `ResultadoMotorTemporalConjunto` em `LedgerTemporalCanonico`, materializando eventos, lançamentos, obrigações, fontes, reservas, switchings, saldos referenciais, bloqueios, avisos e auditoria em formato próprio para validação pela Etapa 7.
 
-A Etapa 6 consome exclusivamente `ResultadoMotorTemporalConjunto` e constrói `LedgerTemporalCanonico` como materialização contábil-canônica, temporal, sequencial e auditável da trajetória decidida pela Etapa 5.
+A Etapa 6 não escolhe nova decisão. Ela materializa contabilmente, em forma de ledger canônico, a trajetória e as decisões já fechadas pela Etapa 5.
 
-A Etapa 6 não escolhe novamente pacotes vencedores, não reotimiza, não revalora pacotes, não decide novas fontes, não executa switching novo e não reconstrói estados anteriores.
+## 5. Entrada formal obrigatória e exclusiva
 
-Sua função é transformar decisões, trajetória temporal interna, obrigações cobertas, obrigações bloqueadas, reservas, usos referenciais de fontes, switchings escolhidos e auditorias finais já contidos em `ResultadoMotorTemporalConjunto` em um ledger canônico consumível por etapas posteriores.
+A entrada formal exclusiva da Etapa 6 é:
 
-## 4. Entrada formal da etapa
+```text
+ResultadoMotorTemporalConjunto
+```
 
-A entrada formal obrigatória e exclusiva da Etapa 6 é:
+## 6. Componentes consumíveis da entrada
 
-`ResultadoMotorTemporalConjunto`
+A Etapa 6 pode consumir componentes já materializados no `ResultadoMotorTemporalConjunto`, incluindo:
 
-A Etapa 6 deve consumir esse artefato diretamente.
+- data de referência;
+- horizonte temporal;
+- decisões temporais por data;
+- eventos de trajetória temporal;
+- obrigações cobertas;
+- obrigações bloqueadas;
+- fontes reservadas;
+- switchings escolhidos;
+- saldos referenciais;
+- auditorias internas e finais;
+- bloqueios e avisos preservados;
+- metadados formais.
 
-A Etapa 6 não pode consumir diretamente:
+## 7. Saída formal obrigatória
 
-- `EstadoTemporalInicial`;
-- dados das Etapas 1–4;
-- planilha original;
-- console;
-- XLSX;
-- saída observável;
-- logs;
-- relatórios históricos;
-- scripts diagnósticos;
-- CSVs auxiliares;
-- cache operacional;
-- artefatos derivados de renderização;
-- qualquer estrutura interna da Etapa 5 que não esteja formalmente contida em `ResultadoMotorTemporalConjunto`.
+A saída formal obrigatória da Etapa 6 é:
 
-## 5. Saída formal da etapa
+```text
+LedgerTemporalCanonico
+```
 
-A saída formal obrigatória e exclusiva da Etapa 6 é:
+## 8. Componentes mínimos da saída
 
-`LedgerTemporalCanonico`
+`LedgerTemporalCanonico` deve conter, no mínimo:
 
-Esse artefato deve nascer com nome canônico desde a primeira implementação funcional da etapa.
-
-É proibido criar artefato transitório de saída para a Etapa 6, incluindo, mas não limitado a:
-
-- ledger provisório;
-- ledger shadow;
-- ledger compatível;
-- ledger paralelo;
-- wrapper transitório;
-- alias temporário de saída;
-- fallback legado de ledger;
-- ponte compatível com console, XLSX ou diagnóstico.
-
-## 6. Definição conceitual de `LedgerTemporalCanonico`
-
-`LedgerTemporalCanonico` é o artefato canônico interno da Etapa 6 para registrar a trajetória temporal decidida pela Etapa 5.
-
-Ele deve representar, de forma auditável e sequencial:
-
-1. obrigações cobertas pela trajetória da Etapa 5;
-2. obrigações bloqueadas pela trajetória da Etapa 5;
-3. fontes utilizadas referencialmente;
-4. fontes reservadas referencialmente;
-5. switchings escolhidos internamente pela Etapa 5;
-6. datas e sequência temporal dos eventos;
-7. motivos de bloqueio e pendências;
-8. rastreabilidade para decisão temporal;
-9. rastreabilidade para pacote vencedor;
-10. rastreabilidade para eventos internos da Etapa 5;
-11. auditoria de consistência;
-12. metadados de origem indicando `ResultadoMotorTemporalConjunto`.
-
-`LedgerTemporalCanonico` não representa execução bancária real.
-
-`LedgerTemporalCanonico` não altera dados de origem.
-
-`LedgerTemporalCanonico` não materializa pagamentos em instituições financeiras.
-
-`LedgerTemporalCanonico` não substitui console, XLSX ou saída observável final.
-
-## 7. Blocos de `ResultadoMotorTemporalConjunto` consumíveis pela Etapa 6
-
-A Etapa 6 pode consumir, quando existentes no artefato final da Etapa 5, os seguintes blocos de `ResultadoMotorTemporalConjunto`:
-
-- `data_referencia`;
-- `horizonte_motor`;
-- `decisoes_temporais_por_data`;
-- `pacote_vencedor_por_data`;
-- `trajetoria_temporal_interna_escolhida`;
-- `eventos_trajetoria_temporal`;
-- `estado_temporal_interno_por_data`;
-- `fontes_reservadas_temporalmente`;
-- `obrigacoes_cobertas_temporalmente`;
-- `obrigacoes_bloqueadas_temporalmente`;
-- `switchings_escolhidos_temporalmente`;
-- `auditoria_trajetoria_temporal_interna`;
-- `auditoria_final_etapa5`;
-- `fechamento_funcional_etapa5`;
-- `contrato_consumo_etapa6`;
-- `pronto_para_etapa6`;
-- `bloqueios_finais`;
-- `avisos_finais`;
-- `metadados`.
-
-A lista acima não autoriza a Etapa 6 a buscar esses mesmos componentes fora de `ResultadoMotorTemporalConjunto`.
-
-## 8. O que o ledger deve representar
-
-A Etapa 6 deve materializar contabilmente o que a Etapa 5 já decidiu internamente.
-
-O ledger deve conter, no mínimo:
-
-- `data_referencia`;
-- `horizonte`;
-- eventos temporais de ledger;
+- data de referência;
+- horizonte;
+- eventos;
 - lançamentos por data;
 - obrigações cobertas;
 - obrigações bloqueadas;
 - fontes utilizadas;
 - fontes reservadas;
 - switchings escolhidos;
-- saldos referenciais por data, quando disponíveis em `ResultadoMotorTemporalConjunto`;
-- bloqueios;
-- avisos;
-- auditoria;
-- metadados.
+- saldos referenciais por data;
+- bloqueios preservados;
+- avisos preservados;
+- auditoria do ledger;
+- metadados;
+- prontidão para a Etapa 7.
 
-A granularidade exata dos lançamentos deve ser definida na macroetapa funcional de schema, mas deve preservar a rastreabilidade temporal, econômica e contratual da decisão da Etapa 5.
+## 9. Processo interno da etapa
 
-## 9. O que a Etapa 6 não pode fazer
+A Etapa 6 deve:
+
+1. verificar a interface contratual do `ResultadoMotorTemporalConjunto`;
+2. extrair horizonte e data de referência;
+3. materializar eventos de trajetória;
+4. converter obrigações cobertas em lançamentos de ledger;
+5. converter obrigações bloqueadas em lançamentos de ledger;
+6. converter fontes e reservas referenciais;
+7. converter switchings escolhidos;
+8. materializar saldos referenciais por data;
+9. preservar bloqueios finais;
+10. preservar avisos relevantes;
+11. registrar metadados de origem;
+12. auditar o ledger;
+13. emitir `LedgerTemporalCanonico`.
+
+## 10. O que a etapa pode fazer
+
+A Etapa 6 pode:
+
+- converter estruturas do motor em lançamentos de ledger;
+- normalizar eventos referenciais;
+- indexar lançamentos por data;
+- preservar bloqueios e avisos;
+- registrar rastreabilidade interna;
+- auditar consistência do ledger produzido.
+
+## 11. O que a etapa não pode fazer
 
 A Etapa 6 não pode:
 
-- decidir qual fonte usar;
-- selecionar novo pacote temporal;
-- recalcular ranking da Carteira;
-- recalcular valor econômico de pacotes;
-- revalorar alternativas de pagamento;
-- reotimizar trajetória temporal;
-- escolher novo pacote vencedor;
-- executar switching novo;
-- executar pagamento bancário real;
-- liquidar obrigação oficialmente;
-- alterar saldos reais em dados;
-- alterar planilha;
+- reotimizar;
+- revalorar;
+- escolher pacote vencedor;
+- trocar fonte;
+- alterar decisão econômica;
 - alterar console;
 - alterar XLSX;
-- gerar saída canônica final;
-- usar diagnóstico como motor;
-- usar logs como fonte de estado;
-- usar saída observável como fonte de estado;
-- reconstruir `EstadoTemporalInicial`;
-- recanonizar dados das Etapas 1–4;
-- criar fallback legado;
-- criar rota paralela;
-- criar wrapper transitório;
-- criar sentinela;
-- criar script diagnóstico;
-- reintroduzir `ContextoBaseline`;
-- reintroduzir `ContextoSaidaCanonicaCompat`.
+- alterar saída canônica;
+- executar pagamento real;
+- executar switching real;
+- consultar planilha diretamente;
+- criar diagnósticos paralelos;
+- consumir artefatos anteriores ao `ResultadoMotorTemporalConjunto` fora do que já estiver materializado na entrada formal;
+- executar os gates da Etapa 7.
 
-## 10. Tratamento de `pronto_para_etapa6`
+## 12. Relação com a etapa anterior
 
-### 10.1. Caso `pronto_para_etapa6 = True`
+A Etapa 6 consome exclusivamente `ResultadoMotorTemporalConjunto`, produzido pela Etapa 5. A Etapa 6 não recalcula a trajetória; apenas materializa o ledger canônico a partir do resultado recebido.
 
-Quando `ResultadoMotorTemporalConjunto.pronto_para_etapa6` for verdadeiro, a Etapa 6 pode construir `LedgerTemporalCanonico` com base em trajetória internamente consistente.
+## 13. Relação com a etapa posterior
 
-Mesmo nesse caso, a Etapa 6 deve preservar:
+A Etapa 6 entrega `LedgerTemporalCanonico` para a Etapa 7 — Gates de Validação de Núcleo. A Etapa 7 deve consumir exclusivamente o ledger para validar o núcleo antes de qualquer progressão observável.
 
-- rastreabilidade para a saída da Etapa 5;
-- rastreabilidade para cada pacote vencedor por data;
-- rastreabilidade para cada obrigação coberta;
-- rastreabilidade para cada fonte utilizada ou reservada;
-- rastreabilidade para cada switching escolhido;
-- auditoria interna do ledger.
+## 14. Schema/funções públicas previstas ou implementadas
 
-### 10.2. Caso `pronto_para_etapa6 = False`
+Módulo funcional:
 
-Quando `ResultadoMotorTemporalConjunto.pronto_para_etapa6` for falso, a Etapa 6 ainda pode construir `LedgerTemporalCanonico`, mas deve preservar explicitamente:
-
-- bloqueios finais;
-- pendências;
-- obrigações não executáveis;
-- estados não liquidáveis;
-- motivos de bloqueio vindos da Etapa 5;
-- avisos e auditorias finais associados ao bloqueio.
-
-Nesse caso, o ledger deve representar a incompletude operacional de modo explícito.
-
-A Etapa 6 não pode fingir completude quando `ResultadoMotorTemporalConjunto` contém bloqueios.
-
-## 11. Representação de obrigações cobertas
-
-Uma obrigação coberta no ledger deve preservar, quando disponível em `ResultadoMotorTemporalConjunto`:
-
-- identificador da obrigação;
-- data da obrigação;
-- valor referencial;
-- pacote vencedor associado;
-- decisão temporal associada;
-- fonte ou conjunto de fontes utilizadas referencialmente;
-- evento interno da Etapa 5 que originou a cobertura;
-- status de cobertura;
-- metadados de origem.
-
-A cobertura registrada no ledger é contabilização canônica interna, não execução bancária real.
-
-## 12. Representação de obrigações bloqueadas
-
-Uma obrigação bloqueada no ledger deve preservar, quando disponível em `ResultadoMotorTemporalConjunto`:
-
-- identificador da obrigação;
-- data da obrigação;
-- valor referencial;
-- motivo de bloqueio;
-- pacote, decisão ou evento associado, quando existir;
-- evidência de ausência de pacote vencedor, quando esse for o motivo;
-- status de não execução;
-- metadados de origem.
-
-Toda obrigação bloqueada deve ter motivo explícito.
-
-## 13. Representação de reservas de fontes
-
-Uma reserva de fonte no ledger deve preservar, quando disponível em `ResultadoMotorTemporalConjunto`:
-
-- identificador da fonte;
-- data da reserva;
-- valor referencial reservado;
-- obrigação, pacote ou decisão associada;
-- janela temporal de validade, quando existir;
-- status da reserva;
-- metadados de origem.
-
-Reserva de fonte não equivale a bloqueio bancário real.
-
-## 14. Representação de uso referencial de fontes
-
-Um uso referencial de fonte no ledger deve preservar, quando disponível em `ResultadoMotorTemporalConjunto`:
-
-- identificador da fonte;
-- data de uso;
-- valor bruto referencial;
-- valor líquido referencial;
-- imposto referencial, quando disponível;
-- obrigação associada;
-- pacote vencedor associado;
-- evento interno da Etapa 5 associado;
-- saldo referencial anterior e posterior, quando disponíveis no resultado da Etapa 5;
-- metadados de origem.
-
-Uso referencial de fonte não altera saldo real de dado de origem.
-
-## 15. Representação de switchings escolhidos
-
-Um switching escolhido no ledger deve preservar, quando disponível em `ResultadoMotorTemporalConjunto`:
-
-- identificador do switching;
-- data do switching;
-- fonte ou lote de origem;
-- fonte ou lote de destino;
-- valor líquido migrado referencial;
-- pacote vencedor associado;
-- decisão temporal associada;
-- evento interno da Etapa 5 associado;
-- status do switching;
-- metadados de origem.
-
-A Etapa 6 registra switchings escolhidos pela Etapa 5. Ela não promove switchings novos.
-
-## 16. Relação entre ledger, saída canônica, console e XLSX
-
-`LedgerTemporalCanonico` é artefato interno da Etapa 6.
-
-Ele não deve alterar, nesta etapa contratual:
-
-- console;
-- XLSX;
-- saída canônica final;
-- planilha operacional;
-- dados de entrada;
-- relatórios observáveis finais.
-
-Etapas posteriores poderão consumir `LedgerTemporalCanonico` apenas mediante contrato específico.
-
-Qualquer renderização do ledger em console, XLSX ou saída canônica final exige contrato próprio posterior.
-
-## 17. Schema funcional previsto para macroetapa posterior
-
-A macroetapa funcional posterior de schema poderá definir estruturas equivalentes a:
-
-- `LedgerTemporalCanonico`;
-- `EventoLedgerTemporal`;
-- `LancamentoObrigacaoLedger`;
-- `LancamentoFonteLedger`;
-- `LancamentoReservaLedger`;
-- `LancamentoSwitchingLedger`;
-- `LancamentoBloqueioLedger`;
-- `SaldoLedgerTemporal`;
-- `AuditoriaLedgerTemporalCanonico`;
-- `ParametrosLedgerTemporal`, se necessário.
-
-Este contrato não cria essas estruturas. Ele apenas autoriza sua criação futura sob escopo funcional específico.
-
-## 18. Função pública prevista para macroetapa posterior
-
-A macroetapa funcional posterior de construção poderá implementar função pública equivalente a:
-
-```python
-def construir_ledger_temporal_canonico(
-    resultado: ResultadoMotorTemporalConjunto,
-    parametros: ParametrosLedgerTemporal | None = None,
-) -> LedgerTemporalCanonico:
-    ...
+```text
+nucleo/ledger_temporal_canonico.py
 ```
 
-Essa previsão não autoriza implementação nesta macroetapa documental.
+Função pública implementada:
 
-A função futura deverá consumir exclusivamente `ResultadoMotorTemporalConjunto`.
+```python
+construir_ledger_temporal_canonico(
+    resultado: ResultadoMotorTemporalConjunto,
+    parametros: ParametrosLedgerTemporal | None = None,
+) -> LedgerTemporalCanonico
+```
 
-## 19. Auditoria interna esperada para a Etapa 6
+Artefato formal:
 
-A auditoria interna do ledger deverá verificar, no mínimo:
+```python
+LedgerTemporalCanonico
+```
 
-- todo evento tem data;
-- todo lançamento tem tipo;
-- todo pagamento coberto tem obrigação referenciada;
-- toda obrigação bloqueada tem motivo;
-- todo uso de fonte tem fonte referenciada;
-- toda reserva tem fonte e data;
-- todo switching escolhido tem origem e destino quando disponíveis;
-- nenhuma entrada vem de console, XLSX ou saída observável;
-- nenhuma decisão nova é criada na Etapa 6;
-- nenhum evento indica execução bancária real;
-- `ResultadoMotorTemporalConjunto` é a única origem;
-- bloqueios finais da Etapa 5 foram preservados;
-- o ledger não contém shadow, fallback legado ou rota paralela.
+## 15. Auditoria esperada
 
-Essa auditoria deve ser interna ao módulo funcional ou aos testes unitários. Não deve ser criada como script diagnóstico novo.
+A auditoria da Etapa 6 deve registrar:
 
-## 20. Critérios de aceite da Etapa 6
+- completude do ledger;
+- consistência de datas;
+- preservação de bloqueios;
+- preservação de avisos;
+- coerência de obrigações, fontes, reservas e switchings;
+- origem formal exclusiva;
+- aptidão para Etapa 7 — Gates de Validação de Núcleo.
 
-A Etapa 6 só poderá ser considerada concluída se:
+## 16. Critérios de aceite
 
-1. `LedgerTemporalCanonico` existir como artefato final da Etapa 6;
-2. a entrada exclusiva for `ResultadoMotorTemporalConjunto`;
-3. nenhuma função da Etapa 6 consumir `EstadoTemporalInicial` diretamente;
-4. nenhuma função da Etapa 6 consumir planilha, console, XLSX, logs ou diagnósticos como fonte de estado;
-5. obrigações cobertas e bloqueadas forem representadas no ledger;
-6. reservas e usos referenciais de fontes forem representados no ledger;
-7. switchings escolhidos pela Etapa 5 forem representados no ledger;
-8. bloqueios finais da Etapa 5 forem preservados;
-9. o ledger tiver auditoria final;
-10. o runtime principal continuar passando;
-11. não houver scripts diagnósticos novos;
-12. não houver ledger paralelo, shadow ou wrapper transitório;
-13. o contrato da Etapa 6 estiver coerente com o contrato mestre, com o modelo matemático-estatístico-financeiro oficial e com os contratos das Etapas 1–5.
+A Etapa 6 é aceita quando:
 
-## 21. Fluxograma da Etapa 6
+1. consome somente `ResultadoMotorTemporalConjunto`;
+2. produz `LedgerTemporalCanonico`;
+3. preserva bloqueios e avisos relevantes;
+4. não reotimiza nem revalora;
+5. não altera console, XLSX ou saída canônica;
+6. audita o ledger;
+7. aponta explicitamente para a Etapa 7.
+
+## 17. Fluxograma operacional-explicativo completo
 
 ```mermaid
 flowchart TD
-    E5[Etapa 5<br/>ResultadoMotorTemporalConjunto] --> IN[Entrada formal da Etapa 6<br/>ResultadoMotorTemporalConjunto]
+    IN["Entrada formal<br/>ResultadoMotorTemporalConjunto"] --> ORQ["nucleo/ledger_temporal_canonico.py<br/>construir_ledger_temporal_canonico(...)"]
 
-    subgraph E6[Etapa 6 — Ledger Temporal Canônico]
-        IN --> A[Verificar consumo exclusivo do ResultadoMotorTemporalConjunto]
-        A --> B[Carregar decisões temporais e pacotes vencedores]
-        B --> C[Carregar trajetória temporal interna escolhida]
-        C --> D[Converter eventos internos referenciais em eventos de ledger]
-        D --> E[Registrar obrigações cobertas]
-        E --> F[Registrar obrigações bloqueadas]
-        F --> G[Registrar reservas e usos referenciais de fontes]
-        G --> H[Registrar switchings escolhidos pela Etapa 5]
-        H --> I[Preservar bloqueios, avisos e metadados finais]
-        I --> J[Auditar ledger temporal canônico]
-        J --> OUT[LedgerTemporalCanonico<br/>saída formal da Etapa 6]
-    end
-
-    OUT --> EP[Etapa posterior<br/>somente mediante contrato específico]
+    ORQ --> A["6A. Verificar interface contratual<br/>ResultadoMotorTemporalConjunto"]
+    A --> B["6B. Extrair horizonte e data de referência"]
+    B --> C["6C. Materializar eventos referenciais<br/>eventos de ledger"]
+    C --> D["6D. Materializar obrigações cobertas<br/>lancamentos_obrigacao"]
+    D --> E["6E. Materializar obrigações bloqueadas<br/>lancamentos_bloqueio"]
+    E --> F["6F. Materializar fontes utilizadas e reservadas<br/>lancamentos_fonte / lancamentos_reserva"]
+    F --> G["6G. Materializar switchings escolhidos<br/>lancamentos_switching"]
+    G --> H["6H. Materializar saldos referenciais por data"]
+    H --> I["6I. Preservar bloqueios, avisos e metadados"]
+    I --> J["6J. Auditar LedgerTemporalCanonico"]
+    J --> OUT["Saída formal<br/>LedgerTemporalCanonico"]
+    OUT --> E7["Destino<br/>Etapa 7 — nucleo/gates_validacao_nucleo.py<br/>validar_gates_nucleo(...)"]
 ```
 
-## 22. Condição de parada
+## 18. Condição de parada
 
-Qualquer necessidade de escolher fonte ótima, selecionar novo pacote vencedor, revalorar decisão, executar pagamento, promover switching novo, reconstruir `EstadoTemporalInicial`, consumir planilha original, alterar console, alterar XLSX, alterar dados, gerar saída canônica final, criar script diagnóstico, criar fallback legado, criar rota paralela ou usar saída observável como fonte de estado deve interromper a macroetapa funcional em curso e exigir novo contrato específico antes da implementação.
+A Etapa 6 deve parar com bloqueio auditado quando não for possível formar `LedgerTemporalCanonico` mínimo ou quando a auditoria do ledger detectar inconsistência impeditiva.
 
-## 23. Adendo de fechamento funcional — MACRO-ETAPA6-FULL
+## 19. Adendos funcionais consolidados
 
-A implementação funcional da MACRO-ETAPA6-FULL materializa este contrato em artefato interno de runtime por meio de:
-
-- schema canônico `LedgerTemporalCanonico` e estruturas auxiliares de eventos, lançamentos, saldos, auditoria e parâmetros;
-- função pública `construir_ledger_temporal_canonico(resultado, parametros=None)`;
-- auditoria interna do ledger no próprio módulo funcional, sem script diagnóstico;
-- integração controlada ao runtime principal imediatamente após a construção de `ResultadoMotorTemporalConjunto`;
-- preservação explícita de bloqueios finais, avisos e estado `pronto_para_etapa6` da Etapa 5;
-- prontidão para consumo por etapa posterior somente quando o resultado da Etapa 5 e a auditoria do ledger permitirem.
-
-O adendo não cria contrato da próxima etapa, não autoriza exportação para console, XLSX ou saída canônica final e mantém `ResultadoMotorTemporalConjunto` como origem exclusiva da Etapa 6.
+As regras de não reotimização, não revaloração, não execução real e não alteração de console/XLSX/saída canônica integram o corpo principal deste contrato.
