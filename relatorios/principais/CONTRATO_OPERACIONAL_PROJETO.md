@@ -840,11 +840,28 @@ Quando um switching for materializado, o motor deve atualizar o estado temporal 
 - impedimento de dupla contagem;
 - atualização da elegibilidade para pagamentos posteriores.
 
-### 7-E.7. Ledger canônico do pacote escolhido
+### 7-E.7. Resultado do motor temporal conjunto e ledger canônico
 
-O motor temporal conjunto deve produzir como saída primária um ledger canônico do pacote escolhido.
+A Etapa 5 — Motor Temporal Conjunto — deve produzir como saída formal o `ResultadoMotorTemporalConjunto`.
 
-Esse ledger deve conter, no mínimo:
+Esse resultado contém a decisão temporal fechada, incluindo, no mínimo:
+
+- horizonte temporal;
+- estrutura diária referencial;
+- pacotes candidatos;
+- pacotes valorados;
+- pacote vencedor por data;
+- trajetória temporal interna;
+- eventos internos referenciais;
+- obrigações cobertas e bloqueadas;
+- fontes e reservas referenciais;
+- switchings escolhidos;
+- auditoria final;
+- `pronto_para_etapa6`.
+
+A Etapa 6 — Ledger Temporal Canônico — deve consumir exclusivamente `ResultadoMotorTemporalConjunto` e materializar o `LedgerTemporalCanonico`.
+
+O `LedgerTemporalCanonico` deve conter, no mínimo:
 
 - eventos de pagamentos;
 - eventos de switchings;
@@ -858,15 +875,19 @@ Esse ledger deve conter, no mínimo:
 - impacto terminal estimado;
 - vínculos entre data, conta, fonte, lote, produto e pacote.
 
-O ledger canônico do pacote escolhido é a fonte oficial para a validação de núcleo e para a construção da saída canônica.
+O ledger canônico é a fonte oficial para a validação de núcleo e para a futura construção da saída canônica validada.
 
 É vedado reconstruir o estado temporal a partir da planilha operacional, do console, de markdowns, de CSVs diagnósticos ou de artefatos renderizados.
 
 ### 7-E.8. Gates de validação de núcleo
 
-Após a produção do ledger canônico do pacote escolhido, devem ser aplicados gates de validação de núcleo.
+Após a produção do `LedgerTemporalCanonico`, devem ser aplicados gates de validação de núcleo na Etapa 7.
 
-Esses gates devem verificar, no mínimo:
+A Etapa 7 deve consumir exclusivamente `LedgerTemporalCanonico`.
+
+Evidências do motor temporal, do estado temporal, das decisões, das fontes, das obrigações, dos switchings e dos saldos só podem ser validadas pela Etapa 7 quando já estiverem materializadas no próprio ledger.
+
+Os gates devem verificar, no mínimo:
 
 - conservação de valor;
 - pagamento integral;
@@ -880,23 +901,27 @@ Esses gates devem verificar, no mínimo:
 - consistência de saldos e residuais;
 - aderência ao objetivo econômico terminal.
 
-Esses gates devem operar sobre objetos internos do motor, ledger e estado temporal, não sobre planilha ou console como fonte primária.
+Os gates não podem consultar diretamente `ResultadoMotorTemporalConjunto`, `EstadoTemporalInicial`, planilha, console, XLSX, logs, diagnósticos, markdowns, JSONs ou artefatos renderizados como fonte normativa alternativa.
+
+O resultado formal da Etapa 7 é `ResultadoGatesValidacaoNucleo`.
 
 ### 7-E.9. Saída canônica validada
 
-A saída canônica deve ser construída somente depois da aprovação do ledger e do estado temporal pelos gates de núcleo.
+A Etapa 8 — Saída Canônica Validada — ainda deve ser formalizada em contrato próprio antes de ser tratada como etapa operacional concluída.
 
-A saída canônica deve consumir exclusivamente:
+A saída canônica oficial só deve avançar quando `ResultadoGatesValidacaoNucleo.pronto_para_etapa8=True`.
 
-- ledger canônico do pacote escolhido;
-- estado temporal final;
-- decisões econômicas finais;
-- ranking oficial utilizado;
-- auditorias e validações compatíveis com o estado temporal.
+Enquanto `pronto_para_etapa8=False`, deve haver bloqueio de progressão observável oficial, incluindo console e XLSX oficiais.
+
+A saída canônica validada deve consumir exclusivamente artefatos aprovados pelos gates, em especial:
+
+- `LedgerTemporalCanonico`;
+- `ResultadoGatesValidacaoNucleo`;
+- evidências de estado temporal, decisões, ranking, auditorias e validações já materializadas no ledger ou aprovadas pelos gates.
 
 A saída canônica pode organizar, nomear e estruturar informações para consumo humano ou operacional, mas não pode recalcular decisão econômica, trocar fonte de pagamento, materializar switching, corrigir saldo temporal ou alterar o estado final.
 
-Antes da renderização oficial, a saída canônica deve estar validada contra o ledger e o estado temporal final.
+Antes da renderização oficial, a saída canônica deve estar validada contra o `LedgerTemporalCanonico` e contra `ResultadoGatesValidacaoNucleo`.
 
 ### 7-E.10. Renderização oficial unificada
 
