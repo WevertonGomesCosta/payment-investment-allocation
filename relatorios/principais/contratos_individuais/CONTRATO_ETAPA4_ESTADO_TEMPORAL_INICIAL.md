@@ -18,36 +18,47 @@ Logs históricos e documentos anteriores permanecem preservados como histórico,
 ## 3. Posição na cadeia macro
 
 ```text
-Etapa 3 -> PacoteDadosOperacionaisCanonicos / UniversoEconomicoCanonico / PacoteAuditoriaCanonizacaoOperacional -> Etapa 4 -> EstadoTemporalInicial -> Etapa 5
+Etapa 3 -> PacoteDadosOperacionaisCanonicos -> Etapa 4 -> EstadoTemporalInicial -> Etapa 5
 ```
+
+No runtime vivo, conteúdos conceituais de universo econômico operacional e auditorias de canonização chegam embutidos em `PacoteDadosOperacionaisCanonicos` e `ContextoOperacionalCanonico`, não como classes independentes obrigatórias.
 
 ## 4. Função da etapa
 
-A Etapa 4 transforma os dados operacionais canonizados e o universo econômico canônico em um estado temporal inicial, estruturando os elementos necessários para que a Etapa 5 execute o motor temporal conjunto sem consultar fontes externas à entrada formal da Etapa 4.
+A Etapa 4 transforma dados operacionais canonizados e seus conteúdos conceituais embutidos de universo econômico/auditoria em um estado temporal inicial, estruturando os elementos necessários para que a Etapa 5 execute o motor temporal conjunto sem consultar fontes externas à entrada formal implementada da Etapa 4.
 
 A Etapa 4 não executa decisões econômicas finais; ela organiza o estado inicial para que a decisão conjunta ocorra na Etapa 5.
 
 ## 5. Entrada formal obrigatória e exclusiva
 
-A entrada formal contratual da Etapa 4 é composta pelos artefatos produzidos pela Etapa 3:
+A entrada formal implementada da Etapa 4 é:
 
-- `PacoteDadosOperacionaisCanonicos`;
-- `UniversoEconomicoCanonico`;
-- `PacoteAuditoriaCanonizacaoOperacional`.
+```text
+PacoteDadosOperacionaisCanonicos
+```
 
-A interface física atual pode receber um contexto operacional consolidado quando o runtime ainda materializa os artefatos intermediários internamente. Essa interface física não autoriza a Etapa 4 a buscar planilha, console, XLSX, logs, diagnósticos ou artefatos de etapas posteriores como fonte de estado.
+Conteúdos conceituais antes referidos como `UniversoEconomicoCanonico` e `PacoteAuditoriaCanonizacaoOperacional` são responsabilidades contratuais de conteúdo da Etapa 3, mas, no runtime vivo atual, estão materializados como campos, dataframes, metadados e auditorias dentro de `PacoteDadosOperacionaisCanonicos` e `ContextoOperacionalCanonico`.
+
+A interface física atual da função pública é:
+
+```python
+construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> EstadoTemporalInicial
+```
+
+Essa interface física não autoriza a Etapa 4 a buscar planilha, console, XLSX, logs, diagnósticos ou artefatos de etapas posteriores como fonte de estado.
 
 ## 6. Componentes consumíveis da entrada
 
-A Etapa 4 pode consumir somente componentes materializados na entrada formal, incluindo:
+A Etapa 4 pode consumir somente componentes materializados na entrada formal implementada e no wrapper vivo `ContextoOperacionalCanonico`, incluindo:
 
-- recebidos canonizados;
+- recebidos canonizados ou auditáveis;
 - pagamentos canonizados;
 - inventário canônico de lotes;
-- regras econômicas canônicas;
-- universo de fontes elegíveis;
+- regras econômicas canônicas já materializadas no contexto;
+- universo de fontes elegíveis já materializado no contexto;
 - informações de switching já canonizadas;
-- auditoria de completude e consistência da canonização.
+- auditorias de completude e consistência da canonização embutidas nos artefatos da Etapa 3;
+- data de referência, calendário financeiro e cache CDI já materializados no contexto.
 
 ## 7. Saída formal obrigatória
 
@@ -77,7 +88,7 @@ A Etapa 4 deve executar uma orquestração de construção temporal em `construi
 
 A Etapa 4 deve:
 
-1. verificar a interface formal da Etapa 3 e a interface física atual;
+1. verificar a interface formal implementada da Etapa 3 e a interface física atual;
 2. extrair data de referência e componentes canonizados do contexto operacional consolidado;
 3. construir `pagamentos_temporais` a partir de gastos canônicos, usando `_status_data(...)`;
 4. construir `inventario_temporal` a partir do inventário canônico, usando `_status_inventario_temporal(...)`;
@@ -118,7 +129,7 @@ A Etapa 4 não pode:
 
 ## 12. Relação com a etapa anterior
 
-A Etapa 4 depende exclusivamente da Etapa 3. A Etapa 3 entrega dados operacionais canonizados, universo econômico canônico e auditoria de canonização operacional; a Etapa 4 apenas estrutura esses elementos em perspectiva temporal inicial.
+A Etapa 4 depende exclusivamente da Etapa 3. A Etapa 3 entrega `PacoteDadosOperacionaisCanonicos`, contendo os dados operacionais canonizados e os conteúdos conceituais embutidos de universo econômico operacional e auditorias de canonização. A Etapa 4 apenas estrutura esses elementos em perspectiva temporal inicial.
 
 ## 13. Relação com a etapa posterior
 
@@ -135,7 +146,7 @@ nucleo/estado_temporal_inicial.py
 Função pública implementada:
 
 ```python
-construir_estado_temporal_inicial(...) -> EstadoTemporalInicial
+construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> EstadoTemporalInicial
 ```
 
 Artefato formal:
@@ -158,7 +169,7 @@ A auditoria da Etapa 4 deve registrar:
 
 A Etapa 4 é aceita quando:
 
-1. consome somente a entrada formal da Etapa 3;
+1. consome somente a entrada formal implementada da Etapa 3 e componentes embutidos no `ContextoOperacionalCanonico`;
 2. produz `EstadoTemporalInicial`;
 3. materializa os componentes temporais mínimos;
 4. registra auditoria temporal;
@@ -171,13 +182,9 @@ A Etapa 4 é aceita quando:
 
 ```mermaid
 flowchart TD
-    E3["Saídas formais da Etapa 3<br/>Canonização operacional"] --> IN1["PacoteDadosOperacionaisCanonicos"]
-    E3 --> IN2["UniversoEconomicoCanonico"]
-    E3 --> IN3["PacoteAuditoriaCanonizacaoOperacional"]
-
-    IN1 --> CTX["Interface física atual<br/>ContextoOperacionalCanonico<br/>dados_operacionais canonizados"]
-    IN2 --> CTX
-    IN3 --> CTX
+    E3["Saída formal implementada da Etapa 3<br/>PacoteDadosOperacionaisCanonicos"] --> EMB["Conteúdos conceituais embutidos<br/>universo econômico operacional<br/>auditorias de canonização"]
+    E3 --> CTX["Interface física atual<br/>ContextoOperacionalCanonico<br/>dados_operacionais canonizados"]
+    EMB --> CTX
 
     CTX --> ORQ["nucleo/estado_temporal_inicial.py<br/>construir_estado_temporal_inicial(contexto)"]
 
@@ -223,8 +230,8 @@ flowchart TD
 
 ## 18. Condição de parada
 
-A Etapa 4 deve parar com incompletude auditada quando a entrada formal da Etapa 3 não permitir estruturar o estado temporal inicial mínimo.
+A Etapa 4 deve parar com incompletude auditada quando a entrada formal implementada da Etapa 3 não permitir estruturar o estado temporal inicial mínimo.
 
 ## 19. Adendos funcionais consolidados
 
-Não há adendos funcionais ativos fora deste corpo contratual. O corpo vivo da Etapa 4 é o presente documento.
+Este contrato foi ajustado pela MICRO-CONTRATOS-04 para alinhar a entrada da Etapa 4 à Etapa 3 pós-PR #435: `PacoteDadosOperacionaisCanonicos` é a entrada formal implementada, enquanto universo econômico operacional e auditorias de canonização são conteúdos conceituais embutidos no `ContextoOperacionalCanonico`.
