@@ -21,7 +21,7 @@ from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz
 
 
 def carregar_contexto_e_saida():
-    """Carrega a cadeia canônica Etapas 1-4 e constrói a saída estrutural inicial da Etapa 5."""
+    """Carrega as Etapas 1-7 e só prepara saída canônica quando os gates aprovam."""
     contexto_operacional_canonico = carregar_contexto_operacional_canonico(
         raiz_repositorio=RAIZ_REPOSITORIO,
         instalar_automaticamente=False,
@@ -30,6 +30,17 @@ def carregar_contexto_e_saida():
     resultado_motor_temporal_conjunto = construir_resultado_motor_temporal_conjunto(estado_temporal_inicial)
     ledger_temporal_canonico = construir_ledger_temporal_canonico(resultado_motor_temporal_conjunto)
     resultado_gates_validacao_nucleo = validar_gates_nucleo(ledger_temporal_canonico)
+
+    if not resultado_gates_validacao_nucleo.pronto_para_etapa8:
+        return (
+            contexto_operacional_canonico,
+            estado_temporal_inicial,
+            resultado_motor_temporal_conjunto,
+            ledger_temporal_canonico,
+            resultado_gates_validacao_nucleo,
+            None,
+        )
+
     saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional_canonico, versao=VERSAO_BASELINE)
     matriz = construir_matriz_elegibilidade_fontes_s7b(
         contexto_operacional_canonico,
