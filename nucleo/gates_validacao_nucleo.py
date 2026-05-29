@@ -360,12 +360,45 @@ def _bool_false(valor: Any) -> bool:
 
 
 def _fonte_compativel_com_obrigacao(fonte: Any, obrigacao: Any) -> bool:
-    for campo in ('data', 'pacote_id', 'obrigacao_id'):
+    for campo in ('data', 'pacote_id'):
         valor_fonte = _valor(fonte, campo)
         valor_obrigacao = _valor(obrigacao, campo)
         if valor_fonte is not None and valor_obrigacao is not None and valor_fonte != valor_obrigacao:
             return False
     return True
+
+
+def _valor_movimento_fonte(fonte: Any) -> float | None:
+    valor = _float_ou_none(_valor(fonte, 'valor_referencial'))
+    if valor is not None:
+        return valor
+    return _float_ou_none(_valor(fonte, 'valor_reservado_referencial'))
+
+
+def _validar_liquidez_carencia_materializada(
+    gate: GateValidacaoNucleo,
+    item: Any,
+    entidade_tipo: str,
+    entidade_id: str | None,
+    indice: int,
+    data_item: date | None,
+) -> None:
+    for campo in ('elegivel_na_data_pagamento', 'elegivel'):
+        origem_campo, valor_campo = _valor_materializado(item, campo)
+        if origem_campo and _bool_false(valor_campo):
+            evidencia = _nova_evidencia(gate.gate_id, data_item, entidade_tipo, entidade_id, origem_campo, valor_campo, True, None, 'bloqueio', 'Movimento de fonte marcado como inelegível no próprio ledger.', _referencias(item, indice))
+            _adicionar_bloqueio(gate, f'{campo}_false', 'Movimento de fonte possui evidência de inelegibilidade no ledger.', data_item, entidade_tipo, entidade_id, evidencia)
+    origem_liquido, liquido = _valor_materializado(item, 'liquido')
+    if origem_liquido and _bool_false(liquido):
+        evidencia = _nova_evidencia(gate.gate_id, data_item, entidade_tipo, entidade_id, origem_liquido, liquido, True, None, 'bloqueio', 'Movimento de fonte com liquidez bloqueada conforme evidência do ledger.', _referencias(item, indice))
+        _adicionar_bloqueio(gate, 'liquido_false', 'Movimento de fonte possui evidência de liquidez bloqueada no ledger.', data_item, entidade_tipo, entidade_id, evidencia)
+    for campo_carencia in ('carencia_ate_origem', 'carencia_ate'):
+        origem_carencia, valor_carencia = _valor_materializado(item, campo_carencia)
+        data_carencia = _data_ou_none(valor_carencia)
+        data_item_parseada = _data_ou_none(data_item)
+        if origem_carencia and data_carencia is not None and data_item_parseada is not None and data_carencia > data_item_parseada:
+            evidencia = _nova_evidencia(gate.gate_id, data_item_parseada, entidade_tipo, entidade_id, origem_carencia, data_carencia, f'<= {data_item_parseada}', None, 'bloqueio', 'Movimento de fonte em carência posterior à data de uso/reserva.', _referencias(item, indice))
+            _adicionar_bloqueio(gate, 'carencia_posterior_data_movimento', 'Movimento de fonte possui carência posterior à data materializada no ledger.', data_item_parseada, entidade_tipo, entidade_id, evidencia)
 
 
 def _contem_fonte_direta_proibida(valor: Any) -> bool:
@@ -555,13 +588,16 @@ def _gate_obrigacoes_cobertas(ledger: LedgerTemporalCanonico, parametros: Parame
         if 'fontes_referenciadas' in _dict_referencia(obrigacao) and not fontes:
             evidencia = _nova_evidencia(gate.gate_id, data_obrigacao, 'obrigacao_coberta', entidade_id, 'fontes_referenciadas', fontes, 'fonte associada quando evidenciada', None, 'aviso', 'Obrigação coberta não possui fonte associada no ledger.', _referencias(obrigacao, indice))
             _adicionar_aviso(gate, 'obrigacao_coberta_sem_fonte_associada', 'Obrigação coberta sem fonte associada no ledger.', data_obrigacao, 'obrigacao_coberta', entidade_id, evidencia)
+        fontes_compativeis: list[Any] = []
         for fonte_id in fontes:
             fonte_id_str = str(fonte_id)
-            fonte_compativel = any(
-                str(_valor(fonte, 'fonte_id')) == fonte_id_str and _fonte_compativel_com_obrigacao(fonte, obrigacao)
+            fontes_da_obrigacao = [
+                fonte
                 for fonte in fontes_materializadas
-            )
-            if not fonte_compativel:
+                if str(_valor(fonte, 'fonte_id')) == fonte_id_str and _fonte_compativel_com_obrigacao(fonte, obrigacao)
+            ]
+            fontes_compativeis.extend(fontes_da_obrigacao)
+            if not fontes_da_obrigacao:
                 evidencia = _nova_evidencia(
                     gate.gate_id,
                     data_obrigacao,
@@ -576,6 +612,24 @@ def _gate_obrigacoes_cobertas(ledger: LedgerTemporalCanonico, parametros: Parame
                     _referencias(obrigacao, indice),
                 )
                 _adicionar_bloqueio(gate, 'fonte_referenciada_nao_materializada', 'Fonte referenciada pela obrigação coberta não foi materializada no ledger.', data_obrigacao, 'obrigacao_coberta', entidade_id, evidencia)
+        if fontes and valor_coberto is not None:
+            soma_fontes = sum(_valor_movimento_fonte(fonte) or 0.0 for fonte in fontes_compativeis)
+            diferenca_fontes = round(valor_coberto - soma_fontes, 10)
+            if diferenca_fontes > parametros.tolerancia_valor:
+                evidencia = _nova_evidencia(
+                    gate.gate_id,
+                    data_obrigacao,
+                    'obrigacao_coberta',
+                    entidade_id,
+                    'valor_coberto_referencial/fontes_referenciadas',
+                    soma_fontes,
+                    valor_coberto,
+                    diferenca_fontes,
+                    'bloqueio',
+                    'Soma de fontes materializadas compatíveis é menor que o valor coberto da obrigação.',
+                    {**_referencias(obrigacao, indice), 'qtd_fontes_compativeis': len(fontes_compativeis)},
+                )
+                _adicionar_bloqueio(gate, 'valor_coberto_sem_lastro_em_fontes', 'Valor coberto da obrigação excede a soma das fontes materializadas compatíveis no ledger.', data_obrigacao, 'obrigacao_coberta', entidade_id, evidencia)
 
     return _finalizar_gate(gate, len(obrigacoes))
 
@@ -641,6 +695,8 @@ def _gate_fontes_utilizadas(ledger: LedgerTemporalCanonico, parametros: Parametr
         if _valor(fonte, 'obrigacao_id') is None and _valor(fonte, 'pacote_id') is None:
             evidencia = _nova_evidencia(gate.gate_id, _valor(fonte, 'data'), 'fonte_utilizada', entidade_id, 'obrigacao_id', None, 'obrigação ou evento associado', None, 'aviso', 'Fonte utilizada sem obrigação ou pacote associado no ledger.', _referencias(fonte, indice))
             _adicionar_aviso(gate, 'fonte_utilizada_sem_associacao', 'Fonte utilizada sem obrigação ou pacote associado no ledger.', _valor(fonte, 'data'), 'fonte_utilizada', entidade_id, evidencia)
+        if parametros.validar_liquidez_carencia_quando_disponivel:
+            _validar_liquidez_carencia_materializada(gate, fonte, 'fonte_utilizada', entidade_id, indice, _valor(fonte, 'data'))
     return _finalizar_gate(gate, len(fontes))
 
 
@@ -692,22 +748,7 @@ def _gate_fontes_reservadas(ledger: LedgerTemporalCanonico, parametros: Parametr
             _adicionar_bloqueio(gate, 'reserva_para_obrigacao_bloqueada', 'Reserva associada a obrigação bloqueada identificável no ledger.', data_reserva, 'fonte_reservada', entidade_id, evidencia)
 
         if parametros.validar_liquidez_carencia_quando_disponivel:
-            for campo in ('elegivel_na_data_pagamento', 'elegivel'):
-                origem_campo, valor_campo = _valor_materializado(reserva, campo)
-                if origem_campo and _bool_false(valor_campo):
-                    evidencia = _nova_evidencia(gate.gate_id, data_reserva, 'fonte_reservada', entidade_id, origem_campo, valor_campo, True, None, 'bloqueio', 'Reserva usa fonte marcada como inelegível no próprio ledger.', _referencias(reserva, indice))
-                    _adicionar_bloqueio(gate, f'{campo}_false', 'Fonte reservada possui evidência de inelegibilidade no ledger.', data_reserva, 'fonte_reservada', entidade_id, evidencia)
-            origem_liquido, liquido = _valor_materializado(reserva, 'liquido')
-            if origem_liquido and _bool_false(liquido):
-                evidencia = _nova_evidencia(gate.gate_id, data_reserva, 'fonte_reservada', entidade_id, origem_liquido, liquido, True, None, 'bloqueio', 'Reserva usa fonte com liquidez bloqueada conforme evidência do ledger.', _referencias(reserva, indice))
-                _adicionar_bloqueio(gate, 'liquido_false', 'Fonte reservada possui evidência de liquidez bloqueada no ledger.', data_reserva, 'fonte_reservada', entidade_id, evidencia)
-            for campo_carencia in ('carencia_ate_origem', 'carencia_ate'):
-                origem_carencia, valor_carencia = _valor_materializado(reserva, campo_carencia)
-                data_carencia = _data_ou_none(valor_carencia)
-                data_reserva_parseada = _data_ou_none(data_reserva)
-                if origem_carencia and data_carencia is not None and data_reserva_parseada is not None and data_carencia > data_reserva_parseada:
-                    evidencia = _nova_evidencia(gate.gate_id, data_reserva_parseada, 'fonte_reservada', entidade_id, origem_carencia, data_carencia, f'<= {data_reserva_parseada}', None, 'bloqueio', 'Reserva usa fonte em carência posterior à data da reserva.', _referencias(reserva, indice))
-                    _adicionar_bloqueio(gate, 'carencia_posterior_data_reserva', 'Fonte reservada está em carência posterior à data da reserva.', data_reserva_parseada, 'fonte_reservada', entidade_id, evidencia)
+            _validar_liquidez_carencia_materializada(gate, reserva, 'fonte_reservada', entidade_id, indice, data_reserva)
 
     for chave, acumulado in reservas_por_chave.items():
         saldo_antes_maximo = acumulado.get('saldo_antes_maximo')
@@ -743,6 +784,21 @@ def _gate_saldos_residuais(ledger: LedgerTemporalCanonico, parametros: Parametro
             ledger.data_referencia,
         )
 
+    saldos_depois_movimentos: dict[tuple[object, object], dict[str, object]] = {}
+    movimentos = list(ledger.fontes_utilizadas or []) + list(ledger.fontes_reservadas or [])
+    for indice_movimento, movimento in enumerate(movimentos):
+        chave = (_valor(movimento, 'fonte_id'), _valor(movimento, 'data'))
+        saldo_depois = _float_ou_none(_valor(movimento, 'valor_disponivel_depois_referencial'))
+        if chave[0] is None or chave[1] is None or saldo_depois is None:
+            continue
+        atual = saldos_depois_movimentos.get(chave)
+        if atual is None or saldo_depois < float(atual['saldo_depois']):
+            saldos_depois_movimentos[chave] = {
+                'saldo_depois': saldo_depois,
+                'movimento': movimento,
+                'indice': indice_movimento,
+            }
+
     qtd_saldos = 0
     for data_ref, saldos in saldos_por_data.items():
         if not saldos:
@@ -751,16 +807,41 @@ def _gate_saldos_residuais(ledger: LedgerTemporalCanonico, parametros: Parametro
         for indice, saldo in enumerate(saldos):
             qtd_saldos += 1
             entidade_id = _id_entidade(saldo, 'fonte_id', 'pacote_id')
+            data_saldo = _valor(saldo, 'data', data_ref)
             valor_disponivel = _float_ou_none(_valor(saldo, 'valor_disponivel_referencial'))
             if valor_disponivel is not None and valor_disponivel < -abs(parametros.tolerancia_residual):
-                evidencia = _nova_evidencia(gate.gate_id, _valor(saldo, 'data', data_ref), 'saldo_referencial', entidade_id, 'valor_disponivel_referencial', valor_disponivel, '>= 0', valor_disponivel, 'bloqueio', 'Saldo referencial negativo além da tolerância residual.', _referencias(saldo, indice))
-                _adicionar_bloqueio(gate, 'saldo_referencial_negativo_material', 'Saldo referencial negativo além da tolerância.', _valor(saldo, 'data', data_ref), 'saldo_referencial', entidade_id, evidencia)
+                evidencia = _nova_evidencia(gate.gate_id, data_saldo, 'saldo_referencial', entidade_id, 'valor_disponivel_referencial', valor_disponivel, '>= 0', valor_disponivel, 'bloqueio', 'Saldo referencial negativo além da tolerância residual.', _referencias(saldo, indice))
+                _adicionar_bloqueio(gate, 'saldo_referencial_negativo_material', 'Saldo referencial negativo além da tolerância.', data_saldo, 'saldo_referencial', entidade_id, evidencia)
             reservado = _float_ou_none(_valor(saldo, 'valor_reservado_acumulado_referencial'))
             if reservado is not None and reservado < -abs(parametros.tolerancia_residual):
-                evidencia = _nova_evidencia(gate.gate_id, _valor(saldo, 'data', data_ref), 'saldo_referencial', entidade_id, 'valor_reservado_acumulado_referencial', reservado, '>= 0', reservado, 'bloqueio', 'Reservado acumulado negativo além da tolerância residual.', _referencias(saldo, indice))
-                _adicionar_bloqueio(gate, 'reservado_acumulado_negativo_material', 'Reservado acumulado negativo além da tolerância.', _valor(saldo, 'data', data_ref), 'saldo_referencial', entidade_id, evidencia)
+                evidencia = _nova_evidencia(gate.gate_id, data_saldo, 'saldo_referencial', entidade_id, 'valor_reservado_acumulado_referencial', reservado, '>= 0', reservado, 'bloqueio', 'Reservado acumulado negativo além da tolerância residual.', _referencias(saldo, indice))
+                _adicionar_bloqueio(gate, 'reservado_acumulado_negativo_material', 'Reservado acumulado negativo além da tolerância.', data_saldo, 'saldo_referencial', entidade_id, evidencia)
+            chave_saldo = (_valor(saldo, 'fonte_id'), data_saldo)
+            movimento_restritivo = saldos_depois_movimentos.get(chave_saldo)
+            if valor_disponivel is not None and movimento_restritivo is not None:
+                saldo_depois_movimento = float(movimento_restritivo['saldo_depois'])
+                diferenca = round(valor_disponivel - saldo_depois_movimento, 10)
+                if abs(diferenca) > parametros.tolerancia_residual:
+                    evidencia = _nova_evidencia(
+                        gate.gate_id,
+                        data_saldo,
+                        'saldo_referencial',
+                        entidade_id,
+                        'valor_disponivel_referencial',
+                        valor_disponivel,
+                        saldo_depois_movimento,
+                        diferenca,
+                        'bloqueio',
+                        'Saldo referencial por fonte/data diverge do menor saldo depois materializado nos movimentos de fonte.',
+                        {
+                            **_referencias(saldo, indice),
+                            'criterio_movimentos_multiplos': 'menor_valor_disponivel_depois_referencial',
+                            'movimento_restritivo': _dict_referencia(movimento_restritivo.get('movimento')),
+                        },
+                    )
+                    _adicionar_bloqueio(gate, 'saldo_residual_divergente_movimento_fonte', 'Saldo residual diverge do saldo depois mais restritivo dos movimentos de fonte.', data_saldo, 'saldo_referencial', entidade_id, evidencia)
+    gate.resumo['criterio_movimentos_multiplos'] = 'menor_valor_disponivel_depois_referencial'
     return _finalizar_gate(gate, qtd_saldos)
-
 
 def _gate_switchings(ledger: LedgerTemporalCanonico, parametros: ParametrosGatesValidacaoNucleo) -> GateValidacaoNucleo:
     gate = _novo_gate('gate_switchings', 'Switchings materializados no ledger')

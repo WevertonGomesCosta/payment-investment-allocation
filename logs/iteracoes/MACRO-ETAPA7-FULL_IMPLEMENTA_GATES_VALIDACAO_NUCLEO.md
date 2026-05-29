@@ -152,3 +152,14 @@ Correção aplicada sobre a PR #426 para endereçar os seis comentários P2 aind
 As correções continuam consumindo exclusivamente `LedgerTemporalCanonico` como entrada formal de estado. Não houve consulta direta a `ResultadoMotorTemporalConjunto`, `EstadoTemporalInicial`, planilha, console, XLSX, dados brutos, logs externos, diagnósticos ou saída observável pela Etapa 7.
 
 Confirmação de escopo pós-correção: console, XLSX, dados, saída canônica e scripts diagnósticos não foram alterados.
+
+## Correção pós-reauditoria PR #426 — quatro novos comentários P2
+
+A reauditoria marcou os seis P2 anteriores como outdated/corrigidos. Nesta rodada foram tratados quatro novos comentários P2 procedentes:
+
+1. `_fonte_compativel_com_obrigacao(...)` deixou de usar `obrigacao_id` como critério eliminatório. A compatibilidade agora exige apenas `data` e `pacote_id` quando ambos os lados materializam esses campos; `obrigacao_id` não bloqueia fontes em nível de pacote compartilhado.
+2. `gate_obrigacoes_cobertas` passou a reconciliar `valor_coberto_referencial` contra a soma dos valores materializados em `ledger.fontes_utilizadas` e/ou `ledger.fontes_reservadas`, filtrando por `fonte_id`, `data` e `pacote_id` quando disponíveis. Se a soma compatível for menor que a cobertura além de `tolerancia_valor`, o gate gera bloqueio.
+3. `gate_fontes_utilizadas` passou a aplicar a mesma validação de elegibilidade, liquidez e carência já usada em reservas, sempre limitada a campos materializados no item, em `referencia_original` ou em metadados do próprio lançamento do ledger.
+4. `gate_saldos_residuais` passou a reconciliar `valor_disponivel_referencial` com movimentos de fontes utilizados/reservados na mesma `(fonte_id, data)`. Quando há múltiplos movimentos para a mesma chave, usa o menor `valor_disponivel_depois_referencial` como evidência mais restritiva.
+
+As correções continuam consumindo exclusivamente `LedgerTemporalCanonico`. Não houve alteração em console, XLSX, dados, saída canônica ou scripts diagnósticos.
