@@ -18,7 +18,7 @@ Logs históricos e documentos anteriores permanecem preservados como histórico,
 ## 3. Posição na cadeia macro
 
 ```text
-Etapa 3 -> PacoteDadosOperacionaisCanonicos / UniversoEconomicoCanonico -> Etapa 4 -> EstadoTemporalInicial -> Etapa 5
+Etapa 3 -> PacoteDadosOperacionaisCanonicos / UniversoEconomicoCanonico / PacoteAuditoriaCanonizacaoOperacional -> Etapa 4 -> EstadoTemporalInicial -> Etapa 5
 ```
 
 ## 4. Função da etapa
@@ -73,18 +73,22 @@ EstadoTemporalInicial
 
 ## 9. Processo interno da etapa
 
+A Etapa 4 deve executar uma orquestração de construção temporal em `construir_estado_temporal_inicial(...)`, composta por blocos independentes e blocos derivados. A ordem documental abaixo não implica dependência causal entre todos os blocos; as dependências reais são explicitadas no fluxograma da seção 17.
+
 A Etapa 4 deve:
 
-1. verificar a presença dos artefatos formais da Etapa 3;
-2. construir o inventário temporal;
-3. organizar pagamentos temporais;
-4. organizar recebidos temporais;
-5. estruturar fontes temporais;
-6. materializar switching temporal realizado quando já estiver canonizado;
-7. derivar restrições temporais;
-8. registrar elegibilidades preliminares;
-9. executar auditoria temporal;
-10. emitir `EstadoTemporalInicial`.
+1. verificar a interface formal da Etapa 3 e a interface física atual;
+2. extrair data de referência e componentes canonizados do contexto operacional consolidado;
+3. construir `pagamentos_temporais` a partir de gastos canônicos, usando `_status_data(...)`;
+4. construir `inventario_temporal` a partir do inventário canônico, usando `_status_inventario_temporal(...)`;
+5. construir `recebidos_temporais` a partir de recebidos auditáveis ou salários canônicos, usando `_recebidos_temporais_canonicos(...)` quando disponível;
+6. construir `fontes_temporais` a partir de fontes elegíveis de pagamento, usando `_bool_conservador_fonte(...)` e `_float_seguro(...)`;
+7. construir `switching_temporal_realizado` a partir do switching canônico, usando `_status_switching_materializacao(...)` e `_float_seguro(...)`;
+8. atualizar `inventario_temporal` quando switchings materializados exigirem marcação de origem migrada ou destino pós-switching;
+9. derivar `restricoes_temporais` e `elegibilidades_preliminares` a partir de `pagamentos_temporais`;
+10. montar `EstadoTemporalInicial(...)` agregando os blocos temporais;
+11. executar `auditar_estado_temporal_inicial(...)`;
+12. emitir `EstadoTemporalInicial`.
 
 ## 10. O que a etapa pode fazer
 
@@ -167,20 +171,53 @@ A Etapa 4 é aceita quando:
 
 ```mermaid
 flowchart TD
-    IN1["Entrada formal<br/>PacoteDadosOperacionaisCanonicos"] --> ORQ["nucleo/estado_temporal_inicial.py<br/>construir_estado_temporal_inicial(...)"]
-    IN2["Entrada formal<br/>UniversoEconomicoCanonico"] --> ORQ
-    IN3["Entrada formal<br/>PacoteAuditoriaCanonizacaoOperacional"] --> ORQ
+    E3["Saídas formais da Etapa 3<br/>Canonização operacional"] --> IN1["PacoteDadosOperacionaisCanonicos"]
+    E3 --> IN2["UniversoEconomicoCanonico"]
+    E3 --> IN3["PacoteAuditoriaCanonizacaoOperacional"]
 
-    ORQ --> A["4A. Verificar interface formal da Etapa 3<br/>artefatos canonizados e auditoria"]
-    A --> B["4B. Construir inventário temporal<br/>inventario_temporal"]
-    B --> C["4C. Organizar pagamentos temporais<br/>pagamentos_temporais"]
-    C --> D["4D. Organizar recebidos temporais<br/>recebidos_temporais"]
-    D --> E["4E. Estruturar fontes temporais<br/>fontes_temporais"]
-    E --> F["4F. Incorporar switching temporal realizado<br/>switching_temporal_realizado"]
-    F --> G["4G. Derivar restrições temporais<br/>restricoes_temporais"]
-    G --> H["4H. Registrar elegibilidades preliminares<br/>elegibilidades_preliminares"]
-    H --> I["4I. Auditar estado temporal inicial<br/>auditoria_temporal"]
-    I --> OUT["Saída formal<br/>EstadoTemporalInicial"]
+    IN1 --> CTX["Interface física atual<br/>ContextoOperacionalCanonico<br/>dados_operacionais canonizados"]
+    IN2 --> CTX
+    IN3 --> CTX
+
+    CTX --> ORQ["nucleo/estado_temporal_inicial.py<br/>construir_estado_temporal_inicial(contexto)"]
+
+    ORQ --> REF["Extrair data de referência<br/>contexto.execucao.data_referencia"]
+    ORQ --> GASTOS["Extrair gastos canônicos<br/>contexto.dados_operacionais.gastos_canonicos"]
+    ORQ --> RECEBIDOS["Extrair recebidos/salários canônicos<br/>contexto.dados_operacionais.salarios_canonicos<br/>contexto.recebidos_auditaveis"]
+    ORQ --> INVENTARIO["Extrair inventário canônico<br/>contexto.dados_operacionais.inventario_canonico"]
+    ORQ --> FONTES["Extrair fontes elegíveis<br/>contexto.fontes_elegiveis_pagamento"]
+    ORQ --> SWITCH["Extrair switching canônico<br/>contexto.dados_operacionais.switching_canonico"]
+
+    GASTOS --> PG["Bloco interno em construir_estado_temporal_inicial(...)<br/>pagamentos_temporais<br/>usa _status_data(...)"]
+    INVENTARIO --> INV["Bloco interno em construir_estado_temporal_inicial(...)<br/>inventario_temporal<br/>usa _status_inventario_temporal(...)"]
+
+    RECEBIDOS --> REC1["Função auxiliar<br/>_recebidos_temporais_canonicos(...)"]
+    REC1 --> REC["recebidos_temporais"]
+    RECEBIDOS --> REC_FALLBACK["Fallback interno em construir_estado_temporal_inicial(...)<br/>quando recebidos_auditaveis vazio"]
+    REC_FALLBACK --> REC
+
+    FONTES --> FON["Bloco interno em construir_estado_temporal_inicial(...)<br/>fontes_temporais<br/>usa _bool_conservador_fonte(...)<br/>usa _float_seguro(...)"]
+
+    INV --> INV_IDX["Construir inventario_por_lote<br/>índice auxiliar por lote_id"]
+    SWITCH --> SW["Bloco interno em construir_estado_temporal_inicial(...)<br/>switching_temporal_realizado<br/>usa _status_switching_materializacao(...)<br/>usa _float_seguro(...)"]
+    INV_IDX --> SW
+    SW --> INV_UPD["Atualizar inventario_temporal<br/>origem migrada / destino pós-switching"]
+
+    PG --> REST["Derivar restricoes_temporais<br/>pagamento_futuro"]
+    PG --> ELEG["Derivar elegibilidades_preliminares<br/>sem_decisao_economica_etapa5"]
+
+    REF --> ESTADO["Montar EstadoTemporalInicial(...)"]
+    PG --> ESTADO
+    INV_UPD --> ESTADO
+    REC --> ESTADO
+    FON --> ESTADO
+    SW --> ESTADO
+    REST --> ESTADO
+    ELEG --> ESTADO
+
+    ESTADO --> AUD["auditar_estado_temporal_inicial(estado)"]
+    AUD --> OUT["Saída formal<br/>EstadoTemporalInicial"]
+
     OUT --> E5["Destino<br/>Etapa 5 — nucleo/motor_temporal_conjunto.py<br/>construir_resultado_motor_temporal_conjunto(...)"]
 ```
 
