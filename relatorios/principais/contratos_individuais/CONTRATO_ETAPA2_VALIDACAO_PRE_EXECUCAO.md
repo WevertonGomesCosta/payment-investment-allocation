@@ -8,13 +8,16 @@
 - **Saída formal obrigatória:** `PacoteValidacaoPreExecucao`
 - **Natureza:** gate puro de validação estrutural pré-execução
 - **Módulo central:** `nucleo/validacao_pre_execucao.py`
-- **Função pública implementada:** `validar_pre_execucao(...)`
+- **Função pública legada compatível:** `validar_pre_execucao(...)`
+- **Função viva usada no runtime:** `validar_pre_execucao_pacote_entrada_resolvida(...)`
 
 ## 2. Status normativo
 
 Este contrato formaliza a Etapa 2 como validação estrutural do `PacoteEntradaResolvida` produzido pela Etapa 1.
 
 A Etapa 2 é gate puro: valida completude, coerência, auditabilidade e interpretabilidade mínima, mas não corrige dados, não transforma dados e não cria artefatos canônicos.
+
+No runtime vivo, a validação da Etapa 2 é executada por `validar_pre_execucao_pacote_entrada_resolvida(...)`, consumindo diretamente `PacoteEntradaResolvida`. A função `validar_pre_execucao(...)` permanece documentada como rota compatível para os componentes físicos distribuídos (`PacoteConfig`, `ContextoExecucao`, `PacotePlanilha`), mas não é a função principal do runtime atual.
 
 ## 3. Posição na cadeia macro
 
@@ -66,7 +69,7 @@ PacoteValidacaoPreExecucao
 `PacoteValidacaoPreExecucao` deve conter, no mínimo:
 
 - `ok`;
-- `erros`;
+- `erros_bloqueantes`;
 - `avisos`;
 - `evidencias`.
 
@@ -74,20 +77,24 @@ O pacote registra se o `PacoteEntradaResolvida` está apto para consumo pela Eta
 
 ## 9. Processo interno da etapa
 
-A Etapa 2 deve validar:
+A Etapa 2 deve:
 
-1. `PacoteConfig`;
-2. `ContextoExecucao`;
-3. `PacotePlanilha`;
-4. `MapaAbasResolvidas`;
-5. `MapaColunasResolvidas`;
-6. `quadros_estruturais_resolvidos`;
-7. interpretabilidade mínima de datas;
-8. interpretabilidade mínima de números;
-9. `JanelaConsultaCDI`;
-10. `PacoteCacheCDIDiario`;
-11. auditorias da Etapa 1;
-12. consolidação de status, erros, avisos e evidências.
+1. receber `PacoteEntradaResolvida` como entrada formal;
+2. verificar se o objeto recebido é `PacoteEntradaResolvida`;
+3. validar estrutura mínima do pacote;
+4. validar `PacoteConfig`;
+5. validar `ContextoExecucao`;
+6. validar `PacotePlanilha` sem reler workbook;
+7. validar `MapaAbasResolvidas`;
+8. validar `MapaColunasResolvidas`;
+9. validar `quadros_estruturais_resolvidos`;
+10. validar interpretabilidade mínima de datas;
+11. validar interpretabilidade mínima de números;
+12. validar `JanelaConsultaCDI`;
+13. validar `PacoteCacheCDIDiario`;
+14. validar auditorias da Etapa 1;
+15. consolidar `ok`, erros, avisos e evidências;
+16. emitir `PacoteValidacaoPreExecucao`.
 
 ## 10. O que a etapa pode fazer
 
@@ -158,25 +165,38 @@ Módulo funcional:
 nucleo/validacao_pre_execucao.py
 ```
 
-Função pública implementada:
+Função viva usada no runtime:
 
 ```python
-validar_pre_execucao(...) -> PacoteValidacaoPreExecucao
+validar_pre_execucao_pacote_entrada_resolvida(
+    pacote_entrada_resolvida: PacoteEntradaResolvida,
+) -> PacoteValidacaoPreExecucao
+```
+
+Função legada compatível preservada:
+
+```python
+validar_pre_execucao(
+    pacote_config: PacoteConfig,
+    contexto_execucao: ContextoExecucao,
+    pacote_planilha: PacotePlanilha,
+) -> PacoteValidacaoPreExecucao
 ```
 
 Funções ou blocos internos preservados no contrato:
 
 ```text
+_validar_pacote_entrada_resolvida_estrutura(...)
 _validar_pacote_config(...)
 _validar_contexto_execucao(...)
+_validar_pacote_planilha_basico_sem_alias(...)
 _validar_pacote_planilha(...)
 _validar_mapa_abas_resolvidas(...)
 _validar_mapa_colunas_resolvidas(...)
 _validar_quadros_estruturais_resolvidos(...)
-_validar_datas_minimas(...)
-_validar_numeros_minimos(...)
 _validar_janela_consulta_cdi(...)
 _validar_pacote_cache_cdi(...)
+_validar_auditorias_etapa1(...)
 ```
 
 Artefato formal:
@@ -189,98 +209,76 @@ PacoteValidacaoPreExecucao
 
 A auditoria da Etapa 2 deve registrar:
 
-- artefatos presentes e ausentes;
-- inconsistências de config e contexto;
-- inconsistências em mapas de abas e colunas;
-- inconsistências em quadros estruturais;
-- falhas de interpretabilidade mínima;
-- situação da janela CDI;
-- situação do cache CDI;
-- erros impeditivos;
-- avisos não impeditivos;
-- evidências de validação.
+- status `ok`;
+- erros bloqueantes;
+- avisos;
+- evidências de presença dos componentes do `PacoteEntradaResolvida`;
+- evidências de mapas de abas e colunas;
+- evidências de interpretabilidade de datas e números;
+- evidências de janela/cache CDI;
+- evidências das auditorias da Etapa 1;
+- indicação de que a etapa não recriou aliases, não relê planilha e não cria dados canônicos.
 
 ## 16. Critérios de aceite
 
 A Etapa 2 é aceita quando:
 
-1. consome somente `PacoteEntradaResolvida`;
-2. valida os componentes mínimos da entrada resolvida;
-3. produz `PacoteValidacaoPreExecucao`;
-4. preserva seu papel de gate puro;
+1. consome `PacoteEntradaResolvida`;
+2. produz `PacoteValidacaoPreExecucao`;
+3. bloqueia progressão quando houver erro estrutural;
+4. registra avisos e evidências auditáveis;
 5. não relê planilha;
-6. não baixa planilha;
-7. não reconstrói aliases, abas ou colunas;
-8. não transforma dados;
-9. não altera cache;
-10. não gera artefatos canônicos ou observáveis.
+6. não resolve aliases novamente;
+7. não canoniza dados;
+8. não cria artefatos da Etapa 3;
+9. não gera motor, ledger, console, XLSX ou saída canônica.
 
 ## 17. Fluxograma operacional-explicativo completo
 
 ```mermaid
 flowchart TD
+    IN["Entrada formal<br/>PacoteEntradaResolvida"] --> ORQ["nucleo/validacao_pre_execucao.py<br/>validar_pre_execucao_pacote_entrada_resolvida(...)"]
 
-    A["Entrada formal<br/>PacoteEntradaResolvida"] --> B["ETAPA 2<br/>Validação pré-execução<br/>nucleo/validacao_pre_execucao.py"]
+    ORQ --> TIPO{"Objeto é PacoteEntradaResolvida?"}
+    TIPO -->|não| FAIL["PacoteValidacaoPreExecucao<br/>ok=False<br/>erro: objeto inválido"]
+    TIPO -->|sim| ESTR["_validar_pacote_entrada_resolvida_estrutura(...)"]
 
-    B --> C["validar_pre_execucao(...)<br/>Valida artefatos resolvidos<br/>sem reler, baixar, resolver, canonizar ou transformar"]
+    ESTR --> CFG["_validar_pacote_config(...)"]
+    ESTR --> CTX["_validar_contexto_execucao(...)"]
+    ESTR --> PLN["_validar_pacote_planilha_basico_sem_alias(...)"]
+    ESTR --> ABA["_validar_mapa_abas_resolvidas(...)"]
+    ESTR --> COL["_validar_mapa_colunas_resolvidas(...)"]
+    ESTR --> QDR["_validar_quadros_estruturais_resolvidos(...)"]
+    ESTR --> CDI["_validar_janela_consulta_cdi(...)"]
+    ESTR --> BCB["_validar_pacote_cache_cdi(...)"]
+    ESTR --> AUD["_validar_auditorias_etapa1(...)"]
 
-    C --> D1["2A. Validar PacoteConfig<br/>_validar_pacote_config(...)"]
-    D1 --> D1A["Valida:<br/>config<br/>raiz_repositorio<br/>diretorio_dados<br/>conteúdo<br/>abas e colunas declaradas"]
+    CFG --> CONS["Consolidar erros, avisos e evidências"]
+    CTX --> CONS
+    PLN --> CONS
+    ABA --> CONS
+    COL --> CONS
+    QDR --> CONS
+    CDI --> CONS
+    BCB --> CONS
+    AUD --> CONS
 
-    C --> D2["2B. Validar ContextoExecucao<br/>_validar_contexto_execucao(...)"]
-    D2 --> D2A["Valida:<br/>raiz<br/>diretório<br/>timezone<br/>data_referencia<br/>dependências"]
-
-    C --> D3["2C. Validar PacotePlanilha<br/>_validar_pacote_planilha(...)"]
-    D3 --> D3A["Valida:<br/>caminho<br/>nomes_abas<br/>quadros_brutos<br/>quadros_estruturais_resolvidos<br/>auditoria<br/>validacao_inicial"]
-    D3A --> D3B["Confirma cinco famílias:<br/>carteira<br/>salarios<br/>despesas<br/>lotes<br/>switching"]
-
-    C --> D4["2D. Validar MapaAbasResolvidas<br/>função futura:<br/>_validar_mapa_abas_resolvidas(...)"]
-    D4 --> D4A["Valida blocos:<br/>carteira<br/>salarios<br/>despesas<br/>lotes<br/>switching"]
-
-    C --> D5["2E. Validar MapaColunasResolvidas<br/>função futura:<br/>_validar_mapa_colunas_resolvidas(...)"]
-    D5 --> D5A["Valida campos críticos<br/>sem redescobrir aliases"]
-
-    C --> D6["2F. Validar quadros_estruturais_resolvidos<br/>função futura:<br/>_validar_quadros_estruturais_resolvidos(...)"]
-    D6 --> D6A["Valida:<br/>blocos<br/>shapes<br/>colunas<br/>consistência com mapas"]
-
-    C --> D7["2G. Validar interpretabilidade mínima<br/>_validar_datas_minimas(...)<br/>_validar_numeros_minimos(...)"]
-    D7 --> D7A["Valida parseabilidade<br/>não canonização operacional"]
-
-    C --> D8["2H. Validar JanelaConsultaCDI<br/>função futura:<br/>_validar_janela_consulta_cdi(...)"]
-    D8 --> D8A["Valida:<br/>data_inicial_consulta<br/>data_final_consulta<br/>coerência com data_referencia"]
-
-    C --> D9["2I. Validar PacoteCacheCDIDiario<br/>função futura:<br/>_validar_pacote_cache_cdi(...)"]
-    D9 --> D9A["Valida:<br/>serie_cdi<br/>caminho_cache<br/>auditoria<br/>fetch/fallback<br/>status de atualização"]
-
-    C --> D10["2J. Validar auditorias da Etapa 1"]
-    D10 --> D10A["AuditoriaEntradaBruta<br/>AuditoriaResolucaoEntrada<br/>AuditoriaCacheCDI"]
-
-    D1A --> Z["2K. Consolidar validação"]
-    D2A --> Z
-    D3B --> Z
-    D4A --> Z
-    D5A --> Z
-    D6A --> Z
-    D7A --> Z
-    D8A --> Z
-    D9A --> Z
-    D10A --> Z
-
-    Z --> OUT["Saída formal<br/>PacoteValidacaoPreExecucao<br/>ok<br/>erros<br/>avisos<br/>evidencias"]
-
-    OUT --> E3["Destino<br/>Etapa 3 — construir_pacote_canonizacao_operacional(...)"]
+    CONS --> OUT["Saída formal<br/>PacoteValidacaoPreExecucao"]
+    OUT --> DEC{"ok?"}
+    DEC -->|False| STOP["Bloqueia Etapa 3"]
+    DEC -->|True| E3["Destino<br/>Etapa 3 — Dados Operacionais Canônicos"]
 ```
 
 ## 18. Condição de parada
 
-A Etapa 2 deve bloquear a progressão para a Etapa 3 quando houver erro impeditivo de completude, consistência ou interpretabilidade mínima do `PacoteEntradaResolvida`.
+A Etapa 2 deve bloquear a progressão para a Etapa 3 quando qualquer componente estrutural obrigatório do `PacoteEntradaResolvida` estiver ausente, inválido ou sem interpretabilidade mínima para canonização operacional.
 
 ## 19. Histórico documental / adendos funcionais consolidados
 
 Este contrato foi originalmente derivado de:
 
 ```text
-logs/iteracoes/ME-V17-F0-V32B_FORMALIZA_ETAPA2_VALIDACAO_PACOTE_ENTRADA_RESOLVIDA.md
+logs/iteracoes/ME-V17-F0-V32B_FORMALIZA_ETAPA2_VALIDACAO_PRE_EXECUCAO.md
 ```
 
-A versão atual apenas reorganiza o conteúdo no padrão estrutural único dos contratos individuais das Etapas 1–7, preservando a Etapa 2 como gate puro de pré-execução.
+A versão atual alinha a documentação ao script vivo, declarando `validar_pre_execucao_pacote_entrada_resolvida(...)` como função usada no runtime e preservando `validar_pre_execucao(...)` como função legada compatível.
