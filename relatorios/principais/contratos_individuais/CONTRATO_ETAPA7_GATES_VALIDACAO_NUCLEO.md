@@ -77,20 +77,31 @@ ResultadoGatesValidacaoNucleo
 
 ## 9. Processo interno da etapa
 
-A Etapa 7 deve executar, no mínimo:
+A Etapa 7 deve executar uma orquestração de validação em `validar_gates_nucleo(...)`. Essa orquestração consome exclusivamente `LedgerTemporalCanonico` e aplica gates independentes/transversais sobre coleções já materializadas no ledger.
 
-1. `gate_origem_exclusiva_ledger`;
-2. `gate_auditoria_ledger`;
-3. `gate_obrigacoes_cobertas`;
-4. `gate_obrigacoes_bloqueadas`;
-5. `gate_fontes_utilizadas`;
-6. `gate_fontes_reservadas`;
-7. `gate_saldos_residuais`;
-8. `gate_switchings`;
-9. `gate_dupla_contagem`;
-10. `gate_bloqueios_prontidao`;
-11. consolidação de bloqueios, avisos e evidências;
-12. cálculo final de `pronto_para_etapa8`.
+A ordem documental abaixo descreve a sequência de chamada da função pública, mas não deve ser lida como dependência causal entre todos os gates. Os gates de origem, auditoria, obrigações, fontes, saldos, switchings e dupla contagem validam ramos do mesmo ledger. O `gate_bloqueios_prontidao` é o gate de fechamento e depende do próprio ledger e dos bloqueios/avisos/evidências produzidos pelos gates anteriores.
+
+A Etapa 7 deve:
+
+1. inicializar `ParametrosGatesValidacaoNucleo` quando parâmetros não forem informados;
+2. verificar se a entrada formal é `LedgerTemporalCanonico`; se não for, emitir `ResultadoGatesValidacaoNucleo` reprovado sem consultar fontes externas;
+3. executar `_gate_origem_exclusiva_ledger(...)` sobre metadados e origem declarada do ledger;
+4. executar `_gate_auditoria_ledger(...)` sobre auditoria, bloqueios e avisos preservados no ledger;
+5. executar `_gate_obrigacoes_cobertas(...)` sobre obrigações cobertas e fontes materializadas compatíveis;
+6. executar `_gate_obrigacoes_bloqueadas(...)` sobre obrigações bloqueadas;
+7. executar `_gate_fontes_utilizadas(...)` sobre fontes utilizadas, valores, saldos, liquidez/carência quando materializadas e sobreuso acumulado;
+8. executar `_gate_fontes_reservadas(...)` sobre fontes reservadas, valores, saldos, liquidez/carência quando materializadas e sobre-reserva acumulada;
+9. executar `_gate_saldos_residuais(...)` sobre saldos referenciais por data e movimentos de fonte;
+10. executar `_gate_switchings(...)` sobre switchings escolhidos/materializados;
+11. executar `_gate_dupla_contagem(...)` sobre obrigações, fontes e eventos para detectar duplicidades e incompatibilidades evidentes;
+12. executar `_gate_bloqueios_prontidao(...)` usando o ledger e os gates anteriores;
+13. registrar evidências por `_nova_evidencia(...)`;
+14. registrar bloqueios e avisos por `_adicionar_bloqueio(...)` e `_adicionar_aviso(...)`;
+15. finalizar gates por `_finalizar_gate(...)` ou `_finalizar_gate_sem_evidencia_minima(...)`;
+16. consolidar gates, bloqueios, avisos e evidências;
+17. montar `ResumoGatesValidacaoNucleo`;
+18. calcular `pronto_para_etapa8` sem consultar fontes externas;
+19. emitir `ResultadoGatesValidacaoNucleo`.
 
 ## 10. O que a etapa pode fazer
 
@@ -203,17 +214,67 @@ A Etapa 7 é aceita quando:
 flowchart TD
     IN["Entrada formal<br/>LedgerTemporalCanonico"] --> ORQ["nucleo/gates_validacao_nucleo.py<br/>validar_gates_nucleo(...)"]
 
-    ORQ --> A["7A. gate_origem_exclusiva_ledger"]
-    A --> B["7B. gate_auditoria_ledger"]
-    B --> C["7C. gate_obrigacoes_cobertas"]
-    C --> D["7D. gate_obrigacoes_bloqueadas"]
-    D --> E["7E. gate_fontes_utilizadas"]
-    E --> F["7F. gate_fontes_reservadas"]
-    F --> G["7G. gate_saldos_residuais"]
-    G --> H["7H. gate_switchings"]
-    H --> I["7I. gate_dupla_contagem"]
-    I --> J["7J. gate_bloqueios_prontidao"]
-    J --> OUT["Saída formal<br/>ResultadoGatesValidacaoNucleo"]
+    ORQ --> PARAM["ParametrosGatesValidacaoNucleo<br/>parâmetros padrão quando ausentes"]
+    ORQ --> TIPO{"Entrada é LedgerTemporalCanonico?"}
+
+    TIPO -->|não| ENAO["Resultado reprovado<br/>gate_origem_exclusiva_ledger<br/>entrada_nao_ledger_temporal_canonico"]
+    ENAO --> OUT_FAIL["Saída formal<br/>ResultadoGatesValidacaoNucleo<br/>ok=False<br/>pronto_para_etapa8=False"]
+
+    TIPO -->|sim| LEDGER["Consumir somente LedgerTemporalCanonico<br/>metadados, auditoria, eventos,<br/>obrigações, fontes, saldos,<br/>switchings, bloqueios e avisos"]
+    PARAM --> LEDGER
+
+    LEDGER --> G1["_gate_origem_exclusiva_ledger(...)"]
+    LEDGER --> G2["_gate_auditoria_ledger(...)"]
+    LEDGER --> G3["_gate_obrigacoes_cobertas(...)"]
+    LEDGER --> G4["_gate_obrigacoes_bloqueadas(...)"]
+    LEDGER --> G5["_gate_fontes_utilizadas(...)"]
+    LEDGER --> G6["_gate_fontes_reservadas(...)"]
+    LEDGER --> G7["_gate_saldos_residuais(...)"]
+    LEDGER --> G8["_gate_switchings(...)"]
+    LEDGER --> G9["_gate_dupla_contagem(...)"]
+
+    G3 --> HREF["Helpers de reconciliação<br/>_fonte_compativel_com_obrigacao(...)<br/>_fonte_compativel_com_grupo(...)<br/>_total_fontes_sem_dupla_soma(...)"]
+    G5 --> HLIQ["Helpers de fonte<br/>_validar_liquidez_carencia_materializada(...)<br/>_valor_materializado(...)<br/>_float_ou_none(...)"]
+    G6 --> HLIQ
+    G7 --> HSAL["Reconciliação de saldos<br/>movimentos de fontes utilizadas/reservadas<br/>saldos_referenciais_por_data"]
+    G9 --> HDUP["Regras de dupla contagem<br/>obrigação coberta duplicada<br/>coberta e bloqueada<br/>uso/reserva incompatível<br/>evento duplicado"]
+
+    G1 --> UTIL["Utilitários comuns<br/>_nova_evidencia(...)"]
+    G2 --> UTIL
+    G3 --> UTIL
+    G4 --> UTIL
+    G5 --> UTIL
+    G6 --> UTIL
+    G7 --> UTIL
+    G8 --> UTIL
+    G9 --> UTIL
+    HREF --> UTIL
+    HLIQ --> UTIL
+    HSAL --> UTIL
+    HDUP --> UTIL
+
+    UTIL --> BLOQ["_adicionar_bloqueio(...)"]
+    UTIL --> AVISO["_adicionar_aviso(...)"]
+    BLOQ --> FING["_finalizar_gate(...)"]
+    AVISO --> FING
+    UTIL --> FING
+    FING --> GATES["Gates 1–9 finalizados<br/>GateValidacaoNucleo[]"]
+
+    GATES --> G10["_gate_bloqueios_prontidao(...)
+    <br/>depende do LedgerTemporalCanonico<br/>e dos gates anteriores"]
+    LEDGER --> G10
+    G10 --> HTERM["_validar_aderencia_terminal_quando_materializada(...)"]
+    HTERM --> UTIL10["_nova_evidencia(...)
+    <br/>_adicionar_bloqueio(...)
+    <br/>_adicionar_aviso(...)"]
+    UTIL10 --> FING10["_finalizar_gate(...)"]
+
+    FING10 --> CONS["Consolidar resultado<br/>bloqueios = todos os gates<br/>avisos = todos os gates<br/>evidências = todos os gates"]
+    GATES --> CONS
+
+    CONS --> RESUMO["ResumoGatesValidacaoNucleo<br/>contagens de gates, bloqueios,<br/>avisos, obrigações, fontes e switchings"]
+    RESUMO --> PRONTO["Calcular pronto_para_etapa8<br/>not bloqueios and auditoria_ledger.ok"]
+    PRONTO --> OUT["Saída formal<br/>ResultadoGatesValidacaoNucleo"]
 
     OUT --> DEC{pronto_para_etapa8?}
     DEC -->|False| BLOCK["aplicacao/principal.py<br/>bloqueia progressão observável<br/>console/XLSX oficiais não gerados"]
