@@ -128,11 +128,10 @@ def _situacao_atual(saida: SaidaCanonicaOficial) -> ComponenteRenderizacaoSaidaC
 
 def _auditoria(saida: SaidaCanonicaOficial) -> ComponenteRenderizacaoSaidaCanonica:
     linhas = [
-        _linha('origem_formal', saída_origem := saida.origem_formal),
+        _linha('origem_formal', saida.origem_formal),
         _linha('ledger_origem', saida.ledger_origem),
         _linha('gates_origem', saida.gates_origem),
     ]
-    _ = saída_origem
     for chave, valor in (saida.metadados or {}).items():
         if not isinstance(valor, (dict, list, tuple, set)):
             linhas.append(_linha(str(chave), valor))
