@@ -27,7 +27,7 @@ Em caso de divergência, prevalecem o contrato mestre e o modelo oficial.
 
 ## Padrão estrutural único
 
-A partir da `MACRO-CONTRATOS-02`, todos os contratos individuais das Etapas 1–7 seguem a mesma estrutura documental de 19 seções:
+A partir da `MACRO-CONTRATOS-02`, todos os contratos individuais das Etapas 1–8 seguem a mesma estrutura documental de 19 seções:
 
 1. Identificação documental
 2. Status normativo
@@ -58,10 +58,11 @@ A partir da `MACRO-CONTRATOS-02`, todos os contratos individuais das Etapas 1–
 - `CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md`
 - `CONTRATO_ETAPA6_LEDGER_TEMPORAL_CANONICO.md`
 - `CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md`
+- `CONTRATO_ETAPA8_SAIDA_CANONICA_OFICIAL.md`
 
 ## Cadeia funcional consolidada
 
-A cadeia documental vigente das Etapas 1–7 é:
+A cadeia documental vigente das Etapas 1–8 é:
 
 ```text
 Etapa 1 -> PacoteEntradaResolvida
@@ -71,6 +72,7 @@ Etapa 4 -> EstadoTemporalInicial
 Etapa 5 -> ResultadoMotorTemporalConjunto
 Etapa 6 -> LedgerTemporalCanonico
 Etapa 7 -> ResultadoGatesValidacaoNucleo
+Etapa 8 -> SaidaCanonicaOficial
 ```
 
 ## Padrão dos fluxogramas individuais
@@ -98,6 +100,7 @@ Fluxogramas não devem introduzir fonte de estado proibida, rota paralela, fallb
 | `CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md` | Padronizado como motor temporal conjunto e resultado fechado. |
 | `CONTRATO_ETAPA6_LEDGER_TEMPORAL_CANONICO.md` | Padronizado como ledger temporal canônico. |
 | `CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md` | Padronizado como gates de validação de núcleo. |
+| `CONTRATO_ETAPA8_SAIDA_CANONICA_OFICIAL.md` | Formalizado documentalmente como preparação da saída canônica oficial pós-gates, sem implementação funcional nesta microfrente. |
 
 ## Regra de escopo
 
