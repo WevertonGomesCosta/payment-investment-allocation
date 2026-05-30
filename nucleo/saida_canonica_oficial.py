@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, is_dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 from nucleo.gates_validacao_nucleo import ResultadoGatesValidacaoNucleo
@@ -176,7 +176,7 @@ def _metadados(preparada: bool, status: str) -> dict[str, Any]:
         'sem_geracao_xlsx': True,
         'sem_integracao_runtime': True,
         'funcoes_legadas_runtime_nao_consumidas': True,
-        'gerado_em': datetime.utcnow().isoformat(timespec='seconds') + 'Z',
+        'gerado_em': datetime.now(timezone.utc).isoformat(timespec='seconds'),
     }
 
 
