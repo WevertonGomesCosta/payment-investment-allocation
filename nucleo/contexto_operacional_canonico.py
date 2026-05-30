@@ -76,18 +76,9 @@ def carregar_contexto_operacional_canonico(
         data_referencia=contexto_execucao.data_referencia,
     )
     carteira_canonica = carregar_carteira_canonica(pacote_planilha, pacote_config.conteudo)
-    dados_operacionais = carregar_dados_operacionais_canonicos(
-        pacote_planilha,
-        pacote_config.conteudo,
-        data_referencia=contexto_execucao.data_referencia,
-        carteira_canonica=carteira_canonica,
-    )
-    recebidos_auditaveis = materializar_recebidos_auditaveis(
-        dados_operacionais,
-        data_referencia=contexto_execucao.data_referencia,
-    )
+
     cache_cdi = carregar_cache_cdi_diario(
-        dados_operacionais,
+        None,
         pacote_config.conteudo,
         data_referencia=contexto_execucao.data_referencia,
         raiz_repositorio=pacote_config.raiz_repositorio,
@@ -101,9 +92,11 @@ def carregar_contexto_operacional_canonico(
         metadados={
             'artefato_operacional_contexto_canonico': True,
             'modo_operacional_canonico': True,
-            'substitui_validacao_pre_execucao': True,
+            'integra_validacao_pre_execucao': True,
+            'substitui_validacao_pre_execucao': False,
             'substitui_dados_operacionais_canonicos': False,
             'substitui_cache_cdi_operacional': False,
+            'ordem_contratual_etapas_1_2_3_preservada': True,
             'altera_motor': False,
             'altera_replay': False,
             'altera_ledger': False,
@@ -122,11 +115,15 @@ def carregar_contexto_operacional_canonico(
         detalhes = "\n - ".join(validacao_pre_execucao.erros_bloqueantes)
         raise RuntimeError(f"Validação pré-execução por PacoteEntradaResolvida reprovada:\n - {detalhes}")
 
-    ranking_carteira = carregar_ranking_carteira_estabilizado(
+    dados_operacionais = carregar_dados_operacionais_canonicos(
         pacote_planilha,
-        carteira_canonica,
-        raiz_repositorio=pacote_config.raiz_repositorio,
-        config=pacote_config.conteudo,
+        pacote_config.conteudo,
+        data_referencia=contexto_execucao.data_referencia,
+        carteira_canonica=carteira_canonica,
+    )
+    recebidos_auditaveis = materializar_recebidos_auditaveis(
+        dados_operacionais,
+        data_referencia=contexto_execucao.data_referencia,
     )
     nucleo_financeiro = carregar_nucleo_financeiro_minimo(
         dados_operacionais,
@@ -144,6 +141,12 @@ def carregar_contexto_operacional_canonico(
         data_referencia=contexto_execucao.data_referencia,
         serie_cdi=cache_cdi.serie_cdi,
     ) if incluir_replay else None
+    ranking_carteira = carregar_ranking_carteira_estabilizado(
+        pacote_planilha,
+        carteira_canonica,
+        raiz_repositorio=pacote_config.raiz_repositorio,
+        config=pacote_config.conteudo,
+    )
     tabela_iof = construir_tabela_iof(pacote_config.conteudo)
     faixas_ir = construir_faixas_ir(pacote_config.conteudo)
     fontes_elegiveis_pagamento = materializar_fontes_elegiveis_pagamento(
@@ -183,7 +186,8 @@ def carregar_contexto_operacional_canonico(
         faixas_ir=faixas_ir,
         metadados={
             'artefato': 'ContextoOperacionalCanonico',
-            'microetapa': 'V17-F0-V.4Z1',
+            'microetapa': 'MICRO-RUNTIME-02',
+            'ordem_contratual_etapas_1_2_3_preservada': True,
             'altera_contexto_baseline_historico': False,
             'altera_motor': False,
             'altera_replay': False,
@@ -192,5 +196,3 @@ def carregar_contexto_operacional_canonico(
             'altera_saida_xlsx': False,
         },
     )
-
-
