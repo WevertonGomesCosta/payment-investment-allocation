@@ -15,6 +15,7 @@ from nucleo.motor_temporal_conjunto import construir_resultado_motor_temporal_co
 from nucleo.ledger_temporal_canonico import construir_ledger_temporal_canonico
 from nucleo.gates_validacao_nucleo import validar_gates_nucleo
 from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
+from nucleo.adaptador_renderizacao_saida_canonica import construir_pacote_renderizacao_saida_canonica
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
@@ -41,12 +42,14 @@ def carregar_contexto_e_saida():
             resultado_gates_validacao_nucleo,
             None,
             None,
+            None,
         )
 
     saida_canonica_oficial = construir_saida_canonica_oficial(
         ledger=ledger_temporal_canonico,
         gates=resultado_gates_validacao_nucleo,
     )
+    pacote_renderizacao_saida_canonica = construir_pacote_renderizacao_saida_canonica(saida_canonica_oficial)
 
     saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional_canonico, versao=VERSAO_BASELINE)
     matriz = construir_matriz_elegibilidade_fontes_s7b(
@@ -63,6 +66,7 @@ def carregar_contexto_e_saida():
         resultado_gates_validacao_nucleo,
         saida_canonica,
         saida_canonica_oficial,
+        pacote_renderizacao_saida_canonica,
     )
 
 
@@ -75,11 +79,13 @@ def main():
         resultado_gates_validacao_nucleo,
         saida_canonica,
         saida_canonica_oficial,
+        pacote_renderizacao_saida_canonica,
     ) = carregar_contexto_e_saida()
 
     _ = resultado_motor_temporal_conjunto
     _ = ledger_temporal_canonico
     _ = saida_canonica_oficial
+    _ = pacote_renderizacao_saida_canonica
 
     if not resultado_gates_validacao_nucleo.pronto_para_etapa8:
         print(
