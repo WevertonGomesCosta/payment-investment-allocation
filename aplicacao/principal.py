@@ -14,6 +14,7 @@ from nucleo.estado_temporal_inicial import construir_estado_temporal_inicial
 from nucleo.motor_temporal_conjunto import construir_resultado_motor_temporal_conjunto
 from nucleo.ledger_temporal_canonico import construir_ledger_temporal_canonico
 from nucleo.gates_validacao_nucleo import validar_gates_nucleo
+from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
@@ -21,7 +22,7 @@ from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz
 
 
 def carregar_contexto_e_saida():
-    """Carrega as Etapas 1-7 e só prepara saída canônica quando os gates aprovam."""
+    """Carrega as Etapas 1-8 e só prepara saídas posteriores quando os gates aprovam."""
     contexto_operacional_canonico = carregar_contexto_operacional_canonico(
         raiz_repositorio=RAIZ_REPOSITORIO,
         instalar_automaticamente=False,
@@ -39,7 +40,13 @@ def carregar_contexto_e_saida():
             ledger_temporal_canonico,
             resultado_gates_validacao_nucleo,
             None,
+            None,
         )
+
+    saida_canonica_oficial = construir_saida_canonica_oficial(
+        ledger=ledger_temporal_canonico,
+        gates=resultado_gates_validacao_nucleo,
+    )
 
     saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional_canonico, versao=VERSAO_BASELINE)
     matriz = construir_matriz_elegibilidade_fontes_s7b(
@@ -48,14 +55,31 @@ def carregar_contexto_e_saida():
         saida_canonica_preconstruida=saida_canonica,
     )
     saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
-    return contexto_operacional_canonico, estado_temporal_inicial, resultado_motor_temporal_conjunto, ledger_temporal_canonico, resultado_gates_validacao_nucleo, saida_canonica
+    return (
+        contexto_operacional_canonico,
+        estado_temporal_inicial,
+        resultado_motor_temporal_conjunto,
+        ledger_temporal_canonico,
+        resultado_gates_validacao_nucleo,
+        saida_canonica,
+        saida_canonica_oficial,
+    )
 
 
 def main():
-    contexto_operacional_canonico, estado_temporal_inicial, resultado_motor_temporal_conjunto, ledger_temporal_canonico, resultado_gates_validacao_nucleo, saida_canonica = carregar_contexto_e_saida()
+    (
+        contexto_operacional_canonico,
+        estado_temporal_inicial,
+        resultado_motor_temporal_conjunto,
+        ledger_temporal_canonico,
+        resultado_gates_validacao_nucleo,
+        saida_canonica,
+        saida_canonica_oficial,
+    ) = carregar_contexto_e_saida()
 
     _ = resultado_motor_temporal_conjunto
     _ = ledger_temporal_canonico
+    _ = saida_canonica_oficial
 
     if not resultado_gates_validacao_nucleo.pronto_para_etapa8:
         print(
