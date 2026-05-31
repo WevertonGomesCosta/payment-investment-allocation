@@ -22,6 +22,64 @@ from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidad
 from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 
 
+def _valor(objeto, campo, padrao=None):
+    if isinstance(objeto, dict):
+        return objeto.get(campo, padrao)
+    return getattr(objeto, campo, padrao)
+
+
+def _formatar_item_gate(item, indice):
+    gate_id = _valor(item, 'gate_id', 'gate_indefinido')
+    codigo = _valor(item, 'codigo', 'codigo_indefinido')
+    mensagem = _valor(item, 'mensagem', '')
+    data_referencia = _valor(item, 'data_referencia')
+    entidade_tipo = _valor(item, 'entidade_tipo')
+    entidade_id = _valor(item, 'entidade_id')
+
+    partes = [f"{indice}. gate={gate_id}", f"codigo={codigo}"]
+
+    if data_referencia is not None:
+        partes.append(f"data={data_referencia}")
+    if entidade_tipo is not None:
+        partes.append(f"entidade={entidade_tipo}")
+    if entidade_id is not None:
+        partes.append(f"id={entidade_id}")
+    if mensagem:
+        partes.append(f"mensagem={mensagem}")
+
+    return " | ".join(partes)
+
+
+def _render_resumo_gates_bloqueados(resultado_gates_validacao_nucleo, limite_itens=8):
+    resumo = _valor(resultado_gates_validacao_nucleo, 'resumo')
+    bloqueios = list(_valor(resultado_gates_validacao_nucleo, 'bloqueios', []) or [])
+    avisos = list(_valor(resultado_gates_validacao_nucleo, 'avisos', []) or [])
+
+    print("\nResumo dos gates de validação de núcleo:")
+    print(f"- gates executados: {_valor(resumo, 'qtd_gates_executados', 'NA')}/{_valor(resumo, 'qtd_gates', 'NA')}")
+    print(f"- gates aprovados: {_valor(resumo, 'qtd_gates_aprovados', 'NA')}")
+    print(f"- gates reprovados: {_valor(resumo, 'qtd_gates_reprovados', 'NA')}")
+    print(f"- bloqueios: {_valor(resumo, 'qtd_bloqueios', len(bloqueios))}")
+    print(f"- avisos: {_valor(resumo, 'qtd_avisos', len(avisos))}")
+    print(f"- pronto_para_etapa8: {_valor(resumo, 'pronto_para_etapa8', resultado_gates_validacao_nucleo.pronto_para_etapa8)}")
+
+    if bloqueios:
+        print("\nPrincipais bloqueios:")
+        for indice, bloqueio in enumerate(bloqueios[:limite_itens], start=1):
+            print("- " + _formatar_item_gate(bloqueio, indice))
+        if len(bloqueios) > limite_itens:
+            print(f"- ... {len(bloqueios) - limite_itens} bloqueio(s) adicional(is) omitido(s).")
+
+    if avisos:
+        print("\nPrincipais avisos:")
+        for indice, aviso in enumerate(avisos[:limite_itens], start=1):
+            print("- " + _formatar_item_gate(aviso, indice))
+        if len(avisos) > limite_itens:
+            print(f"- ... {len(avisos) - limite_itens} aviso(s) adicional(is) omitido(s).")
+
+    print("\nPróxima ação objetiva: corrigir os bloqueios acima antes de esperar console/XLSX oficiais.")
+
+
 def carregar_contexto_e_saida():
     """Carrega as Etapas 1-8 e só prepara saídas posteriores quando os gates aprovam."""
     contexto_operacional_canonico = carregar_contexto_operacional_canonico(
@@ -93,6 +151,7 @@ def main():
             "ResultadoGatesValidacaoNucleo.pronto_para_etapa8=False. "
             "Console e XLSX oficiais não foram gerados."
         )
+        _render_resumo_gates_bloqueados(resultado_gates_validacao_nucleo)
         return None
 
     render_console(contexto_operacional_canonico, saida_canonica, estado_temporal_inicial=estado_temporal_inicial)
