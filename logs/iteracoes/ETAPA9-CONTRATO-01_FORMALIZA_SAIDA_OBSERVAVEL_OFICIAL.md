@@ -104,9 +104,18 @@ relatorios/principais/contratos_individuais/README.md
 logs/iteracoes/ETAPA9-CONTRATO-01_FORMALIZA_SAIDA_OBSERVAVEL_OFICIAL.md
 ```
 
+Refinamento posterior dentro da mesma frente documental:
+
+```text
+relatorios/principais/contratos_individuais/CONTRATO_ETAPA9_SAIDA_OBSERVAVEL_OFICIAL.md
+logs/iteracoes/ETAPA9-CONTRATO-01_FORMALIZA_SAIDA_OBSERVAVEL_OFICIAL.md
+```
+
+O refinamento não altera README, contratos das Etapas 1–8, contrato operacional mestre, modelo oficial, código, runtime, console ou XLSX.
+
 ## 7. Resumo do contrato da Etapa 9
 
-O contrato criado:
+O contrato criado e refinado:
 
 - define `SaidaCanonicaOficial` como entrada obrigatória e exclusiva;
 - define `PacoteSaidaObservavelOficial` como saída formal prevista;
@@ -116,6 +125,9 @@ O contrato criado:
 - proíbe consulta direta a motor, ledger, gates, planilha, logs, scripts diagnósticos, console anterior e XLSX anterior;
 - estabelece tratamento explícito para `fonte_a_decidir`, `não decidido_etapa5` e `obrigacao_temporal_futura_sem_decisao_etapa5`;
 - exige que lacunas sejam registradas como lacunas formais de renderização ou evidência upstream objetiva;
+- inclui mapa funcional previsto da Etapa 9 em `nucleo/saida_observavel_oficial.py`;
+- explicita função pública prevista e blocos internos previstos para orientar a `ETAPA9-FUNCIONAL-01`;
+- revisa o fluxograma para conter entrada, módulo previsto, função pública prevista, blocos internos, saída formal e destino posterior, sem nós de proibição;
 - prepara a frente funcional `ETAPA9-FUNCIONAL-01`.
 
 ## 8. Restrições preservadas
@@ -143,7 +155,7 @@ git diff --name-only origin/main...HEAD
 git diff --stat origin/main...HEAD
 ```
 
-O diff deve ficar restrito a:
+O diff consolidado da frente deve ficar restrito a:
 
 ```text
 relatorios/principais/contratos_individuais/CONTRATO_ETAPA9_SAIDA_OBSERVAVEL_OFICIAL.md
@@ -151,10 +163,17 @@ relatorios/principais/contratos_individuais/README.md
 logs/iteracoes/ETAPA9-CONTRATO-01_FORMALIZA_SAIDA_OBSERVAVEL_OFICIAL.md
 ```
 
+Na rodada de refinamento posterior, o diff incremental esperado fica restrito a:
+
+```text
+relatorios/principais/contratos_individuais/CONTRATO_ETAPA9_SAIDA_OBSERVAVEL_OFICIAL.md
+logs/iteracoes/ETAPA9-CONTRATO-01_FORMALIZA_SAIDA_OBSERVAVEL_OFICIAL.md
+```
+
 ## 10. Decisão operacional
 
 ```text
-APROVAR a frente documental ETAPA9-CONTRATO-01 para PR, desde que a validação do diff confirme escopo restrito aos três documentos esperados.
+APROVAR a frente documental ETAPA9-CONTRATO-01 para PR, desde que a validação do diff confirme escopo restrito aos documentos esperados e que o refinamento contratual permaneça documental.
 ```
 
 ## 11. Próxima frente recomendada
