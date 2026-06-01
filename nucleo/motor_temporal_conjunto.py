@@ -2130,11 +2130,12 @@ def auditar_trajetoria_temporal_interna(
         'qtd_eventos_internos': len(trajetoria.eventos_trajetoria_temporal),
         'qtd_obrigacoes_cobertas_referencialmente': len(trajetoria.obrigacoes_cobertas_temporalmente),
         'qtd_obrigacoes_bloqueadas': len(trajetoria.obrigacoes_bloqueadas_temporalmente),
+        'qtd_obrigacoes_bloqueadas_formais': len(trajetoria.obrigacoes_bloqueadas_temporalmente),
         'qtd_fontes_reservadas': len(trajetoria.fontes_reservadas_temporalmente),
         'qtd_switchings_escolhidos': len(trajetoria.switchings_escolhidos_temporalmente),
         'qtd_alertas_reserva_insuficiente': qtd_alertas_reserva_insuficiente,
         'qtd_alertas_fonte_sobrecomprometida': qtd_alertas_fonte_sobrecomprometida,
-        'ok': not bloqueios and not trajetoria.obrigacoes_bloqueadas_temporalmente,
+        'ok': not bloqueios,
     }
     return AuditoriaTrajetoriaTemporalInterna(
         ok=bool(resumo['ok']),
@@ -2156,7 +2157,12 @@ def auditar_decisoes_temporais(resultado: ResultadoMotorTemporalConjunto) -> Aud
         if decisao is None:
             avisos.append(f'data_sem_decisao:{data_ref.isoformat()}')
             continue
-        if estado_diario.get(data_ref) and estado_diario[data_ref].obrigacoes.pagamentos_referenciados and decisao.pacote_vencedor_id is None:
+        if (
+            estado_diario.get(data_ref)
+            and estado_diario[data_ref].obrigacoes.pagamentos_referenciados
+            and decisao.pacote_vencedor_id is None
+            and decisao.status_decisao != 'sem_pacote_valido'
+        ):
             avisos.append(f'data_com_obrigacao_sem_vencedor:{data_ref.isoformat()}')
         if estado_diario.get(data_ref):
             obrigacoes = estado_diario[data_ref].obrigacoes
@@ -2334,12 +2340,8 @@ def auditar_consistencia_final_etapa5(
             f'valor_referencial={float(getattr(obrigacao_bloqueada, "valor_obrigacao_referencial", 0.0) or 0.0)};'
             f'referencia_obrigacao={getattr(obrigacao_bloqueada, "referencia_obrigacao_temporal", None)!r}'
         )
-        _adicionar_bloqueio_final(
-            bloqueios,
-            'obrigacao_bloqueada_na_trajetoria',
-            detalhe,
-            data_bloqueio,
-        )
+        data_bloqueio_texto = data_bloqueio.isoformat() if hasattr(data_bloqueio, 'isoformat') else str(data_bloqueio)
+        avisos.append(f'obrigacao_bloqueada_na_trajetoria:{data_bloqueio_texto}:{detalhe}')
     if resultado.auditoria_schema_pacote_temporal_candidato and not resultado.auditoria_schema_pacote_temporal_candidato.ok:
         avisos.extend(f'pacotes_candidatos_aviso_nao_impeditivo:{a}' for a in resultado.auditoria_schema_pacote_temporal_candidato.avisos)
 
