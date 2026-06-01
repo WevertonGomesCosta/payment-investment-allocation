@@ -124,9 +124,11 @@ def _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial=None
     auditoria = getattr(pacote_saida_observavel_oficial, 'auditoria', None)
     bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
     lacunas = list(getattr(pacote_saida_observavel_oficial, 'lacunas_renderizacao', []) or [])
+    metadados = getattr(pacote_saida_observavel_oficial, 'metadados', {}) or {}
 
     _imprimir_pares([
-        ('artefato', getattr(pacote_saida_observavel_oficial, 'saida_origem', None)),
+        ('artefato', metadados.get('artefato', type(pacote_saida_observavel_oficial).__name__)),
+        ('saida_origem', getattr(pacote_saida_observavel_oficial, 'saida_origem', None)),
         ('status', getattr(pacote_saida_observavel_oficial, 'status', None)),
         ('preparado', getattr(pacote_saida_observavel_oficial, 'preparado', None)),
         ('ok', getattr(pacote_saida_observavel_oficial, 'ok', None)),

@@ -32,3 +32,9 @@ Completar a Etapa 9 para que `PacoteSaidaObservavelOficial` deixe de ser apenas 
 
 - Compilação dos módulos alterados.
 - Execução integrada de `aplicacao/principal.py` para validar construção runtime, console e geração XLSX.
+
+
+## Refinamento pré-merge PR #465
+
+- A seção do console da Etapa 9 passa a exibir `artefato` a partir de `pacote_saida_observavel_oficial.metadados["artefato"]`, preservando `saida_origem` em campo separado.
+- As pendências exibidas nas amostras de próximos pagamentos pertencem à rota observável transicional e não significam automaticamente `lacunas_renderizacao` do `PacoteSaidaObservavelOficial` nesta frente.
