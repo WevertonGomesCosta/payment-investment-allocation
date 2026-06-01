@@ -124,21 +124,21 @@ Os blocos observáveis devem distinguir campos operacionais, campos diagnóstico
 A Etapa 9 deve executar um processo determinístico de renderização oficial:
 
 1. receber `SaidaCanonicaOficial`;
-2. validar tipo formal da entrada;
+2. validar tipo formal da entrada por função/bloco específico de validação;
 3. verificar prontidão/status canônico informado pela Etapa 8;
-4. extrair somente blocos materializados em `SaidaCanonicaOficial`;
-5. preparar bloco de resumo operacional observável;
+4. extrair blocos materializados em `SaidaCanonicaOficial`;
+5. preparar o resumo operacional observável;
 6. preparar bloco de últimos pagamentos;
 7. preparar bloco de próximos pagamentos;
 8. preparar blocos de fontes utilizadas e reservadas;
-9. preparar bloco de obrigações cobertas;
-10. preparar bloco de obrigações bloqueadas;
-11. preparar bloco de switchings escolhidos;
-12. preparar bloco de saldos referenciais;
-13. preservar bloqueios, avisos e evidências;
-14. registrar lacunas quando campo exigido pela renderização não existir na entrada formal;
-15. montar blocos para console;
-16. montar blocos para XLSX;
+9. preparar bloco de obrigações cobertas e bloqueadas;
+10. preparar bloco de switchings escolhidos;
+11. preparar bloco de saldos referenciais;
+12. preservar bloqueios, avisos e evidências;
+13. registrar lacunas quando campo exigido pela renderização não existir na entrada formal;
+14. preparar blocos para console;
+15. preparar blocos para XLSX;
+16. auditar o pacote observável;
 17. montar metadados de renderização/exportação;
 18. emitir `PacoteSaidaObservavelOficial`.
 
@@ -219,29 +219,32 @@ A camada posterior deve consumir o pacote observável oficial e não deve retorn
 
 ## 14. Schema/funções públicas previstas ou implementadas
 
-Módulo funcional previsto:
+A Etapa 9 ainda não possui implementação funcional neste contrato documental. Os nomes abaixo constituem mapa funcional previsto para guiar a `ETAPA9-FUNCIONAL-01`. A frente funcional posterior pode ajustar nomes internos por simplicidade e compatibilidade com o código vivo, desde que preserve entrada exclusiva, saída formal e responsabilidade contratual.
+
+### 14.1. Módulo funcional previsto
 
 ```text
 nucleo/saida_observavel_oficial.py
 ```
 
-Artefato formal previsto:
+### 14.2. Artefato formal previsto
 
 ```python
 PacoteSaidaObservavelOficial
 ```
 
-Classes auxiliares previstas, a confirmar na frente funcional:
+### 14.3. Classes auxiliares previstas
 
 ```python
+ResumoSaidaObservavelOficial
 BlocoConsoleSaidaObservavel
 BlocoXLSXSaidaObservavel
-ResumoSaidaObservavelOficial
 LacunaRenderizacaoSaidaObservavel
 MetadadosRenderizacaoSaidaObservavel
+AuditoriaSaidaObservavelOficial
 ```
 
-Função pública prevista:
+### 14.4. Função pública prevista
 
 ```python
 construir_pacote_saida_observavel_oficial(
@@ -249,7 +252,46 @@ construir_pacote_saida_observavel_oficial(
 ) -> PacoteSaidaObservavelOficial
 ```
 
-A frente funcional posterior deve verificar os nomes reais mais simples e compatíveis com o código vivo, preservando a responsabilidade contratual e a entrada exclusiva.
+### 14.5. Blocos funcionais internos previstos
+
+A função pública prevista deve orquestrar, no mínimo, os seguintes blocos funcionais internos:
+
+```python
+validar_entrada_saida_observavel(...)
+extrair_blocos_saida_canonica(...)
+preparar_resumo_operacional_observavel(...)
+preparar_bloco_ultimos_pagamentos(...)
+preparar_bloco_proximos_pagamentos(...)
+preparar_bloco_fontes_utilizadas_reservadas(...)
+preparar_bloco_obrigacoes(...)
+preparar_bloco_switchings(...)
+preparar_bloco_saldos(...)
+preservar_avisos_bloqueios_evidencias(...)
+registrar_lacunas_renderizacao(...)
+preparar_blocos_console(...)
+preparar_blocos_xlsx(...)
+auditar_pacote_saida_observavel(...)
+montar_metadados_renderizacao(...)
+```
+
+Esses blocos podem ser implementados como funções privadas, funções públicas auxiliares ou métodos internos, conforme a solução funcional mais simples e compatível com o runtime. O contrato exige a responsabilidade de cada bloco, não a manutenção literal de todos os nomes se a implementação posterior justificar nomenclatura mais enxuta.
+
+### 14.6. Relação entre blocos internos e saída formal
+
+Os blocos internos devem produzir ou preservar, no mínimo:
+
+- validação formal da entrada;
+- blocos observáveis extraídos de `SaidaCanonicaOficial`;
+- resumo operacional observável;
+- blocos de últimos e próximos pagamentos;
+- blocos de fontes, obrigações, switchings e saldos;
+- avisos, bloqueios e evidências preservados;
+- lacunas de renderização explicitamente registradas;
+- blocos destinados a console;
+- blocos destinados a XLSX;
+- auditoria da preparação observável;
+- metadados de renderização/exportação;
+- `PacoteSaidaObservavelOficial` como saída formal.
 
 ## 15. Auditoria esperada
 
@@ -283,52 +325,55 @@ A Etapa 9 será aceita funcionalmente quando:
 9. disponibilizar caminho claro para migração de console/XLSX;
 10. produzir mudança observável ou bloqueio estrutural justificado na saída final.
 
-Nesta frente documental, o aceite se limita à criação do contrato, atualização mínima do README e criação do log, sem alteração funcional.
+Nesta frente documental, o aceite se limita à criação do contrato, atualização mínima do README, refinamento do mapa funcional previsto, refinamento do fluxograma e criação/atualização do log, sem alteração funcional.
 
 ## 17. Fluxograma operacional-explicativo completo
 
 ```mermaid
 flowchart TD
-    E8["Etapa 8<br/>SaidaCanonicaOficial"] --> TIPO{"Entrada é SaidaCanonicaOficial?"}
+    IN["Entrada formal<br/>SaidaCanonicaOficial"] --> MOD["Módulo previsto<br/>nucleo/saida_observavel_oficial.py"]
 
-    TIPO -->|não| BLOQTIPO["Bloquear Etapa 9<br/>entrada_formal_invalida"]
-    BLOQTIPO --> OUTB["PacoteSaidaObservavelOficial bloqueado<br/>sem consultar fontes externas"]
+    MOD --> FUNC["Função pública prevista<br/>construir_pacote_saida_observavel_oficial(...)"]
 
-    TIPO -->|sim| EXTRAI["Extrair blocos canônicos observáveis<br/>somente da SaidaCanonicaOficial"]
+    FUNC --> VAL["validar_entrada_saida_observavel(...)"]
+    VAL --> STATUS{"Entrada formal válida?"}
 
-    EXTRAI --> RESUMO["Preparar resumo operacional observável"]
-    EXTRAI --> ULT["Preparar últimos pagamentos"]
-    EXTRAI --> PROX["Preparar próximos pagamentos"]
-    EXTRAI --> FONTES["Preparar fontes utilizadas/reservadas"]
-    EXTRAI --> OBR["Preparar obrigações cobertas/bloqueadas"]
-    EXTRAI --> SW["Preparar switchings escolhidos"]
-    EXTRAI --> SALDOS["Preparar saldos referenciais"]
-    EXTRAI --> AVB["Preservar avisos, bloqueios e evidências"]
+    STATUS -->|não| BLOQ["registrar_lacunas_renderizacao(...)<br/>entrada_formal_invalida"]
+    BLOQ --> PACB["Montar PacoteSaidaObservavelOficial<br/>com status bloqueado"]
 
-    RESUMO --> CONS["Consolidar blocos observáveis"]
+    STATUS -->|sim| EXT["extrair_blocos_saida_canonica(...)"]
+
+    EXT --> RES["preparar_resumo_operacional_observavel(...)"]
+    EXT --> ULT["preparar_bloco_ultimos_pagamentos(...)"]
+    EXT --> PROX["preparar_bloco_proximos_pagamentos(...)"]
+    EXT --> FONT["preparar_bloco_fontes_utilizadas_reservadas(...)"]
+    EXT --> OBR["preparar_bloco_obrigacoes(...)"]
+    EXT --> SWT["preparar_bloco_switchings(...)"]
+    EXT --> SAL["preparar_bloco_saldos(...)"]
+    EXT --> AVB["preservar_avisos_bloqueios_evidencias(...)"]
+
+    RES --> CONS["consolidar_blocos_observaveis(...)"]
     ULT --> CONS
     PROX --> CONS
-    FONTES --> CONS
+    FONT --> CONS
     OBR --> CONS
-    SW --> CONS
-    SALDOS --> CONS
+    SWT --> CONS
+    SAL --> CONS
     AVB --> CONS
 
-    CONS --> LAC{"Campo necessário ausente na SaidaCanonicaOficial?"}
-    LAC -->|sim| LACUNA["Registrar LacunaRenderizacao<br/>sem voltar ao motor/ledger/gates"]
-    LAC -->|não| OKB["Blocos renderizáveis completos"]
+    CONS --> LAC["registrar_lacunas_renderizacao(...)"]
 
-    LACUNA --> CONSOLE["Preparar bloco console<br/>com bloqueio/lacuna explícita"]
-    OKB --> CONSOLE
-    LACUNA --> XLSX["Preparar bloco XLSX<br/>com bloqueio/lacuna explícita"]
-    OKB --> XLSX
+    LAC --> CONSOLE["preparar_blocos_console(...)"]
+    LAC --> XLSX["preparar_blocos_xlsx(...)"]
 
-    CONSOLE --> META["Registrar metadados de renderização/exportação"]
-    XLSX --> META
+    CONSOLE --> AUD["auditar_pacote_saida_observavel(...)"]
+    XLSX --> AUD
+    PACB --> AUD
 
-    META --> PROIB["Sem reotimizar<br/>sem revalorar<br/>sem alterar decisão<br/>sem consultar fontes externas"]
-    PROIB --> OUT["Saída formal<br/>PacoteSaidaObservavelOficial"]
-    OUT --> POS["Destino posterior<br/>console físico / XLSX físico / validação de paridade"]
+    AUD --> META["montar_metadados_renderizacao(...)"]
+    META --> OUT["Saída formal<br/>PacoteSaidaObservavelOficial"]
+
+    OUT --> DEST["Destino posterior<br/>console físico / XLSX físico / validação de paridade"]
 ```
 
 ## 18. Condição de parada
@@ -350,5 +395,6 @@ A parada deve preservar evidência objetiva da lacuna ou violação, indicando a
 
 - `FECHAMENTO-CONTRATOS-ETAPAS-1-8-01`: congela a cadeia Etapas 1–8 e determina que console/XLSX pertencem a camada posterior à Etapa 8.
 - `ETAPA9-CONTRATO-01`: cria este contrato individual da Etapa 9, define `PacoteSaidaObservavelOficial` como saída formal prevista e estabelece entrada exclusiva em `SaidaCanonicaOficial`.
+- Refinamento documental da `ETAPA9-CONTRATO-01`: revisa a Seção 14 para incluir mapa funcional previsto da Etapa 9 e revisa a Seção 17 para explicitar entrada, módulo previsto, função pública prevista, blocos internos, saída e destino posterior, sem nós de proibição no fluxograma.
 
 Esta frente não altera código, runtime, contratos das Etapas 1–8, contrato operacional mestre, modelo matemático-estatístico-financeiro, dados, saídas, scripts diagnósticos, console ou XLSX.
