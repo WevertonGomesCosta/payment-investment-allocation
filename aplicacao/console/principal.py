@@ -114,6 +114,47 @@ def _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonic
     else:
         print('  [OK] sem alertas na amostra atual')
 
+
+def _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial=None) -> None:
+    if pacote_saida_observavel_oficial is None:
+        return
+
+    _imprimir_titulo('SAÍDA OBSERVÁVEL OFICIAL — ETAPA 9')
+    resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None)
+    auditoria = getattr(pacote_saida_observavel_oficial, 'auditoria', None)
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    lacunas = list(getattr(pacote_saida_observavel_oficial, 'lacunas_renderizacao', []) or [])
+
+    _imprimir_pares([
+        ('artefato', getattr(pacote_saida_observavel_oficial, 'saida_origem', None)),
+        ('status', getattr(pacote_saida_observavel_oficial, 'status', None)),
+        ('preparado', getattr(pacote_saida_observavel_oficial, 'preparado', None)),
+        ('ok', getattr(pacote_saida_observavel_oficial, 'ok', None)),
+        ('data de referência', getattr(pacote_saida_observavel_oficial, 'data_referencia', None)),
+        ('origem formal', getattr(pacote_saida_observavel_oficial, 'origem_formal', None)),
+        ('qtd obrigações cobertas', getattr(resumo, 'qtd_obrigacoes_cobertas', None)),
+        ('qtd obrigações bloqueadas', getattr(resumo, 'qtd_obrigacoes_bloqueadas', None)),
+        ('qtd lacunas renderização', getattr(resumo, 'qtd_lacunas_renderizacao', len(lacunas))),
+        ('origem exclusiva auditoria', getattr(auditoria, 'origem_exclusiva', None)),
+    ])
+
+    resumo_operacional = getattr(bloco_console, 'resumo_operacional', {}) or {}
+    if resumo_operacional:
+        print('\n- resumo operacional oficial:')
+        _imprimir_pares(list(resumo_operacional.items()))
+
+    if lacunas:
+        print('\n- lacunas de renderização classificadas:')
+        linhas = []
+        for lacuna in lacunas[:8]:
+            linhas.append({
+                'codigo': getattr(lacuna, 'codigo', None),
+                'severidade': getattr(lacuna, 'severidade', None),
+                'origem': getattr(lacuna, 'origem', None),
+                'mensagem': getattr(lacuna, 'mensagem', None),
+            })
+        _imprimir_tabela(['codigo', 'severidade', 'origem', 'mensagem'], linhas, limite=8)
+
 def _render_secao_ranking_oficial(contexto_operacional, saida_canonica=None) -> None:
     ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     if ranking is None:
@@ -236,7 +277,7 @@ def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, res
         print('\n- resumo de recebidos:')
         _imprimir_pares(list(resumo_recebidos.items()))
 
-def render_console(contexto_operacional, saida_canonica=None, estado_temporal_inicial=None) -> None:
+def render_console(contexto_operacional, saida_canonica=None, estado_temporal_inicial=None, pacote_saida_observavel_oficial=None) -> None:
     """Renderiza o console usando contexto e saída canônica já construídos.
 
     Esta função não carrega planilha, não baixa dados e não reconstrói cache.
@@ -325,6 +366,8 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
         abas_primarias_reais=abas_primarias_reais,
         abas_auxiliares=abas_auxiliares,
     )
+
+    _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial)
 
     _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
 

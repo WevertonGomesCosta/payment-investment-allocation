@@ -15,6 +15,7 @@ from nucleo.motor_temporal_conjunto import construir_resultado_motor_temporal_co
 from nucleo.ledger_temporal_canonico import construir_ledger_temporal_canonico
 from nucleo.gates_validacao_nucleo import validar_gates_nucleo
 from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
+from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_oficial
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
@@ -99,12 +100,14 @@ def carregar_contexto_e_saida():
             resultado_gates_validacao_nucleo,
             None,
             None,
+            None,
         )
 
     saida_canonica_oficial = construir_saida_canonica_oficial(
         ledger=ledger_temporal_canonico,
         gates=resultado_gates_validacao_nucleo,
     )
+    pacote_saida_observavel_oficial = construir_pacote_saida_observavel_oficial(saida_canonica_oficial)
     saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional_canonico, versao=VERSAO_BASELINE)
     matriz = construir_matriz_elegibilidade_fontes_s7b(
         contexto_operacional_canonico,
@@ -120,6 +123,7 @@ def carregar_contexto_e_saida():
         resultado_gates_validacao_nucleo,
         saida_canonica,
         saida_canonica_oficial,
+        pacote_saida_observavel_oficial,
     )
 
 
@@ -132,6 +136,7 @@ def main():
         resultado_gates_validacao_nucleo,
         saida_canonica,
         saida_canonica_oficial,
+        pacote_saida_observavel_oficial,
     ) = carregar_contexto_e_saida()
 
     _ = resultado_motor_temporal_conjunto
@@ -147,11 +152,17 @@ def main():
         _render_resumo_gates_bloqueados(resultado_gates_validacao_nucleo)
         return None
 
-    render_console(contexto_operacional_canonico, saida_canonica, estado_temporal_inicial=estado_temporal_inicial)
+    render_console(
+        contexto_operacional_canonico,
+        saida_canonica,
+        estado_temporal_inicial=estado_temporal_inicial,
+        pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+    )
 
     caminho_saida = gerar_planilha_operacional(
         contexto=contexto_operacional_canonico,
         saida=saida_canonica,
+        pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
     )
 
     print(f"Saída operacional gerada em: {caminho_saida}")
