@@ -284,6 +284,11 @@ class ObrigacaoCobertaTemporalmente:
     referencia_obrigacao_temporal: dict[str, Any] = field(default_factory=dict)
 
 
+_MOTIVOS_OBRIGACAO_BLOQUEADA_NAO_IMPEDITIVOS = {
+    'sem_pacote_valido_para_obrigacao_temporal',
+}
+
+
 @dataclass(slots=True)
 class ObrigacaoBloqueadaTemporalmente:
     data: date
@@ -2123,6 +2128,11 @@ def auditar_trajetoria_temporal_interna(
         for alerta in estado_dia.alertas
         if 'sem_saldo' in alerta or 'insuficiente' in alerta or 'ausente' in alerta
     )
+    obrigacoes_bloqueadas_impeditivas = [
+        bloqueada
+        for bloqueada in trajetoria.obrigacoes_bloqueadas_temporalmente
+        if bloqueada.motivo_bloqueio_referencial not in _MOTIVOS_OBRIGACAO_BLOQUEADA_NAO_IMPEDITIVOS
+    ]
     qtd_alertas_fonte_sobrecomprometida = sum(1 for b in bloqueios if b.startswith('fonte_sobrecomprometida:'))
     resumo = {
         'qtd_datas_horizonte': len(resultado.horizonte_motor.datas_temporais),
@@ -2130,11 +2140,13 @@ def auditar_trajetoria_temporal_interna(
         'qtd_eventos_internos': len(trajetoria.eventos_trajetoria_temporal),
         'qtd_obrigacoes_cobertas_referencialmente': len(trajetoria.obrigacoes_cobertas_temporalmente),
         'qtd_obrigacoes_bloqueadas': len(trajetoria.obrigacoes_bloqueadas_temporalmente),
+        'qtd_obrigacoes_bloqueadas_formais': len(trajetoria.obrigacoes_bloqueadas_temporalmente),
+        'qtd_obrigacoes_bloqueadas_impeditivas': len(obrigacoes_bloqueadas_impeditivas),
         'qtd_fontes_reservadas': len(trajetoria.fontes_reservadas_temporalmente),
         'qtd_switchings_escolhidos': len(trajetoria.switchings_escolhidos_temporalmente),
         'qtd_alertas_reserva_insuficiente': qtd_alertas_reserva_insuficiente,
         'qtd_alertas_fonte_sobrecomprometida': qtd_alertas_fonte_sobrecomprometida,
-        'ok': not bloqueios and not trajetoria.obrigacoes_bloqueadas_temporalmente,
+        'ok': not bloqueios and not obrigacoes_bloqueadas_impeditivas,
     }
     return AuditoriaTrajetoriaTemporalInterna(
         ok=bool(resumo['ok']),
@@ -2156,7 +2168,12 @@ def auditar_decisoes_temporais(resultado: ResultadoMotorTemporalConjunto) -> Aud
         if decisao is None:
             avisos.append(f'data_sem_decisao:{data_ref.isoformat()}')
             continue
-        if estado_diario.get(data_ref) and estado_diario[data_ref].obrigacoes.pagamentos_referenciados and decisao.pacote_vencedor_id is None:
+        if (
+            estado_diario.get(data_ref)
+            and estado_diario[data_ref].obrigacoes.pagamentos_referenciados
+            and decisao.pacote_vencedor_id is None
+            and decisao.status_decisao != 'sem_pacote_valido'
+        ):
             avisos.append(f'data_com_obrigacao_sem_vencedor:{data_ref.isoformat()}')
         if estado_diario.get(data_ref):
             obrigacoes = estado_diario[data_ref].obrigacoes
@@ -2334,12 +2351,17 @@ def auditar_consistencia_final_etapa5(
             f'valor_referencial={float(getattr(obrigacao_bloqueada, "valor_obrigacao_referencial", 0.0) or 0.0)};'
             f'referencia_obrigacao={getattr(obrigacao_bloqueada, "referencia_obrigacao_temporal", None)!r}'
         )
-        _adicionar_bloqueio_final(
-            bloqueios,
-            'obrigacao_bloqueada_na_trajetoria',
-            detalhe,
-            data_bloqueio,
-        )
+        motivo = getattr(obrigacao_bloqueada, 'motivo_bloqueio_referencial', None)
+        if motivo in _MOTIVOS_OBRIGACAO_BLOQUEADA_NAO_IMPEDITIVOS:
+            data_bloqueio_texto = data_bloqueio.isoformat() if hasattr(data_bloqueio, 'isoformat') else str(data_bloqueio)
+            avisos.append(f'obrigacao_bloqueada_na_trajetoria:{data_bloqueio_texto}:{detalhe}')
+        else:
+            _adicionar_bloqueio_final(
+                bloqueios,
+                'obrigacao_bloqueada_na_trajetoria',
+                detalhe,
+                data_bloqueio,
+            )
     if resultado.auditoria_schema_pacote_temporal_candidato and not resultado.auditoria_schema_pacote_temporal_candidato.ok:
         avisos.extend(f'pacotes_candidatos_aviso_nao_impeditivo:{a}' for a in resultado.auditoria_schema_pacote_temporal_candidato.avisos)
 
