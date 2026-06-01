@@ -74,3 +74,35 @@ Observação ambiental: a planilha remota falhou por `ProxyError` e o runtime us
 ## 8. Decisão final
 
 Aprovar para PR. A correção eliminou o padrão observável `data_com_obrigacao_sem_vencedor` no runtime, manteve a semântica formal de obrigações bloqueadas e preservou as restrições de escopo da Etapa 8.
+
+## 9. Ajuste pós-revisão P1
+
+A revisão identificou que o rebaixamento de `obrigacao_bloqueada_na_trajetoria` estava amplo demais, pois qualquer `ObrigacaoBloqueadaTemporalmente` era preservada apenas como aviso.
+
+Correção aplicada nesta atualização:
+
+- foi criada a classificação local `_MOTIVOS_OBRIGACAO_BLOQUEADA_NAO_IMPEDITIVOS`, contendo somente `sem_pacote_valido_para_obrigacao_temporal`;
+- `auditar_consistencia_final_etapa5(...)` agora rebaixa para aviso somente obrigações bloqueadas com esse motivo exato;
+- obrigações bloqueadas por qualquer outro motivo voltam a ser bloqueantes com código `obrigacao_bloqueada_na_trajetoria`;
+- `auditar_trajetoria_temporal_interna(...)` passou a contar `qtd_obrigacoes_bloqueadas_impeditivas` e o `ok` da trajetória volta a ser falso quando houver obrigação bloqueada por motivo impeditivo.
+
+Essa alteração preserva a correção original de `data_com_obrigacao_sem_vencedor` para `status_decisao='sem_pacote_valido'`, mas evita ocultar obrigações subcobertas, pacote vencedor sem cobertura ou outros bloqueios reais de cobertura.
+
+### Validação após ajuste P1
+
+Comandos executados:
+
+```bash
+git status --short
+git diff --name-only
+git diff --stat
+python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py
+python -B aplicacao/principal.py
+```
+
+Resultado observado:
+
+- `py_compile` concluiu sem erros.
+- `python -B aplicacao/principal.py` concluiu sem bloqueio dos gates e gerou `saidas/oficial/relatorio_operacional_v225.xlsx`.
+- Não foram observadas ocorrências de `data_com_obrigacao_sem_vencedor` na saída runtime capturada após o ajuste P1.
+- A planilha remota continuou indisponível por `ProxyError`, com uso de `fallback_local`; CDI/BCB continuou via `cache_local`.
