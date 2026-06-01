@@ -27,7 +27,9 @@ Em caso de divergência, prevalecem o contrato mestre e o modelo oficial.
 
 ## Padrão estrutural único
 
-A partir da `MACRO-CONTRATOS-02`, todos os contratos individuais das Etapas 1–8 seguem a mesma estrutura documental de 19 seções:
+A partir da `MACRO-CONTRATOS-02`, todos os contratos individuais das Etapas 1–8 seguem a mesma estrutura documental de 19 seções.
+
+A partir da `ETAPA9-CONTRATO-01`, o mesmo padrão documental de 19 seções passa a reger também a Etapa 9:
 
 1. Identificação documental
 2. Status normativo
@@ -59,10 +61,11 @@ A partir da `MACRO-CONTRATOS-02`, todos os contratos individuais das Etapas 1–
 - `CONTRATO_ETAPA6_LEDGER_TEMPORAL_CANONICO.md`
 - `CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md`
 - `CONTRATO_ETAPA8_SAIDA_CANONICA_OFICIAL.md`
+- `CONTRATO_ETAPA9_SAIDA_OBSERVAVEL_OFICIAL.md`
 
 ## Cadeia funcional consolidada
 
-A cadeia documental vigente das Etapas 1–8 é:
+A cadeia documental vigente das Etapas 1–9 é:
 
 ```text
 Etapa 1 -> PacoteEntradaResolvida
@@ -73,6 +76,7 @@ Etapa 5 -> ResultadoMotorTemporalConjunto
 Etapa 6 -> LedgerTemporalCanonico
 Etapa 7 -> ResultadoGatesValidacaoNucleo
 Etapa 8 -> SaidaCanonicaOficial
+Etapa 9 -> PacoteSaidaObservavelOficial
 ```
 
 ## Padrão dos fluxogramas individuais
@@ -89,6 +93,8 @@ Todos os fluxogramas individuais devem ser operacional-explicativos completos. C
 
 Fluxogramas não devem introduzir fonte de estado proibida, rota paralela, fallback legado, console, XLSX, saída canônica ou script diagnóstico fora do escopo formal da etapa.
 
+Na Etapa 9, console e XLSX podem aparecer como consumidores posteriores da saída observável oficial, mas não como fontes decisórias nem como entrada formal da etapa.
+
 ## Situação documental das etapas
 
 | Contrato individual | Situação documental |
@@ -101,6 +107,7 @@ Fluxogramas não devem introduzir fonte de estado proibida, rota paralela, fallb
 | `CONTRATO_ETAPA6_LEDGER_TEMPORAL_CANONICO.md` | Padronizado como ledger temporal canônico. |
 | `CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md` | Padronizado como gates de validação de núcleo. |
 | `CONTRATO_ETAPA8_SAIDA_CANONICA_OFICIAL.md` | Alinhado à implementação real de `SaidaCanonicaOficial` em `nucleo/saida_canonica_oficial.py`, sem transferir console/XLSX para a Etapa 8. |
+| `CONTRATO_ETAPA9_SAIDA_OBSERVAVEL_OFICIAL.md` | Criado como camada posterior à Etapa 8 para transformar `SaidaCanonicaOficial` em `PacoteSaidaObservavelOficial`, sem reotimizar, revalorar ou alterar decisão. |
 
 ## Regra de escopo
 
