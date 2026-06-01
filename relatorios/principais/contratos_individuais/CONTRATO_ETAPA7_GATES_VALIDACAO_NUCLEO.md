@@ -19,7 +19,7 @@ Este contrato reflete a implementação final mergeada na PR #426. Ele define a 
 Etapa 6 -> LedgerTemporalCanonico -> Etapa 7 -> ResultadoGatesValidacaoNucleo -> Etapa 8
 ```
 
-A referência à Etapa 8 é apenas direcional. Este contrato não implementa a Etapa 8.
+A referência à Etapa 8 é direcional e aponta para a Etapa 8 — Saída Canônica Oficial, implementada no contrato próprio `CONTRATO_ETAPA8_SAIDA_CANONICA_OFICIAL.md`.
 
 ## 4. Função da etapa
 
@@ -147,7 +147,7 @@ A Etapa 7 consome exclusivamente `LedgerTemporalCanonico` produzido pela Etapa 6
 
 ## 13. Relação com a etapa posterior
 
-A Etapa 7 entrega `ResultadoGatesValidacaoNucleo` para orientar a Etapa 8 — Saída Canônica Validada. A progressão observável deve ser bloqueada quando `pronto_para_etapa8=False`. Este contrato não implementa a Etapa 8.
+A Etapa 7 entrega `ResultadoGatesValidacaoNucleo` para orientar a Etapa 8 — Saída Canônica Oficial. A progressão observável deve ser bloqueada quando `pronto_para_etapa8=False`. A Etapa 8 é implementada em contrato próprio e prepara `SaidaCanonicaOficial` por `nucleo/saida_canonica_oficial.py` / `construir_saida_canonica_oficial(...)`.
 
 ## 14. Schema/funções públicas previstas ou implementadas
 
@@ -278,7 +278,7 @@ flowchart TD
 
     OUT --> DEC{pronto_para_etapa8?}
     DEC -->|False| BLOCK["aplicacao/principal.py<br/>bloqueia progressão observável<br/>console/XLSX oficiais não gerados"]
-    DEC -->|True| E8["Destino<br/>Etapa 8 — Saída Canônica Validada<br/>contrato futuro"]
+    DEC -->|True| E8["Destino<br/>Etapa 8 — Saída Canônica Oficial<br/>nucleo/saida_canonica_oficial.py<br/>construir_saida_canonica_oficial(...)"]
 ```
 
 ## 18. Condição de parada
@@ -296,5 +296,6 @@ A implementação mergeada consolidou:
 - validação de aderência terminal quando evidência estiver materializada;
 - reconciliação agregada de obrigações cobertas por pacote/data;
 - exigência de saldo residual para fonte movimentada.
+- `CONTRATO-ETAPA7-ALINHAMENTO-01`: atualização da referência à Etapa 8 no texto e no fluxograma, substituindo a nomenclatura antiga por `Etapa 8 — Saída Canônica Oficial` / `nucleo/saida_canonica_oficial.py` / `construir_saida_canonica_oficial(...)`.
 
 Essas regras integram o corpo vivo deste contrato.
