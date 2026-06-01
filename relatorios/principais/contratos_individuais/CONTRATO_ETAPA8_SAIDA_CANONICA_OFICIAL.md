@@ -5,15 +5,17 @@
 - **Etapa:** 8
 - **Nome:** Saída Canônica Oficial
 - **Entrada formal obrigatória e exclusiva:** `ResultadoGatesValidacaoNucleo` aprovado e `LedgerTemporalCanonico` validado pela Etapa 7
-- **Saída formal prevista:** `SaidaCanonicaOficial`
-- **Módulo funcional:** previsto para microfrente funcional posterior
-- **Função pública prevista:** prevista para microfrente funcional posterior, não implementada neste contrato documental
+- **Saída formal implementada:** `SaidaCanonicaOficial`
+- **Módulo funcional implementado:** `nucleo/saida_canonica_oficial.py`
+- **Função pública implementada:** `construir_saida_canonica_oficial(ledger, gates) -> SaidaCanonicaOficial`
 
 ## 2. Status normativo
 
-Este contrato formaliza documentalmente a Etapa 8 como a primeira camada autorizada a preparar a saída canônica oficial após aprovação dos gates da Etapa 7.
+Este contrato formaliza a Etapa 8 como a primeira camada autorizada a preparar a saída canônica oficial após aprovação dos gates da Etapa 7.
 
-Este documento não implementa código, não altera runtime, não move funções pré-existentes, não cria console, não gera XLSX e não altera contratos das Etapas 1–7. A nomenclatura `SaidaCanonicaOficial` é o nome contratual provisório explícito da saída desta etapa e poderá ser confirmada em microfrente funcional posterior.
+A partir da `CONTRATO-ETAPA8-ALINHAMENTO-01`, este contrato passa a refletir o estado funcional real: o artefato `SaidaCanonicaOficial` e a função pública `construir_saida_canonica_oficial(...)` estão implementados em `nucleo/saida_canonica_oficial.py`.
+
+Este alinhamento documental não altera runtime, não altera código funcional, não move funções legadas, não cria console, não gera XLSX e não altera contratos das Etapas 1–7.
 
 ## 3. Posição na cadeia macro
 
@@ -72,53 +74,56 @@ Referências históricas embutidas no ledger são permitidas apenas como rastrea
 
 ## 7. Saída formal obrigatória
 
-A saída formal obrigatória prevista da Etapa 8 é:
+A saída formal obrigatória implementada da Etapa 8 é:
 
 ```text
 SaidaCanonicaOficial
 ```
 
-`SaidaCanonicaOficial` é, nesta microfrente, um artefato contratual previsto. Ainda não há implementação formal nova da Etapa 8 neste documento.
+`SaidaCanonicaOficial` é o artefato canônico oficial da Etapa 8, implementado em `nucleo/saida_canonica_oficial.py`.
 
-A saída não deve ser confundida automaticamente com funções ou artefatos legados do runtime. Funções pré-existentes do runtime podem ser tratadas como referência transitória somente se uma microfrente funcional futura fizer essa decisão explicitamente.
+A saída não deve ser confundida automaticamente com funções ou artefatos legados do runtime. Funções pré-existentes do runtime podem continuar existindo como camada operacional legada ou transitória, mas não substituem o artefato formal da Etapa 8.
 
 ## 8. Componentes mínimos da saída
 
-`SaidaCanonicaOficial` deve conter, no mínimo, quando implementada:
+`SaidaCanonicaOficial` contém, no mínimo, conforme implementação atual:
 
 - origem formal da saída;
-- referência ao `LedgerTemporalCanonico` validado;
-- referência ao `ResultadoGatesValidacaoNucleo` aprovado;
+- referência ao tipo do `LedgerTemporalCanonico` consumido;
+- referência ao tipo do `ResultadoGatesValidacaoNucleo` consumido;
 - indicador de prontidão da Etapa 8;
-- decisões preservadas das Etapas 5–7;
+- status de preparação;
+- data de referência;
+- resumo canônico da saída;
+- decisões e eventos preservados do ledger;
 - obrigações cobertas preservadas;
 - obrigações bloqueadas preservadas;
 - fontes utilizadas preservadas;
 - fontes reservadas preservadas;
 - switchings escolhidos preservados;
-- saldos e residuais materializados preservados;
-- bloqueios e avisos aprovados ou preservados;
-- evidências dos gates relevantes para rastreabilidade;
-- resumo canônico de saída;
+- saldos referenciais por data preservados;
+- bloqueios e avisos do ledger;
+- bloqueios, avisos e evidências dos gates;
+- bloqueios próprios de preparação da Etapa 8;
 - metadados de auditoria da própria preparação.
 
-A estrutura exata do schema será definida em microfrente funcional posterior.
+O schema implementado é representado pelas classes `SaidaCanonicaOficial`, `ResumoSaidaCanonicaOficial` e `BloqueioPreparacaoSaidaCanonicaOficial`.
 
 ## 9. Processo interno da etapa
 
-A Etapa 8 deve executar, quando implementada, um processo determinístico de preparação da saída oficial:
+A Etapa 8 executa um processo determinístico de preparação da saída oficial:
 
-1. receber `ResultadoGatesValidacaoNucleo` e `LedgerTemporalCanonico`;
-2. verificar que `ResultadoGatesValidacaoNucleo.pronto_para_etapa8=True`;
-3. bloquear progressão se a prontidão for falsa;
-4. confirmar que o ledger consumido é o mesmo ledger validado pelos gates;
-5. consumir somente evidências, decisões e metadados já materializados no ledger validado ou nos gates;
-6. organizar obrigações cobertas e bloqueadas sem reclassificar decisão;
-7. organizar fontes utilizadas e reservadas sem recalcular alocação;
-8. organizar switchings escolhidos sem reavaliar elegibilidade;
-9. preservar bloqueios, avisos e evidências;
-10. montar `SaidaCanonicaOficial`;
-11. disponibilizar a saída para camada posterior de renderização/exportação.
+1. recebe `ResultadoGatesValidacaoNucleo` e `LedgerTemporalCanonico`;
+2. verifica que as entradas possuem os tipos formais esperados;
+3. verifica que `ResultadoGatesValidacaoNucleo.pronto_para_etapa8=True`;
+4. bloqueia a preparação se a prontidão for falsa;
+5. consome somente evidências, decisões e metadados já materializados no ledger validado ou nos gates;
+6. organiza obrigações cobertas e bloqueadas sem reclassificar decisão;
+7. organiza fontes utilizadas e reservadas sem recalcular alocação;
+8. organiza switchings escolhidos sem reavaliar elegibilidade;
+9. preserva bloqueios, avisos e evidências;
+10. monta `SaidaCanonicaOficial`;
+11. disponibiliza a saída para camada posterior de renderização/exportação.
 
 Esse processo não deve consultar dados brutos, planilhas, logs, scripts diagnósticos, console, XLSX, caches externos ou artefatos anteriores ao ledger.
 
@@ -129,6 +134,7 @@ A Etapa 8 pode:
 - preparar a saída canônica oficial após gates aprovados;
 - consumir `LedgerTemporalCanonico` validado;
 - consumir `ResultadoGatesValidacaoNucleo` aprovado;
+- validar tipos formais das entradas;
 - organizar evidências já materializadas;
 - preservar decisões fechadas nas Etapas 5–7;
 - preservar obrigações cobertas e bloqueadas;
@@ -166,7 +172,7 @@ A Etapa 8 não pode:
 - consultar cache BCB como fonte decisória;
 - gerar console oficial;
 - gerar XLSX oficial;
-- alterar runtime nesta microfrente documental;
+- substituir consumidores legados sem microfrente posterior específica;
 - alterar contratos das Etapas 1–7;
 - alterar contrato operacional mestre.
 
@@ -182,25 +188,32 @@ Quando `pronto_para_etapa8=False`, a relação entre Etapa 7 e Etapa 8 é de blo
 
 A Etapa 8 entrega `SaidaCanonicaOficial` para camada posterior de renderização, exportação, console ou XLSX.
 
-Console e XLSX oficiais não são responsabilidade central da Etapa 8. Eles devem ser tratados como camada posterior ou como consumidores posteriores da saída canônica oficial, em microfrente separada e contratualmente autorizada.
+Console e XLSX oficiais não são responsabilidade central da Etapa 8. Eles devem ser tratados como camada posterior ou como consumidores posteriores da saída canônica oficial, em frente separada e contratualmente autorizada.
 
 A Etapa 8 não deve ser usada para introduzir regras de apresentação que alterem decisão econômica, ledger, gates ou saída canônica.
 
 ## 14. Schema/funções públicas previstas ou implementadas
 
-Módulo funcional previsto para microfrente posterior:
+Módulo funcional implementado:
 
 ```text
-nucleo/<modulo_formal_etapa8_a_definir>.py
+nucleo/saida_canonica_oficial.py
 ```
 
-Artefato formal previsto:
+Artefato formal implementado:
 
 ```python
 SaidaCanonicaOficial
 ```
 
-Função pública prevista, ainda não implementada nesta microfrente:
+Classes auxiliares implementadas:
+
+```python
+ResumoSaidaCanonicaOficial
+BloqueioPreparacaoSaidaCanonicaOficial
+```
+
+Função pública implementada:
 
 ```python
 construir_saida_canonica_oficial(
@@ -209,7 +222,7 @@ construir_saida_canonica_oficial(
 ) -> SaidaCanonicaOficial
 ```
 
-A assinatura acima é contratual provisória. Ela deve ser confirmada, ajustada ou substituída em microfrente funcional posterior.
+A função bloqueia a preparação quando as entradas não são dos tipos formais esperados ou quando `ResultadoGatesValidacaoNucleo.pronto_para_etapa8=False`.
 
 Funções atualmente existentes no runtime, como:
 
@@ -219,7 +232,7 @@ construir_matriz_elegibilidade_fontes_s7b(...)
 aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(...)
 ```
 
-são funções pré-existentes do runtime/legado operacional. Este contrato não as promove automaticamente à condição de implementação formal final da Etapa 8.
+são funções pré-existentes do runtime/legado operacional. Este contrato não as promove automaticamente à condição de implementação formal final da Etapa 8 nem autoriza sua substituição direta sem frente posterior.
 
 ## 15. Auditoria esperada
 
@@ -236,29 +249,30 @@ A auditoria da Etapa 8 deve verificar, no mínimo:
 - se switchings escolhidos foram preservados;
 - se bloqueios, avisos e evidências foram preservados;
 - se nenhuma reotimização, revaloração ou nova escolha foi executada;
-- se console e XLSX não foram gerados pela Etapa 8.
+- se console e XLSX não foram gerados pela Etapa 8;
+- se a saída bloqueada por gates reprovados não inclui conteúdo operacional indevido.
 
 ## 16. Critérios de aceite
 
-A Etapa 8 será aceita funcionalmente, em microfrente futura, quando:
+A Etapa 8 é aceita funcionalmente quando:
 
-1. consumir somente `ResultadoGatesValidacaoNucleo` aprovado e `LedgerTemporalCanonico` validado;
-2. bloquear progressão quando `pronto_para_etapa8=False`;
-3. produzir `SaidaCanonicaOficial`;
-4. preservar decisões das Etapas 5–7;
-5. preservar obrigações cobertas e bloqueadas;
-6. preservar fontes utilizadas e reservadas;
-7. preservar saldos e residuais materializados;
-8. preservar switchings escolhidos;
-9. preservar bloqueios, avisos e evidências;
-10. não consultar `EstadoTemporalInicial`;
-11. não consultar `ResultadoMotorTemporalConjunto`;
-12. não consultar dados brutos, planilhas, logs, scripts diagnósticos, console, XLSX ou saída observável anterior;
-13. não gerar console ou XLSX oficiais;
-14. não alterar runtime fora da microfrente funcional autorizada;
-15. não alterar contratos das Etapas 1–7.
+1. consome somente `ResultadoGatesValidacaoNucleo` aprovado e `LedgerTemporalCanonico` validado;
+2. bloqueia progressão quando `pronto_para_etapa8=False`;
+3. produz `SaidaCanonicaOficial` quando `pronto_para_etapa8=True`;
+4. preserva decisões das Etapas 5–7;
+5. preserva obrigações cobertas e bloqueadas;
+6. preserva fontes utilizadas e reservadas;
+7. preserva saldos e residuais materializados;
+8. preserva switchings escolhidos;
+9. preserva bloqueios, avisos e evidências;
+10. não consulta `EstadoTemporalInicial`;
+11. não consulta `ResultadoMotorTemporalConjunto`;
+12. não consulta dados brutos, planilhas, logs, scripts diagnósticos, console, XLSX ou saída observável anterior;
+13. não gera console ou XLSX oficiais;
+14. não altera contratos das Etapas 1–7;
+15. é integrada ao runtime apenas após gates aprovados.
 
-Nesta microfrente documental, o aceite se limita à criação deste contrato, atualização do README dos contratos individuais e registro do log documental, sem alteração funcional.
+Nesta frente documental, o aceite se limita ao alinhamento do contrato com a implementação já existente, sem alteração funcional.
 
 ## 17. Fluxograma operacional-explicativo completo
 
@@ -266,17 +280,19 @@ Nesta microfrente documental, o aceite se limita à criação deste contrato, at
 flowchart TD
     E7["Etapa 7<br/>ResultadoGatesValidacaoNucleo"] --> DEC{"ResultadoGatesValidacaoNucleo.pronto_para_etapa8?"}
 
-    DEC -->|False| BLOQ["Bloquear progressão<br/>não preparar saída canônica oficial"]
+    DEC -->|False| BLOQ["Bloquear preparação<br/>SaidaCanonicaOficial não preparada"]
     BLOQ --> NCONSOLE["Não gerar console oficial"]
     BLOQ --> NXLSX["Não gerar XLSX oficial"]
-    BLOQ --> PRESERVA["Preservar bloqueios, avisos e evidências dos gates"]
-    PRESERVA --> STOP["Condição de parada<br/>Etapa 8 não executada"]
+    BLOQ --> PRESERVA["Preservar bloqueios, avisos<br/>e evidências dos gates"]
+    PRESERVA --> STOP["Condição de parada<br/>Etapa 8 bloqueada"]
 
     DEC -->|True| LEDGER["Consumir LedgerTemporalCanonico validado<br/>pela Etapa 7"]
-    DEC -->|True| GATES["Consumir evidências e metadados<br/>aprovados dos gates"]
+    DEC -->|True| GATES["Consumir ResultadoGatesValidacaoNucleo<br/>aprovado"]
 
-    LEDGER --> PREP["Preparar SaidaCanonicaOficial<br/>artefato contratual previsto"]
-    GATES --> PREP
+    LEDGER --> MOD["nucleo/saida_canonica_oficial.py"]
+    GATES --> MOD
+    MOD --> FUNC["construir_saida_canonica_oficial(ledger, gates)"]
+    FUNC --> PREP["Montar SaidaCanonicaOficial"]
 
     PREP --> PRESDEC["Preservar decisões fechadas<br/>Etapas 5–7"]
     PRESDEC --> OBR["Preservar obrigações cobertas<br/>e obrigações bloqueadas"]
@@ -285,7 +301,7 @@ flowchart TD
     SWT --> AUD["Registrar metadados de auditoria<br/>da preparação"]
 
     AUD --> PROIB["Sem reotimizar<br/>sem revalorar<br/>sem alterar decisão<br/>sem consultar fontes externas"]
-    PROIB --> OUT["Saída formal prevista<br/>SaidaCanonicaOficial"]
+    PROIB --> OUT["Saída formal implementada<br/>SaidaCanonicaOficial"]
     OUT --> POS["Camada posterior<br/>renderização/exportação/console/XLSX<br/>fora do escopo central da Etapa 8"]
 ```
 
@@ -295,14 +311,23 @@ A Etapa 8 deve parar sem preparar saída canônica oficial quando:
 
 - `ResultadoGatesValidacaoNucleo.pronto_para_etapa8=False`;
 - o ledger informado não for o ledger validado pela Etapa 7;
+- a entrada `ledger` não for `LedgerTemporalCanonico`;
+- a entrada `gates` não for `ResultadoGatesValidacaoNucleo`;
 - houver tentativa de consultar etapa anterior ao ledger;
 - houver tentativa de consultar dados brutos, planilha, logs, diagnósticos, console, XLSX ou saída observável anterior;
 - houver necessidade de reotimizar, revalorar ou alterar decisão;
 - houver ambiguidade entre preparação canônica oficial e renderização/exportação;
-- houver necessidade de alterar contrato mestre ou contratos das Etapas 1–7 para executar a microfrente corrente.
+- houver necessidade de alterar contrato mestre ou contratos das Etapas 1–7 para executar a frente corrente.
 
 ## 19. Histórico documental / adendos funcionais consolidados
 
 - `MICRO-ETAPA8-CONTRATO-01`: criação documental do contrato individual da Etapa 8, com `SaidaCanonicaOficial` como artefato contratual previsto.
-- Esta microfrente não altera código, runtime, contratos das Etapas 1–7, contrato operacional mestre, dados, saídas, scripts diagnósticos, console ou XLSX.
-- A implementação formal da Etapa 8 deve ocorrer somente em microfrente funcional posterior, após auditoria e aprovação deste contrato documental.
+- `MICRO-ETAPA8-FUNCIONAL-01`: implementação do artefato formal mínimo `SaidaCanonicaOficial` em `nucleo/saida_canonica_oficial.py`.
+- `MICRO-ETAPA8-FUNCIONAL-02`: integração interna da construção de `SaidaCanonicaOficial` ao runtime somente após gates aprovados.
+- `MICRO-ETAPA8-CORRECAO-01`: ajuste de metadado temporal para `datetime.now(timezone.utc)`.
+- `LIMPA-ETAPA8-ESCOPO-01`: remoção de resíduos pós-Etapa 8 baseados em adaptador, renderização e equivalência.
+- `MACRO-GATES-01`: correção upstream no motor para permitir aprovação legítima dos gates quando obrigações sem pacote válido estão formalmente bloqueadas.
+- `MACRO-AUDITORIA-CADEIA-01`: registro do estado pós-`MACRO-GATES-01` e identificação da pendência documental da Etapa 8.
+- `CONTRATO-ETAPA8-ALINHAMENTO-01`: alinhamento deste contrato ao código real já implementado, sem alteração funcional.
+
+Esta frente não altera código, runtime, contratos das Etapas 1–7, contrato operacional mestre, dados, saídas, scripts diagnósticos, console ou XLSX.

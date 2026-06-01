@@ -100,7 +100,7 @@ Fluxogramas não devem introduzir fonte de estado proibida, rota paralela, fallb
 | `CONTRATO_ETAPA5_MOTOR_TEMPORAL_CONJUNTO.md` | Padronizado como motor temporal conjunto e resultado fechado. |
 | `CONTRATO_ETAPA6_LEDGER_TEMPORAL_CANONICO.md` | Padronizado como ledger temporal canônico. |
 | `CONTRATO_ETAPA7_GATES_VALIDACAO_NUCLEO.md` | Padronizado como gates de validação de núcleo. |
-| `CONTRATO_ETAPA8_SAIDA_CANONICA_OFICIAL.md` | Formalizado documentalmente como preparação da saída canônica oficial pós-gates, sem implementação funcional nesta microfrente. |
+| `CONTRATO_ETAPA8_SAIDA_CANONICA_OFICIAL.md` | Alinhado à implementação real de `SaidaCanonicaOficial` em `nucleo/saida_canonica_oficial.py`, sem transferir console/XLSX para a Etapa 8. |
 
 ## Regra de escopo
 
