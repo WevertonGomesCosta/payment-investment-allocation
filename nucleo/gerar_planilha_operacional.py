@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from dataclasses import asdict, is_dataclass
 from typing import Any, Iterable, Mapping
 import sys
 
@@ -545,7 +546,77 @@ def _adicionar_auditoria_saida_canonica(wb, contexto, saida) -> None:
         linhas.append({'Métrica': k, 'Valor': v})
     _apply_table_style(ws, ['Métrica', 'Valor'], _rows(linhas, ['Métrica', 'Valor']), freeze=True)
 
-def main(*, contexto=None, saida=None) -> Path:
+
+def _serializar_valor_observavel(valor: Any) -> Any:
+    if is_dataclass(valor):
+        return asdict(valor)
+    if isinstance(valor, (dict, list, tuple, set)):
+        return str(valor)
+    return valor
+
+
+def _normalizar_linhas_observaveis(linhas: Iterable[Any]) -> tuple[list[str], list[dict[str, Any]]]:
+    normalizadas: list[dict[str, Any]] = []
+    headers: list[str] = []
+    vistos: set[str] = set()
+
+    for item in list(linhas or []):
+        if is_dataclass(item):
+            item = asdict(item)
+        elif not isinstance(item, dict):
+            item = {'valor': item}
+
+        normalizado = {str(chave): _serializar_valor_observavel(valor) for chave, valor in dict(item).items()}
+        normalizadas.append(normalizado)
+        for chave in normalizado:
+            if chave not in vistos:
+                headers.append(chave)
+                vistos.add(chave)
+
+    if not headers:
+        headers = ['status']
+        normalizadas = [{'status': 'sem_registros_observaveis'}]
+
+    return headers, normalizadas
+
+
+def _nome_aba_saida_observavel(nome_base: str, usados: set[str]) -> str:
+    prefixo = 'Obs '
+    base = ''.join(ch if ch not in '[]:*?/\\' else '-' for ch in str(nome_base or 'Aba'))
+    limite_base = 31 - len(prefixo)
+    nome = f'{prefixo}{base[:limite_base]}'.strip()
+    if nome not in usados:
+        usados.add(nome)
+        return nome
+
+    contador = 2
+    while True:
+        sufixo = f' {contador}'
+        nome = f'{prefixo}{base[:31 - len(prefixo) - len(sufixo)]}{sufixo}'.strip()
+        if nome not in usados:
+            usados.add(nome)
+            return nome
+        contador += 1
+
+
+def _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial) -> None:
+    if pacote_saida_observavel_oficial is None:
+        return
+
+    bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
+    abas = dict(getattr(bloco_xlsx, 'abas', {}) or {})
+    if not abas:
+        abas = {
+            'Resumo Operacional': [getattr(pacote_saida_observavel_oficial, 'metadados', {}) or {}],
+        }
+
+    usados = {ws.title for ws in wb.worksheets}
+    for nome_aba, linhas in abas.items():
+        ws = wb.create_sheet(_nome_aba_saida_observavel(nome_aba, usados))
+        headers, linhas_normalizadas = _normalizar_linhas_observaveis(linhas)
+        _apply_table_style(ws, headers, _rows(linhas_normalizadas, headers), freeze=True)
+
+def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None) -> Path:
     """Gera a planilha operacional.
 
     Quando contexto e saida são informados, esta função não recarrega planilha,
@@ -620,6 +691,7 @@ def main(*, contexto=None, saida=None) -> Path:
     _adicionar_abas_ranking(wb, contexto)
     _adicionar_situacao_atual(wb, contexto, saida, pacote_consolidado)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
+    _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial)
     _adicionar_aba_tabela_operacional_pagamentos(wb)
     _adicionar_abas_saida_operacional_pagamentos_u7(wb)
     _adicionar_aba_auditoria_fontes(wb, contexto, saida)

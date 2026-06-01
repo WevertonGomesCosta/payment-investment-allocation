@@ -9,7 +9,7 @@ from nucleo.saida_canonica_oficial import SaidaCanonicaOficial
 
 _ORIGEM_FORMAL = 'SaidaCanonicaOficial'
 _ARTEFATO = 'PacoteSaidaObservavelOficial'
-_VERSAO_SCHEMA = 'ETAPA9-FUNCIONAL-01'
+_VERSAO_SCHEMA = 'ETAPA9-COMPLETA-01'
 
 
 @dataclass(slots=True)
@@ -73,9 +73,9 @@ class AuditoriaSaidaObservavelOficial:
     sem_revaloracao: bool = True
     sem_alteracao_decisao: bool = True
     sem_consulta_fontes_externas: bool = True
-    sem_integracao_runtime: bool = True
-    sem_alteracao_console: bool = True
-    sem_alteracao_xlsx: bool = True
+    sem_integracao_runtime: bool = False
+    sem_alteracao_console: bool = False
+    sem_alteracao_xlsx: bool = False
 
 
 @dataclass(slots=True)
@@ -358,9 +358,9 @@ def montar_metadados_renderizacao(status: str, preparado: bool) -> dict[str, Any
         'sem_revaloracao': True,
         'sem_alteracao_decisao': True,
         'sem_consulta_fontes_externas': True,
-        'sem_integracao_runtime': True,
-        'sem_alteracao_console': True,
-        'sem_alteracao_xlsx': True,
+        'sem_integracao_runtime': False,
+        'sem_alteracao_console': False,
+        'sem_alteracao_xlsx': False,
         'gerado_em': datetime.now(timezone.utc).isoformat(timespec='seconds'),
     }
 
