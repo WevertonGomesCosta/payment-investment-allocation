@@ -173,6 +173,30 @@ evidencias_auxiliares={}
 # inventario_auxiliar_ausente presente
 ```
 
+## Correção pós-review P2 — mapa compacto identificador/status
+
+O PR recebeu comentário P2 apontando que mappings compactos no formato `identificador -> status`, por exemplo `{"rota_api": "dependencia ativa"}`, perdiam o valor escalar durante a normalização.
+
+A correção aplicada faz com que:
+
+- quando a chave do mapping for o identificador e o valor for escalar, esse valor seja preservado em `status` e `valor_original`;
+- `{"rota_api": "dependencia ativa"}` seja normalizado como identificador `rota_api` com status `dependencia ativa`;
+- `{"rota_legacy": "deprecated"}` seja normalizado como identificador `rota_legacy` com status `deprecated`;
+- `{"rota_sem_uso": "sem uso"}` seja normalizado como identificador `rota_sem_uso` com status `sem uso`.
+
+Cenários esperados após a correção:
+
+```python
+evidencias_auxiliares={"rota_api": "dependencia ativa"}
+# classifica como bloqueado_dependencia_ativa
+
+evidencias_auxiliares={"rota_legacy": "deprecated"}
+# classifica como legado_candidato_depreciacao
+
+evidencias_auxiliares={"rota_sem_uso": "sem uso"}
+# não classifica como bloqueado_dependencia_ativa
+```
+
 ## Validações executadas
 
 - `python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py` — aprovado na validação inicial da frente.
@@ -182,6 +206,7 @@ evidencias_auxiliares={}
 - Após a segunda correção P2, a normalização de evidência escalar e a separação de bloqueios de paridade/dependência ativa foram ajustadas no código.
 - Após a terceira correção P2, a classificação de marcadores negativos de uso foi ajustada para evitar falso bloqueio em `sem uso`.
 - Após a quarta correção P2, inventários auxiliares vazios passaram a ser tratados como ausência efetiva de evidências auxiliares.
+- Após a quinta correção P2, mappings compactos `identificador -> status` passaram a preservar valores escalares em `status` e `valor_original`.
 - `git diff --check` — aprovado na validação inicial da frente.
 - `git status --short` — executado para conferência de alterações.
 - `git diff --name-only origin/main...HEAD` — não executável no ambiente inicial do Codex por ausência de `origin/main` local; validado posteriormente pelo usuário em checkout local com remote disponível.
