@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -602,13 +603,42 @@ def _secoes_console_esperadas(bloco_console: Any) -> list[str]:
     return [chave for chave, valor in _objeto_para_mapping(bloco_console).items() if valor not in (None, {}, [])]
 
 
+def _texto_para_decimal_console(token: str) -> Decimal | None:
+    token_limpo = token.strip()
+    if not token_limpo:
+        return None
+    separadores = [sep for sep in ('.', ',') if sep in token_limpo]
+    if len(separadores) > 1:
+        return None
+    if separadores:
+        separador = separadores[0]
+        parte_inteira, parte_decimal = token_limpo.rsplit(separador, 1)
+        if len(parte_decimal) > 2:
+            return None
+        token_limpo = f'{parte_inteira}.{parte_decimal}' if separador == ',' else token_limpo
+    try:
+        return Decimal(token_limpo)
+    except InvalidOperation:
+        return None
+
+
+def _tokens_numericos_console(texto: str) -> list[Decimal]:
+    tokens = re.findall(r'(?<![\w])[-+]?\d+(?:[.,]\d+)?(?![\w])', texto)
+    decimais: list[Decimal] = []
+    for token in tokens:
+        decimal = _texto_para_decimal_console(token)
+        if decimal is not None:
+            decimais.append(decimal)
+    return decimais
+
+
 def _texto_contem_valor(texto: str, valor: Any) -> bool:
     valor_norm = normalizar_valores_para_paridade(valor)
+    valor_decimal = _decimal_ou_none(valor_norm)
+    if valor_decimal is not None:
+        return any(_valores_equivalentes(valor_decimal, token) for token in _tokens_numericos_console(texto))
+
     candidatos = {str(valor), str(valor_norm)}
-    if isinstance(valor_norm, Decimal):
-        quantizado = valor_norm.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        candidatos.add(str(quantizado))
-        candidatos.add(str(quantizado).replace('.', ','))
     return any(candidato in texto for candidato in candidatos if candidato not in {'', 'None'})
 
 
@@ -678,6 +708,35 @@ def auditar_paridade_console(
                         f'Seção esperada não localizada na captura estruturada de console: {secao}.',
                         material=False,
                         coluna=secao,
+                        referencias={
+                            'secao_presente': False,
+                            'campo_presente': False,
+                            'valor_equivalente': False,
+                        },
+                    )
+                )
+        resumo_esperado = dict(_objeto_para_mapping(bloco_console).get('resumo_operacional', {}) or {})
+        resumo_observado = _objeto_para_mapping(estrutura.get('resumo_operacional')) if 'resumo_operacional' in estrutura else {}
+        secao_presente = 'resumo_operacional' in estrutura
+        for campo, valor_esperado in resumo_esperado.items():
+            campo_presente = campo in resumo_observado
+            valor_observado = resumo_observado.get(campo) if campo_presente else None
+            valor_equivalente = campo_presente and _valores_equivalentes(valor_esperado, valor_observado)
+            if not secao_presente or not campo_presente or not valor_equivalente:
+                divergencias.append(
+                    _nova_divergencia(
+                        'CONSOLE_AUDITADO_COM_RESSALVA',
+                        'console',
+                        f'Campo mínimo de resumo operacional divergente na captura estruturada: {campo}.',
+                        material=False,
+                        coluna=str(campo),
+                        esperado=valor_esperado,
+                        observado=valor_observado,
+                        referencias={
+                            'secao_presente': secao_presente,
+                            'campo_presente': campo_presente,
+                            'valor_equivalente': valor_equivalente,
+                        },
                     )
                 )
     divergencias = classificar_divergencias(divergencias)

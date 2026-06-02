@@ -189,3 +189,12 @@ divergencias: [('CONSOLE_NAO_AUDITADO', False)]
 - Quando o rótulo textual está presente, mas o valor esperado está ausente ou divergente, o módulo passa a registrar `CONSOLE_AUDITADO_COM_RESSALVA` com referências objetivas `rotulo_presente` e `valor_presente`.
 - Validações reexecutadas: `python -m py_compile nucleo/paridade_renderizacao_oficial.py nucleo/saida_observavel_oficial.py nucleo/gerar_planilha_operacional.py` e script mínimo com XLSX temporário + console textual contendo valor correto e valor divergente.
 - Confirmação mantida: sem alteração em motor, ledger, gates, Etapa 9, contrato, modelo, dados financeiros, cache BCB, runtime, console ou XLSX.
+
+## Refinamento pós-revisão — comentários P2 ativos do PR #469
+
+- Corrigida a comparação textual de valores numéricos do console para não aceitar substring simples: `5` não é mais aceito dentro de `50`, `150` ou tokens numéricos não equivalentes.
+- A auditoria textual passa a procurar tokens numéricos completos e comparar equivalência numérica pela normalização de paridade, preservando equivalências como `5`, `5.0`, `5.00` e `5,00`.
+- Corrigida a auditoria de console estruturado para validar valores internos de `resumo_operacional`, não apenas a presença da seção.
+- Divergências estruturadas de console passam a registrar referências objetivas `secao_presente`, `campo_presente` e `valor_equivalente`.
+- Validações reexecutadas: `python -m py_compile nucleo/paridade_renderizacao_oficial.py nucleo/saida_observavel_oficial.py nucleo/gerar_planilha_operacional.py` e script inline com três cenários: console textual correto (`qtd_eventos=5`), console textual divergente por substring (`qtd_eventos=50`) e console estruturado divergente (`resumo_operacional.qtd_eventos=50`).
+- Confirmação mantida: sem alteração em motor, ledger, gates, Etapa 9, contrato, modelo, dados financeiros, cache BCB, runtime, console, XLSX ou auditoria XLSX.
