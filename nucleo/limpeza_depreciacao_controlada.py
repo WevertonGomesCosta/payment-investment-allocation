@@ -36,6 +36,23 @@ CHAVES_EVIDENCIA_AUXILIAR_ESCALAR = {
     'classificacao',
 }
 IDENTIFICADOR_BLOQUEIO_PARIDADE = 'paridade_material_bloqueante'
+MARCADORES_USO_NEGATIVO = (
+    'sem uso',
+    'fora de uso',
+    'não usado',
+    'nao usado',
+    'unused',
+    'not used',
+)
+MARCADORES_DEPENDENCIA_ATIVA_FORTE = (
+    'dependencia ativa',
+    'dependência ativa',
+    'bloqueado',
+)
+MARCADORES_USO_POSITIVO = (
+    'em uso',
+    'in use',
+)
 
 
 @dataclass(slots=True)
@@ -154,7 +171,10 @@ def _classificar_evidencia_auxiliar(nome: str, dados: Mapping[str, Any] | None =
         return classificacao_explicita
 
     texto = _texto_minusculo(' '.join([nome, *(str(v) for v in dados.values())]))
-    if any(marcador in texto for marcador in ('dependencia ativa', 'dependência ativa', 'bloqueado', 'em uso')):
+    contem_uso_negativo = any(marcador in texto for marcador in MARCADORES_USO_NEGATIVO)
+    if any(marcador in texto for marcador in MARCADORES_DEPENDENCIA_ATIVA_FORTE):
+        return 'bloqueado_dependencia_ativa'
+    if not contem_uso_negativo and any(marcador in texto for marcador in MARCADORES_USO_POSITIVO):
         return 'bloqueado_dependencia_ativa'
     if any(marcador in texto for marcador in ('oficial', 'canonic', 'canonico', 'canônico', 'principal', 'etapa 9', 'etapa9', 'etapa 10', 'etapa10')):
         return 'oficial_preservar'
