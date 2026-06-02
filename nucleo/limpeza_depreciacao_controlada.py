@@ -379,14 +379,22 @@ def montar_plano_retorno_etapa1(
     status: str,
     itens: list[ItemLimpezaDepreciacaoControlada],
     recomendacoes: list[str],
+    bloqueios: list[ItemLimpezaDepreciacaoControlada] | None = None,
 ) -> dict[str, Any]:
+    bloqueios = bloqueios or []
+    bloqueios_dependencia_ativa = [item for item in bloqueios if item.classificacao == 'bloqueado_dependencia_ativa']
+    retorno_operacional_permitido = status in {'aprovado', 'aprovado_com_ressalva'}
     return {
         'destino': 'Etapa 1',
-        'permitido': status in {'aprovado', 'aprovado_com_ressalva'},
+        'permitido': retorno_operacional_permitido and not bloqueios_dependencia_ativa,
+        'retorno_operacional_permitido': retorno_operacional_permitido,
         'modo': 'retorno_controlado_sem_alteracao_economica',
         'status_limpeza_depreciacao': status,
         'qtd_itens_para_revisao': sum(1 for item in itens if item.classificacao == 'avaliar_em_frente_posterior'),
         'qtd_candidatos_depreciacao': sum(1 for item in itens if item.classificacao == 'legado_candidato_depreciacao'),
+        'qtd_bloqueios_dependencia_ativa': len(bloqueios_dependencia_ativa),
+        'bloqueado_por_dependencia_ativa': bool(bloqueios_dependencia_ativa),
+        'depreciacao_efetiva_permitida': False,
         'remocao_automatica_autorizada': False,
         'proximas_acoes': recomendacoes[:5],
     }
@@ -402,8 +410,11 @@ def consolidar_resultado_limpeza_depreciacao(
     evidencias_auxiliares_fornecidas: bool,
 ) -> tuple[str, bool, ResumoLimpezaDepreciacaoControlada, AuditoriaLimpezaDepreciacaoControlada, list[str]]:
     ressalvas = list(evidencias_paridade.get('ressalvas') or [])
+    bloqueios_dependencia_ativa = [item for item in bloqueios if item.classificacao == 'bloqueado_dependencia_ativa']
     if not entrada_valida or verificacao_paridade.get('paridade_bloqueante'):
         status = 'bloqueado'
+    elif bloqueios_dependencia_ativa:
+        status = 'aprovado_com_ressalva'
     elif ressalvas or not evidencias_auxiliares_fornecidas:
         status = 'aprovado_com_ressalva'
     else:
@@ -418,6 +429,8 @@ def consolidar_resultado_limpeza_depreciacao(
     ]
     if verificacao_paridade.get('paridade_bloqueante'):
         recomendacoes.append('Tratar divergências materiais de paridade antes de qualquer plano de limpeza efetiva.')
+    if bloqueios_dependencia_ativa:
+        recomendacoes.append('Resolver ou documentar dependências ativas antes de qualquer depreciação ou remoção efetiva.')
     if not evidencias_auxiliares_fornecidas:
         recomendacoes.append('Executar inventário estático auxiliar em frente posterior para classificar rotas legadas com maior precisão.')
     if ressalvas:
@@ -445,6 +458,7 @@ def consolidar_resultado_limpeza_depreciacao(
         observacoes=[
             'Evidências auxiliares são usadas apenas para classificação não decisória.',
             'Etapa 11 não reabre motor, ledger, gates, Etapa 9 ou Etapa 10.',
+            'Dependências ativas rebaixam o status e bloqueiam depreciação/remoção efetiva.',
         ],
     )
     return status, ok, resumo, auditoria, recomendacoes
@@ -489,7 +503,7 @@ def construir_resultado_limpeza_depreciacao_controlada(
         bloqueios=bloqueios,
         evidencias_auxiliares_fornecidas=evidencias_auxiliares_fornecidas,
     )
-    retorno_etapa1 = montar_plano_retorno_etapa1(status, itens, recomendacoes)
+    retorno_etapa1 = montar_plano_retorno_etapa1(status, itens, recomendacoes, bloqueios=bloqueios)
     metadados = montar_metadados_limpeza_depreciacao()
     return ResultadoLimpezaDepreciacaoControlada(
         artefato=ARTEFATO_LIMPEZA_DEPRECIACAO,
