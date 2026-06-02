@@ -599,6 +599,100 @@ def _nome_aba_saida_observavel(nome_base: str, usados: set[str]) -> str:
         contador += 1
 
 
+
+
+def _valor_observavel_oficial(item: Any, chave: str, padrao: Any = None) -> Any:
+    if is_dataclass(item):
+        item = asdict(item)
+    if isinstance(item, Mapping):
+        return item.get(chave, padrao)
+    return getattr(item, chave, padrao)
+
+
+def _referencia_obrigacao_observavel(item: Any) -> dict[str, Any]:
+    referencia = _valor_observavel_oficial(item, 'referencia_original', {}) or {}
+    if is_dataclass(referencia):
+        referencia = asdict(referencia)
+    return dict(referencia) if isinstance(referencia, Mapping) else {}
+
+
+def _texto_observavel(valor: Any, padrao: str = 'n/d') -> str:
+    if valor is None:
+        return padrao
+    if isinstance(valor, (list, tuple, set)):
+        itens = [str(item).strip() for item in valor if str(item).strip()]
+        return ' + '.join(itens) if itens else padrao
+    texto = str(valor).strip()
+    return texto if texto else padrao
+
+
+def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: Any) -> list[dict[str, Any]]:
+    if pacote_saida_observavel_oficial is None:
+        return []
+
+    bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
+    abas = dict(getattr(bloco_xlsx, 'abas', {}) or {})
+    cobertas = list(abas.get('Obrigacoes Cobertas', []) or [])
+    bloqueadas = list(abas.get('Obrigacoes Bloqueadas', []) or [])
+    linhas: list[dict[str, Any]] = []
+
+    for origem, cobertura_integral in ((cobertas, 'sim'), (bloqueadas, 'não')):
+        for item in origem:
+            referencia = _referencia_obrigacao_observavel(item)
+            status = _valor_observavel_oficial(item, 'status')
+            motivo = _valor_observavel_oficial(item, 'motivo')
+            pacote_id = _valor_observavel_oficial(item, 'pacote_id')
+            fontes = _valor_observavel_oficial(item, 'fontes_referenciadas', []) or []
+            valor = (
+                _valor_observavel_oficial(item, 'valor_obrigacao_referencial')
+                if cobertura_integral == 'sim'
+                else _valor_observavel_oficial(item, 'valor_obrigacao_referencial')
+            )
+            fonte_oficial = _texto_observavel(fontes)
+            pacote_oficial = _texto_observavel(pacote_id, 'sem_pacote_valido')
+            linha = {
+                'Data': _valor_observavel_oficial(item, 'data') or referencia.get('data'),
+                'Conta': referencia.get('conta') or referencia.get('descricao') or referencia.get('Conta') or _texto_observavel(_valor_observavel_oficial(item, 'obrigacao_id')),
+                'Despesa ID': _valor_observavel_oficial(item, 'obrigacao_id') or referencia.get('pagamento_id') or referencia.get('id'),
+                'Valor': valor,
+                'Lote sugerido': fonte_oficial if cobertura_integral == 'sim' else 'n/d',
+                'Saldo Antes': 'n/d',
+                'Bruto': valor if cobertura_integral == 'sim' else 'n/d',
+                'Imposto': 'n/d',
+                'Líquido': _valor_observavel_oficial(item, 'valor_coberto_referencial') if cobertura_integral == 'sim' else 'n/d',
+                'Saldo Remanescente': 'n/d',
+                'Cobertura integral': cobertura_integral,
+                'Estratégia': 'obrigacao_coberta_oficial' if cobertura_integral == 'sim' else 'obrigacao_bloqueada_oficial',
+                'Pacote do dia': pacote_oficial,
+                'Lote reserva': fonte_oficial if cobertura_integral == 'sim' else 'n/d',
+                'Lote pós-switching': 'n/d',
+                'Destino switching': 'n/d',
+                'Origem switching': 'n/d',
+                'Fonte switching': 'n/d',
+                'Data switching': 'n/d',
+                'Score switching': 'n/d',
+                'Necessita switching': 'não',
+                'Switching antes do pagamento': 'não',
+                'Switching depois do pagamento': 'não',
+                'Motivo bloqueio lote': _texto_observavel(motivo, '') if cobertura_integral != 'sim' else '',
+                'Status recomendação': _texto_observavel(status, 'status_oficial_indisponivel'),
+                'Saldo temp. ant.': 'n/d',
+                'Consumo temp.': 'n/d',
+                'Saldo temp. dep.': 'n/d',
+                'Pos sw?': 'não',
+                'Fonte pos sw': 'n/d',
+                'Saldo pos sw': 'n/d',
+                'Motivo pos sw': 'n/d',
+                'Origem saldo pos': 'n/d',
+                'Bruto pos': 'n/d',
+                'Líq. pos': 'n/d',
+                'Data saldo pos': 'n/d',
+                'Motivo saldo pos': 'n/d',
+            }
+            linhas.append(linha)
+
+    return linhas
+
 def _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial) -> None:
     if pacote_saida_observavel_oficial is None:
         return
@@ -649,7 +743,10 @@ def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None) -> 
 
     ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, "extrato_futuro"))
     headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
-    _apply_table_style(ws_futuro, headers_futuro, _rows(saida.extrato_futuro, headers_futuro), freeze=True)
+    extrato_futuro = list(getattr(saida, 'extrato_futuro', []) or [])
+    if not extrato_futuro:
+        extrato_futuro = _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial)
+    _apply_table_style(ws_futuro, headers_futuro, _rows(extrato_futuro, headers_futuro), freeze=True)
 
     lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos", modo_bootstrap_pacote=True)
     pacote_semente = construir_pacote_saida_observavel_temporal(contexto, saida, lotes_ativos_observaveis=lotes_ativos_observaveis)
