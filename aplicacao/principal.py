@@ -16,6 +16,7 @@ from nucleo.ledger_temporal_canonico import construir_ledger_temporal_canonico
 from nucleo.gates_validacao_nucleo import validar_gates_nucleo
 from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
 from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_oficial
+from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_oficial
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
@@ -78,6 +79,40 @@ def _render_resumo_gates_bloqueados(resultado_gates_validacao_nucleo, limite_ite
             print(f"- ... {len(avisos) - limite_itens} aviso(s) adicional(is) omitido(s).")
 
     print("\nPróxima ação objetiva: corrigir os bloqueios acima antes de esperar console/XLSX oficiais.")
+
+
+def _render_resultado_paridade_renderizacao(resultado_paridade) -> None:
+    if resultado_paridade is None:
+        return
+
+    resumo = getattr(resultado_paridade, 'resumo', None)
+    auditoria_xlsx = getattr(resultado_paridade, 'auditoria_xlsx', None)
+    auditoria_console = getattr(resultado_paridade, 'auditoria_console', None)
+    divergencias = list(getattr(resultado_paridade, 'divergencias', []) or [])
+
+    print("\n=== PARIDADE DA RENDERIZAÇÃO OFICIAL — ETAPA 10 ===")
+    print(f"- artefato: {getattr(resultado_paridade, 'artefato', None)}")
+    print(f"- entrada formal: {getattr(resultado_paridade, 'entrada_formal', None)}")
+    print(f"- status: {getattr(resultado_paridade, 'status', None)}")
+    print(f"- ok: {getattr(resultado_paridade, 'ok', None)}")
+    print(f"- xlsx auditado: {getattr(auditoria_xlsx, 'auditado', None)}")
+    print(f"- xlsx status: {getattr(auditoria_xlsx, 'status', None)}")
+    print(f"- console auditado: {getattr(auditoria_console, 'auditado', None)}")
+    print(f"- console status: {getattr(auditoria_console, 'status', None)}")
+    print(f"- divergências: {getattr(resumo, 'qtd_divergencias', len(divergencias))}")
+    print(f"- divergências materiais: {getattr(resumo, 'qtd_divergencias_materiais', None)}")
+    print(f"- ressalvas: {getattr(resumo, 'qtd_ressalvas', None)}")
+
+    if divergencias:
+        print("- primeiras divergências/ressalvas:")
+        for divergencia in divergencias[:5]:
+            categoria = getattr(divergencia, 'categoria', None)
+            alvo = getattr(divergencia, 'alvo', None)
+            material = getattr(divergencia, 'material', None)
+            mensagem = getattr(divergencia, 'mensagem', None)
+            print(f"  - categoria={categoria} | alvo={alvo} | material={material} | mensagem={mensagem}")
+        if len(divergencias) > 5:
+            print(f"  - ... {len(divergencias) - 5} divergência(s)/ressalva(s) adicional(is) omitida(s).")
 
 
 def carregar_contexto_e_saida():
@@ -166,6 +201,13 @@ def main():
     )
 
     print(f"Saída operacional gerada em: {caminho_saida}")
+
+    resultado_paridade_renderizacao = validar_paridade_renderizacao_oficial(
+        pacote_saida_observavel=pacote_saida_observavel_oficial,
+        caminho_xlsx=caminho_saida,
+    )
+    _render_resultado_paridade_renderizacao(resultado_paridade_renderizacao)
+
     return caminho_saida
 
 
