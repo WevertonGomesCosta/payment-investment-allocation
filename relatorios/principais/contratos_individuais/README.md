@@ -29,7 +29,7 @@ Em caso de divergência, prevalecem o contrato mestre e o modelo oficial.
 
 A partir da `MACRO-CONTRATOS-02`, todos os contratos individuais das Etapas 1–8 seguem a mesma estrutura documental de 19 seções.
 
-A partir da `ETAPA9-CONTRATO-01`, o mesmo padrão documental de 19 seções passa a reger também as etapas posteriores, incluindo Etapas 9 e 10:
+A partir da `ETAPA9-CONTRATO-01`, o mesmo padrão documental de 19 seções passa a reger também as etapas posteriores, incluindo Etapas 9, 10 e 11:
 
 1. Identificação documental
 2. Status normativo
@@ -63,10 +63,11 @@ A partir da `ETAPA9-CONTRATO-01`, o mesmo padrão documental de 19 seções pass
 - `CONTRATO_ETAPA8_SAIDA_CANONICA_OFICIAL.md`
 - `CONTRATO_ETAPA9_SAIDA_OBSERVAVEL_OFICIAL.md`
 - `CONTRATO_ETAPA10_PARIDADE_RENDERIZACAO_OFICIAL.md`
+- `CONTRATO_ETAPA11_LIMPEZA_DEPRECIACAO_CONTROLADA.md`
 
 ## Cadeia funcional consolidada
 
-A cadeia documental vigente das Etapas 1–10 é:
+A cadeia documental vigente das Etapas 1–11 é:
 
 ```text
 Etapa 1 -> PacoteEntradaResolvida
@@ -79,6 +80,7 @@ Etapa 7 -> ResultadoGatesValidacaoNucleo
 Etapa 8 -> SaidaCanonicaOficial
 Etapa 9 -> PacoteSaidaObservavelOficial
 Etapa 10 -> ResultadoParidadeRenderizacaoOficial
+Etapa 11 -> ResultadoLimpezaDepreciacaoControlada
 ```
 
 ## Padrão dos fluxogramas individuais
@@ -99,6 +101,8 @@ Na Etapa 9, console e XLSX podem aparecer como consumidores posteriores da saíd
 
 Na Etapa 10, console e XLSX podem aparecer como artefatos renderizados alvo da auditoria de paridade, mas não como fontes decisórias nem como correção econômica.
 
+Na Etapa 11, rotas legadas, resíduos de renderização e artefatos depreciáveis podem aparecer como objetos de classificação de limpeza, mas não como fontes decisórias nem como autorização de remoção automática.
+
 ## Situação documental das etapas
 
 | Contrato individual | Situação documental |
@@ -113,6 +117,7 @@ Na Etapa 10, console e XLSX podem aparecer como artefatos renderizados alvo da a
 | `CONTRATO_ETAPA8_SAIDA_CANONICA_OFICIAL.md` | Alinhado à implementação real de `SaidaCanonicaOficial` em `nucleo/saida_canonica_oficial.py`, sem transferir console/XLSX para a Etapa 8. |
 | `CONTRATO_ETAPA9_SAIDA_OBSERVAVEL_OFICIAL.md` | Criado como camada posterior à Etapa 8 para transformar `SaidaCanonicaOficial` em `PacoteSaidaObservavelOficial`, sem reotimizar, revalorar ou alterar decisão. |
 | `CONTRATO_ETAPA10_PARIDADE_RENDERIZACAO_OFICIAL.md` | Criado como camada posterior à Etapa 9 para validar paridade entre `PacoteSaidaObservavelOficial` e renderizações físicas/observáveis, sem alterar decisão econômica. |
+| `CONTRATO_ETAPA11_LIMPEZA_DEPRECIACAO_CONTROLADA.md` | Criado como camada posterior à Etapa 10 para classificar limpeza e depreciação controlada, com retorno à Etapa 1, sem alterar decisão econômica. |
 
 ## Regra de escopo
 
