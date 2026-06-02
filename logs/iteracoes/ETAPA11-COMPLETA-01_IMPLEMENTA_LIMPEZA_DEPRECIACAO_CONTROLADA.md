@@ -130,6 +130,24 @@ evidencias_auxiliares={"identificador": "rota_ativa", "status": "dependencia ati
 # classifica como bloqueado_dependencia_ativa, rebaixa status e mantém remocao_automatica_autorizada=False
 ```
 
+## Correção pós-review P2 — marcador negativo de uso
+
+O PR recebeu comentário P2 apontando que `status="sem uso"` poderia ser classificado indevidamente como `bloqueado_dependencia_ativa` por conter a substring `em uso`.
+
+A correção aplicada faz com que:
+
+- marcadores negativos como `sem uso`, `fora de uso`, `não usado`, `nao usado`, `unused` e `not used` sejam avaliados antes dos marcadores fracos de uso positivo;
+- `dependencia ativa`, `dependência ativa` e `bloqueado` continuem sendo marcadores positivos fortes de bloqueio;
+- `em uso` e `in use` só classifiquem como dependência ativa se não houver marcador negativo de uso;
+- evidências como `{"identificador": "rota_sem_uso", "status": "sem uso", "tipo": "legado"}` não sejam bloqueadas por falso positivo de uso ativo e possam cair em classificação legada/depreciação ou avaliação posterior conforme os demais marcadores.
+
+Cenário esperado após a correção:
+
+```python
+evidencias_auxiliares={"identificador": "rota_sem_uso", "status": "sem uso", "tipo": "legado"}
+# não classifica como bloqueado_dependencia_ativa
+```
+
 ## Validações executadas
 
 - `python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py` — aprovado na validação inicial da frente.
@@ -137,6 +155,7 @@ evidencias_auxiliares={"identificador": "rota_ativa", "status": "dependencia ati
 - Teste inline mínimo — aprovado na validação inicial para construção, ressalva não material, execução sem evidências auxiliares, execução com evidências auxiliares e ausência de remoção automática.
 - Após a correção P2, a lógica de status foi ajustada para cobrir o cenário `evidencias_auxiliares=[{"status": "dependencia ativa"}]`.
 - Após a segunda correção P2, a normalização de evidência escalar e a separação de bloqueios de paridade/dependência ativa foram ajustadas no código.
+- Após a terceira correção P2, a classificação de marcadores negativos de uso foi ajustada para evitar falso bloqueio em `sem uso`.
 - `git diff --check` — aprovado na validação inicial da frente.
 - `git status --short` — executado para conferência de alterações.
 - `git diff --name-only origin/main...HEAD` — não executável no ambiente inicial do Codex por ausência de `origin/main` local; validado posteriormente pelo usuário em checkout local com remote disponível.
