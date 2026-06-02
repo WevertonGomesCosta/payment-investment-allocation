@@ -42,7 +42,9 @@ O contrato individual da Etapa 11 define:
 - função pública prevista: `construir_resultado_limpeza_depreciacao_controlada(...)`;
 - escopo: classificar rotas legadas, resíduos de renderização, formatos substituídos, artefatos depreciáveis e retorno controlado à Etapa 1.
 
-## 6. Refinamento pré-PR
+## 6. Refinamentos pré-PR
+
+### 6.1. Função pública prevista
 
 Após auditoria do contrato e do fluxograma, a função pública prevista foi refinada de:
 
@@ -59,6 +61,18 @@ construir_resultado_limpeza_depreciacao_controlada(...)
 Motivo: evitar interpretação indevida de que a Etapa 11 executa remoção efetiva de arquivos, funções ou rotas.
 
 A Etapa 11 classifica e recomenda limpeza/depreciação controlada, mas não remove automaticamente arquivos, funções, rotas, logs, saídas ou artefatos. Qualquer remoção efetiva deve ocorrer somente em frente posterior específica, com escopo próprio e validação própria.
+
+### 6.2. Entrada formal exclusiva
+
+A Seção 5 foi refinada para deixar explícito que `ResultadoParidadeRenderizacaoOficial` é a única entrada formal da Etapa 11.
+
+Inventário físico do repositório, filesystem, scripts, logs, saídas, console, XLSX, runtime ou lista real de arquivos não constituem entrada formal da Etapa 11.
+
+Qualquer inspeção física de arquivos, confirmação de dependência, alteração, arquivamento ou remoção efetiva deve ocorrer somente em frente posterior específica, fora da Etapa 11 funcional mínima.
+
+### 6.3. Status de paridade
+
+O bloco `verificar_status_paridade(...)` foi adicionado ao mapa funcional previsto e ao fluxograma da Etapa 11, entre `extrair_evidencias_paridade(...)` e a separação de divergências materiais/ressalvas não materiais.
 
 ## 7. Fronteira preservada
 
