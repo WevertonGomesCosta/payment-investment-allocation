@@ -90,22 +90,39 @@ A implementação preserva sem alteração funcional:
 
 A Etapa 11 classifica e recomenda, mas não remove automaticamente arquivos, funções, rotas, logs, saídas ou artefatos.
 
+## Correção pós-review P2 — dependência ativa
+
+O PR recebeu comentário P2 solicitando que itens classificados como `bloqueado_dependencia_ativa` afetassem a decisão de status.
+
+A correção aplicada em `nucleo/limpeza_depreciacao_controlada.py` faz com que:
+
+- `consolidar_resultado_limpeza_depreciacao(...)` considere `bloqueios` no cálculo de `status`;
+- qualquer bloqueio por dependência ativa rebaixe o resultado para, no mínimo, `aprovado_com_ressalva` quando não houver bloqueio material de paridade;
+- divergência material de paridade continue produzindo `status='bloqueado'`;
+- `montar_plano_retorno_etapa1(...)` registre `qtd_bloqueios_dependencia_ativa`, `bloqueado_por_dependencia_ativa`, `depreciacao_efetiva_permitida=False` e `remocao_automatica_autorizada=False`;
+- `retorno_etapa1['permitido']` deixe de indicar permissão simples quando houver dependência ativa bloqueante;
+- a recomendação passe a orientar resolver ou documentar dependências ativas antes de qualquer depreciação ou remoção efetiva.
+
+A correção mantém a distinção entre retorno operacional controlado e autorização de remoção/depreciação efetiva.
+
 ## Validações executadas
 
-- `python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py` — aprovado.
-- `python -B aplicacao/principal.py` — aprovado, com seção observável da Etapa 11 emitida após a Etapa 10.
-- Teste inline mínimo — aprovado para construção, ressalva não material, execução sem evidências auxiliares, execução com evidências auxiliares e ausência de remoção automática.
-- `git diff --check` — aprovado.
+- `python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py` — aprovado na validação inicial da frente.
+- `python -B aplicacao/principal.py` — aprovado na validação inicial da frente, com seção observável da Etapa 11 emitida após a Etapa 10.
+- Teste inline mínimo — aprovado na validação inicial para construção, ressalva não material, execução sem evidências auxiliares, execução com evidências auxiliares e ausência de remoção automática.
+- Após a correção P2, a lógica de status foi ajustada para cobrir o cenário `evidencias_auxiliares=[{"status": "dependencia ativa"}]`.
+- `git diff --check` — aprovado na validação inicial da frente.
 - `git status --short` — executado para conferência de alterações.
-- `git diff --name-only origin/main...HEAD` — não executável neste ambiente por ausência de `origin/main` local.
-- `git diff --stat origin/main...HEAD` — não executável neste ambiente por ausência de `origin/main` local.
+- `git diff --name-only origin/main...HEAD` — não executável no ambiente inicial do Codex por ausência de `origin/main` local; validado posteriormente pelo usuário em checkout local com remote disponível.
+- `git diff --stat origin/main...HEAD` — não executável no ambiente inicial do Codex por ausência de `origin/main` local; validado posteriormente pelo usuário em checkout local com remote disponível.
 
 ## Limitações encontradas
 
-- A tentativa de download da planilha remota durante `python -B aplicacao/principal.py` falhou por restrição de proxy (`403 Forbidden`), mas o runtime continuou com `fallback_local` e cache BCB local.
-- `origin/main` não está disponível localmente, impedindo os comandos comparativos `origin/main...HEAD`; a conferência continuou com `git status --short`, `git diff --check` e diff local contra `HEAD`.
+- A tentativa de download da planilha remota durante `python -B aplicacao/principal.py` falhou por restrição de proxy (`403 Forbidden`) no ambiente do Codex, mas o runtime continuou com `fallback_local` e cache BCB local.
+- Em validação local posterior do usuário, o download remoto da planilha retornou `ok` e o runtime executou até o fim.
+- `origin/main` não estava disponível no ambiente inicial do Codex, impedindo os comandos comparativos `origin/main...HEAD`; a conferência continuou com `git status --short`, `git diff --check` e diff local contra `HEAD`.
 - Nenhuma evidência auxiliar de inventário estático foi fornecida ao runtime principal; a Etapa 11 operou no modo conservador previsto, classificando a ausência de inventário como limitação para frente posterior.
 
 ## Decisão final
 
-Implementação concluída no escopo da Etapa 11, com ausência de alteração econômica, sem autorização de remoção automática e pronta para PR após commit.
+Implementação concluída no escopo da Etapa 11, com ausência de alteração econômica, sem autorização de remoção automática e pronta para nova auditoria do PR após a correção P2.
