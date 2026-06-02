@@ -5,6 +5,7 @@
 - **Etapa:** 11
 - **Nome:** Limpeza e Depreciação Controlada
 - **Entrada formal obrigatória e exclusiva:** `ResultadoParidadeRenderizacaoOficial`
+- **Evidências auxiliares não decisórias permitidas:** inventário estático de módulos, funções, scripts, rotas de saída e dependências declaradas, exclusivamente para classificação de limpeza/depreciação controlada
 - **Saída formal prevista:** `ResultadoLimpezaDepreciacaoControlada`
 - **Natureza:** camada posterior à Etapa 10 para classificar, depreciar e orientar remoção controlada de rotas legadas, resíduos de renderização e artefatos substituídos pela cadeia oficial.
 - **Módulo funcional previsto:** `nucleo/limpeza_depreciacao_controlada.py`
@@ -45,17 +46,29 @@ A Etapa 11 não corrige decisões econômicas. Ela não cria fonte, não escolhe
 
 ## 5. Entrada formal obrigatória e exclusiva
 
-A entrada formal obrigatória e exclusiva da Etapa 11 é:
+A entrada formal obrigatória e exclusiva de estado da Etapa 11 é:
 
 ```text
 ResultadoParidadeRenderizacaoOficial
 ```
 
-`ResultadoParidadeRenderizacaoOficial` é a única entrada formal da Etapa 11. Inventário físico do repositório, filesystem, scripts, logs, saídas, console, XLSX, runtime ou lista real de arquivos não constituem entrada formal desta etapa.
+`ResultadoParidadeRenderizacaoOficial` é a única entrada formal de estado da Etapa 11. Ele não pode ser substituído por inventário do repositório, filesystem, scripts, logs, saídas, console, XLSX, runtime ou lista real de arquivos.
 
-Quando necessário, nomes de rotas, classes de artefatos, funções ou referências técnicas podem aparecer apenas como categorias declarativas derivadas de `ResultadoParidadeRenderizacaoOficial`. Qualquer inspeção física de arquivos, confirmação de dependência, alteração, arquivamento ou remoção efetiva deve ocorrer somente em frente posterior específica, fora da Etapa 11 funcional mínima.
+A Etapa 11 pode usar **evidências auxiliares não decisórias** de inventário estático do repositório, quando disponíveis, exclusivamente para classificar limpeza/depreciação controlada. Essas evidências auxiliares podem incluir:
 
-A Etapa 11 não pode consumir diretamente:
+- nomes de módulos;
+- nomes de funções;
+- scripts;
+- rotas de saída;
+- classes de artefatos;
+- dependências declaradas;
+- referências estáticas necessárias para identificar se uma rota é oficial, legada, histórica, transitória, candidata à depreciação ou bloqueada para remoção futura.
+
+Essas evidências auxiliares não constituem entrada formal de estado. Elas não podem substituir `ResultadoParidadeRenderizacaoOficial`, corrigir paridade, reabrir motor, ledger, gates, Etapa 9 ou Etapa 10, nem produzir decisão econômica.
+
+Qualquer inspeção física profunda, alteração, arquivamento ou remoção efetiva de arquivos, funções, rotas, logs, saídas ou artefatos deve ocorrer somente em frente posterior específica, com escopo próprio e validação própria.
+
+A Etapa 11 não pode consumir diretamente como fonte de estado econômico ou entrada formal de estado:
 
 - dados brutos;
 - planilha operacional como fonte decisória;
@@ -68,8 +81,8 @@ A Etapa 11 não pode consumir diretamente:
 - `ResultadoGatesValidacaoNucleo`;
 - `SaidaCanonicaOficial`;
 - `PacoteSaidaObservavelOficial` como entrada formal paralela;
-- inventário físico do repositório como entrada formal;
-- filesystem como entrada formal;
+- inventário físico do repositório como fonte de estado econômico;
+- filesystem como fonte de estado econômico;
 - cache BCB/CDI como fonte decisória;
 - console ou XLSX como fonte econômica;
 - logs como fonte de estado econômico.
@@ -133,16 +146,17 @@ A Etapa 11 deve executar processo determinístico de limpeza e depreciação con
 1. receber `ResultadoParidadeRenderizacaoOficial`;
 2. validar tipo formal da entrada;
 3. verificar status geral de paridade;
-4. separar divergências materiais de ressalvas não materiais;
-5. identificar artefatos renderizados já validados;
-6. identificar rotas oficiais preservadas;
-7. identificar rotas legadas ou transitórias remanescentes;
-8. classificar cada rota ou artefato quanto a manutenção, depreciação, remoção futura, histórico ou bloqueio;
-9. preservar evidências de dependência ativa;
-10. produzir recomendações de limpeza controlada;
-11. montar metadados;
-12. emitir `ResultadoLimpezaDepreciacaoControlada`;
-13. indicar retorno controlado à Etapa 1 para novo ciclo limpo.
+4. incorporar, quando disponíveis, evidências auxiliares não decisórias de inventário estático apenas para classificação de limpeza/depreciação;
+5. separar divergências materiais de ressalvas não materiais;
+6. identificar artefatos renderizados já validados;
+7. identificar rotas oficiais preservadas;
+8. identificar rotas legadas ou transitórias remanescentes;
+9. classificar cada rota ou artefato quanto a manutenção, depreciação, remoção futura, histórico ou bloqueio;
+10. preservar evidências de dependência ativa;
+11. produzir recomendações de limpeza controlada;
+12. montar metadados;
+13. emitir `ResultadoLimpezaDepreciacaoControlada`;
+14. indicar retorno controlado à Etapa 1 para novo ciclo limpo.
 
 ## 10. O que a etapa pode fazer
 
@@ -152,6 +166,7 @@ A Etapa 11 pode:
 - verificar se a paridade XLSX foi aprovada;
 - verificar se há divergências materiais;
 - registrar ressalvas não materiais;
+- usar evidências auxiliares não decisórias de inventário estático apenas para classificação de limpeza/depreciação;
 - classificar rotas legadas;
 - classificar artefatos transitórios;
 - recomendar depreciação controlada;
@@ -183,7 +198,7 @@ A Etapa 11 não pode:
 - consultar dados brutos para suprir lacunas decisórias;
 - transformar pendências de fonte futura em decisão econômica;
 - criar governança de lacunas decisórias como função autônoma da Etapa 11;
-- usar inventário físico do repositório, filesystem, scripts ou logs como entrada formal paralela;
+- usar inventário físico do repositório, filesystem, scripts ou logs como fonte de estado econômico, fonte decisória, entrada formal de estado ou autorização de remoção automática;
 - remover arquivos, funções ou rotas sem frente posterior específica de execução controlada.
 
 ## 12. Relação com a etapa anterior
@@ -193,6 +208,8 @@ A Etapa 11 depende exclusivamente da Etapa 10.
 A Etapa 10 entrega `ResultadoParidadeRenderizacaoOficial`, que registra se a renderização oficial preservou `PacoteSaidaObservavelOficial` nos artefatos auditados.
 
 A Etapa 11 consome esse resultado para decidir o que pode ser limpo, depreciado, preservado ou bloqueado para remoção. Ela não reabre a Etapa 10 nem recalcula paridade.
+
+Evidências auxiliares estáticas, quando usadas, servem apenas para tornar implementável a classificação de limpeza/depreciação. Elas não alteram a relação formal entre Etapa 10 e Etapa 11.
 
 ## 13. Relação com a etapa posterior
 
@@ -243,6 +260,7 @@ Essa função deve construir o resultado classificatório da limpeza/depreciaç�
 validar_entrada_limpeza_depreciacao(...)
 extrair_evidencias_paridade(...)
 verificar_status_paridade(...)
+incorporar_evidencias_auxiliares_nao_decisorias(...)
 classificar_ressalvas_nao_materiais(...)
 identificar_rotas_oficiais_preservadas(...)
 identificar_rotas_legadas_candidatas(...)
@@ -259,6 +277,7 @@ A auditoria da Etapa 11 deve verificar, no mínimo:
 
 - se a entrada é `ResultadoParidadeRenderizacaoOficial`;
 - se a origem formal declarada da Etapa 10 está preservada;
+- se evidências auxiliares não decisórias, quando usadas, não substituem a entrada formal de estado;
 - se divergências materiais bloqueiam depreciação automática;
 - se ressalvas não materiais são classificadas sem reabrir decisão econômica;
 - se rotas oficiais são preservadas;
@@ -271,16 +290,17 @@ A auditoria da Etapa 11 deve verificar, no mínimo:
 
 A Etapa 11 será aceita funcionalmente quando:
 
-1. consumir `ResultadoParidadeRenderizacaoOficial` como entrada formal exclusiva;
+1. consumir `ResultadoParidadeRenderizacaoOficial` como entrada formal exclusiva de estado;
 2. produzir `ResultadoLimpezaDepreciacaoControlada`;
-3. classificar divergências materiais como bloqueio de depreciação automática;
-4. classificar ressalvas não materiais como pendência de limpeza, compatibilidade ou melhoria futura;
-5. identificar rotas oficiais preservadas;
-6. identificar rotas legadas candidatas à depreciação;
-7. indicar itens bloqueados para remoção por dependência ativa;
-8. emitir plano de retorno controlado à Etapa 1;
-9. não alterar decisão econômica;
-10. não consultar motor, ledger ou gates como fonte decisória.
+3. usar evidências auxiliares não decisórias, quando necessárias, apenas para classificação de limpeza/depreciação;
+4. classificar divergências materiais como bloqueio de depreciação automática;
+5. classificar ressalvas não materiais como pendência de limpeza, compatibilidade ou melhoria futura;
+6. identificar rotas oficiais preservadas;
+7. identificar rotas legadas candidatas à depreciação;
+8. indicar itens bloqueados para remoção por dependência ativa;
+9. emitir plano de retorno controlado à Etapa 1;
+10. não alterar decisão econômica;
+11. não consultar motor, ledger ou gates como fonte decisória.
 
 Nesta frente documental, o aceite se limita à criação do contrato, atualização mínima do README e criação do log, sem alteração funcional.
 
@@ -288,16 +308,18 @@ Nesta frente documental, o aceite se limita à criação do contrato, atualizaç
 
 ```mermaid
 flowchart TD
-    IN["Entrada formal<br/>ResultadoParidadeRenderizacaoOficial"] --> MOD["Módulo previsto<br/>nucleo/limpeza_depreciacao_controlada.py"]
+    IN["Entrada formal de estado<br/>ResultadoParidadeRenderizacaoOficial"] --> MOD["Módulo previsto<br/>nucleo/limpeza_depreciacao_controlada.py"]
+    AUX["Evidências auxiliares não decisórias<br/>inventário estático de módulos/funções/scripts/rotas/dependências"] --> EVID["incorporar_evidencias_auxiliares_nao_decisorias(...)"]
 
     MOD --> FUNC["Função pública prevista<br/>construir_resultado_limpeza_depreciacao_controlada(...)"]
 
     FUNC --> VAL["validar_entrada_limpeza_depreciacao(...)"]
     VAL --> EXT["extrair_evidencias_paridade(...)"]
     EXT --> STAT["verificar_status_paridade(...)"]
+    STAT --> EVID
 
-    STAT --> MAT["separar divergências materiais"]
-    STAT --> RESS["classificar ressalvas não materiais"]
+    EVID --> MAT["separar divergências materiais"]
+    EVID --> RESS["classificar ressalvas não materiais"]
 
     MAT --> OFIC["identificar_rotas_oficiais_preservadas(...)"]
     RESS --> LEG["identificar_rotas_legadas_candidatas(...)"]
@@ -320,6 +342,7 @@ A Etapa 11 deve emitir resultado bloqueado ou aprovado com ressalva quando:
 
 - a entrada não for `ResultadoParidadeRenderizacaoOficial`;
 - houver divergência material de paridade ainda não resolvida;
+- evidências auxiliares forem usadas como substituto da entrada formal, fonte de estado econômico ou autorização de remoção automática;
 - houver dependência ativa de rota legada candidata à remoção;
 - houver tentativa de usar limpeza para corrigir decisão econômica;
 - houver necessidade de alterar motor, ledger, gates, contrato, modelo ou decisão econômica para efetuar depreciação;
