@@ -277,16 +277,22 @@ def _normalizar_evidencias_iteraveis(evidencias_auxiliares: object | None) -> li
             if isinstance(valor, (list, tuple, set)):
                 for item_aux in valor:
                     dados = _objeto_para_mapping(item_aux)
+                    if not dados and item_aux is not None:
+                        dados = {'status': str(item_aux), 'valor_original': item_aux}
                     identificador = dados.get('identificador') or dados.get('nome') or dados.get('path') or str(item_aux)
                     normalizadas.append({'grupo': str(chave), 'identificador': str(identificador), **dados})
             else:
                 dados = _objeto_para_mapping(valor)
+                if not dados and valor is not None:
+                    dados = {'status': str(valor), 'valor_original': valor}
                 identificador = dados.get('identificador') or dados.get('nome') or dados.get('path') or str(chave)
                 normalizadas.append({'grupo': str(chave), 'identificador': str(identificador), **dados})
         return normalizadas
     if isinstance(evidencias_auxiliares, (list, tuple, set)):
         for item_aux in evidencias_auxiliares:
             dados = _objeto_para_mapping(item_aux)
+            if not dados and item_aux is not None:
+                dados = {'status': str(item_aux), 'valor_original': item_aux}
             identificador = dados.get('identificador') or dados.get('nome') or dados.get('path') or str(item_aux)
             normalizadas.append({'grupo': 'inventario_auxiliar', 'identificador': str(identificador), **dados})
         return normalizadas
