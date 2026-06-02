@@ -17,6 +17,7 @@ from nucleo.gates_validacao_nucleo import validar_gates_nucleo
 from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
 from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_oficial
 from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_oficial
+from nucleo.limpeza_depreciacao_controlada import construir_resultado_limpeza_depreciacao_controlada
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
@@ -115,6 +116,35 @@ def _render_resultado_paridade_renderizacao(resultado_paridade) -> None:
             print(f"  - ... {len(divergencias) - 5} divergência(s)/ressalva(s) adicional(is) omitida(s).")
 
 
+def _render_resultado_limpeza_depreciacao(resultado_limpeza) -> None:
+    if resultado_limpeza is None:
+        return
+
+    resumo = getattr(resultado_limpeza, 'resumo', None)
+    auditoria = getattr(resultado_limpeza, 'auditoria', None)
+    print("\n=== LIMPEZA E DEPRECIAÇÃO CONTROLADA — ETAPA 11 ===")
+    print(f"- artefato: {getattr(resultado_limpeza, 'artefato', None)}")
+    print(f"- entrada formal: {getattr(resultado_limpeza, 'entrada_formal', None)}")
+    print(f"- origem formal: {getattr(resultado_limpeza, 'origem_formal', None)}")
+    print(f"- status: {getattr(resultado_limpeza, 'status', None)}")
+    print(f"- ok: {getattr(resultado_limpeza, 'ok', None)}")
+    print(f"- artefatos avaliados: {getattr(resumo, 'qtd_artefatos_avaliados', None)}")
+    print(f"- legados candidatos à depreciação: {getattr(resumo, 'qtd_rotas_legadas_candidatas_depreciacao', None)}")
+    print(f"- legados bloqueados para remoção: {getattr(resumo, 'qtd_rotas_legadas_bloqueadas', None)}")
+    print(f"- remoção automática autorizada: {getattr(resumo, 'remocao_automatica_autorizada', None)}")
+    print(
+        "- classificação limitada por ausência de inventário: "
+        f"{getattr(auditoria, 'classificacao_limitada_por_ausencia_inventario', None)}"
+    )
+
+    bloqueios = list(getattr(resultado_limpeza, 'bloqueios_limpeza', []) or [])
+    if bloqueios:
+        print("- bloqueios/ressalvas de limpeza:")
+        for bloqueio in bloqueios[:5]:
+            print(f"  - {bloqueio}")
+        if len(bloqueios) > 5:
+            print(f"  - ... {len(bloqueios) - 5} bloqueio(s)/ressalva(s) adicional(is) omitido(s).")
+
 def carregar_contexto_e_saida():
     """Carrega as Etapas 1-8 e só prepara saídas posteriores quando os gates aprovam."""
     contexto_operacional_canonico = carregar_contexto_operacional_canonico(
@@ -207,6 +237,11 @@ def main():
         caminho_xlsx=caminho_saida,
     )
     _render_resultado_paridade_renderizacao(resultado_paridade_renderizacao)
+
+    resultado_limpeza_depreciacao = construir_resultado_limpeza_depreciacao_controlada(
+        resultado_paridade_renderizacao
+    )
+    _render_resultado_limpeza_depreciacao(resultado_limpeza_depreciacao)
 
     return caminho_saida
 
