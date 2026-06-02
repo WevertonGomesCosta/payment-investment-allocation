@@ -105,12 +105,38 @@ A correção aplicada em `nucleo/limpeza_depreciacao_controlada.py` faz com que:
 
 A correção mantém a distinção entre retorno operacional controlado e autorização de remoção/depreciação efetiva.
 
+## Correção pós-review P2 — evidência escalar e resumo de bloqueios
+
+O PR recebeu comentários P2 adicionais sobre:
+
+- perda de `status`, `categoria`, `tipo` ou `classificacao` quando `evidencias_auxiliares` é fornecido como mapping escalar simples, por exemplo `{"identificador": "rota_legacy", "status": "deprecated"}`;
+- uso de `qtd_bloqueios_paridade` para contar bloqueios por dependência ativa, confundindo bloqueio de remoção/depreciação com falha da Etapa 10.
+
+A correção aplicada faz com que:
+
+- `_normalizar_evidencias_iteraveis(...)` trate mappings escalares com chaves como `identificador`, `nome`, `path`, `status`, `categoria`, `tipo` ou `classificacao` como uma única evidência auxiliar;
+- `status`, `categoria`, `tipo` e `classificacao` sejam preservados para a classificação controlada;
+- `ResumoLimpezaDepreciacaoControlada` passe a expor `qtd_bloqueios_dependencia_ativa`;
+- `qtd_bloqueios_paridade` conte somente bloqueios originados de `paridade_material_bloqueante`;
+- bloqueios por dependência ativa continuem rebaixando o status, mas sem sinalizar falsamente falha da Etapa 10.
+
+Cenários esperados após a correção:
+
+```python
+evidencias_auxiliares={"identificador": "rota_legacy", "status": "deprecated"}
+# classifica como legado_candidato_depreciacao
+
+evidencias_auxiliares={"identificador": "rota_ativa", "status": "dependencia ativa"}
+# classifica como bloqueado_dependencia_ativa, rebaixa status e mantém remocao_automatica_autorizada=False
+```
+
 ## Validações executadas
 
 - `python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py` — aprovado na validação inicial da frente.
 - `python -B aplicacao/principal.py` — aprovado na validação inicial da frente, com seção observável da Etapa 11 emitida após a Etapa 10.
 - Teste inline mínimo — aprovado na validação inicial para construção, ressalva não material, execução sem evidências auxiliares, execução com evidências auxiliares e ausência de remoção automática.
 - Após a correção P2, a lógica de status foi ajustada para cobrir o cenário `evidencias_auxiliares=[{"status": "dependencia ativa"}]`.
+- Após a segunda correção P2, a normalização de evidência escalar e a separação de bloqueios de paridade/dependência ativa foram ajustadas no código.
 - `git diff --check` — aprovado na validação inicial da frente.
 - `git status --short` — executado para conferência de alterações.
 - `git diff --name-only origin/main...HEAD` — não executável no ambiente inicial do Codex por ausência de `origin/main` local; validado posteriormente pelo usuário em checkout local com remote disponível.
@@ -125,4 +151,4 @@ A correção mantém a distinção entre retorno operacional controlado e autori
 
 ## Decisão final
 
-Implementação concluída no escopo da Etapa 11, com ausência de alteração econômica, sem autorização de remoção automática e pronta para nova auditoria do PR após a correção P2.
+Implementação concluída no escopo da Etapa 11, com ausência de alteração econômica, sem autorização de remoção automática e pronta para nova auditoria do PR após as correções P2.
