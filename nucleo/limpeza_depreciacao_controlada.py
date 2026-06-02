@@ -44,10 +44,21 @@ MARCADORES_USO_NEGATIVO = (
     'unused',
     'not used',
 )
+MARCADORES_BLOQUEIO_NEGATIVO = (
+    'não bloqueado',
+    'nao bloqueado',
+    'desbloqueado',
+    'sem bloqueio',
+    'unblocked',
+    'not blocked',
+)
 MARCADORES_DEPENDENCIA_ATIVA_FORTE = (
     'dependencia ativa',
     'dependência ativa',
+)
+MARCADORES_BLOQUEIO_POSITIVO = (
     'bloqueado',
+    'blocked',
 )
 MARCADORES_USO_POSITIVO = (
     'em uso',
@@ -172,7 +183,10 @@ def _classificar_evidencia_auxiliar(nome: str, dados: Mapping[str, Any] | None =
 
     texto = _texto_minusculo(' '.join([nome, *(str(v) for v in dados.values())]))
     contem_uso_negativo = any(marcador in texto for marcador in MARCADORES_USO_NEGATIVO)
+    contem_bloqueio_negativo = any(marcador in texto for marcador in MARCADORES_BLOQUEIO_NEGATIVO)
     if any(marcador in texto for marcador in MARCADORES_DEPENDENCIA_ATIVA_FORTE):
+        return 'bloqueado_dependencia_ativa'
+    if not contem_bloqueio_negativo and any(marcador in texto for marcador in MARCADORES_BLOQUEIO_POSITIVO):
         return 'bloqueado_dependencia_ativa'
     if not contem_uso_negativo and any(marcador in texto for marcador in MARCADORES_USO_POSITIVO):
         return 'bloqueado_dependencia_ativa'

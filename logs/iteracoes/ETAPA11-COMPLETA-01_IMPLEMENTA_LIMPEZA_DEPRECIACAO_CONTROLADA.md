@@ -222,3 +222,26 @@ evidencias_auxiliares={"rota_sem_uso": "sem uso"}
 ## Decisão final
 
 Implementação concluída no escopo da Etapa 11, com ausência de alteração econômica, sem autorização de remoção automática e pronta para nova auditoria do PR após as correções P2.
+
+## Correção pós-review P2 — marcador negativo de bloqueio
+
+O PR recebeu comentário P2 apontando que `status="não bloqueado"` e `status="desbloqueado"` ainda eram classificados indevidamente como `bloqueado_dependencia_ativa` por conterem a substring `bloqueado`.
+
+A correção aplicada faz com que:
+
+- marcadores negativos como `não bloqueado`, `nao bloqueado`, `desbloqueado`, `sem bloqueio`, `unblocked` e `not blocked` sejam avaliados antes do marcador positivo `bloqueado`/`blocked`;
+- `dependencia ativa` e `dependência ativa` continuem como marcadores positivos fortes;
+- `bloqueado` e `blocked` só classifiquem como `bloqueado_dependencia_ativa` quando não houver marcador negativo de bloqueio;
+- evidências como `{"status": "não bloqueado", "tipo": "legado"}` e `{"status": "desbloqueado", "tipo": "legado"}` não sejam bloqueadas por falso positivo.
+
+Cenários esperados:
+
+```python
+{"status": "não bloqueado", "tipo": "legado"}
+# não classifica como bloqueado_dependencia_ativa
+
+{"status": "desbloqueado", "tipo": "legado"}
+# não classifica como bloqueado_dependencia_ativa
+
+{"status": "bloqueado", "tipo": "legado"}
+# classifica como bloqueado_dependencia_ativa
