@@ -8,7 +8,7 @@
 - **Saída formal prevista:** `ResultadoLimpezaDepreciacaoControlada`
 - **Natureza:** camada posterior à Etapa 10 para classificar, depreciar e orientar remoção controlada de rotas legadas, resíduos de renderização e artefatos substituídos pela cadeia oficial.
 - **Módulo funcional previsto:** `nucleo/limpeza_depreciacao_controlada.py`
-- **Função pública prevista:** `executar_limpeza_depreciacao_controlada(...) -> ResultadoLimpezaDepreciacaoControlada`
+- **Função pública prevista:** `construir_resultado_limpeza_depreciacao_controlada(...) -> ResultadoLimpezaDepreciacaoControlada`
 
 ## 2. Status normativo
 
@@ -28,7 +28,7 @@ Na arquitetura macro, a Etapa 11 corresponde à limpeza e depreciação controla
 
 ## 4. Função da etapa
 
-A função da Etapa 11 é usar `ResultadoParidadeRenderizacaoOficial` para classificar rotas legadas, resíduos de renderização, formatos substituídos, artefatos depreciáveis e pendências de limpeza operacional, produzindo um plano auditável de depreciação controlada.
+A função da Etapa 11 é usar `ResultadoParidadeRenderizacaoOficial` para classificar rotas legadas, resíduos de renderização, formatos substituídos, artefatos depreciáveis e pendências de limpeza operacional, produzindo um resultado auditável de depreciação controlada.
 
 A Etapa 11 deve indicar quais rotas, funções, logs, scripts, outputs ou formatos posteriores podem ser:
 
@@ -38,6 +38,8 @@ A Etapa 11 deve indicar quais rotas, funções, logs, scripts, outputs ou format
 - removidos em frente posterior específica;
 - preservados apenas como histórico;
 - bloqueados para remoção por dependência ainda ativa.
+
+A Etapa 11 classifica e recomenda limpeza/depreciação controlada, mas não remove automaticamente arquivos, funções ou rotas. Qualquer remoção efetiva deve ocorrer somente em frente posterior específica, com escopo próprio e validação própria.
 
 A Etapa 11 não corrige decisões econômicas. Ela não cria fonte, não escolhe lote, não altera obrigação, não altera switching e não modifica patrimônio terminal.
 
@@ -223,10 +225,12 @@ MetadadosLimpezaDepreciacaoControlada
 ### 14.4. Função pública prevista
 
 ```python
-executar_limpeza_depreciacao_controlada(
+construir_resultado_limpeza_depreciacao_controlada(
     resultado_paridade_renderizacao: ResultadoParidadeRenderizacaoOficial,
 ) -> ResultadoLimpezaDepreciacaoControlada
 ```
+
+Essa função deve construir o resultado classificatório da limpeza/depreciação controlada. Ela não deve executar remoção efetiva de arquivos, funções, rotas, logs, saídas ou artefatos.
 
 ### 14.5. Blocos funcionais internos previstos
 
@@ -280,7 +284,7 @@ Nesta frente documental, o aceite se limita à criação do contrato, atualizaç
 flowchart TD
     IN["Entrada formal<br/>ResultadoParidadeRenderizacaoOficial"] --> MOD["Módulo previsto<br/>nucleo/limpeza_depreciacao_controlada.py"]
 
-    MOD --> FUNC["Função pública prevista<br/>executar_limpeza_depreciacao_controlada(...)"]
+    MOD --> FUNC["Função pública prevista<br/>construir_resultado_limpeza_depreciacao_controlada(...)"]
 
     FUNC --> VAL["validar_entrada_limpeza_depreciacao(...)"]
     VAL --> EXT["extrair_evidencias_paridade(...)"]
