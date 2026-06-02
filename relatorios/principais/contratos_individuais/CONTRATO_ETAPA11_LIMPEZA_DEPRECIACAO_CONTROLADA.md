@@ -51,7 +51,9 @@ A entrada formal obrigatória e exclusiva da Etapa 11 é:
 ResultadoParidadeRenderizacaoOficial
 ```
 
-A Etapa 11 pode consultar metadados de repositório, caminhos, lista de arquivos e referências de runtime apenas como objetos de classificação de limpeza, nunca como fontes decisórias econômicas.
+`ResultadoParidadeRenderizacaoOficial` é a única entrada formal da Etapa 11. Inventário físico do repositório, filesystem, scripts, logs, saídas, console, XLSX, runtime ou lista real de arquivos não constituem entrada formal desta etapa.
+
+Quando necessário, nomes de rotas, classes de artefatos, funções ou referências técnicas podem aparecer apenas como categorias declarativas derivadas de `ResultadoParidadeRenderizacaoOficial`. Qualquer inspeção física de arquivos, confirmação de dependência, alteração, arquivamento ou remoção efetiva deve ocorrer somente em frente posterior específica, fora da Etapa 11 funcional mínima.
 
 A Etapa 11 não pode consumir diretamente:
 
@@ -66,6 +68,8 @@ A Etapa 11 não pode consumir diretamente:
 - `ResultadoGatesValidacaoNucleo`;
 - `SaidaCanonicaOficial`;
 - `PacoteSaidaObservavelOficial` como entrada formal paralela;
+- inventário físico do repositório como entrada formal;
+- filesystem como entrada formal;
 - cache BCB/CDI como fonte decisória;
 - console ou XLSX como fonte econômica;
 - logs como fonte de estado econômico.
@@ -113,8 +117,8 @@ Esse artefato deve registrar o resultado da classificação de limpeza e depreci
 - rotas legadas identificadas;
 - rotas legadas bloqueadas para remoção;
 - rotas legadas candidatas à depreciação;
-- arquivos ou funções candidatos à remoção futura;
-- arquivos ou funções que devem permanecer como histórico;
+- classes de arquivos, funções ou rotas candidatas a avaliação de remoção futura em frente específica;
+- classes de arquivos, funções ou rotas que devem permanecer como histórico;
 - pendências não materiais de release observável;
 - bloqueios de limpeza;
 - recomendações de depreciação controlada;
@@ -179,6 +183,7 @@ A Etapa 11 não pode:
 - consultar dados brutos para suprir lacunas decisórias;
 - transformar pendências de fonte futura em decisão econômica;
 - criar governança de lacunas decisórias como função autônoma da Etapa 11;
+- usar inventário físico do repositório, filesystem, scripts ou logs como entrada formal paralela;
 - remover arquivos, funções ou rotas sem frente posterior específica de execução controlada.
 
 ## 12. Relação com a etapa anterior
@@ -237,6 +242,7 @@ Essa função deve construir o resultado classificatório da limpeza/depreciaç�
 ```python
 validar_entrada_limpeza_depreciacao(...)
 extrair_evidencias_paridade(...)
+verificar_status_paridade(...)
 classificar_ressalvas_nao_materiais(...)
 identificar_rotas_oficiais_preservadas(...)
 identificar_rotas_legadas_candidatas(...)
@@ -288,9 +294,10 @@ flowchart TD
 
     FUNC --> VAL["validar_entrada_limpeza_depreciacao(...)"]
     VAL --> EXT["extrair_evidencias_paridade(...)"]
+    EXT --> STAT["verificar_status_paridade(...)"]
 
-    EXT --> MAT["separar divergências materiais"]
-    EXT --> RESS["classificar ressalvas não materiais"]
+    STAT --> MAT["separar divergências materiais"]
+    STAT --> RESS["classificar ressalvas não materiais"]
 
     MAT --> OFIC["identificar_rotas_oficiais_preservadas(...)"]
     RESS --> LEG["identificar_rotas_legadas_candidatas(...)"]
