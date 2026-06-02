@@ -36,7 +36,8 @@ logs/iteracoes/ETAPA11-CONTRATO-01_FORMALIZA_LIMPEZA_DEPRECIACAO_CONTROLADA.md
 
 O contrato individual da Etapa 11 define:
 
-- entrada formal obrigatória e exclusiva: `ResultadoParidadeRenderizacaoOficial`;
+- entrada formal obrigatória e exclusiva de estado: `ResultadoParidadeRenderizacaoOficial`;
+- evidências auxiliares não decisórias permitidas: inventário estático de módulos, funções, scripts, rotas de saída e dependências declaradas, exclusivamente para classificação de limpeza/depreciação controlada;
 - saída formal prevista: `ResultadoLimpezaDepreciacaoControlada`;
 - módulo funcional previsto: `nucleo/limpeza_depreciacao_controlada.py`;
 - função pública prevista: `construir_resultado_limpeza_depreciacao_controlada(...)`;
@@ -62,17 +63,27 @@ Motivo: evitar interpretação indevida de que a Etapa 11 executa remoção efet
 
 A Etapa 11 classifica e recomenda limpeza/depreciação controlada, mas não remove automaticamente arquivos, funções, rotas, logs, saídas ou artefatos. Qualquer remoção efetiva deve ocorrer somente em frente posterior específica, com escopo próprio e validação própria.
 
-### 6.2. Entrada formal exclusiva
+### 6.2. Entrada formal de estado e evidências auxiliares
 
-A Seção 5 foi refinada para deixar explícito que `ResultadoParidadeRenderizacaoOficial` é a única entrada formal da Etapa 11.
+A Seção 5 foi refinada para deixar explícito que `ResultadoParidadeRenderizacaoOficial` é a única entrada formal de estado da Etapa 11.
 
-Inventário físico do repositório, filesystem, scripts, logs, saídas, console, XLSX, runtime ou lista real de arquivos não constituem entrada formal da Etapa 11.
+Inventário físico do repositório, filesystem, scripts, logs, saídas, console, XLSX, runtime ou lista real de arquivos não substituem a entrada formal de estado.
 
-Qualquer inspeção física de arquivos, confirmação de dependência, alteração, arquivamento ou remoção efetiva deve ocorrer somente em frente posterior específica, fora da Etapa 11 funcional mínima.
+Para tornar a Etapa 11 implementável, o contrato passa a permitir evidências auxiliares não decisórias de inventário estático do repositório, tais como módulos, funções, scripts, rotas de saída, classes de artefatos e dependências declaradas, exclusivamente para classificação de limpeza/depreciação controlada.
+
+Essas evidências auxiliares não podem corrigir paridade, reabrir motor, ledger, gates, Etapa 9 ou Etapa 10, substituir `ResultadoParidadeRenderizacaoOficial`, produzir decisão econômica ou autorizar remoção automática.
+
+Qualquer inspeção física profunda, alteração, arquivamento ou remoção efetiva deve ocorrer somente em frente posterior específica, fora da Etapa 11 funcional mínima.
 
 ### 6.3. Status de paridade
 
 O bloco `verificar_status_paridade(...)` foi adicionado ao mapa funcional previsto e ao fluxograma da Etapa 11, entre `extrair_evidencias_paridade(...)` e a separação de divergências materiais/ressalvas não materiais.
+
+### 6.4. Comentário P2 do Codex no PR #472
+
+O PR #472 recebeu comentário P2 apontando que a proibição absoluta de inventário físico tornaria a Etapa 11 não implementável para seus próprios critérios de aceite.
+
+A correção preserva `ResultadoParidadeRenderizacaoOficial` como única entrada formal de estado, mas permite evidências auxiliares estáticas e não decisórias para viabilizar a classificação de rotas, funções, scripts e dependências.
 
 ## 7. Fronteira preservada
 
@@ -106,7 +117,7 @@ Pendências de próximos pagamentos sem fonte decidida não são a função cont
 
 ## 9. Validação esperada
 
-Antes de abrir PR, validar:
+Antes de abrir PR ou liberar merge, validar:
 
 ```bash
 git status --short
@@ -121,5 +132,5 @@ O diff esperado deve ficar restrito aos três arquivos desta frente documental.
 Após merge da Etapa 11 contratual:
 
 ```text
-ETAPA11-FUNCIONAL-01 — Implementa ResultadoLimpezaDepreciacaoControlada e construir_resultado_limpeza_depreciacao_controlada(...), consumindo exclusivamente ResultadoParidadeRenderizacaoOficial, sem alterar motor, ledger, gates, Etapa 9, Etapa 10, contrato, modelo, dados, cache ou lógica econômica.
+ETAPA11-FUNCIONAL-01 — Implementa ResultadoLimpezaDepreciacaoControlada e construir_resultado_limpeza_depreciacao_controlada(...), consumindo exclusivamente ResultadoParidadeRenderizacaoOficial como entrada formal de estado e usando evidências auxiliares não decisórias de inventário estático apenas para classificação de limpeza/depreciação, sem alterar motor, ledger, gates, Etapa 9, Etapa 10, contrato, modelo, dados, cache ou lógica econômica.
 ```
