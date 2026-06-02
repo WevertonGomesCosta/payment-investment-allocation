@@ -606,8 +606,15 @@ def _texto_contem_valor(texto: str, valor: Any) -> bool:
     valor_norm = normalizar_valores_para_paridade(valor)
     candidatos = {str(valor), str(valor_norm)}
     if isinstance(valor_norm, Decimal):
-        candidatos.add(str(valor_norm.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)))
+        quantizado = valor_norm.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        candidatos.add(str(quantizado))
+        candidatos.add(str(quantizado).replace('.', ','))
     return any(candidato in texto for candidato in candidatos if candidato not in {'', 'None'})
+
+
+def _rotulo_console_presente(texto_normalizado: str, campo: Any) -> bool:
+    rotulo = str(campo).replace('_', ' ').lower()
+    return rotulo in texto_normalizado
 
 
 def auditar_paridade_console(
@@ -643,15 +650,21 @@ def auditar_paridade_console(
         secoes_observadas = [secao for secao in secoes_esperadas if secao.replace('_', ' ').lower() in texto_normalizado]
         resumo = _objeto_para_mapping(bloco_console).get('resumo_operacional', {}) or {}
         for campo, valor in dict(resumo).items():
-            if str(campo).replace('_', ' ').lower() not in texto_normalizado and not _texto_contem_valor(texto, valor):
+            rotulo_presente = _rotulo_console_presente(texto_normalizado, campo)
+            valor_presente = _texto_contem_valor(texto, valor)
+            if not rotulo_presente or not valor_presente:
                 divergencias.append(
                     _nova_divergencia(
                         'CONSOLE_AUDITADO_COM_RESSALVA',
                         'console',
-                        f'Campo mínimo de resumo operacional não localizado no console: {campo}.',
+                        f'Campo mínimo de resumo operacional divergente no console: {campo}.',
                         material=False,
                         coluna=str(campo),
                         esperado=valor,
+                        referencias={
+                            'rotulo_presente': rotulo_presente,
+                            'valor_presente': valor_presente,
+                        },
                     )
                 )
     else:
