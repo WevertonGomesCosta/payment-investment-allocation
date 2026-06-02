@@ -148,6 +148,31 @@ evidencias_auxiliares={"identificador": "rota_sem_uso", "status": "sem uso", "ti
 # não classifica como bloqueado_dependencia_ativa
 ```
 
+## Correção pós-review P2 — inventário auxiliar vazio
+
+O PR recebeu comentário P2 apontando que inventários auxiliares vazios, como `None`, `[]`, `{}` ou coleções sem itens normalizados, deveriam ser tratados como ausência efetiva de evidência auxiliar.
+
+A correção aplicada faz com que:
+
+- `construir_resultado_limpeza_depreciacao_controlada(...)` calcule `evidencias_auxiliares_fornecidas = bool(itens_auxiliares)`;
+- inventários vazios mantenham o item conservador `inventario_auxiliar_ausente`;
+- `classificacao_limitada_por_ausencia_inventario=True` seja preservado quando não houver itens auxiliares efetivos;
+- o status permaneça `aprovado_com_ressalva` nesses casos conservadores;
+- a recomendação de inventário estático auxiliar em frente posterior continue aparecendo.
+
+Cenários esperados após a correção:
+
+```python
+evidencias_auxiliares=None
+# inventario_auxiliar_ausente presente
+
+evidencias_auxiliares=[]
+# inventario_auxiliar_ausente presente
+
+evidencias_auxiliares={}
+# inventario_auxiliar_ausente presente
+```
+
 ## Validações executadas
 
 - `python -m py_compile aplicacao/principal.py aplicacao/console/*.py nucleo/*.py` — aprovado na validação inicial da frente.
@@ -156,6 +181,7 @@ evidencias_auxiliares={"identificador": "rota_sem_uso", "status": "sem uso", "ti
 - Após a correção P2, a lógica de status foi ajustada para cobrir o cenário `evidencias_auxiliares=[{"status": "dependencia ativa"}]`.
 - Após a segunda correção P2, a normalização de evidência escalar e a separação de bloqueios de paridade/dependência ativa foram ajustadas no código.
 - Após a terceira correção P2, a classificação de marcadores negativos de uso foi ajustada para evitar falso bloqueio em `sem uso`.
+- Após a quarta correção P2, inventários auxiliares vazios passaram a ser tratados como ausência efetiva de evidências auxiliares.
 - `git diff --check` — aprovado na validação inicial da frente.
 - `git status --short` — executado para conferência de alterações.
 - `git diff --name-only origin/main...HEAD` — não executável no ambiente inicial do Codex por ausência de `origin/main` local; validado posteriormente pelo usuário em checkout local com remote disponível.
