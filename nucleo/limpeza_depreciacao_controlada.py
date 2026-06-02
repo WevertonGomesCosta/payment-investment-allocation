@@ -26,6 +26,16 @@ CATEGORIAS_RESSALVA_NAO_MATERIAL = {
     'MELHORIA_ERGONOMICA',
 }
 STATUS_PARIDADE_MATERIAL = {'bloqueado', 'reprovado'}
+CHAVES_EVIDENCIA_AUXILIAR_ESCALAR = {
+    'identificador',
+    'nome',
+    'path',
+    'status',
+    'categoria',
+    'tipo',
+    'classificacao',
+}
+IDENTIFICADOR_BLOQUEIO_PARIDADE = 'paridade_material_bloqueante'
 
 
 @dataclass(slots=True)
@@ -48,6 +58,7 @@ class ResumoLimpezaDepreciacaoControlada:
     qtd_itens_bloqueados_remocao: int
     qtd_ressalvas_nao_materiais: int
     qtd_bloqueios_paridade: int
+    qtd_bloqueios_dependencia_ativa: int
     qtd_recomendacoes: int
     classificacao_limitada_por_ausencia_inventario: bool
 
@@ -228,11 +239,20 @@ def verificar_status_paridade(evidencias_paridade: Mapping[str, Any]) -> dict[st
     }
 
 
+def _mapping_eh_evidencia_auxiliar_escalar(valor: Mapping[str, Any]) -> bool:
+    return bool(CHAVES_EVIDENCIA_AUXILIAR_ESCALAR.intersection(str(chave) for chave in valor.keys()))
+
+
 def _normalizar_evidencias_iteraveis(evidencias_auxiliares: object | None) -> list[dict[str, Any]]:
     if evidencias_auxiliares is None:
         return []
     normalizadas: list[dict[str, Any]] = []
     if isinstance(evidencias_auxiliares, Mapping):
+        if _mapping_eh_evidencia_auxiliar_escalar(evidencias_auxiliares):
+            dados = dict(evidencias_auxiliares)
+            identificador = dados.get('identificador') or dados.get('nome') or dados.get('path') or 'evidencia_auxiliar'
+            normalizadas.append({'grupo': 'inventario_auxiliar', 'identificador': str(identificador), **dados})
+            return normalizadas
         for chave, valor in evidencias_auxiliares.items():
             if isinstance(valor, (list, tuple, set)):
                 for item_aux in valor:
@@ -363,7 +383,7 @@ def classificar_bloqueios_depreciacao(
     if verificacao_paridade.get('paridade_bloqueante'):
         bloqueios.append(
             _item(
-                'paridade_material_bloqueante',
+                IDENTIFICADOR_BLOQUEIO_PARIDADE,
                 'bloqueado_dependencia_ativa',
                 'resultado_paridade_renderizacao_oficial',
                 'ResultadoParidadeRenderizacaoOficial indica divergência material ou status bloqueante.',
@@ -382,7 +402,11 @@ def montar_plano_retorno_etapa1(
     bloqueios: list[ItemLimpezaDepreciacaoControlada] | None = None,
 ) -> dict[str, Any]:
     bloqueios = bloqueios or []
-    bloqueios_dependencia_ativa = [item for item in bloqueios if item.classificacao == 'bloqueado_dependencia_ativa']
+    bloqueios_dependencia_ativa = [
+        item
+        for item in bloqueios
+        if item.classificacao == 'bloqueado_dependencia_ativa' and item.identificador != IDENTIFICADOR_BLOQUEIO_PARIDADE
+    ]
     retorno_operacional_permitido = status in {'aprovado', 'aprovado_com_ressalva'}
     return {
         'destino': 'Etapa 1',
@@ -410,7 +434,12 @@ def consolidar_resultado_limpeza_depreciacao(
     evidencias_auxiliares_fornecidas: bool,
 ) -> tuple[str, bool, ResumoLimpezaDepreciacaoControlada, AuditoriaLimpezaDepreciacaoControlada, list[str]]:
     ressalvas = list(evidencias_paridade.get('ressalvas') or [])
-    bloqueios_dependencia_ativa = [item for item in bloqueios if item.classificacao == 'bloqueado_dependencia_ativa']
+    bloqueios_paridade = [item for item in bloqueios if item.identificador == IDENTIFICADOR_BLOQUEIO_PARIDADE]
+    bloqueios_dependencia_ativa = [
+        item
+        for item in bloqueios
+        if item.classificacao == 'bloqueado_dependencia_ativa' and item.identificador != IDENTIFICADOR_BLOQUEIO_PARIDADE
+    ]
     if not entrada_valida or verificacao_paridade.get('paridade_bloqueante'):
         status = 'bloqueado'
     elif bloqueios_dependencia_ativa:
@@ -444,7 +473,8 @@ def consolidar_resultado_limpeza_depreciacao(
         qtd_rotas_legadas_candidatas=qtd_legadas,
         qtd_itens_bloqueados_remocao=qtd_bloqueados,
         qtd_ressalvas_nao_materiais=len(ressalvas),
-        qtd_bloqueios_paridade=len(bloqueios),
+        qtd_bloqueios_paridade=len(bloqueios_paridade),
+        qtd_bloqueios_dependencia_ativa=len(bloqueios_dependencia_ativa),
         qtd_recomendacoes=len(recomendacoes),
         classificacao_limitada_por_ausencia_inventario=not evidencias_auxiliares_fornecidas,
     )
@@ -459,6 +489,7 @@ def consolidar_resultado_limpeza_depreciacao(
             'Evidências auxiliares são usadas apenas para classificação não decisória.',
             'Etapa 11 não reabre motor, ledger, gates, Etapa 9 ou Etapa 10.',
             'Dependências ativas rebaixam o status e bloqueiam depreciação/remoção efetiva.',
+            'Bloqueios de dependência ativa não são contabilizados como bloqueios de paridade.',
         ],
     )
     return status, ok, resumo, auditoria, recomendacoes
