@@ -1415,6 +1415,69 @@ def selecionar_pacote_temporal_vencedor_dia(data_ref: date, pacotes_valorados: l
     return decisao, descartados, vencedor.pacote_candidato
 
 
+def _avaliar_reserva_residual_fontes_pacote(
+    pacote: PacoteTemporalCandidato,
+    reserva_por_fonte: dict[str, float],
+) -> tuple[bool, list[str], list[tuple[str, float]]]:
+    fontes = sorted(
+        pacote.fontes_candidatas,
+        key=lambda f: (f.fonte_id or '', f.tipo_fonte or '', f.origem_fonte or ''),
+    )
+    if not fontes:
+        return False, ['fonte_ausente_para_reserva_referencial'], []
+
+    valor_necessario = float(pacote.valor_obrigacoes or 0.0)
+    if valor_necessario <= 0.0:
+        return True, [], []
+
+    reservas_planejadas: list[tuple[str, float]] = []
+    restante = valor_necessario
+    motivos: list[str] = []
+    fontes_validas = 0
+    saldos_residuais: list[tuple[str, float]] = []
+
+    for fonte in fontes:
+        fonte_id, alerta_id = extrair_identificador_fonte_pacote(fonte)
+        if alerta_id or not fonte_id:
+            motivos.append(alerta_id or 'fonte_sem_identificador_estavel_para_reserva_referencial')
+            continue
+        valor_fonte, avisos_valor = extrair_valor_reservavel_fonte_pacote(fonte, pacote)
+        motivos.extend(avisos_valor)
+        if valor_fonte is None or valor_fonte <= 0.0:
+            motivos.append('fonte_sem_valor_referencial_positivo_para_reserva')
+            continue
+        fontes_validas += 1
+        saldo_residual = max(float(valor_fonte) - reserva_por_fonte.get(fonte_id, 0.0), 0.0)
+        saldos_residuais.append((fonte_id, saldo_residual))
+
+    if fontes_validas == 0:
+        return False, motivos or ['fonte_sem_valor_referencial_positivo_para_reserva'], []
+
+    if pacote.tipo_pacote == 'pagamento_fonte_unica':
+        fonte_id, saldo_residual = saldos_residuais[0] if saldos_residuais else (None, 0.0)
+        if saldo_residual <= 0.0:
+            return False, ['saldo_residual_referencial_zerado'], []
+        if saldo_residual + 0.000001 < valor_necessario:
+            return False, ['saldo_residual_referencial_insuficiente'], []
+        assert fonte_id is not None
+        return True, [], [(fonte_id, valor_necessario)]
+
+    for fonte_id, saldo_residual in saldos_residuais:
+        if restante <= 0.0:
+            break
+        if saldo_residual <= 0.0:
+            continue
+        valor_reserva = min(saldo_residual, restante)
+        reservas_planejadas.append((fonte_id, valor_reserva))
+        restante -= valor_reserva
+
+    if not reservas_planejadas:
+        return False, ['saldo_residual_referencial_zerado'], []
+    if restante > 0.000001:
+        return False, ['saldo_residual_referencial_insuficiente'], []
+    return True, [], reservas_planejadas
+
+
 def selecionar_pacotes_temporais_vencedores(
     resultado: ResultadoMotorTemporalConjunto,
     pacotes_valorados: dict[date, list[PacoteTemporalValorado]],
@@ -1435,40 +1498,15 @@ def selecionar_pacotes_temporais_vencedores(
             if not pacote.obrigacoes_referenciadas:
                 filtrados.append(pv)
                 continue
-            fontes = pacote.fontes_candidatas
-            if not fontes:
+            valido_reserva, motivos_reserva, _ = _avaliar_reserva_residual_fontes_pacote(
+                pacote,
+                reserva_por_fonte,
+            )
+            if not valido_reserva:
                 descartes_reserva.append(PacoteTemporalDescartado(
                     pacote_id=pacote.pacote_id,
                     tipo_pacote=pacote.tipo_pacote,
-                    motivos_descarte=['fonte_ausente_para_reserva_referencial'],
-                    score_referencial=pv.valoracao.score_referencial,
-                ))
-                continue
-            valor_obrig = float(pacote.valor_obrigacoes or 0.0)
-            valor_cob = float(pacote.valor_cobertura_referencial or 0.0)
-            if valor_cob <= 0.0:
-                descartes_reserva.append(PacoteTemporalDescartado(
-                    pacote_id=pacote.pacote_id,
-                    tipo_pacote=pacote.tipo_pacote,
-                    motivos_descarte=['fonte_sem_cobertura_referencial_positiva_para_reserva'],
-                    score_referencial=pv.valoracao.score_referencial,
-                ))
-                continue
-            valor_por_fonte = valor_cob / float(len(fontes))
-            excedeu = False
-            for fonte in fontes:
-                if not fonte.fonte_id:
-                    excedeu = True
-                    break
-                reservado = reserva_por_fonte.get(fonte.fonte_id, 0.0)
-                if reservado + valor_por_fonte > valor_por_fonte and valor_obrig > 0.0 and reservado > 0.0:
-                    excedeu = True
-                    break
-            if excedeu:
-                descartes_reserva.append(PacoteTemporalDescartado(
-                    pacote_id=pacote.pacote_id,
-                    tipo_pacote=pacote.tipo_pacote,
-                    motivos_descarte=['fonte_referencial_ja_reservada_em_data_anterior'],
+                    motivos_descarte=motivos_reserva,
                     score_referencial=pv.valoracao.score_referencial,
                 ))
                 continue
@@ -1479,11 +1517,13 @@ def selecionar_pacotes_temporais_vencedores(
         vencedores[data_ref] = vencedor
         descartados[data_ref] = lista_descartados
         if vencedor and vencedor.tipo_pacote in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'} and vencedor.fontes_candidatas:
-            valor_cob = float(vencedor.valor_cobertura_referencial or 0.0)
-            valor_por_fonte = valor_cob / float(len(vencedor.fontes_candidatas))
-            for fonte in vencedor.fontes_candidatas:
-                if fonte.fonte_id:
-                    reserva_por_fonte[fonte.fonte_id] = reserva_por_fonte.get(fonte.fonte_id, 0.0) + valor_por_fonte
+            valido_reserva, _, reservas_planejadas = _avaliar_reserva_residual_fontes_pacote(
+                vencedor,
+                reserva_por_fonte,
+            )
+            if valido_reserva:
+                for fonte_id, valor_reservado in reservas_planejadas:
+                    reserva_por_fonte[fonte_id] = reserva_por_fonte.get(fonte_id, 0.0) + valor_reservado
     return decisoes, vencedores, descartados
 
 
