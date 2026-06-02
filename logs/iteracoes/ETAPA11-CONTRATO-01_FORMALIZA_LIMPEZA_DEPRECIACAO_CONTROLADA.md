@@ -39,10 +39,28 @@ O contrato individual da Etapa 11 define:
 - entrada formal obrigatória e exclusiva: `ResultadoParidadeRenderizacaoOficial`;
 - saída formal prevista: `ResultadoLimpezaDepreciacaoControlada`;
 - módulo funcional previsto: `nucleo/limpeza_depreciacao_controlada.py`;
-- função pública prevista: `executar_limpeza_depreciacao_controlada(...)`;
+- função pública prevista: `construir_resultado_limpeza_depreciacao_controlada(...)`;
 - escopo: classificar rotas legadas, resíduos de renderização, formatos substituídos, artefatos depreciáveis e retorno controlado à Etapa 1.
 
-## 6. Fronteira preservada
+## 6. Refinamento pré-PR
+
+Após auditoria do contrato e do fluxograma, a função pública prevista foi refinada de:
+
+```text
+executar_limpeza_depreciacao_controlada(...)
+```
+
+para:
+
+```text
+construir_resultado_limpeza_depreciacao_controlada(...)
+```
+
+Motivo: evitar interpretação indevida de que a Etapa 11 executa remoção efetiva de arquivos, funções ou rotas.
+
+A Etapa 11 classifica e recomenda limpeza/depreciação controlada, mas não remove automaticamente arquivos, funções, rotas, logs, saídas ou artefatos. Qualquer remoção efetiva deve ocorrer somente em frente posterior específica, com escopo próprio e validação própria.
+
+## 7. Fronteira preservada
 
 A Etapa 11 foi formalizada sem alterar:
 
@@ -64,7 +82,7 @@ XLSX
 lógica econômica
 ```
 
-## 7. Decisão operacional
+## 8. Decisão operacional
 
 ```text
 ETAPA11-CONTRATO-01 formaliza a Etapa 11 como Limpeza e Depreciação Controlada, não como governança de lacunas de decisão futura.
@@ -72,7 +90,7 @@ ETAPA11-CONTRATO-01 formaliza a Etapa 11 como Limpeza e Depreciação Controlada
 
 Pendências de próximos pagamentos sem fonte decidida não são a função contratual da Etapa 11. Elas devem ser tratadas em auditoria específica ou correção upstream, sem contaminar o contrato da Etapa 11.
 
-## 8. Validação esperada
+## 9. Validação esperada
 
 Antes de abrir PR, validar:
 
@@ -84,10 +102,10 @@ git diff --stat origin/main...HEAD
 
 O diff esperado deve ficar restrito aos três arquivos desta frente documental.
 
-## 9. Próxima frente recomendada
+## 10. Próxima frente recomendada
 
 Após merge da Etapa 11 contratual:
 
 ```text
-ETAPA11-FUNCIONAL-01 — Implementa ResultadoLimpezaDepreciacaoControlada e executar_limpeza_depreciacao_controlada(...), consumindo exclusivamente ResultadoParidadeRenderizacaoOficial, sem alterar motor, ledger, gates, Etapa 9, Etapa 10, contrato, modelo, dados, cache ou lógica econômica.
+ETAPA11-FUNCIONAL-01 — Implementa ResultadoLimpezaDepreciacaoControlada e construir_resultado_limpeza_depreciacao_controlada(...), consumindo exclusivamente ResultadoParidadeRenderizacaoOficial, sem alterar motor, ledger, gates, Etapa 9, Etapa 10, contrato, modelo, dados, cache ou lógica econômica.
 ```
