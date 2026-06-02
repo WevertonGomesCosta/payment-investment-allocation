@@ -539,7 +539,7 @@ def construir_resultado_limpeza_depreciacao_controlada(
         }
     verificacao_paridade = verificar_status_paridade(evidencias_paridade)
     itens_auxiliares = incorporar_evidencias_auxiliares_nao_decisorias(evidencias_auxiliares)
-    evidencias_auxiliares_fornecidas = evidencias_auxiliares is not None
+    evidencias_auxiliares_fornecidas = bool(itens_auxiliares)
     itens = itens_validacao + classificar_itens_limpeza(
         evidencias_paridade,
         itens_auxiliares,
