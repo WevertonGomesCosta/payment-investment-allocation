@@ -762,9 +762,8 @@ def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None) -> 
 
     ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, "extrato_futuro"))
     headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
-    extrato_futuro = list(getattr(saida, 'extrato_futuro', []) or [])
-    if not extrato_futuro:
-        extrato_futuro = _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial)
+    extrato_futuro_oficial = _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial)
+    extrato_futuro = extrato_futuro_oficial or list(getattr(saida, 'extrato_futuro', []) or [])
     _apply_table_style(ws_futuro, headers_futuro, _rows(extrato_futuro, headers_futuro), freeze=True)
 
     lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos", modo_bootstrap_pacote=True)
