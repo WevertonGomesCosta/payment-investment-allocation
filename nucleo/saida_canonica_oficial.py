@@ -30,6 +30,8 @@ class ResumoSaidaCanonicaOficial:
     qtd_fontes_utilizadas: int
     qtd_fontes_reservadas: int
     qtd_switchings_escolhidos: int
+    qtd_destinos_sobras_recebidos: int
+    qtd_lotes_futuros_materializados: int
     qtd_bloqueios_ledger: int
     qtd_avisos_ledger: int
     qtd_bloqueios_gates: int
@@ -58,6 +60,8 @@ class SaidaCanonicaOficial:
     fontes_reservadas: list[dict[str, Any]] = field(default_factory=list)
     switchings_escolhidos: list[dict[str, Any]] = field(default_factory=list)
     saldos_referenciais_por_data: dict[date, list[dict[str, Any]]] = field(default_factory=dict)
+    destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
+    lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
     bloqueios_ledger: list[dict[str, Any]] = field(default_factory=list)
     avisos_ledger: list[str] = field(default_factory=list)
     bloqueios_gates: list[dict[str, Any]] = field(default_factory=list)
@@ -117,6 +121,8 @@ def _resumo(
         qtd_fontes_utilizadas=len(_valor(ledger, 'fontes_utilizadas', []) or []),
         qtd_fontes_reservadas=len(_valor(ledger, 'fontes_reservadas', []) or []),
         qtd_switchings_escolhidos=len(_valor(ledger, 'switchings_escolhidos', []) or []),
+        qtd_destinos_sobras_recebidos=len(_valor(ledger, 'destinos_sobras_recebidos', []) or []),
+        qtd_lotes_futuros_materializados=len(_valor(ledger, 'lotes_futuros_materializados', []) or []),
         qtd_bloqueios_ledger=len(_valor(ledger, 'bloqueios', []) or []),
         qtd_avisos_ledger=len(_valor(ledger, 'avisos', []) or []),
         qtd_bloqueios_gates=len(_valor(gates, 'bloqueios', []) or []),
@@ -204,6 +210,8 @@ def _montar_saida(
         fontes_reservadas=_snapshot_lista(_valor(ledger, 'fontes_reservadas', [])) if incluir_operacional else [],
         switchings_escolhidos=_snapshot_lista(_valor(ledger, 'switchings_escolhidos', [])) if incluir_operacional else [],
         saldos_referenciais_por_data=_snapshot_saldos(_valor(ledger, 'saldos_referenciais_por_data', {})) if incluir_operacional else {},
+        destinos_sobras_recebidos=_snapshot_lista(_valor(ledger, 'destinos_sobras_recebidos', [])) if incluir_operacional else [],
+        lotes_futuros_materializados=_snapshot_lista(_valor(ledger, 'lotes_futuros_materializados', [])) if incluir_operacional else [],
         bloqueios_ledger=_snapshot_lista(_valor(ledger, 'bloqueios', [])),
         avisos_ledger=[str(aviso) for aviso in (_valor(ledger, 'avisos', []) or [])],
         bloqueios_gates=_snapshot_lista(_valor(gates, 'bloqueios', [])),

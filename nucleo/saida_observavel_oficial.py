@@ -29,6 +29,8 @@ class ResumoSaidaObservavelOficial:
     qtd_fontes_utilizadas: int
     qtd_fontes_reservadas: int
     qtd_switchings_escolhidos: int
+    qtd_destinos_sobras_recebidos: int
+    qtd_lotes_futuros_materializados: int
     qtd_saldos_referenciais_datas: int
     qtd_avisos: int
     qtd_bloqueios: int
@@ -48,6 +50,8 @@ class BlocoConsoleSaidaObservavel:
     obrigacoes_bloqueadas: list[dict[str, Any]] = field(default_factory=list)
     switchings_escolhidos: list[dict[str, Any]] = field(default_factory=list)
     saldos_referenciais: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
+    lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
     avisos: list[Any] = field(default_factory=list)
     bloqueios: list[dict[str, Any]] = field(default_factory=list)
     lacunas_renderizacao: list[dict[str, Any]] = field(default_factory=list)
@@ -311,6 +315,8 @@ def extrair_blocos_saida_canonica(saida: SaidaCanonicaOficial) -> dict[str, Any]
         'fontes_reservadas': _snapshot_lista(saida.fontes_reservadas),
         'switchings_escolhidos': _snapshot_lista(saida.switchings_escolhidos),
         'saldos_referenciais': _snapshot_saldos(saida.saldos_referenciais_por_data),
+        'destinos_sobras_recebidos': _snapshot_lista(getattr(saida, 'destinos_sobras_recebidos', [])),
+        'lotes_futuros_materializados': _snapshot_lista(getattr(saida, 'lotes_futuros_materializados', [])),
         'bloqueios_ledger': _snapshot_lista(saida.bloqueios_ledger),
         'bloqueios_gates': _snapshot_lista(saida.bloqueios_gates),
         'bloqueios_preparacao': _snapshot_lista(saida.bloqueios_preparacao),
@@ -334,6 +340,8 @@ def preparar_resumo_operacional_observavel(blocos: dict[str, Any]) -> dict[str, 
         'qtd_fontes_utilizadas': len(blocos['fontes_utilizadas']),
         'qtd_fontes_reservadas': len(blocos['fontes_reservadas']),
         'qtd_switchings_escolhidos': len(blocos['switchings_escolhidos']),
+        'qtd_destinos_sobras_recebidos': len(blocos.get('destinos_sobras_recebidos', [])),
+        'qtd_lotes_futuros_materializados': len(blocos.get('lotes_futuros_materializados', [])),
         'qtd_datas_saldos_referenciais': len(blocos['saldos_referenciais']),
     }
 
@@ -377,6 +385,8 @@ def preservar_avisos_bloqueios_evidencias(blocos: dict[str, Any]) -> dict[str, A
             + list(blocos['bloqueios_preparacao'])
         ),
         'evidencias': list(blocos['evidencias_gates']),
+        'destinos_sobras_recebidos': list(blocos.get('destinos_sobras_recebidos', [])),
+        'lotes_futuros_materializados': list(blocos.get('lotes_futuros_materializados', [])),
     }
 
 
@@ -423,6 +433,8 @@ def preparar_blocos_console(
         obrigacoes_bloqueadas=obrigacoes['obrigacoes_bloqueadas'],
         switchings_escolhidos=switchings,
         saldos_referenciais=saldos,
+        destinos_sobras_recebidos=preservados.get('destinos_sobras_recebidos', []),
+        lotes_futuros_materializados=preservados.get('lotes_futuros_materializados', []),
         avisos=preservados['avisos'],
         bloqueios=preservados['bloqueios'],
         lacunas_renderizacao=[asdict(lacuna) for lacuna in lacunas],
@@ -449,6 +461,8 @@ def preparar_blocos_xlsx(
         'Obrigacoes Cobertas': obrigacoes['obrigacoes_cobertas'],
         'Obrigacoes Bloqueadas': obrigacoes['obrigacoes_bloqueadas'],
         'Switchings Escolhidos': switchings,
+        'Destinos Sobras Recebidos': preservados.get('destinos_sobras_recebidos', []),
+        'Lotes Futuros Materializados': preservados.get('lotes_futuros_materializados', []),
         'Avisos': [{'aviso': aviso} if not isinstance(aviso, dict) else aviso for aviso in preservados['avisos']],
         'Bloqueios': preservados['bloqueios'],
         'Lacunas Renderizacao': [asdict(lacuna) for lacuna in lacunas],
@@ -520,6 +534,8 @@ def _resumo_pacote(
         qtd_fontes_utilizadas=len(blocos.get('fontes_utilizadas', [])),
         qtd_fontes_reservadas=len(blocos.get('fontes_reservadas', [])),
         qtd_switchings_escolhidos=len(blocos.get('switchings_escolhidos', [])),
+        qtd_destinos_sobras_recebidos=len(blocos.get('destinos_sobras_recebidos', [])),
+        qtd_lotes_futuros_materializados=len(blocos.get('lotes_futuros_materializados', [])),
         qtd_saldos_referenciais_datas=len(blocos.get('saldos_referenciais', {})),
         qtd_avisos=qtd_avisos,
         qtd_bloqueios=qtd_bloqueios,

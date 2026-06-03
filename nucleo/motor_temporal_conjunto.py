@@ -315,6 +315,45 @@ class SwitchingEscolhidoTemporalmente:
 
 
 @dataclass(slots=True)
+class DestinoSobraRecebidoTemporal:
+    recebido_id: str | None
+    fonte_id_tecnico: str | None
+    lote_id_operacional: str | None
+    data_recebimento: date | None
+    data_aplicacao: date | None
+    valor_original: float
+    valor_pagamento_referencial: float
+    saldo_residual_recebido: float
+    destino_explicito: str
+    status_materializacao: str
+    origem_decisao: str
+    pacote_pagamento_id: str | None = None
+    obrigacao_id: str | None = None
+    investimento_destino: str | None = None
+    carteira_destino: str | None = None
+    referencia_recebido_temporal: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class LoteFuturoMaterializadoTemporal:
+    lote_id_operacional: str
+    fonte_id_tecnico: str
+    data_recebimento: date | None
+    data_aplicacao: date | None
+    valor_original: float
+    valor_aporte: float
+    investimento_destino: str | None
+    carteira_destino: str | None
+    status_materializacao: str
+    origem_decisao: str
+    saldo_residual_recebido: float
+    pacote_pagamento_id: str | None = None
+    obrigacao_id: str | None = None
+    recebido_id: str | None = None
+    referencia_recebido_temporal: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class SaldoReferencialFonteTemporal:
     data: date
     fonte_id: str
@@ -346,6 +385,8 @@ class TrajetoriaTemporalInternaEscolhida:
     obrigacoes_bloqueadas_temporalmente: list[ObrigacaoBloqueadaTemporalmente]
     switchings_escolhidos_temporalmente: list[SwitchingEscolhidoTemporalmente]
     saldos_referenciais_fontes_temporais: dict[date, list[SaldoReferencialFonteTemporal]]
+    destinos_sobras_recebidos_temporais: list[DestinoSobraRecebidoTemporal] = field(default_factory=list)
+    lotes_futuros_materializados: list[LoteFuturoMaterializadoTemporal] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -369,6 +410,8 @@ class SumarioFinalEtapa5:
     qtd_obrigacoes_bloqueadas: int
     qtd_fontes_reservadas: int
     qtd_switchings_escolhidos: int
+    qtd_destinos_sobras_recebidos: int
+    qtd_lotes_futuros_materializados: int
     qtd_bloqueios_estruturais: int
     qtd_bloqueios_trajetoria: int
     qtd_avisos_relevantes: int
@@ -446,6 +489,8 @@ class ResultadoMotorTemporalConjunto:
     obrigacoes_cobertas_temporalmente: list[ObrigacaoCobertaTemporalmente] | None = None
     obrigacoes_bloqueadas_temporalmente: list[ObrigacaoBloqueadaTemporalmente] | None = None
     switchings_escolhidos_temporalmente: list[SwitchingEscolhidoTemporalmente] | None = None
+    destinos_sobras_recebidos_temporais: list[DestinoSobraRecebidoTemporal] | None = None
+    lotes_futuros_materializados: list[LoteFuturoMaterializadoTemporal] | None = None
     auditoria_trajetoria_temporal_interna: AuditoriaTrajetoriaTemporalInterna | None = None
     sumario_final_etapa5: SumarioFinalEtapa5 | None = None
     auditoria_final_etapa5: AuditoriaFinalResultadoMotorTemporalConjunto | None = None
@@ -2250,6 +2295,122 @@ def _chave_obrigacao_referencial_auditoria(obrigacao: dict[str, Any]) -> str:
     return f'ref:{id(obrigacao)}'
 
 
+
+def _campo_textual_recebido(recebido: dict[str, Any], *campos: str) -> str | None:
+    for campo in campos:
+        valor = recebido.get(campo)
+        if valor is None:
+            continue
+        texto = str(valor).strip()
+        if texto and texto.lower() not in {'nan', 'none', 'n/d', 'nd'}:
+            return texto
+    return None
+
+
+def _data_recebido(recebido: dict[str, Any], *campos: str) -> date | None:
+    for campo in campos:
+        valor = recebido.get(campo)
+        if isinstance(valor, date):
+            return valor
+    return None
+
+
+def _fonte_id_recebido_materializacao(recebido: dict[str, Any], data_ref: date, posicao: int) -> str:
+    return _identificar_recebido_referencial(recebido, data_ref, 'materializacao_recebido', posicao)
+
+
+def _destino_explicito_recebido(destino_potencial: str, saldo_residual: float, valor_pago: float) -> str:
+    destino = destino_potencial.strip().lower()
+    if saldo_residual <= 0.000001:
+        return 'pagamento' if valor_pago > 0.000001 else 'saldo_disponivel'
+    if 'aplicacao' in destino or 'aporte' in destino:
+        return 'lote_futuro'
+    if 'reserva' in destino:
+        return 'reserva'
+    return 'saldo_disponivel'
+
+
+def materializar_destinos_sobras_recebidos_temporais(
+    resultado: ResultadoMotorTemporalConjunto,
+) -> tuple[list[DestinoSobraRecebidoTemporal], list[LoteFuturoMaterializadoTemporal], list[str]]:
+    avisos: list[str] = []
+    reservas_recebidos: dict[str, list[FonteReservadaTemporalmente]] = {}
+    for reserva in resultado.fontes_reservadas_temporalmente or []:
+        if reserva.tipo_fonte != 'recebido_referencial':
+            continue
+        reservas_recebidos.setdefault(reserva.fonte_id, []).append(reserva)
+
+    destinos: list[DestinoSobraRecebidoTemporal] = []
+    lotes: list[LoteFuturoMaterializadoTemporal] = []
+    for posicao, recebido in enumerate(resultado.eventos_temporais_base.recebidos or [], start=1):
+        data_recebimento = _data_recebido(recebido, 'data_recebimento', 'data')
+        fonte_id = _campo_textual_recebido(recebido, 'fonte_id_tecnico', 'recebido_id')
+        if not fonte_id:
+            fonte_id = _fonte_id_recebido_materializacao(recebido, data_recebimento or resultado.data_referencia, posicao)
+        valor_original, avisos_valor = extrair_valor_recebido_referencial(recebido)
+        avisos.extend(avisos_valor)
+        if valor_original is None:
+            valor_original = 0.0
+        valor_pago = sum(float(r.valor_reservado_referencial or 0.0) for r in reservas_recebidos.get(fonte_id, []))
+        saldo_residual = round(max(float(valor_original) - valor_pago, 0.0), 10)
+        if valor_pago > float(valor_original) + 0.000001:
+            avisos.append(f'recebido_usado_acima_do_valor_original:{fonte_id}')
+        lote_id = _campo_textual_recebido(recebido, 'lote_id_operacional', 'lote_id_operacional_previsto')
+        data_aplicacao = _data_recebido(recebido, 'data_aplicacao', 'data_investimento') or data_recebimento
+        destino_potencial = _campo_textual_recebido(recebido, 'destino_potencial') or ''
+        destino_explicito = _destino_explicito_recebido(destino_potencial, saldo_residual, valor_pago)
+        reservas_fonte = reservas_recebidos.get(fonte_id, [])
+        pacote_pagamento_id = reservas_fonte[0].pacote_id if reservas_fonte else None
+        obrigacao_id = reservas_fonte[0].obrigacao_id if reservas_fonte else _campo_textual_recebido(recebido, 'pagamento_vinculado_id')
+        investimento = _campo_textual_recebido(recebido, 'investimento', 'investimento_destino', 'carteira_destino', 'carteira')
+        status_materializacao = 'materializado_etapa5_sobra_recebido'
+        if destino_explicito == 'lote_futuro':
+            status_materializacao = 'materializado_etapa5_lote_futuro'
+            if not lote_id:
+                avisos.append(f'lote_futuro_sem_lote_id_operacional:{fonte_id}')
+            if not fonte_id:
+                avisos.append('lote_futuro_sem_fonte_tecnica')
+            if not investimento:
+                avisos.append(f'lote_futuro_sem_carteira_destino:{fonte_id}')
+        destino = DestinoSobraRecebidoTemporal(
+            recebido_id=_campo_textual_recebido(recebido, 'recebido_id'),
+            fonte_id_tecnico=fonte_id,
+            lote_id_operacional=lote_id,
+            data_recebimento=data_recebimento,
+            data_aplicacao=data_aplicacao,
+            valor_original=float(valor_original),
+            valor_pagamento_referencial=round(valor_pago, 10),
+            saldo_residual_recebido=saldo_residual,
+            destino_explicito=destino_explicito,
+            status_materializacao=status_materializacao,
+            origem_decisao='ResultadoMotorTemporalConjunto.fontes_reservadas_temporalmente',
+            pacote_pagamento_id=pacote_pagamento_id,
+            obrigacao_id=obrigacao_id,
+            investimento_destino=investimento,
+            carteira_destino=investimento,
+            referencia_recebido_temporal=dict(recebido),
+        )
+        destinos.append(destino)
+        if destino_explicito == 'lote_futuro' and lote_id and fonte_id:
+            lotes.append(LoteFuturoMaterializadoTemporal(
+                lote_id_operacional=lote_id,
+                fonte_id_tecnico=fonte_id,
+                data_recebimento=data_recebimento,
+                data_aplicacao=data_aplicacao,
+                valor_original=float(valor_original),
+                valor_aporte=saldo_residual,
+                investimento_destino=investimento,
+                carteira_destino=investimento,
+                status_materializacao=status_materializacao,
+                origem_decisao='sobra_recebido_com_destino_potencial_aplicacao',
+                saldo_residual_recebido=saldo_residual,
+                pacote_pagamento_id=pacote_pagamento_id,
+                obrigacao_id=obrigacao_id,
+                recebido_id=_campo_textual_recebido(recebido, 'recebido_id'),
+                referencia_recebido_temporal=dict(recebido),
+            ))
+    return destinos, lotes, avisos
+
 def auditar_trajetoria_temporal_interna(
     resultado: ResultadoMotorTemporalConjunto,
 ) -> AuditoriaTrajetoriaTemporalInterna:
@@ -2501,6 +2662,8 @@ def montar_sumario_final_etapa5(resultado: ResultadoMotorTemporalConjunto) -> Su
         qtd_obrigacoes_bloqueadas=len(resultado.obrigacoes_bloqueadas_temporalmente or []),
         qtd_fontes_reservadas=len(resultado.fontes_reservadas_temporalmente or []),
         qtd_switchings_escolhidos=len(resultado.switchings_escolhidos_temporalmente or []),
+        qtd_destinos_sobras_recebidos=len(resultado.destinos_sobras_recebidos_temporais or []),
+        qtd_lotes_futuros_materializados=len(resultado.lotes_futuros_materializados or []),
         qtd_bloqueios_estruturais=len(resultado.bloqueios_estruturais or []),
         qtd_bloqueios_trajetoria=len(auditoria_trajetoria.bloqueios) if auditoria_trajetoria else 0,
         qtd_avisos_relevantes=sum(len(a) for a in auditorias_avisos),
@@ -2674,6 +2837,19 @@ def auditar_consistencia_final_etapa5(
             _adicionar_bloqueio_final(bloqueios, 'reserva_acima_disponibilidade_referencial', reserva.fonte_id, reserva.data)
         if reserva.valor_disponivel_depois_referencial < -0.000001:
             _adicionar_bloqueio_final(bloqueios, 'saldo_referencial_negativo_apos_reserva', reserva.fonte_id, reserva.data)
+
+    for destino in resultado.destinos_sobras_recebidos_temporais or []:
+        if destino.valor_pagamento_referencial > destino.valor_original + 0.000001:
+            _adicionar_bloqueio_final(bloqueios, 'recebido_usado_acima_valor_original', destino.fonte_id_tecnico, destino.data_recebimento)
+        if destino.saldo_residual_recebido < -0.000001:
+            _adicionar_bloqueio_final(bloqueios, 'saldo_residual_recebido_negativo', destino.fonte_id_tecnico, destino.data_recebimento)
+        if destino.destino_explicito == 'lote_futuro':
+            if not destino.lote_id_operacional:
+                _adicionar_bloqueio_final(bloqueios, 'lote_futuro_sem_lote_id_operacional', destino.fonte_id_tecnico, destino.data_recebimento)
+            if not destino.fonte_id_tecnico:
+                _adicionar_bloqueio_final(bloqueios, 'lote_futuro_sem_fonte_tecnica', destino.lote_id_operacional, destino.data_recebimento)
+            if not destino.carteira_destino:
+                _adicionar_bloqueio_final(bloqueios, 'lote_futuro_sem_carteira_destino', destino.lote_id_operacional, destino.data_recebimento)
 
     for switching in resultado.switchings_escolhidos_temporalmente or []:
         if switching.status_referencial != 'escolhido_internamente_nao_executado':
@@ -2907,6 +3083,15 @@ def construir_resultado_motor_temporal_conjunto(
     resultado.obrigacoes_cobertas_temporalmente = resultado.trajetoria_temporal_interna_escolhida.obrigacoes_cobertas_temporalmente
     resultado.obrigacoes_bloqueadas_temporalmente = resultado.trajetoria_temporal_interna_escolhida.obrigacoes_bloqueadas_temporalmente
     resultado.switchings_escolhidos_temporalmente = resultado.trajetoria_temporal_interna_escolhida.switchings_escolhidos_temporalmente
+    (
+        resultado.destinos_sobras_recebidos_temporais,
+        resultado.lotes_futuros_materializados,
+        avisos_materializacao_recebidos,
+    ) = materializar_destinos_sobras_recebidos_temporais(resultado)
+    resultado.trajetoria_temporal_interna_escolhida.destinos_sobras_recebidos_temporais = resultado.destinos_sobras_recebidos_temporais
+    resultado.trajetoria_temporal_interna_escolhida.lotes_futuros_materializados = resultado.lotes_futuros_materializados
+    if avisos_materializacao_recebidos:
+        resultado.metadados['avisos_materializacao_recebidos'] = avisos_materializacao_recebidos
     resultado.auditoria_trajetoria_temporal_interna = auditar_trajetoria_temporal_interna(resultado)
     resultado.auditoria_integridade_resultado = auditar_integridade_resultado_motor_temporal_conjunto(resultado)
     resultado = fechar_resultado_motor_temporal_conjunto(resultado)
@@ -2938,6 +3123,7 @@ __all__ = [
     'HorizonteMotorTemporal',
     'IndiceTemporalMotor',
     'JustificativaDecisaoTemporal',
+    'LoteFuturoMaterializadoTemporal',
     'ObrigacaoBloqueadaTemporalmente',
     'ObrigacaoCobertaTemporalmente',
     'ObrigacoesTemporaisDia',
