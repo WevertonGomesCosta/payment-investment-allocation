@@ -364,30 +364,56 @@ def _status_pagamento_observavel(item: dict[str, Any], *, bloqueada: bool) -> di
     return saida
 
 
+def _valor_historico_materializado(item: dict[str, Any], *chaves: str, padrao: Any = 'nao_materializado') -> Any:
+    for chave in chaves:
+        if chave not in item:
+            continue
+        valor = item.get(chave)
+        if valor is None:
+            continue
+        if isinstance(valor, float) and valor != valor:
+            continue
+        if isinstance(valor, str) and not valor.strip():
+            continue
+        return valor
+    return padrao
+
+
+def _status_valor_historico(valor: Any, padrao: str = 'nao_materializado') -> str:
+    return padrao if valor == padrao else 'materializado'
+
+
 def _normalizar_pagamento_historico_realizado(item: dict[str, Any]) -> dict[str, Any]:
     fonte = item.get('fonte_resolvida_historica') or item.get('fonte_informada') or item.get('lote_usado')
+    saldo_antes = _valor_historico_materializado(item, 'Saldo Antes', 'saldo_antes')
+    bruto = _valor_historico_materializado(item, 'Bruto', 'valor_bruto_resgate', 'valor')
+    imposto = _valor_historico_materializado(item, 'Imposto', 'imposto_resgate')
+    liquido = _valor_historico_materializado(item, 'Líquido', 'Liquido', 'valor_liquido_resgate', 'valor')
+    remanescente = _valor_historico_materializado(item, 'Saldo Remanescente', 'saldo_remanescente')
     return {
         'data': _data_observavel_item(item),
         'obrigacao_id': item.get('pagamento_id') or item.get('despesa_id') or item.get('id'),
-        'pacote_id': item.get('pacote_id') or 'historico_pago_oficial',
+        'pacote_id': item.get('pacote_id') or 'nao_aplicavel',
         'valor_obrigacao_referencial': item.get('valor'),
         'valor_coberto_referencial': item.get('valor'),
         'fontes_referenciadas_operacionais': [fonte] if fonte else [],
         'fontes_referenciadas_tecnicas': [fonte] if fonte else [],
-        'pacote_nome_operacional': 'histórico pago oficial',
+        'pacote_nome_operacional': 'nao_aplicavel',
+        'origem': 'historico_pago_oficial',
+        'origem_formal': item.get('origem') or item.get('origem_valores_historicos') or 'historico_pago_oficial',
         'status_observavel': 'realizada_oficial',
         'status': 'realizada_oficial',
         'referencia_original': dict(item),
-        'saldo_antes_fonte': item.get('Saldo Antes') or item.get('saldo_antes') or 'nao_materializado',
-        'valor_bruto_resgate': item.get('Bruto') or item.get('valor_bruto_resgate') or item.get('valor'),
-        'imposto_resgate': item.get('Imposto') or item.get('imposto_resgate') or 'nao_materializado',
-        'valor_liquido_resgate': item.get('Líquido') or item.get('valor_liquido_resgate') or item.get('valor'),
-        'saldo_remanescente_fonte': item.get('Saldo Remanescente') or item.get('saldo_remanescente') or 'nao_materializado',
-        'status_saldo_antes_fonte': item.get('status_saldo_antes_fonte') or 'nao_materializado',
-        'status_valor_bruto_resgate': item.get('status_valor_bruto_resgate') or 'materializado',
-        'status_imposto_resgate': item.get('status_imposto_resgate') or 'nao_materializado',
-        'status_valor_liquido_resgate': item.get('status_valor_liquido_resgate') or 'materializado',
-        'status_saldo_remanescente_fonte': item.get('status_saldo_remanescente_fonte') or 'nao_materializado',
+        'saldo_antes_fonte': saldo_antes,
+        'valor_bruto_resgate': bruto,
+        'imposto_resgate': imposto,
+        'valor_liquido_resgate': liquido,
+        'saldo_remanescente_fonte': remanescente,
+        'status_saldo_antes_fonte': item.get('status_saldo_antes_fonte') or _status_valor_historico(saldo_antes),
+        'status_valor_bruto_resgate': item.get('status_valor_bruto_resgate') or _status_valor_historico(bruto),
+        'status_imposto_resgate': item.get('status_imposto_resgate') or _status_valor_historico(imposto),
+        'status_valor_liquido_resgate': item.get('status_valor_liquido_resgate') or _status_valor_historico(liquido),
+        'status_saldo_remanescente_fonte': item.get('status_saldo_remanescente_fonte') or _status_valor_historico(remanescente),
     }
 
 

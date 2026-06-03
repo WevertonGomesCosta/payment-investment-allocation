@@ -329,6 +329,8 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
             linhas_multifonte,
             limite=10,
         )
+        exibidas = min(10, len(linhas_multifonte))
+        print(f'  linhas exibidas: {exibidas} de {len(linhas_multifonte)}; ver Obs Pagamentos Fontes no XLSX')
 
     if bloqueadas:
         print('\n- obrigações bloqueadas oficiais:')
