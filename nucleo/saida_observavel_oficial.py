@@ -139,7 +139,6 @@ def _fonte_operacional_renderizavel(item: dict[str, Any]) -> str:
     return (
         _texto_material(item.get('lote_id_operacional'))
         or _texto_material((item.get('metadados') or {}).get('lote_id_operacional'))
-        or _texto_material(item.get('fonte_id'))
     )
 
 
@@ -157,6 +156,9 @@ def _enriquecer_fonte_identificacao(item: dict[str, Any]) -> dict[str, Any]:
     if lote_id_operacional:
         saida['lote_id_operacional'] = lote_id_operacional
         saida['fonte_nome_operacional'] = lote_id_operacional
+    else:
+        saida['lote_id_operacional_ausente'] = True
+        saida['fonte_nome_operacional'] = 'lote_id_operacional_ausente'
     return saida
 
 
@@ -166,7 +168,7 @@ def _indice_nomes_fontes(fontes: list[dict[str, Any]]) -> dict[str, str]:
         fonte_id = _texto_material(item.get('fonte_id'))
         if not fonte_id:
             continue
-        indice[fonte_id] = _fonte_operacional_renderizavel(item)
+        indice[fonte_id] = _fonte_operacional_renderizavel(item) or 'lote_id_operacional_ausente'
     return indice
 
 
@@ -213,7 +215,10 @@ def _enriquecer_obrigacao_identificacao(item: dict[str, Any], nomes_fontes: dict
         for f in list(saida.get('fontes_referenciadas') or [])
         if str(f).strip()
     ]
-    fontes_operacionais = [nomes_fontes.get(fonte, fonte) for fonte in fontes_tecnicas]
+    fontes_operacionais = [
+        nomes_fontes.get(fonte) or 'lote_id_operacional_ausente'
+        for fonte in fontes_tecnicas
+    ]
     saida['fontes_referenciadas_tecnicas'] = fontes_tecnicas
     saida['fontes_referenciadas_operacionais'] = fontes_operacionais
     saida['pacote_id_tecnico'] = saida.get('pacote_id')

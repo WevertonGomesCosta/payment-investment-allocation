@@ -248,8 +248,8 @@ def _reserva_para_lancamentos(reserva: Any) -> tuple[LancamentoReservaLedger, La
         or referencia.get('lote_id')
         or referencia.get('Lote (ID)')
         or referencia.get('lote')
-        or fonte_id
     )
+    lote_id_operacional_ausente = not bool(lote_id_operacional)
     reserva_ledger = LancamentoReservaLedger(
         data=data_reserva,
         tipo='reserva_fonte_referencial',
@@ -266,6 +266,7 @@ def _reserva_para_lancamentos(reserva: Any) -> tuple[LancamentoReservaLedger, La
             'origem': 'fontes_reservadas_temporalmente',
             'fonte_id_tecnico': fonte_id_tecnico,
             'lote_id_operacional': lote_id_operacional,
+            'lote_id_operacional_ausente': lote_id_operacional_ausente,
         },
         fonte_id_tecnico=fonte_id_tecnico,
         lote_id_operacional=lote_id_operacional,
@@ -286,6 +287,7 @@ def _reserva_para_lancamentos(reserva: Any) -> tuple[LancamentoReservaLedger, La
             'origem': 'fontes_reservadas_temporalmente',
             'fonte_id_tecnico': fonte_id_tecnico,
             'lote_id_operacional': lote_id_operacional,
+            'lote_id_operacional_ausente': lote_id_operacional_ausente,
         },
         fonte_id_tecnico=fonte_id_tecnico,
         lote_id_operacional=lote_id_operacional,
