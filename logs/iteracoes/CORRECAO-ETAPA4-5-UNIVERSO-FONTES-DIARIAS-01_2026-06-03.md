@@ -176,3 +176,32 @@ O console integrado ainda chamava `_render_amostras_pagamentos_operacionais(...)
 ### Pendências registradas sem rota paralela
 - A limpeza/redução de abas diagnósticas do XLSX permanece frente posterior para não aumentar risco neste fechamento.
 - A modelagem completa de sobras de recebidos futuros como aportes/lotes futuros permanece pendência econômica explícita para frente própria; nesta rodada foi preservado o saldo residual e impedida reutilização indevida, sem criar etapa, rota paralela ou sentinela.
+
+## Correção adicional — P2 finais antes do merge: saldo futuro e indisponibilidade explícita
+
+### P2 A — não retrodatAR saldo futuro projetado
+Regra anterior: `_materializar_fontes_data_referencia_de_lotes_ativos(...)` podia escolher a primeira fonte futura disponível de um lote e clonar essa linha para `data_referencia`, mantendo `valor_bruto_disponivel`, `valor_liquido_disponivel` e `valor_estimado` calculados para a data futura do pagamento. Isso abria risco de cobrir obrigação atual/vencida com rendimento projetado futuro.
+
+Regra corrigida: a materialização na `data_referencia` não usa mais valor calculado para `data_pagamento` futuro. Se não existir snapshot real na data, a função consulta o inventário final reconciliado e só cria snapshot quando há valor atual auditável do próprio inventário/estado (`valor_liquido_disponivel_atual`, `saldo_disponivel_atual`, `valor_original`, `investimento_bruto` ou `valor_liquido_migrado`) com data real não posterior à referência e status economicamente elegível. Se não houver valor atual auditável positivo, nenhum snapshot artificial é criado.
+
+Evidência auditada: após a correção, a auditoria estrutural dos snapshots adicionados na data de referência retornou `snapshots_data_ref_sem_retrodatacao_futura=[]`, ou seja, nenhuma fonte futura projetada foi retrodatada para cobrir pagamento atual/vencido nesta execução.
+
+### P2 B — preservar indisponibilidade explícita de recebidos
+Regra anterior: `montar_recebidos_temporais_dia(...)` reabilitava recebidos quando `data_rec <= data_motor`, marcando `disponivel_na_referencia=True` sempre que não estivessem `aplicado` ou `vinculado`. Isso podia ignorar status/motivos explícitos como `exaurido`, `indisponivel`, `comprometido`, `bloqueado`, `consumido` ou `encerrado`.
+
+Regra corrigida: recebidos só são reabilitados automaticamente quando a indisponibilidade é exclusivamente temporal (`futuro`/`futuro_indisponivel`) e a data de disponibilidade já foi alcançada. Qualquer indisponibilidade material explícita em `status_recebido`, `status_temporal`, `status`, `motivo`, `motivo_indisponibilidade` ou `motivo_bloqueio`, bem como flags `aplicado`/`vinculado`, permanece bloqueante. `_recebido_disponivel_referencialmente(...)` aplica a mesma regra antes de formar pacote `pagamento_com_recebido`, preservando o controle residual acumulado já implementado.
+
+Evidência auditada: a auditoria programática pós-pipeline retornou `recebidos_indisponiveis_usados=0` e `violacoes_recebidos=0`, confirmando que recebidos explicitamente indisponíveis/exauridos/comprometidos não foram usados e que nenhum recebido foi reservado acima do valor original.
+
+### Resultado após os P2 finais
+- Etapa 9 preservada: `qtd_obrigacoes_cobertas=157`, `qtd_obrigacoes_bloqueadas=1`, `qtd_fontes_utilizadas=152`, `qtd_fontes_reservadas=152`, `qtd_switchings_escolhidos=0`.
+- Console oficial preservado: próximos pagamentos cobertos continuam sem `pendente_fonte_decisao_etapa5`, `pendente_decisao_etapa5` ou `pendencia_runtime_obrigacao_futura_sem_decisao_etapa5`.
+- XLSX/Extrato Futuro preservado: `linhas=158`, `cobertas=157`, `bloqueadas=1`, coerente com Etapa 9.
+- Abas observáveis auditadas: `Obs Resumo Operacional`, `Obs Obrigacoes Cobertas`, `Obs Obrigacoes Bloqueadas`, `Obs Proximos Pagamentos` e `Extrato Futuro` presentes.
+- `exauridos_no_extrato=0`.
+- `migrados_no_extrato=0`.
+- `cobertas_sem_fonte_pacote=0`.
+- Destinos pós-switching usados corretamente: `Lote 3120 mai`, `Lote 3000 mai Genial`, `Lote 3000 mai Neon`, sem dupla contagem com origens migradas no Extrato Futuro.
+- Etapa 10 preservada: `xlsx status=aprovado`, `divergências materiais=0`.
+- Etapa 11 preservada: `remoção automática autorizada=False`.
+- `dados/cache_bcb.json` permaneceu fora do diff/commit.

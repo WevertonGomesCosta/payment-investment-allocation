@@ -234,10 +234,35 @@ def _reconciliar_fontes_temporais_com_inventario_final(
         fontes_reconciliadas.append(fonte_final)
     return fontes_reconciliadas
 
+def _valor_atual_auditavel_inventario(inventario_lote: dict[str, Any], data_ref: date) -> float:
+    data_base = inventario_lote.get('data_aplicacao') or inventario_lote.get('data_recebimento')
+    if isinstance(data_base, date) and data_base > data_ref:
+        return 0.0
+    if inventario_lote.get('disponibilidade') == 'indisponivel':
+        return 0.0
+    status = str(inventario_lote.get('status_temporal') or '').strip().lower()
+    if status in _STATUS_LOTE_INDISPONIVEL_FONTE or 'migrado' in status or 'exaurido' in status:
+        return 0.0
+    return _float_seguro(
+        inventario_lote.get('valor_liquido_disponivel_atual'),
+        inventario_lote.get('saldo_disponivel_atual'),
+        inventario_lote.get('valor_original'),
+        inventario_lote.get('investimento_bruto'),
+        inventario_lote.get('valor_liquido_migrado'),
+        0.0,
+    )
+
+
 def _materializar_fontes_data_referencia_de_lotes_ativos(
     fontes_temporais: list[dict[str, Any]],
+    inventario_temporal: list[dict[str, Any]],
     data_ref: date,
 ) -> list[dict[str, Any]]:
+    inventario_por_lote = {
+        str(item.get('lote_id') or '').strip(): item
+        for item in inventario_temporal
+        if str(item.get('lote_id') or '').strip()
+    }
     fontes_por_lote: dict[str, list[dict[str, Any]]] = {}
     for fonte in fontes_temporais:
         lote_id = str(fonte.get('lote_id') or fonte.get('fonte_id') or '').strip()
@@ -249,13 +274,18 @@ def _materializar_fontes_data_referencia_de_lotes_ativos(
     for lote_id, fontes_lote in fontes_por_lote.items():
         if any(f.get('data_disponibilidade') == data_ref for f in fontes_lote):
             continue
+        inventario_lote = inventario_por_lote.get(lote_id)
+        if inventario_lote is None:
+            continue
+        valor_atual = _valor_atual_auditavel_inventario(inventario_lote, data_ref)
+        if valor_atual < 1.0:
+            continue
         candidatas = [
             f
             for f in fontes_lote
             if isinstance(f.get('data_disponibilidade'), date)
             and f.get('data_disponibilidade') > data_ref
             and f.get('disponivel_na_referencia') is True
-            and _float_seguro(f.get('valor_liquido_disponivel'), f.get('valor_estimado'), 0.0) >= 1.0
         ]
         if not candidatas:
             continue
@@ -265,8 +295,16 @@ def _materializar_fontes_data_referencia_de_lotes_ativos(
         fonte_ref['data_pagamento'] = data_ref
         fonte_ref['data_evento'] = data_ref
         fonte_ref['pagamento_id'] = None
-        fonte_ref['origem_canonica'] = 'fontes_elegiveis_pagamento_reconciliado_data_referencia'
-        fonte_ref['observacao_reconciliacao'] = 'snapshot_ativo_mais_proximo_materializado_na_data_referencia'
+        fonte_ref['valor_estimado'] = valor_atual
+        fonte_ref['valor_bruto_disponivel'] = valor_atual
+        fonte_ref['valor_liquido_disponivel'] = valor_atual
+        fonte_ref['valor_disponivel'] = valor_atual
+        fonte_ref['saldo_disponivel'] = valor_atual
+        fonte_ref['saldo'] = valor_atual
+        fonte_ref['valor'] = valor_atual
+        fonte_ref['valor_atual_auditavel_origem'] = valor_atual
+        fonte_ref['origem_canonica'] = 'inventario_canonico_reconciliado_data_referencia'
+        fonte_ref['observacao_reconciliacao'] = 'snapshot_data_referencia_usa_somente_valor_atual_auditavel_inventario'
         fontes_adicionais.append(fonte_ref)
     return fontes_temporais + fontes_adicionais
 
@@ -307,7 +345,20 @@ def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> 
         disponivel_ref = row.get('disponivel_na_data_referencia')
         if disponivel_ref is None:
             disponivel_ref = row.get('disponivel', True)
-        inventario_temporal.append({'lote_id':row.get('lote_id'),'status_temporal':status,'disponibilidade':'disponivel' if bool(disponivel_ref) else 'indisponivel','migrado_por_switching':bool(row.get('migrado_por_switching')),'sintetico_pos_switching':bool(row.get('sintetico_pos_switching')),'origem_canonica':row.get('origem_canonica') or 'inventario_canonico'})
+        inventario_temporal.append({
+            'lote_id': row.get('lote_id'),
+            'status_temporal': status,
+            'disponibilidade': 'disponivel' if bool(disponivel_ref) else 'indisponivel',
+            'migrado_por_switching': bool(row.get('migrado_por_switching')),
+            'sintetico_pos_switching': bool(row.get('sintetico_pos_switching')),
+            'origem_canonica': row.get('origem_canonica') or 'inventario_canonico',
+            'data_recebimento': row.get('data_recebimento'),
+            'data_aplicacao': row.get('data_aplicacao'),
+            'valor_original': _float_seguro(row.get('valor_original'), 0.0),
+            'investimento_bruto': _float_seguro(row.get('investimento_bruto'), 0.0),
+            'valor_liquido_disponivel_atual': _float_seguro(row.get('valor_liquido_disponivel'), row.get('saldo_disponivel'), 0.0),
+            'saldo_disponivel_atual': _float_seguro(row.get('saldo_disponivel'), row.get('saldo'), 0.0),
+        })
 
     recebidos_temporais = _recebidos_temporais_canonicos(recebidos_auditaveis, data_ref)
     chaves_recebidos = {_chave_recebido_temporal(r) for r in recebidos_temporais}
@@ -416,7 +467,7 @@ def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> 
                 destino_item['data_recebimento'] = row.get('data_recebimento')
 
     fontes_temporais = _reconciliar_fontes_temporais_com_inventario_final(fontes_temporais, inventario_temporal)
-    fontes_temporais = _materializar_fontes_data_referencia_de_lotes_ativos(fontes_temporais, data_ref)
+    fontes_temporais = _materializar_fontes_data_referencia_de_lotes_ativos(fontes_temporais, inventario_temporal, data_ref)
 
     restricoes_temporais=[]
     elegibilidades=[]

@@ -647,7 +647,7 @@ def montar_recebidos_temporais_dia(
         item = dict(recebido)
         item['materializado_na_data'] = True
         item['futuro_indisponivel_na_data'] = False
-        if item.get('aplicado') is not True and item.get('vinculado') is not True:
+        if _recebido_indisponibilidade_exclusivamente_temporal(item, data_motor):
             item['disponivel_na_referencia'] = True
             item['futuro_indisponivel'] = False
         recebidos.append(item)
@@ -941,13 +941,65 @@ def _fonte_disponivel_referencialmente(fonte: dict[str, Any]) -> bool:
     return True
 
 
+_TOKENS_RECEBIDO_INDISPONIVEL_EXPLICITO = (
+    'exaurido',
+    'indisponivel',
+    'indisponível',
+    'comprometido',
+    'bloqueado',
+    'consumido',
+    'encerrado',
+)
+
+
+def _recebido_temporalmente_indisponivel(recebido: dict[str, Any]) -> bool:
+    return (
+        recebido.get('futuro_indisponivel') is True
+        or recebido.get('futuro_indisponivel_na_data') is True
+        or _texto_material(recebido.get('status_recebido')) in {'futuro', 'futuro_indisponivel'}
+        or _texto_material(recebido.get('status_temporal')) in {'futuro', 'futuro_indisponivel'}
+        or _texto_material(recebido.get('status')) in {'futuro', 'futuro_indisponivel'}
+    )
+
+
+def _recebido_temporal_ja_materializado(recebido: dict[str, Any], data_motor: date) -> bool:
+    data_rec = _data_evento(recebido, 'data_disponibilidade', 'data_recebimento', 'data')
+    return bool(data_rec is not None and data_rec <= data_motor)
+
+
+def _recebido_tem_indisponibilidade_material(recebido: dict[str, Any]) -> bool:
+    if recebido.get('aplicado') is True or recebido.get('vinculado') is True:
+        return True
+    for campo in ('status_recebido', 'status_temporal', 'status', 'motivo', 'motivo_indisponibilidade', 'motivo_bloqueio'):
+        texto = _texto_material(recebido.get(campo))
+        if not texto:
+            continue
+        if texto in {'futuro', 'futuro_indisponivel', 'futuro indisponivel', 'futuro indisponível'}:
+            continue
+        if any(token in texto for token in _TOKENS_RECEBIDO_INDISPONIVEL_EXPLICITO):
+            return True
+    return False
+
+
+def _recebido_indisponibilidade_exclusivamente_temporal(recebido: dict[str, Any], data_motor: date) -> bool:
+    return (
+        _recebido_temporal_ja_materializado(recebido, data_motor)
+        and _recebido_temporalmente_indisponivel(recebido)
+        and not _recebido_tem_indisponibilidade_material(recebido)
+    )
+
+
 def _recebido_disponivel_referencialmente(recebido: dict[str, Any], data_motor: date) -> bool:
     data_rec = _data_evento(recebido, 'data_disponibilidade', 'data_recebimento', 'data')
     if data_rec is None or data_rec > data_motor:
         return False
-    if recebido.get('aplicado') is True:
+    if _recebido_tem_indisponibilidade_material(recebido):
         return False
-    if recebido.get('vinculado') is True:
+    bloqueio_explicito_ref = (
+        recebido.get('disponivel_na_referencia') is False
+        or recebido.get('disponivel_na_data_referencia') is False
+    )
+    if bloqueio_explicito_ref and not _recebido_indisponibilidade_exclusivamente_temporal(recebido, data_motor):
         return False
     return True
 
