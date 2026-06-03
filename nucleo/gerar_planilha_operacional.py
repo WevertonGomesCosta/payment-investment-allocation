@@ -638,47 +638,6 @@ def _valor_economico_observavel(item: Any, campo: str, status_campo: str, padrao
     return valor
 
 
-def _linhas_pagamentos_fontes_oficial_observavel(abas: Mapping[str, Any]) -> list[dict[str, Any]]:
-    cobertas = list(dict(abas or {}).get('Obrigacoes Cobertas', []) or [])
-    linhas: list[dict[str, Any]] = []
-    for item in cobertas:
-        detalhes = list(_valor_observavel_oficial(item, 'detalhes_fontes_resgate', []) or [])
-        if not detalhes:
-            continue
-        referencia = _referencia_obrigacao_observavel(item)
-        pacote_id = _valor_observavel_oficial(item, 'pacote_id')
-        pacote_nome = _valor_observavel_oficial(item, 'pacote_nome_operacional')
-        pacote_oficial = _texto_observavel(pacote_nome or pacote_id, 'sem_pacote_valido')
-        data = _valor_observavel_oficial(item, 'data') or referencia.get('data')
-        conta = referencia.get('conta') or referencia.get('descricao') or referencia.get('Conta') or _texto_observavel(_valor_observavel_oficial(item, 'obrigacao_id'))
-        for detalhe in detalhes:
-            fonte_operacional = (
-                _valor_observavel_oficial(detalhe, 'lote_id_operacional')
-                or _valor_observavel_oficial(detalhe, 'fonte_nome_operacional')
-                or _valor_observavel_oficial(detalhe, 'fonte_id')
-            )
-            fonte_tecnica = (
-                _valor_observavel_oficial(detalhe, 'fonte_id_tecnico')
-                or _valor_observavel_oficial(detalhe, 'fonte_id')
-            )
-            linhas.append({
-                'Data': data,
-                'Conta': conta,
-                'Despesa ID': _valor_observavel_oficial(item, 'obrigacao_id') or referencia.get('pagamento_id') or referencia.get('id'),
-                'Lote/Fonte operacional': _texto_observavel(fonte_operacional, 'ausente_na_fonte'),
-                'Fonte técnica': _texto_observavel(fonte_tecnica, 'ausente_na_fonte'),
-                'Pacote': pacote_oficial,
-                'Pacote técnico': _texto_observavel(pacote_id, 'sem_pacote_valido'),
-                'Saldo Antes': _valor_economico_observavel(detalhe, 'saldo_antes_fonte', 'status_saldo_antes_fonte'),
-                'Bruto': _valor_economico_observavel(detalhe, 'valor_bruto_resgate', 'status_valor_bruto_resgate'),
-                'Imposto': _valor_economico_observavel(detalhe, 'imposto_resgate', 'status_imposto_resgate'),
-                'Líquido': _valor_economico_observavel(detalhe, 'valor_liquido_resgate', 'status_valor_liquido_resgate'),
-                'Saldo Remanescente': _valor_economico_observavel(detalhe, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte'),
-                'Status': _texto_observavel(_valor_observavel_oficial(item, 'status'), 'coberta_oficial'),
-                'Tipo fonte': _texto_observavel(_valor_observavel_oficial(detalhe, 'tipo_fonte'), 'n/d'),
-            })
-    return linhas
-
 def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: Any) -> list[dict[str, Any]]:
     if pacote_saida_observavel_oficial is None:
         return []
@@ -763,10 +722,6 @@ def _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial) -> 
         abas = {
             'Resumo Operacional': [getattr(pacote_saida_observavel_oficial, 'metadados', {}) or {}],
         }
-
-    linhas_pagamentos_fontes = _linhas_pagamentos_fontes_oficial_observavel(abas)
-    if linhas_pagamentos_fontes and 'Pagamentos Fontes' not in abas:
-        abas['Pagamentos Fontes'] = linhas_pagamentos_fontes
 
     usados = {ws.title for ws in wb.worksheets}
     for nome_aba, linhas in abas.items():

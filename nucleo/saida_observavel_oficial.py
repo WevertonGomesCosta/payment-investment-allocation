@@ -45,6 +45,7 @@ class BlocoConsoleSaidaObservavel:
     resumo_operacional: dict[str, Any] = field(default_factory=dict)
     ultimos_pagamentos: list[dict[str, Any]] = field(default_factory=list)
     proximos_pagamentos: list[dict[str, Any]] = field(default_factory=list)
+    pagamentos_por_fonte: list[dict[str, Any]] = field(default_factory=list)
     fontes_utilizadas: list[dict[str, Any]] = field(default_factory=list)
     obrigacoes_cobertas: list[dict[str, Any]] = field(default_factory=list)
     obrigacoes_bloqueadas: list[dict[str, Any]] = field(default_factory=list)
@@ -346,12 +347,95 @@ def preparar_resumo_operacional_observavel(blocos: dict[str, Any]) -> dict[str, 
     }
 
 
+def _data_observavel_item(item: dict[str, Any]) -> date | None:
+    data_item = item.get('data')
+    if isinstance(data_item, date):
+        return data_item
+    referencia = item.get('referencia_original') or {}
+    data_ref = referencia.get('data') if isinstance(referencia, dict) else None
+    return data_ref if isinstance(data_ref, date) else None
+
+
+def _status_pagamento_observavel(item: dict[str, Any], *, bloqueada: bool) -> dict[str, Any]:
+    saida = dict(item)
+    saida['status_observavel'] = 'bloqueada_oficial' if bloqueada else 'coberta_oficial'
+    return saida
+
+
 def preparar_bloco_ultimos_pagamentos(blocos: dict[str, Any], limite: int = 5) -> list[dict[str, Any]]:
-    return list(blocos['obrigacoes_cobertas'])[-limite:]
+    data_referencia = blocos.get('data_referencia')
+    cobertas = [
+        _status_pagamento_observavel(item, bloqueada=False)
+        for item in list(blocos['obrigacoes_cobertas'])
+        if _data_observavel_item(item) is not None
+        and (not isinstance(data_referencia, date) or _data_observavel_item(item) <= data_referencia)
+    ]
+    return sorted(
+        cobertas,
+        key=lambda item: (_data_observavel_item(item) or date.min, str(item.get('obrigacao_id') or '')),
+        reverse=True,
+    )[:limite]
 
 
 def preparar_bloco_proximos_pagamentos(blocos: dict[str, Any], limite: int = 5) -> list[dict[str, Any]]:
-    return list(blocos['obrigacoes_bloqueadas'])[:limite]
+    data_referencia = blocos.get('data_referencia')
+    proximos: list[dict[str, Any]] = []
+    for item in list(blocos['obrigacoes_cobertas']):
+        data_item = _data_observavel_item(item)
+        if data_item is None or not isinstance(data_referencia, date) or data_item >= data_referencia:
+            proximos.append(_status_pagamento_observavel(item, bloqueada=False))
+    for item in list(blocos['obrigacoes_bloqueadas']):
+        data_item = _data_observavel_item(item)
+        if data_item is None or not isinstance(data_referencia, date) or data_item >= data_referencia:
+            proximos.append(_status_pagamento_observavel(item, bloqueada=True))
+    return sorted(
+        proximos,
+        key=lambda item: (_data_observavel_item(item) is None, _data_observavel_item(item) or date.max, item.get('status_observavel') == 'bloqueada_oficial', str(item.get('obrigacao_id') or '')),
+    )[:limite]
+
+
+def _valor_economico_detalhe_observavel(detalhe: dict[str, Any], campo: str, status_campo: str) -> Any:
+    valor = detalhe.get(campo)
+    if valor is not None:
+        return valor
+    return detalhe.get(status_campo) or 'nao_materializado'
+
+
+def preparar_bloco_pagamentos_por_fonte(blocos: dict[str, Any]) -> list[dict[str, Any]]:
+    linhas: list[dict[str, Any]] = []
+    for item in list(blocos['obrigacoes_cobertas']):
+        detalhes = list(item.get('detalhes_fontes_resgate') or [])
+        if not detalhes:
+            continue
+        referencia = item.get('referencia_original') or {}
+        pacote_id = item.get('pacote_id')
+        pacote = item.get('pacote_nome_operacional') or pacote_id or 'sem_pacote_valido'
+        for detalhe in detalhes:
+            if not isinstance(detalhe, dict):
+                continue
+            fonte_operacional = (
+                detalhe.get('lote_id_operacional')
+                or detalhe.get('fonte_nome_operacional')
+                or detalhe.get('fonte_id')
+                or 'ausente_na_fonte'
+            )
+            fonte_tecnica = detalhe.get('fonte_id_tecnico') or detalhe.get('fonte_id') or 'ausente_na_fonte'
+            linhas.append({
+                'Data': _data_observavel_item(item),
+                'Conta': referencia.get('conta') or referencia.get('descricao') or referencia.get('Conta') or item.get('obrigacao_id'),
+                'Lote/Fonte operacional': fonte_operacional,
+                'Fonte técnica': fonte_tecnica,
+                'Pacote': pacote,
+                'Saldo Antes': _valor_economico_detalhe_observavel(detalhe, 'saldo_antes_fonte', 'status_saldo_antes_fonte'),
+                'Bruto': _valor_economico_detalhe_observavel(detalhe, 'valor_bruto_resgate', 'status_valor_bruto_resgate'),
+                'IR': _valor_economico_detalhe_observavel(detalhe, 'imposto_resgate', 'status_imposto_resgate'),
+                'Líquido': _valor_economico_detalhe_observavel(detalhe, 'valor_liquido_resgate', 'status_valor_liquido_resgate'),
+                'Saldo Remanescente': _valor_economico_detalhe_observavel(detalhe, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte'),
+                'Status': item.get('status_observavel') or 'coberta_oficial',
+                'Obrigacao ID': item.get('obrigacao_id'),
+                'Pacote ID': pacote_id,
+            })
+    return linhas
 
 
 def preparar_bloco_fontes_utilizadas_reservadas(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
@@ -417,6 +501,7 @@ def preparar_blocos_console(
     resumo: dict[str, Any],
     ultimos_pagamentos: list[dict[str, Any]],
     proximos_pagamentos: list[dict[str, Any]],
+    pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
     switchings: list[dict[str, Any]],
@@ -428,6 +513,7 @@ def preparar_blocos_console(
         resumo_operacional=resumo,
         ultimos_pagamentos=ultimos_pagamentos,
         proximos_pagamentos=proximos_pagamentos,
+        pagamentos_por_fonte=pagamentos_por_fonte,
         fontes_utilizadas=fontes['fontes_utilizadas'],
         obrigacoes_cobertas=obrigacoes['obrigacoes_cobertas'],
         obrigacoes_bloqueadas=obrigacoes['obrigacoes_bloqueadas'],
@@ -445,6 +531,7 @@ def preparar_blocos_xlsx(
     resumo: dict[str, Any],
     ultimos_pagamentos: list[dict[str, Any]],
     proximos_pagamentos: list[dict[str, Any]],
+    pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
     switchings: list[dict[str, Any]],
@@ -456,6 +543,7 @@ def preparar_blocos_xlsx(
         'Resumo Operacional': [resumo],
         'Ultimos Pagamentos': ultimos_pagamentos,
         'Proximos Pagamentos': proximos_pagamentos,
+        'Pagamentos Fontes': pagamentos_por_fonte,
         'Fontes Utilizadas': fontes['fontes_utilizadas'],
         'Fontes Reservadas': fontes['fontes_reservadas'],
         'Obrigacoes Cobertas': obrigacoes['obrigacoes_cobertas'],
@@ -591,6 +679,7 @@ def construir_pacote_saida_observavel_oficial(
     resumo_operacional = preparar_resumo_operacional_observavel(blocos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(blocos)
     proximos_pagamentos = preparar_bloco_proximos_pagamentos(blocos)
+    pagamentos_por_fonte = preparar_bloco_pagamentos_por_fonte(blocos)
     fontes = preparar_bloco_fontes_utilizadas_reservadas(blocos)
     obrigacoes = preparar_bloco_obrigacoes(blocos)
     switchings = preparar_bloco_switchings(blocos)
@@ -605,6 +694,7 @@ def construir_pacote_saida_observavel_oficial(
         resumo_operacional,
         ultimos_pagamentos,
         proximos_pagamentos,
+        pagamentos_por_fonte,
         fontes,
         obrigacoes,
         switchings,
@@ -616,6 +706,7 @@ def construir_pacote_saida_observavel_oficial(
         resumo_operacional,
         ultimos_pagamentos,
         proximos_pagamentos,
+        pagamentos_por_fonte,
         fontes,
         obrigacoes,
         switchings,
