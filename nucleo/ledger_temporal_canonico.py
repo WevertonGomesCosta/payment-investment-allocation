@@ -138,6 +138,8 @@ class LedgerTemporalCanonico:
     fontes_reservadas: list[LancamentoReservaLedger] = field(default_factory=list)
     switchings_escolhidos: list[LancamentoSwitchingLedger] = field(default_factory=list)
     saldos_referenciais_por_data: dict[date, list[SaldoLedgerTemporal]] = field(default_factory=dict)
+    destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
+    lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
     bloqueios: list[LancamentoBloqueioLedger] = field(default_factory=list)
     avisos: list[str] = field(default_factory=list)
     auditoria: AuditoriaLedgerTemporalCanonico | None = None
@@ -156,6 +158,8 @@ _CAMPOS_ESPERADOS_RESULTADO = [
     'obrigacoes_cobertas_temporalmente',
     'obrigacoes_bloqueadas_temporalmente',
     'switchings_escolhidos_temporalmente',
+    'destinos_sobras_recebidos_temporais',
+    'lotes_futuros_materializados',
     'auditoria_trajetoria_temporal_interna',
     'auditoria_final_etapa5',
     'fechamento_funcional_etapa5',
@@ -460,6 +464,8 @@ def _auditar_ledger(ledger: LedgerTemporalCanonico, resultado: ResultadoMotorTem
         'qtd_fontes_utilizadas': len(ledger.fontes_utilizadas),
         'qtd_fontes_reservadas': len(ledger.fontes_reservadas),
         'qtd_switchings_escolhidos': len(ledger.switchings_escolhidos),
+        'qtd_destinos_sobras_recebidos': len(ledger.destinos_sobras_recebidos),
+        'qtd_lotes_futuros_materializados': len(ledger.lotes_futuros_materializados),
         'qtd_bloqueios': len(ledger.bloqueios),
         'origem_exclusiva': metadados.get('origem_exclusiva'),
         'pronto_para_etapa6_origem': _valor(resultado, 'pronto_para_etapa6', False),
@@ -533,6 +539,18 @@ def construir_ledger_temporal_canonico(
         lancamento = _switching_para_ledger(switching)
         ledger.switchings_escolhidos.append(lancamento)
         _registrar_lancamento(ledger, lancamento.data, lancamento)
+
+    for destino in _lista(_valor(resultado, 'destinos_sobras_recebidos_temporais', [])):
+        destino_snapshot = _dict_referencia(destino)
+        destino_snapshot['origem'] = 'ResultadoMotorTemporalConjunto.destinos_sobras_recebidos_temporais'
+        ledger.destinos_sobras_recebidos.append(destino_snapshot)
+        _registrar_lancamento(ledger, _valor(destino, 'data_recebimento'), destino_snapshot)
+
+    for lote in _lista(_valor(resultado, 'lotes_futuros_materializados', [])):
+        lote_snapshot = _dict_referencia(lote)
+        lote_snapshot['origem'] = 'ResultadoMotorTemporalConjunto.lotes_futuros_materializados'
+        ledger.lotes_futuros_materializados.append(lote_snapshot)
+        _registrar_lancamento(ledger, _valor(lote, 'data_aplicacao') or _valor(lote, 'data_recebimento'), lote_snapshot)
 
     ledger.saldos_referenciais_por_data = _saldos_por_data(resultado)
     for data_ref, saldos in ledger.saldos_referenciais_por_data.items():
