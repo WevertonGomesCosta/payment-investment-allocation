@@ -626,6 +626,17 @@ def _texto_observavel(valor: Any, padrao: str = 'n/d') -> str:
     return texto if texto else padrao
 
 
+
+def _valor_economico_observavel(item: Any, campo: str, status_campo: str, padrao: str = 'nao_materializado') -> Any:
+    valor = _valor_observavel_oficial(item, campo)
+    if valor is None:
+        status = _valor_observavel_oficial(item, status_campo)
+        return status or padrao
+    if isinstance(valor, str):
+        texto = valor.strip()
+        return texto if texto else padrao
+    return valor
+
 def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: Any) -> list[dict[str, Any]]:
     if pacote_saida_observavel_oficial is None:
         return []
@@ -662,11 +673,11 @@ def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: A
                 'Valor': valor,
                 'Lote sugerido': fonte_oficial if cobertura_integral == 'sim' else 'n/d',
                 'Fonte técnica': fonte_tecnica if cobertura_integral == 'sim' else 'n/d',
-                'Saldo Antes': 'n/d',
-                'Bruto': valor if cobertura_integral == 'sim' else 'n/d',
-                'Imposto': 'n/d',
-                'Líquido': _valor_observavel_oficial(item, 'valor_coberto_referencial') if cobertura_integral == 'sim' else 'n/d',
-                'Saldo Remanescente': 'n/d',
+                'Saldo Antes': _valor_economico_observavel(item, 'saldo_antes_fonte', 'status_saldo_antes_fonte') if cobertura_integral == 'sim' else 'nao_aplicavel',
+                'Bruto': _valor_economico_observavel(item, 'valor_bruto_resgate', 'status_valor_bruto_resgate') if cobertura_integral == 'sim' else 'nao_aplicavel',
+                'Imposto': _valor_economico_observavel(item, 'imposto_resgate', 'status_imposto_resgate') if cobertura_integral == 'sim' else 'nao_aplicavel',
+                'Líquido': _valor_economico_observavel(item, 'valor_liquido_resgate', 'status_valor_liquido_resgate') if cobertura_integral == 'sim' else 'nao_aplicavel',
+                'Saldo Remanescente': _valor_economico_observavel(item, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte') if cobertura_integral == 'sim' else 'nao_aplicavel',
                 'Cobertura integral': cobertura_integral,
                 'Estratégia': 'obrigacao_coberta_oficial' if cobertura_integral == 'sim' else 'obrigacao_bloqueada_oficial',
                 'Pacote do dia': pacote_oficial,

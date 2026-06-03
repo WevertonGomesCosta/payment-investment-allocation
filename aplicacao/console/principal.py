@@ -184,6 +184,20 @@ def _fontes_obrigacao_oficial(item):
     return ' + '.join(str(f) for f in fontes if f) or 'n/d'
 
 
+
+def _valor_economico_oficial(item, campo, status_campo=None, padrao='nao_materializado'):
+    valor = _valor_oficial(item, campo)
+    if valor is None and status_campo:
+        status = _valor_oficial(item, status_campo)
+        if status:
+            return status
+    if valor is None:
+        return padrao
+    if isinstance(valor, (int, float)):
+        return f'{float(valor):.2f}'
+    texto = str(valor).strip()
+    return texto if texto else padrao
+
 def _linha_pagamento_oficial(item, bloqueada=False):
     referencia = _valor_oficial(item, 'referencia_original', {}) or {}
     valor = _valor_oficial(item, 'valor_obrigacao_referencial', _valor_oficial(referencia, 'valor', 0.0))
@@ -199,11 +213,11 @@ def _linha_pagamento_oficial(item, bloqueada=False):
         'Sw. dep.': 'não',
         'Status': 'bloqueada_oficial' if bloqueada else 'coberta_oficial',
         'Bloq.': motivo if bloqueada else 'n/d',
-        'Saldo ant.': 'n/d',
-        'Bruto': f'{float(valor or 0.0):.2f}',
-        'IR': 'n/d',
-        'Liq.': f'{float(_valor_oficial(item, "valor_coberto_referencial", valor) or 0.0):.2f}',
-        'Rem.': 'n/d',
+        'Saldo ant.': _valor_economico_oficial(item, 'saldo_antes_fonte', 'status_saldo_antes_fonte') if not bloqueada else 'nao_aplicavel',
+        'Bruto': _valor_economico_oficial(item, 'valor_bruto_resgate', 'status_valor_bruto_resgate') if not bloqueada else 'nao_aplicavel',
+        'IR': _valor_economico_oficial(item, 'imposto_resgate', 'status_imposto_resgate') if not bloqueada else 'nao_aplicavel',
+        'Liq.': _valor_economico_oficial(item, 'valor_liquido_resgate', 'status_valor_liquido_resgate') if not bloqueada else 'nao_aplicavel',
+        'Rem.': _valor_economico_oficial(item, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte') if not bloqueada else 'nao_aplicavel',
     }
 
 

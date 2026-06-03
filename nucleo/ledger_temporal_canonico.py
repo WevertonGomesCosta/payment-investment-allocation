@@ -39,6 +39,17 @@ class LancamentoObrigacaoLedger:
     motivo: str | None = None
     referencia_original: dict[str, Any] = field(default_factory=dict)
     metadados: dict[str, Any] = field(default_factory=dict)
+    detalhes_fontes_resgate: list[dict[str, Any]] = field(default_factory=list)
+    saldo_antes_fonte: float | str | None = None
+    valor_bruto_resgate: float | str | None = None
+    imposto_resgate: float | str | None = None
+    valor_liquido_resgate: float | str | None = None
+    saldo_remanescente_fonte: float | str | None = None
+    status_saldo_antes_fonte: str | None = None
+    status_valor_bruto_resgate: str | None = None
+    status_imposto_resgate: str | None = None
+    status_valor_liquido_resgate: str | None = None
+    status_saldo_remanescente_fonte: str | None = None
 
 
 @dataclass(slots=True)
@@ -58,6 +69,16 @@ class LancamentoFonteLedger:
     metadados: dict[str, Any] = field(default_factory=dict)
     fonte_id_tecnico: str | None = None
     lote_id_operacional: str | None = None
+    saldo_antes_fonte: float | str | None = None
+    valor_bruto_resgate: float | str | None = None
+    imposto_resgate: float | str | None = None
+    valor_liquido_resgate: float | str | None = None
+    saldo_remanescente_fonte: float | str | None = None
+    status_saldo_antes_fonte: str | None = None
+    status_valor_bruto_resgate: str | None = None
+    status_imposto_resgate: str | None = None
+    status_valor_liquido_resgate: str | None = None
+    status_saldo_remanescente_fonte: str | None = None
 
 
 @dataclass(slots=True)
@@ -77,6 +98,16 @@ class LancamentoReservaLedger:
     metadados: dict[str, Any] = field(default_factory=dict)
     fonte_id_tecnico: str | None = None
     lote_id_operacional: str | None = None
+    saldo_antes_fonte: float | str | None = None
+    valor_bruto_resgate: float | str | None = None
+    imposto_resgate: float | str | None = None
+    valor_liquido_resgate: float | str | None = None
+    saldo_remanescente_fonte: float | str | None = None
+    status_saldo_antes_fonte: str | None = None
+    status_valor_bruto_resgate: str | None = None
+    status_imposto_resgate: str | None = None
+    status_valor_liquido_resgate: str | None = None
+    status_saldo_remanescente_fonte: str | None = None
 
 
 @dataclass(slots=True)
@@ -274,6 +305,16 @@ def _reserva_para_lancamentos(reserva: Any) -> tuple[LancamentoReservaLedger, La
         },
         fonte_id_tecnico=fonte_id_tecnico,
         lote_id_operacional=lote_id_operacional,
+        saldo_antes_fonte=_valor(reserva, 'saldo_antes_fonte'),
+        valor_bruto_resgate=_valor(reserva, 'valor_bruto_resgate'),
+        imposto_resgate=_valor(reserva, 'imposto_resgate'),
+        valor_liquido_resgate=_valor(reserva, 'valor_liquido_resgate'),
+        saldo_remanescente_fonte=_valor(reserva, 'saldo_remanescente_fonte'),
+        status_saldo_antes_fonte=_valor(reserva, 'status_saldo_antes_fonte'),
+        status_valor_bruto_resgate=_valor(reserva, 'status_valor_bruto_resgate'),
+        status_imposto_resgate=_valor(reserva, 'status_imposto_resgate'),
+        status_valor_liquido_resgate=_valor(reserva, 'status_valor_liquido_resgate'),
+        status_saldo_remanescente_fonte=_valor(reserva, 'status_saldo_remanescente_fonte'),
     )
     fonte_ledger = LancamentoFonteLedger(
         data=data_reserva,
@@ -295,6 +336,16 @@ def _reserva_para_lancamentos(reserva: Any) -> tuple[LancamentoReservaLedger, La
         },
         fonte_id_tecnico=fonte_id_tecnico,
         lote_id_operacional=lote_id_operacional,
+        saldo_antes_fonte=_valor(reserva, 'saldo_antes_fonte'),
+        valor_bruto_resgate=_valor(reserva, 'valor_bruto_resgate'),
+        imposto_resgate=_valor(reserva, 'imposto_resgate'),
+        valor_liquido_resgate=_valor(reserva, 'valor_liquido_resgate'),
+        saldo_remanescente_fonte=_valor(reserva, 'saldo_remanescente_fonte'),
+        status_saldo_antes_fonte=_valor(reserva, 'status_saldo_antes_fonte'),
+        status_valor_bruto_resgate=_valor(reserva, 'status_valor_bruto_resgate'),
+        status_imposto_resgate=_valor(reserva, 'status_imposto_resgate'),
+        status_valor_liquido_resgate=_valor(reserva, 'status_valor_liquido_resgate'),
+        status_saldo_remanescente_fonte=_valor(reserva, 'status_saldo_remanescente_fonte'),
     )
     return reserva_ledger, fonte_ledger
 
@@ -311,6 +362,17 @@ def _obrigacao_coberta_para_ledger(obrigacao: Any) -> LancamentoObrigacaoLedger:
         status='coberta_referencialmente_sem_pagamento_bancario_real',
         referencia_original=_dict_referencia(_valor(obrigacao, 'referencia_obrigacao_temporal', {})),
         metadados={'origem': 'obrigacoes_cobertas_temporalmente'},
+        detalhes_fontes_resgate=list(_valor(obrigacao, 'detalhes_fontes_resgate', []) or []),
+        saldo_antes_fonte=_valor(obrigacao, 'saldo_antes_fonte'),
+        valor_bruto_resgate=_valor(obrigacao, 'valor_bruto_resgate'),
+        imposto_resgate=_valor(obrigacao, 'imposto_resgate'),
+        valor_liquido_resgate=_valor(obrigacao, 'valor_liquido_resgate'),
+        saldo_remanescente_fonte=_valor(obrigacao, 'saldo_remanescente_fonte'),
+        status_saldo_antes_fonte=_valor(obrigacao, 'status_saldo_antes_fonte'),
+        status_valor_bruto_resgate=_valor(obrigacao, 'status_valor_bruto_resgate'),
+        status_imposto_resgate=_valor(obrigacao, 'status_imposto_resgate'),
+        status_valor_liquido_resgate=_valor(obrigacao, 'status_valor_liquido_resgate'),
+        status_saldo_remanescente_fonte=_valor(obrigacao, 'status_saldo_remanescente_fonte'),
     )
 
 

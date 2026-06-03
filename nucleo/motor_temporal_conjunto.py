@@ -273,6 +273,16 @@ class FonteReservadaTemporalmente:
     referencia_estado_temporal: dict[str, Any] = field(default_factory=dict)
     fonte_id_tecnico: str | None = None
     lote_id_operacional: str | None = None
+    saldo_antes_fonte: float | str | None = None
+    valor_bruto_resgate: float | str | None = None
+    imposto_resgate: float | str | None = None
+    valor_liquido_resgate: float | str | None = None
+    saldo_remanescente_fonte: float | str | None = None
+    status_saldo_antes_fonte: str = 'materializado'
+    status_valor_bruto_resgate: str = 'materializado'
+    status_imposto_resgate: str = 'materializado'
+    status_valor_liquido_resgate: str = 'materializado'
+    status_saldo_remanescente_fonte: str = 'materializado'
 
 
 @dataclass(slots=True)
@@ -284,6 +294,17 @@ class ObrigacaoCobertaTemporalmente:
     valor_coberto_referencial: float
     fontes_reservadas_ids: list[str]
     referencia_obrigacao_temporal: dict[str, Any] = field(default_factory=dict)
+    detalhes_fontes_resgate: list[dict[str, Any]] = field(default_factory=list)
+    saldo_antes_fonte: float | str | None = None
+    valor_bruto_resgate: float | str | None = None
+    imposto_resgate: float | str | None = None
+    valor_liquido_resgate: float | str | None = None
+    saldo_remanescente_fonte: float | str | None = None
+    status_saldo_antes_fonte: str = 'nao_materializado'
+    status_valor_bruto_resgate: str = 'nao_materializado'
+    status_imposto_resgate: str = 'nao_materializado'
+    status_valor_liquido_resgate: str = 'nao_materializado'
+    status_saldo_remanescente_fonte: str = 'nao_materializado'
 
 
 _MOTIVOS_OBRIGACAO_BLOQUEADA_NAO_IMPEDITIVOS = {
@@ -1846,6 +1867,169 @@ def _lote_id_operacional_de_fonte_reservada(fonte_id: str | None, referencia: di
             return valor
     return fonte_id
 
+
+def _numero_motor(valor: Any) -> float | None:
+    if valor is None:
+        return None
+    try:
+        numero = float(valor)
+    except (TypeError, ValueError):
+        return None
+    if numero != numero:
+        return None
+    return numero
+
+
+def _metrica_resgate_fonte(
+    *,
+    tipo_fonte: str | None,
+    referencia: dict[str, Any] | None,
+    valor_reserva: float,
+    saldo_antes: float,
+    saldo_depois: float,
+) -> dict[str, Any]:
+    ref = referencia or {}
+    tipo = str(tipo_fonte or ref.get('tipo_fonte') or '').strip().lower()
+    bruto_disponivel = _numero_motor(ref.get('valor_bruto_disponivel'))
+    liquido_disponivel = _numero_motor(ref.get('valor_liquido_disponivel') or ref.get('valor_estimado'))
+    recebido = tipo == 'recebido_referencial' or 'recebido' in tipo or 'salario' in tipo or 'salário' in tipo
+
+    if recebido:
+        valor_bruto: float | str = round(float(valor_reserva), 10)
+        imposto: float | str = 'nao_aplicavel'
+        status_bruto = 'materializado'
+        status_imposto = 'nao_aplicavel'
+    elif bruto_disponivel is not None and liquido_disponivel is not None and abs(float(valor_reserva) - liquido_disponivel) <= 0.000001:
+        valor_bruto = round(bruto_disponivel, 10)
+        imposto = round(max(bruto_disponivel - liquido_disponivel, 0.0), 10)
+        status_bruto = 'materializado'
+        status_imposto = 'materializado'
+    else:
+        valor_bruto = 'nao_materializado'
+        imposto = 'nao_materializado'
+        status_bruto = 'nao_materializado'
+        status_imposto = 'nao_materializado'
+
+    return {
+        'saldo_antes_fonte': round(float(saldo_antes), 10),
+        'valor_bruto_resgate': valor_bruto,
+        'imposto_resgate': imposto,
+        'valor_liquido_resgate': round(float(valor_reserva), 10),
+        'saldo_remanescente_fonte': round(float(saldo_depois), 10),
+        'status_saldo_antes_fonte': 'materializado',
+        'status_valor_bruto_resgate': status_bruto,
+        'status_imposto_resgate': status_imposto,
+        'status_valor_liquido_resgate': 'materializado',
+        'status_saldo_remanescente_fonte': 'materializado',
+    }
+
+
+def _agregar_metricas_fontes_resgate(detalhes: list[dict[str, Any]]) -> dict[str, Any]:
+    def agregar(campo: str, status_campo: str) -> tuple[float | str | None, str]:
+        if not detalhes:
+            return 'nao_materializado', 'nao_materializado'
+        valores = [d.get(campo) for d in detalhes]
+        status = [str(d.get(status_campo) or '').strip() for d in detalhes]
+        numeros = [_numero_motor(v) for v in valores]
+        if all(n is not None for n in numeros):
+            return round(sum(float(n) for n in numeros if n is not None), 10), 'materializado'
+        categorias = {str(v).strip() for v in valores if str(v).strip()} | {s for s in status if s}
+        if categorias == {'nao_aplicavel'}:
+            return 'nao_aplicavel', 'nao_aplicavel'
+        if 'nao_materializado' in categorias:
+            return 'nao_materializado', 'nao_materializado'
+        if 'ausente_na_fonte' in categorias:
+            return 'ausente_na_fonte', 'ausente_na_fonte'
+        return 'nao_materializado', 'nao_materializado'
+
+    saldo_antes, status_saldo_antes = agregar('saldo_antes_fonte', 'status_saldo_antes_fonte')
+    bruto, status_bruto = agregar('valor_bruto_resgate', 'status_valor_bruto_resgate')
+    imposto, status_imposto = agregar('imposto_resgate', 'status_imposto_resgate')
+    liquido, status_liquido = agregar('valor_liquido_resgate', 'status_valor_liquido_resgate')
+    remanescente, status_remanescente = agregar('saldo_remanescente_fonte', 'status_saldo_remanescente_fonte')
+    return {
+        'saldo_antes_fonte': saldo_antes,
+        'valor_bruto_resgate': bruto,
+        'imposto_resgate': imposto,
+        'valor_liquido_resgate': liquido,
+        'saldo_remanescente_fonte': remanescente,
+        'status_saldo_antes_fonte': status_saldo_antes,
+        'status_valor_bruto_resgate': status_bruto,
+        'status_imposto_resgate': status_imposto,
+        'status_valor_liquido_resgate': status_liquido,
+        'status_saldo_remanescente_fonte': status_remanescente,
+    }
+
+
+def _detalhes_fontes_resgate_obrigacao(
+    reservas: list[FonteReservadaTemporalmente],
+    valor_obrigacao: float,
+    estado_alocacao: dict[str, dict[str, float]],
+    obrigacao_id: str | None,
+) -> list[dict[str, Any]]:
+    detalhes: list[dict[str, Any]] = []
+    restante = max(float(valor_obrigacao or 0.0), 0.0)
+    for reserva in reservas:
+        if restante <= 0.000001:
+            break
+        chave = reserva.fonte_id
+        estado = estado_alocacao.setdefault(chave, {
+            'saldo_atual': float(reserva.saldo_antes_fonte if _numero_motor(reserva.saldo_antes_fonte) is not None else reserva.valor_disponivel_antes_referencial),
+            'reservado_restante': float(reserva.valor_liquido_resgate if _numero_motor(reserva.valor_liquido_resgate) is not None else reserva.valor_reservado_referencial),
+        })
+        disponivel_reserva = max(float(estado.get('reservado_restante', 0.0)), 0.0)
+        if disponivel_reserva <= 0.000001:
+            continue
+        saldo_antes = max(float(estado.get('saldo_atual', 0.0)), 0.0)
+        valor_consumo = min(disponivel_reserva, restante, saldo_antes)
+        if valor_consumo <= 0.000001:
+            continue
+        saldo_depois = saldo_antes - valor_consumo
+        metricas = _metrica_resgate_fonte(
+            tipo_fonte=reserva.tipo_fonte,
+            referencia=reserva.referencia_estado_temporal,
+            valor_reserva=valor_consumo,
+            saldo_antes=saldo_antes,
+            saldo_depois=saldo_depois,
+        )
+        detalhe = {
+            'data_pagamento': reserva.data,
+            'obrigacao_id': obrigacao_id,
+            'pacote_id': reserva.pacote_id,
+            'fonte_id_tecnico': reserva.fonte_id_tecnico or reserva.fonte_id,
+            'fonte_id': reserva.fonte_id,
+            'lote_id_operacional': reserva.lote_id_operacional,
+            'tipo_fonte': reserva.tipo_fonte,
+            'origem_fonte': reserva.origem_fonte,
+            **metricas,
+        }
+        detalhes.append(detalhe)
+        estado['saldo_atual'] = saldo_depois
+        estado['reservado_restante'] = disponivel_reserva - valor_consumo
+        restante -= valor_consumo
+    if restante > 0.000001:
+        detalhes.append({
+            'data_pagamento': reservas[0].data if reservas else None,
+            'obrigacao_id': obrigacao_id,
+            'pacote_id': reservas[0].pacote_id if reservas else None,
+            'fonte_id_tecnico': 'ausente_na_fonte',
+            'fonte_id': 'ausente_na_fonte',
+            'lote_id_operacional': 'ausente_na_fonte',
+            'tipo_fonte': 'ausente_na_fonte',
+            'origem_fonte': 'alocacao_reserva_referencial',
+            'saldo_antes_fonte': 'ausente_na_fonte',
+            'valor_bruto_resgate': 'ausente_na_fonte',
+            'imposto_resgate': 'ausente_na_fonte',
+            'valor_liquido_resgate': round(restante, 10),
+            'saldo_remanescente_fonte': 'ausente_na_fonte',
+            'status_saldo_antes_fonte': 'ausente_na_fonte',
+            'status_valor_bruto_resgate': 'ausente_na_fonte',
+            'status_imposto_resgate': 'ausente_na_fonte',
+            'status_valor_liquido_resgate': 'materializado',
+            'status_saldo_remanescente_fonte': 'ausente_na_fonte',
+        })
+    return detalhes
+
 def _valor_total_obrigacoes_pacote(pacote: PacoteTemporalCandidato) -> tuple[float, list[str]]:
     avisos: list[str] = []
     if pacote.valor_obrigacoes is not None:
@@ -1927,6 +2111,13 @@ def _reservar_fontes_referenciais(
         depois = antes - valor_reserva
         saldos_disponiveis[fonte_id] = depois
         reservas_acumuladas[fonte_id] = reservas_acumuladas.get(fonte_id, 0.0) + valor_reserva
+        metricas_resgate = _metrica_resgate_fonte(
+            tipo_fonte=fonte.tipo_fonte,
+            referencia=fonte.referencia_estado_temporal,
+            valor_reserva=valor_reserva,
+            saldo_antes=antes,
+            saldo_depois=depois,
+        )
         reservas.append(FonteReservadaTemporalmente(
             data=data_ref,
             fonte_id=fonte_id,
@@ -1943,6 +2134,7 @@ def _reservar_fontes_referenciais(
                 fonte_id,
                 fonte.referencia_estado_temporal,
             ),
+            **metricas_resgate,
         ))
         restante -= valor_reserva
     return reservas, valor_necessario - restante, alertas
@@ -1977,6 +2169,13 @@ def _reservar_recebidos_referenciais(
         depois = antes - valor_reserva
         saldos_disponiveis[fonte_id] = depois
         reservas_acumuladas[fonte_id] = reservas_acumuladas.get(fonte_id, 0.0) + valor_reserva
+        metricas_resgate = _metrica_resgate_fonte(
+            tipo_fonte='recebido_referencial',
+            referencia=recebido,
+            valor_reserva=valor_reserva,
+            saldo_antes=antes,
+            saldo_depois=depois,
+        )
         reservas.append(FonteReservadaTemporalmente(
             data=data_ref,
             fonte_id=fonte_id,
@@ -1993,6 +2192,7 @@ def _reservar_recebidos_referenciais(
                 fonte_id,
                 recebido,
             ),
+            **metricas_resgate,
         ))
         restante -= valor_reserva
     return reservas, valor_necessario - restante, alertas
@@ -2006,6 +2206,7 @@ def _bloquear_obrigacoes_individualmente(
 ) -> tuple[list[ObrigacaoBloqueadaTemporalmente], list[str]]:
     bloqueadas: list[ObrigacaoBloqueadaTemporalmente] = []
     alertas: list[str] = []
+    estado_alocacao_fontes: dict[str, dict[str, float]] = {}
     for obrigacao in pacote.obrigacoes_referenciadas:
         valor_obrigacao, avisos_obrigacao = extrair_valor_obrigacao_referencial(obrigacao)
         obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao)
@@ -2076,12 +2277,15 @@ def _cobrir_obrigacoes_referencialmente(
         )
         alertas.extend(avisos_bloqueio)
         return cobertas, bloqueadas, alertas
+    estado_alocacao_fontes: dict[str, dict[str, float]] = {}
     for obrigacao in pacote.obrigacoes_referenciadas:
         valor_obrigacao, avisos_obrigacao = extrair_valor_obrigacao_referencial(obrigacao)
         obrigacao_id, avisos_id = extrair_identificador_obrigacao_pacote(obrigacao)
         alertas.extend(avisos_obrigacao)
         alertas.extend(avisos_id)
         valor = float(valor_obrigacao or 0.0)
+        detalhes_fontes = _detalhes_fontes_resgate_obrigacao(reservas, valor, estado_alocacao_fontes, obrigacao_id)
+        agregados = _agregar_metricas_fontes_resgate(detalhes_fontes)
         cobertas.append(ObrigacaoCobertaTemporalmente(
             data=data_ref,
             obrigacao_id=obrigacao_id,
@@ -2090,6 +2294,8 @@ def _cobrir_obrigacoes_referencialmente(
             valor_coberto_referencial=valor,
             fontes_reservadas_ids=[r.fonte_id for r in reservas],
             referencia_obrigacao_temporal=obrigacao,
+            detalhes_fontes_resgate=detalhes_fontes,
+            **agregados,
         ))
     return cobertas, [], alertas
 
