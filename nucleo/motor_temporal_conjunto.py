@@ -670,14 +670,19 @@ def montar_fontes_temporais_referenciadas_dia(
         ]
         if not datas_fonte:
             continue
-        if data_motor >= min(datas_fonte):
+        data_limite_disponibilidade = max(data_motor, estado.data_referencia)
+        if data_limite_disponibilidade >= min(datas_fonte):
             fontes.append(fonte)
     if not fontes:
+        possui_temporal_no_estado = any(
+            isinstance(fonte, dict) and any(isinstance(fonte.get(campo), date) for campo in campos_temporais)
+            for fonte in estado.fontes_temporais or []
+        )
         return FontesTemporaisReferenciadasDia(
             data=data_motor,
             fontes_referenciadas=[],
-            possui_campo_temporal_explicito=False,
-            aviso_estrutural='fontes_sem_campo_temporal_explicito_no_estado',
+            possui_campo_temporal_explicito=possui_temporal_no_estado,
+            aviso_estrutural=None if possui_temporal_no_estado else 'fontes_sem_campo_temporal_explicito_no_estado',
         )
     return FontesTemporaisReferenciadasDia(
         data=data_motor,
@@ -902,10 +907,36 @@ def montar_switching_candidato_pacote_temporal(switching: dict[str, Any]) -> Swi
     )
 
 
+def _valor_fonte_positivo_referencial(fonte: dict[str, Any]) -> bool:
+    for campo in ('valor_estimado', 'valor_liquido_disponivel', 'valor_disponivel', 'saldo_disponivel', 'saldo', 'valor'):
+        valor = fonte.get(campo)
+        if isinstance(valor, bool):
+            continue
+        if isinstance(valor, (int, float)):
+            return float(valor) >= 1.0
+    return False
+
+
+def _texto_material(valor: Any) -> str:
+    texto = str(valor or '').strip().lower()
+    return '' if texto in {'', 'nan', 'none', 'n/d'} else texto
+
+
 def _fonte_disponivel_referencialmente(fonte: dict[str, Any]) -> bool:
     if fonte.get('disponivel_na_referencia') is False:
         return False
-    if str(fonte.get('status_temporal') or '').lower() == 'indisponivel':
+    if fonte.get('migrado_por_switching') is True:
+        return False
+    status_bloqueados = ('indisponivel', 'exaurido', 'migrado')
+    for campo in ('status_temporal', 'status_inventario_temporal', 'origem_status', 'status_ciclo', 'situacao_investimento'):
+        texto = _texto_material(fonte.get(campo))
+        if any(token in texto for token in status_bloqueados):
+            return False
+        if texto == 'bloqueado':
+            return False
+    if _texto_material(fonte.get('motivo_indisponibilidade')):
+        return False
+    if not _valor_fonte_positivo_referencial(fonte):
         return False
     return True
 
@@ -949,7 +980,12 @@ def gerar_pacote_sem_cobertura(estado_dia: EstadoDiarioMotorTemporal) -> PacoteT
     if not estado_dia.obrigacoes.pagamentos_referenciados:
         return None
     fontes_disponiveis = [f for f in estado_dia.fontes_referenciadas.fontes_referenciadas if _fonte_disponivel_referencialmente(f)]
-    if fontes_disponiveis or estado_dia.recebidos.recebidos_referenciados or estado_dia.switchings_realizados.switchings_referenciados:
+    recebidos_disponiveis = [
+        r
+        for r in estado_dia.recebidos.recebidos_referenciados
+        if _recebido_disponivel_referencialmente(r, estado_dia.data)
+    ]
+    if fontes_disponiveis or recebidos_disponiveis or estado_dia.switchings_realizados.switchings_referenciados:
         return None
     pacote = _montar_pacote_base(estado_dia.data, 'sem_cobertura', '1')
     pacote.obrigacoes_referenciadas = list(estado_dia.obrigacoes.pagamentos_referenciados)
@@ -1743,8 +1779,11 @@ def _reservar_fontes_referenciais(
         alertas.extend(avisos_valor)
         if valor_fonte is None:
             continue
+        saldo_observado = max(float(valor_fonte) - reservas_acumuladas.get(fonte_id, 0.0), 0.0)
         if fonte_id not in saldos_disponiveis:
-            saldos_disponiveis[fonte_id] = max(float(valor_fonte) - reservas_acumuladas.get(fonte_id, 0.0), 0.0)
+            saldos_disponiveis[fonte_id] = saldo_observado
+        else:
+            saldos_disponiveis[fonte_id] = max(saldos_disponiveis.get(fonte_id, 0.0), saldo_observado)
         antes = saldos_disponiveis.get(fonte_id, 0.0)
         valor_reserva = min(antes, restante)
         if valor_reserva <= 0.0:

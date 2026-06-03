@@ -108,3 +108,30 @@ A correção inicial permitiu que recebidos/salários entrassem no universo diá
 ### Validação adicional
 - A contagem oficial permaneceu economicamente válida em `qtd_obrigacoes_cobertas=158` e `qtd_obrigacoes_bloqueadas=0` após o controle residual de recebidos.
 - Auditoria programática das reservas de recebidos mostrou `violacoes=[]`: nenhum `recebido:*` teve soma reservada maior que seu valor original.
+
+## Correção adicional — elegibilidade de lotes e switching antes do merge do PR #482
+
+### Problema identificado
+A lista `fontes_temporais` era montada antes da materialização final dos switchings no `inventario_temporal`. Assim, origens já migradas por switching podiam continuar presentes como fontes futuras em `fontes_temporais`, enquanto destinos pós-switching eram atualizados no inventário sem reconciliação posterior das fontes. Além disso, a checagem de disponibilidade no motor rejeitava apenas `disponivel_na_referencia=False` ou `status_temporal=indisponivel`, deixando risco de aceitar lotes exauridos/migrados ou saldos operacionalmente nulos.
+
+### Regra corrigida
+- Após aplicar switchings materializados ao inventário final, `fontes_temporais` é reconciliada contra esse inventário.
+- Fontes cujo lote esteja `exaurido`, `exaurido_por_saque`, `migrado_por_switching`, `exaurido_por_switching` ou `indisponivel` são marcadas como indisponíveis, com motivo auditável.
+- Origens de switching materializado recebem `migrado_por_switching=True` e deixam de ser elegíveis como fonte futura.
+- Destinos pós-switching materializados preservam `status_inventario_temporal=ativo_pos_switching`, `sintetico_pos_switching=True`, `origem_switching` e `valor_liquido_migrado`, e só permanecem elegíveis quando há saldo líquido operacional positivo.
+- Saldos líquidos operacionalmente imateriais (`< 1,00`) são bloqueados para evitar cobertura por sobras residuais que não representam lote utilizável no Extrato Futuro.
+- `_fonte_disponivel_referencialmente` passou a rejeitar explicitamente status/motivos de indisponibilidade, origem migrada/exaurida, `migrado_por_switching=True` e valor/saldo disponível insuficiente.
+- Obrigações vencidas antes da data de referência podem enxergar fontes já disponíveis na data de referência, evitando bloqueio estrutural quando há fonte oficial atual para liquidar atraso.
+- A atualização de saldo interno de fontes passa a observar o maior saldo líquido oficial já disponível na data, preservando reservas acumuladas e alinhando a aplicação interna à seleção temporal projetada.
+
+### Resultado após a reconciliação
+- A contagem caiu de `158/0` para `157/1`. A queda foi aceita como bloqueio econômico legítimo após remover fontes inválidas/imateriais.
+- Obrigação bloqueada restante: `despesa_auto_00267` em `2027-05-02`, valor `3452.50`, motivo `sem_pacote_valido_para_obrigacao_temporal`.
+- Auditoria XLSX com `openpyxl`: `qtd_cobertas=157`, `qtd_bloqueadas=1`, `cobertas_sem_fonte_pacote=0`.
+- Lotes exauridos encontrados no Extrato Futuro: `[]`.
+- Origens migradas por switching encontradas no Extrato Futuro: `[]`.
+- Destinos pós-switching usados como fonte: `Lote 3120 mai`, `Lote 3000 mai Genial`, `Lote 3000 mai Neon`; todos materializados e com saldo positivo.
+- P2 de recebidos preservado: auditoria programática manteve `violacoes_recebidos=0`.
+- Etapa 10 preservada: `divergências materiais=0`.
+- Etapa 11 preservada: `remoção automática autorizada=False`.
+- A auditoria de escopo continua sem promoção das rotas auxiliares proibidas.

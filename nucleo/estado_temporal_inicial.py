@@ -169,6 +169,108 @@ def _recebido_temporal_de_salario(row: dict[str, Any], data_ref: date) -> dict[s
     }
 
 
+_STATUS_LOTE_INDISPONIVEL_FONTE = {
+    'exaurido',
+    'exaurido_por_saque',
+    'migrado_por_switching',
+    'exaurido_por_switching',
+    'indisponivel',
+}
+
+
+def _normalizar_motivo_indisponibilidade(*partes: Any) -> str:
+    motivos = [str(p).strip() for p in partes if p is not None and str(p).strip() and str(p).strip().lower() != 'nan']
+    return ';'.join(motivos)
+
+
+def _reconciliar_fontes_temporais_com_inventario_final(
+    fontes_temporais: list[dict[str, Any]],
+    inventario_temporal: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    inventario_por_lote = {
+        str(item.get('lote_id') or '').strip(): item
+        for item in inventario_temporal
+        if str(item.get('lote_id') or '').strip()
+    }
+    fontes_reconciliadas: list[dict[str, Any]] = []
+    for fonte in fontes_temporais:
+        lote_id = str(fonte.get('lote_id') or fonte.get('fonte_id') or '').strip()
+        inventario_lote = inventario_por_lote.get(lote_id)
+        fonte_final = dict(fonte)
+        valor_liquido = _float_seguro(
+            fonte_final.get('valor_liquido_disponivel'),
+            fonte_final.get('valor_estimado'),
+            fonte_final.get('valor_disponivel'),
+            fonte_final.get('saldo_disponivel'),
+            fonte_final.get('saldo'),
+            fonte_final.get('valor'),
+            0.0,
+        )
+        motivos: list[str] = []
+        if valor_liquido < 1.0:
+            motivos.append('saldo_liquido_fonte_operacionalmente_indisponivel')
+        if inventario_lote is not None:
+            status_lote = str(inventario_lote.get('status_temporal') or '').strip().lower()
+            fonte_final['status_inventario_temporal'] = inventario_lote.get('status_temporal')
+            fonte_final['disponibilidade_inventario'] = inventario_lote.get('disponibilidade')
+            fonte_final['migrado_por_switching'] = bool(inventario_lote.get('migrado_por_switching'))
+            fonte_final['sintetico_pos_switching'] = bool(inventario_lote.get('sintetico_pos_switching'))
+            if inventario_lote.get('origem_switching') is not None:
+                fonte_final['origem_switching'] = inventario_lote.get('origem_switching')
+            if inventario_lote.get('valor_liquido_migrado') is not None:
+                fonte_final['valor_liquido_migrado'] = inventario_lote.get('valor_liquido_migrado')
+            if status_lote in _STATUS_LOTE_INDISPONIVEL_FONTE or bool(inventario_lote.get('migrado_por_switching')):
+                motivos.append(f'lote_{status_lote or "indisponivel"}_no_inventario_final')
+            elif status_lote:
+                fonte_final['status_temporal'] = status_lote
+        if motivos:
+            fonte_final['status_temporal'] = 'indisponivel'
+            fonte_final['disponivel_na_referencia'] = False
+            fonte_final['elegivel_na_data_pagamento'] = False
+            fonte_final['motivo_indisponibilidade'] = _normalizar_motivo_indisponibilidade(
+                fonte_final.get('motivo_indisponibilidade'),
+                *motivos,
+            )
+        fontes_reconciliadas.append(fonte_final)
+    return fontes_reconciliadas
+
+def _materializar_fontes_data_referencia_de_lotes_ativos(
+    fontes_temporais: list[dict[str, Any]],
+    data_ref: date,
+) -> list[dict[str, Any]]:
+    fontes_por_lote: dict[str, list[dict[str, Any]]] = {}
+    for fonte in fontes_temporais:
+        lote_id = str(fonte.get('lote_id') or fonte.get('fonte_id') or '').strip()
+        if not lote_id:
+            continue
+        fontes_por_lote.setdefault(lote_id, []).append(fonte)
+
+    fontes_adicionais: list[dict[str, Any]] = []
+    for lote_id, fontes_lote in fontes_por_lote.items():
+        if any(f.get('data_disponibilidade') == data_ref for f in fontes_lote):
+            continue
+        candidatas = [
+            f
+            for f in fontes_lote
+            if isinstance(f.get('data_disponibilidade'), date)
+            and f.get('data_disponibilidade') > data_ref
+            and f.get('disponivel_na_referencia') is True
+            and _float_seguro(f.get('valor_liquido_disponivel'), f.get('valor_estimado'), 0.0) >= 1.0
+        ]
+        if not candidatas:
+            continue
+        primeira = min(candidatas, key=lambda f: f.get('data_disponibilidade'))
+        fonte_ref = dict(primeira)
+        fonte_ref['data_disponibilidade'] = data_ref
+        fonte_ref['data_pagamento'] = data_ref
+        fonte_ref['data_evento'] = data_ref
+        fonte_ref['pagamento_id'] = None
+        fonte_ref['origem_canonica'] = 'fontes_elegiveis_pagamento_reconciliado_data_referencia'
+        fonte_ref['observacao_reconciliacao'] = 'snapshot_ativo_mais_proximo_materializado_na_data_referencia'
+        fontes_adicionais.append(fonte_ref)
+    return fontes_temporais + fontes_adicionais
+
+
 def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> EstadoTemporalInicial:
     data_ref = contexto.execucao.data_referencia
     gastos = contexto.dados_operacionais.gastos_canonicos
@@ -312,6 +414,9 @@ def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> 
                 destino_item['valor_liquido_migrado'] = valor_migrado
                 destino_item['data_aplicacao'] = data_aplicacao
                 destino_item['data_recebimento'] = row.get('data_recebimento')
+
+    fontes_temporais = _reconciliar_fontes_temporais_com_inventario_final(fontes_temporais, inventario_temporal)
+    fontes_temporais = _materializar_fontes_data_referencia_de_lotes_ativos(fontes_temporais, data_ref)
 
     restricoes_temporais=[]
     elegibilidades=[]
