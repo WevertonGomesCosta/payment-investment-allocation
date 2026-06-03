@@ -279,6 +279,20 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
     else:
         print('  sem_pagamentos_realizados_ate_data_referencia')
 
+    pagamentos_data_referencia = list(getattr(bloco_console, 'pagamentos_data_referencia', []) or [])
+    print('\n- pagamentos na data de referência — saída oficial:')
+    if pagamentos_data_referencia:
+        linhas_data_ref = [
+            {k: linha[k] for k in ['Data', 'Conta', 'Lote', 'Pacote', 'Status', 'Bloq.']}
+            for linha in (
+                _linha_pagamento_oficial(item, bloqueada=str(_valor_oficial(item, 'status_observavel') or '').startswith('bloqueada') or str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente'))
+                for item in pagamentos_data_referencia
+            )
+        ]
+        _imprimir_tabela(['Data', 'Conta', 'Lote', 'Pacote', 'Status', 'Bloq.'], linhas_data_ref, limite=5)
+    else:
+        print('  sem_pagamentos_na_data_referencia')
+
     proximas_ordenadas = list(getattr(bloco_console, 'proximos_pagamentos', []) or [])
 
     linhas_decisao = [
@@ -289,7 +303,10 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
         )
     ]
     print('\n- próximos 5 pagamentos — saída oficial:')
-    _imprimir_tabela(['Data', 'Conta', 'Lote', 'Pacote', 'Sw. ant.', 'Sw. dep.', 'Status', 'Bloq.'], linhas_decisao, limite=5)
+    if linhas_decisao:
+        _imprimir_tabela(['Data', 'Conta', 'Lote', 'Pacote', 'Sw. ant.', 'Sw. dep.', 'Status', 'Bloq.'], linhas_decisao, limite=5)
+    else:
+        print('  sem_proximos_pagamentos')
 
     linhas_valores = [
         {k: linha[k] for k in ['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']}

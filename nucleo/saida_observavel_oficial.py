@@ -44,6 +44,7 @@ class ResumoSaidaObservavelOficial:
 class BlocoConsoleSaidaObservavel:
     resumo_operacional: dict[str, Any] = field(default_factory=dict)
     ultimos_pagamentos: list[dict[str, Any]] = field(default_factory=list)
+    pagamentos_data_referencia: list[dict[str, Any]] = field(default_factory=list)
     proximos_pagamentos: list[dict[str, Any]] = field(default_factory=list)
     pagamentos_por_fonte: list[dict[str, Any]] = field(default_factory=list)
     fontes_utilizadas: list[dict[str, Any]] = field(default_factory=list)
@@ -312,6 +313,7 @@ def extrair_blocos_saida_canonica(saida: SaidaCanonicaOficial) -> dict[str, Any]
         'eventos': _snapshot_lista(saida.eventos),
         'obrigacoes_cobertas': _snapshot_lista(saida.obrigacoes_cobertas),
         'obrigacoes_bloqueadas': _snapshot_lista(saida.obrigacoes_bloqueadas),
+        'pagamentos_historicos_realizados': _snapshot_lista(getattr(saida, 'pagamentos_historicos_realizados', [])),
         'fontes_utilizadas': _snapshot_lista(saida.fontes_utilizadas),
         'fontes_reservadas': _snapshot_lista(saida.fontes_reservadas),
         'switchings_escolhidos': _snapshot_lista(saida.switchings_escolhidos),
@@ -362,19 +364,63 @@ def _status_pagamento_observavel(item: dict[str, Any], *, bloqueada: bool) -> di
     return saida
 
 
+def _normalizar_pagamento_historico_realizado(item: dict[str, Any]) -> dict[str, Any]:
+    fonte = item.get('fonte_resolvida_historica') or item.get('fonte_informada') or item.get('lote_usado')
+    return {
+        'data': _data_observavel_item(item),
+        'obrigacao_id': item.get('pagamento_id') or item.get('despesa_id') or item.get('id'),
+        'pacote_id': item.get('pacote_id') or 'historico_pago_oficial',
+        'valor_obrigacao_referencial': item.get('valor'),
+        'valor_coberto_referencial': item.get('valor'),
+        'fontes_referenciadas_operacionais': [fonte] if fonte else [],
+        'fontes_referenciadas_tecnicas': [fonte] if fonte else [],
+        'pacote_nome_operacional': 'histórico pago oficial',
+        'status_observavel': 'realizada_oficial',
+        'status': 'realizada_oficial',
+        'referencia_original': dict(item),
+        'saldo_antes_fonte': item.get('Saldo Antes') or item.get('saldo_antes') or 'nao_materializado',
+        'valor_bruto_resgate': item.get('Bruto') or item.get('valor_bruto_resgate') or item.get('valor'),
+        'imposto_resgate': item.get('Imposto') or item.get('imposto_resgate') or 'nao_materializado',
+        'valor_liquido_resgate': item.get('Líquido') or item.get('valor_liquido_resgate') or item.get('valor'),
+        'saldo_remanescente_fonte': item.get('Saldo Remanescente') or item.get('saldo_remanescente') or 'nao_materializado',
+        'status_saldo_antes_fonte': item.get('status_saldo_antes_fonte') or 'nao_materializado',
+        'status_valor_bruto_resgate': item.get('status_valor_bruto_resgate') or 'materializado',
+        'status_imposto_resgate': item.get('status_imposto_resgate') or 'nao_materializado',
+        'status_valor_liquido_resgate': item.get('status_valor_liquido_resgate') or 'materializado',
+        'status_saldo_remanescente_fonte': item.get('status_saldo_remanescente_fonte') or 'nao_materializado',
+    }
+
+
 def preparar_bloco_ultimos_pagamentos(blocos: dict[str, Any], limite: int = 5) -> list[dict[str, Any]]:
     data_referencia = blocos.get('data_referencia')
-    cobertas = [
-        _status_pagamento_observavel(item, bloqueada=False)
-        for item in list(blocos['obrigacoes_cobertas'])
+    realizados = [
+        _normalizar_pagamento_historico_realizado(item)
+        for item in list(blocos.get('pagamentos_historicos_realizados') or [])
         if _data_observavel_item(item) is not None
         and (not isinstance(data_referencia, date) or _data_observavel_item(item) <= data_referencia)
     ]
     return sorted(
-        cobertas,
+        realizados,
         key=lambda item: (_data_observavel_item(item) or date.min, str(item.get('obrigacao_id') or '')),
         reverse=True,
     )[:limite]
+
+
+def preparar_bloco_pagamentos_data_referencia(blocos: dict[str, Any]) -> list[dict[str, Any]]:
+    data_referencia = blocos.get('data_referencia')
+    if not isinstance(data_referencia, date):
+        return []
+    pagamentos: list[dict[str, Any]] = []
+    for item in list(blocos['obrigacoes_cobertas']):
+        if _data_observavel_item(item) == data_referencia:
+            pagamentos.append(_status_pagamento_observavel(item, bloqueada=False))
+    for item in list(blocos['obrigacoes_bloqueadas']):
+        if _data_observavel_item(item) == data_referencia:
+            pagamentos.append(_status_pagamento_observavel(item, bloqueada=True))
+    return sorted(
+        pagamentos,
+        key=lambda item: (item.get('status_observavel') == 'bloqueada_oficial', str(item.get('obrigacao_id') or '')),
+    )
 
 
 def preparar_bloco_proximos_pagamentos(blocos: dict[str, Any], limite: int = 5) -> list[dict[str, Any]]:
@@ -382,11 +428,11 @@ def preparar_bloco_proximos_pagamentos(blocos: dict[str, Any], limite: int = 5) 
     proximos: list[dict[str, Any]] = []
     for item in list(blocos['obrigacoes_cobertas']):
         data_item = _data_observavel_item(item)
-        if data_item is None or not isinstance(data_referencia, date) or data_item >= data_referencia:
+        if data_item is None or not isinstance(data_referencia, date) or data_item > data_referencia:
             proximos.append(_status_pagamento_observavel(item, bloqueada=False))
     for item in list(blocos['obrigacoes_bloqueadas']):
         data_item = _data_observavel_item(item)
-        if data_item is None or not isinstance(data_referencia, date) or data_item >= data_referencia:
+        if data_item is None or not isinstance(data_referencia, date) or data_item > data_referencia:
             proximos.append(_status_pagamento_observavel(item, bloqueada=True))
     return sorted(
         proximos,
@@ -500,6 +546,7 @@ def registrar_lacunas_renderizacao(
 def preparar_blocos_console(
     resumo: dict[str, Any],
     ultimos_pagamentos: list[dict[str, Any]],
+    pagamentos_data_referencia: list[dict[str, Any]],
     proximos_pagamentos: list[dict[str, Any]],
     pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
@@ -512,6 +559,7 @@ def preparar_blocos_console(
     return BlocoConsoleSaidaObservavel(
         resumo_operacional=resumo,
         ultimos_pagamentos=ultimos_pagamentos,
+        pagamentos_data_referencia=pagamentos_data_referencia,
         proximos_pagamentos=proximos_pagamentos,
         pagamentos_por_fonte=pagamentos_por_fonte,
         fontes_utilizadas=fontes['fontes_utilizadas'],
@@ -530,6 +578,7 @@ def preparar_blocos_console(
 def preparar_blocos_xlsx(
     resumo: dict[str, Any],
     ultimos_pagamentos: list[dict[str, Any]],
+    pagamentos_data_referencia: list[dict[str, Any]],
     proximos_pagamentos: list[dict[str, Any]],
     pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
@@ -542,6 +591,7 @@ def preparar_blocos_xlsx(
     abas = {
         'Resumo Operacional': [resumo],
         'Ultimos Pagamentos': ultimos_pagamentos,
+        'Pagamentos Data Referencia': pagamentos_data_referencia,
         'Proximos Pagamentos': proximos_pagamentos,
         'Pagamentos Fontes': pagamentos_por_fonte,
         'Fontes Utilizadas': fontes['fontes_utilizadas'],
@@ -678,6 +728,7 @@ def construir_pacote_saida_observavel_oficial(
     blocos = _enriquecer_identificacao_operacional_blocos(blocos)
     resumo_operacional = preparar_resumo_operacional_observavel(blocos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(blocos)
+    pagamentos_data_referencia = preparar_bloco_pagamentos_data_referencia(blocos)
     proximos_pagamentos = preparar_bloco_proximos_pagamentos(blocos)
     pagamentos_por_fonte = preparar_bloco_pagamentos_por_fonte(blocos)
     fontes = preparar_bloco_fontes_utilizadas_reservadas(blocos)
@@ -693,6 +744,7 @@ def construir_pacote_saida_observavel_oficial(
     bloco_console = preparar_blocos_console(
         resumo_operacional,
         ultimos_pagamentos,
+        pagamentos_data_referencia,
         proximos_pagamentos,
         pagamentos_por_fonte,
         fontes,
@@ -705,6 +757,7 @@ def construir_pacote_saida_observavel_oficial(
     bloco_xlsx = preparar_blocos_xlsx(
         resumo_operacional,
         ultimos_pagamentos,
+        pagamentos_data_referencia,
         proximos_pagamentos,
         pagamentos_por_fonte,
         fontes,

@@ -165,6 +165,7 @@ class LedgerTemporalCanonico:
     lancamentos_por_data: dict[date, list[dict[str, Any]]] = field(default_factory=dict)
     obrigacoes_cobertas: list[LancamentoObrigacaoLedger] = field(default_factory=list)
     obrigacoes_bloqueadas: list[LancamentoObrigacaoLedger] = field(default_factory=list)
+    pagamentos_historicos_realizados: list[dict[str, Any]] = field(default_factory=list)
     fontes_utilizadas: list[LancamentoFonteLedger] = field(default_factory=list)
     fontes_reservadas: list[LancamentoReservaLedger] = field(default_factory=list)
     switchings_escolhidos: list[LancamentoSwitchingLedger] = field(default_factory=list)
@@ -395,6 +396,13 @@ def _obrigacao_bloqueada_para_ledger(obrigacao: Any, avisos: list[str]) -> Lanca
     )
 
 
+
+def _pagamento_historico_realizado_para_ledger(pagamento: Any) -> dict[str, Any]:
+    snapshot = _dict_referencia(pagamento)
+    snapshot['origem'] = 'ResultadoMotorTemporalConjunto.eventos_temporais_base.pagamentos'
+    snapshot['status_observavel'] = 'realizada_oficial'
+    return snapshot
+
 def _switching_para_ledger(switching: Any) -> LancamentoSwitchingLedger:
     referencia = _dict_referencia(_valor(switching, 'referencia_estado_temporal', {}))
     valor_migrado = (
@@ -589,6 +597,11 @@ def construir_ledger_temporal_canonico(
         lancamento = _obrigacao_bloqueada_para_ledger(obrigacao, ledger.avisos)
         ledger.obrigacoes_bloqueadas.append(lancamento)
         _registrar_lancamento(ledger, lancamento.data, lancamento)
+
+    eventos_base = _valor(resultado, 'eventos_temporais_base')
+    for pagamento in _lista(_valor(eventos_base, 'pagamentos', [])):
+        if _valor(pagamento, 'pago') is True:
+            ledger.pagamentos_historicos_realizados.append(_pagamento_historico_realizado_para_ledger(pagamento))
 
     for reserva in _lista(_valor(resultado, 'fontes_reservadas_temporalmente', [])):
         reserva_ledger, fonte_ledger = _reserva_para_lancamentos(reserva)
