@@ -637,8 +637,20 @@ def montar_recebidos_temporais_dia(
     indice: IndiceTemporalMotor,
     data_motor: date,
 ) -> RecebidosTemporaisDia:
-    indices = list(indice.recebidos_por_data.get(data_motor, []))
-    recebidos = [estado.recebidos_temporais[i] for i in indices]
+    indices: list[int] = []
+    recebidos: list[dict[str, Any]] = []
+    for i, recebido in enumerate(estado.recebidos_temporais or []):
+        data_rec = _data_evento(recebido, 'data_disponibilidade', 'data_recebimento', 'data')
+        if data_rec is None or data_rec > data_motor:
+            continue
+        indices.append(i)
+        item = dict(recebido)
+        item['materializado_na_data'] = True
+        item['futuro_indisponivel_na_data'] = False
+        if _recebido_indisponibilidade_exclusivamente_temporal(item, data_motor):
+            item['disponivel_na_referencia'] = True
+            item['futuro_indisponivel'] = False
+        recebidos.append(item)
     return RecebidosTemporaisDia(data=data_motor, indices_recebidos=indices, recebidos_referenciados=recebidos)
 
 
@@ -658,14 +670,19 @@ def montar_fontes_temporais_referenciadas_dia(
         ]
         if not datas_fonte:
             continue
-        if data_motor >= min(datas_fonte):
+        data_limite_disponibilidade = max(data_motor, estado.data_referencia)
+        if data_limite_disponibilidade >= min(datas_fonte):
             fontes.append(fonte)
     if not fontes:
+        possui_temporal_no_estado = any(
+            isinstance(fonte, dict) and any(isinstance(fonte.get(campo), date) for campo in campos_temporais)
+            for fonte in estado.fontes_temporais or []
+        )
         return FontesTemporaisReferenciadasDia(
             data=data_motor,
             fontes_referenciadas=[],
-            possui_campo_temporal_explicito=False,
-            aviso_estrutural='fontes_sem_campo_temporal_explicito_no_estado',
+            possui_campo_temporal_explicito=possui_temporal_no_estado,
+            aviso_estrutural=None if possui_temporal_no_estado else 'fontes_sem_campo_temporal_explicito_no_estado',
         )
     return FontesTemporaisReferenciadasDia(
         data=data_motor,
@@ -890,22 +907,99 @@ def montar_switching_candidato_pacote_temporal(switching: dict[str, Any]) -> Swi
     )
 
 
+def _valor_fonte_positivo_referencial(fonte: dict[str, Any]) -> bool:
+    for campo in ('valor_estimado', 'valor_liquido_disponivel', 'valor_disponivel', 'saldo_disponivel', 'saldo', 'valor'):
+        valor = fonte.get(campo)
+        if isinstance(valor, bool):
+            continue
+        if isinstance(valor, (int, float)):
+            return float(valor) >= 1.0
+    return False
+
+
+def _texto_material(valor: Any) -> str:
+    texto = str(valor or '').strip().lower()
+    return '' if texto in {'', 'nan', 'none', 'n/d'} else texto
+
+
 def _fonte_disponivel_referencialmente(fonte: dict[str, Any]) -> bool:
     if fonte.get('disponivel_na_referencia') is False:
         return False
-    if str(fonte.get('status_temporal') or '').lower() == 'indisponivel':
+    if fonte.get('migrado_por_switching') is True:
+        return False
+    status_bloqueados = ('indisponivel', 'exaurido', 'migrado')
+    for campo in ('status_temporal', 'status_inventario_temporal', 'origem_status', 'status_ciclo', 'situacao_investimento'):
+        texto = _texto_material(fonte.get(campo))
+        if any(token in texto for token in status_bloqueados):
+            return False
+        if texto == 'bloqueado':
+            return False
+    if _texto_material(fonte.get('motivo_indisponibilidade')):
+        return False
+    if not _valor_fonte_positivo_referencial(fonte):
         return False
     return True
 
 
-def _recebido_disponivel_referencialmente(recebido: dict[str, Any]) -> bool:
-    if recebido.get('disponivel_na_referencia') is False:
+_TOKENS_RECEBIDO_INDISPONIVEL_EXPLICITO = (
+    'exaurido',
+    'indisponivel',
+    'indisponível',
+    'comprometido',
+    'bloqueado',
+    'consumido',
+    'encerrado',
+)
+
+
+def _recebido_temporalmente_indisponivel(recebido: dict[str, Any]) -> bool:
+    return (
+        recebido.get('futuro_indisponivel') is True
+        or recebido.get('futuro_indisponivel_na_data') is True
+        or _texto_material(recebido.get('status_recebido')) in {'futuro', 'futuro_indisponivel'}
+        or _texto_material(recebido.get('status_temporal')) in {'futuro', 'futuro_indisponivel'}
+        or _texto_material(recebido.get('status')) in {'futuro', 'futuro_indisponivel'}
+    )
+
+
+def _recebido_temporal_ja_materializado(recebido: dict[str, Any], data_motor: date) -> bool:
+    data_rec = _data_evento(recebido, 'data_disponibilidade', 'data_recebimento', 'data')
+    return bool(data_rec is not None and data_rec <= data_motor)
+
+
+def _recebido_tem_indisponibilidade_material(recebido: dict[str, Any]) -> bool:
+    if recebido.get('aplicado') is True or recebido.get('vinculado') is True:
+        return True
+    for campo in ('status_recebido', 'status_temporal', 'status', 'motivo', 'motivo_indisponibilidade', 'motivo_bloqueio'):
+        texto = _texto_material(recebido.get(campo))
+        if not texto:
+            continue
+        if texto in {'futuro', 'futuro_indisponivel', 'futuro indisponivel', 'futuro indisponível'}:
+            continue
+        if any(token in texto for token in _TOKENS_RECEBIDO_INDISPONIVEL_EXPLICITO):
+            return True
+    return False
+
+
+def _recebido_indisponibilidade_exclusivamente_temporal(recebido: dict[str, Any], data_motor: date) -> bool:
+    return (
+        _recebido_temporal_ja_materializado(recebido, data_motor)
+        and _recebido_temporalmente_indisponivel(recebido)
+        and not _recebido_tem_indisponibilidade_material(recebido)
+    )
+
+
+def _recebido_disponivel_referencialmente(recebido: dict[str, Any], data_motor: date) -> bool:
+    data_rec = _data_evento(recebido, 'data_disponibilidade', 'data_recebimento', 'data')
+    if data_rec is None or data_rec > data_motor:
         return False
-    if recebido.get('aplicado') is True:
+    if _recebido_tem_indisponibilidade_material(recebido):
         return False
-    if recebido.get('vinculado') is True:
-        return False
-    if recebido.get('futuro_indisponivel') is True:
+    bloqueio_explicito_ref = (
+        recebido.get('disponivel_na_referencia') is False
+        or recebido.get('disponivel_na_data_referencia') is False
+    )
+    if bloqueio_explicito_ref and not _recebido_indisponibilidade_exclusivamente_temporal(recebido, data_motor):
         return False
     return True
 
@@ -938,7 +1032,12 @@ def gerar_pacote_sem_cobertura(estado_dia: EstadoDiarioMotorTemporal) -> PacoteT
     if not estado_dia.obrigacoes.pagamentos_referenciados:
         return None
     fontes_disponiveis = [f for f in estado_dia.fontes_referenciadas.fontes_referenciadas if _fonte_disponivel_referencialmente(f)]
-    if fontes_disponiveis or estado_dia.recebidos.recebidos_referenciados or estado_dia.switchings_realizados.switchings_referenciados:
+    recebidos_disponiveis = [
+        r
+        for r in estado_dia.recebidos.recebidos_referenciados
+        if _recebido_disponivel_referencialmente(r, estado_dia.data)
+    ]
+    if fontes_disponiveis or recebidos_disponiveis or estado_dia.switchings_realizados.switchings_referenciados:
         return None
     pacote = _montar_pacote_base(estado_dia.data, 'sem_cobertura', '1')
     pacote.obrigacoes_referenciadas = list(estado_dia.obrigacoes.pagamentos_referenciados)
@@ -1034,7 +1133,11 @@ def gerar_pacote_pagamento_combinacao_fontes(estado_dia: EstadoDiarioMotorTempor
 def gerar_pacote_pagamento_com_recebido(estado_dia: EstadoDiarioMotorTemporal) -> PacoteTemporalCandidato | None:
     if not estado_dia.obrigacoes.pagamentos_referenciados or not estado_dia.recebidos.recebidos_referenciados:
         return None
-    recebidos_disponiveis = [r for r in estado_dia.recebidos.recebidos_referenciados if _recebido_disponivel_referencialmente(r)]
+    recebidos_disponiveis = [
+        r
+        for r in estado_dia.recebidos.recebidos_referenciados
+        if _recebido_disponivel_referencialmente(r, estado_dia.data)
+    ]
     pacote = _montar_pacote_base(estado_dia.data, 'pagamento_com_recebido', '1')
     pacote.obrigacoes_referenciadas = list(estado_dia.obrigacoes.pagamentos_referenciados)
     pacote.valor_obrigacoes = sum(extrair_valor_obrigacao_referencial(o)[0] or 0.0 for o in pacote.obrigacoes_referenciadas)
@@ -1478,6 +1581,54 @@ def _avaliar_reserva_residual_fontes_pacote(
     return True, [], reservas_planejadas
 
 
+def _avaliar_reserva_residual_recebidos_pacote(
+    pacote: PacoteTemporalCandidato,
+    reserva_por_recebido: dict[str, float],
+) -> tuple[bool, list[str], list[tuple[str, float]]]:
+    recebidos = _extrair_recebidos_referenciados_pacote(pacote)
+    if not recebidos:
+        return False, ['recebido_ausente_para_reserva_referencial'], []
+
+    valor_necessario = float(pacote.valor_obrigacoes or 0.0)
+    if valor_necessario <= 0.0:
+        return True, [], []
+
+    reservas_planejadas: list[tuple[str, float]] = []
+    restante = valor_necessario
+    motivos: list[str] = []
+    recebidos_validos = 0
+    saldos_residuais: list[tuple[str, float]] = []
+
+    for posicao, recebido in enumerate(recebidos, start=1):
+        fonte_id = _identificar_recebido_referencial(recebido, pacote.data_referencia, pacote.pacote_id, posicao)
+        valor_recebido, avisos_recebido = extrair_valor_recebido_referencial(recebido)
+        motivos.extend(avisos_recebido)
+        if valor_recebido is None or valor_recebido <= 0.0:
+            motivos.append('recebido_sem_valor_referencial_positivo_para_reserva')
+            continue
+        recebidos_validos += 1
+        saldo_residual = max(float(valor_recebido) - reserva_por_recebido.get(fonte_id, 0.0), 0.0)
+        saldos_residuais.append((fonte_id, saldo_residual))
+
+    if recebidos_validos == 0:
+        return False, motivos or ['recebido_sem_valor_referencial_positivo_para_reserva'], []
+
+    for fonte_id, saldo_residual in saldos_residuais:
+        if restante <= 0.0:
+            break
+        if saldo_residual <= 0.0:
+            continue
+        valor_reserva = min(saldo_residual, restante)
+        reservas_planejadas.append((fonte_id, valor_reserva))
+        restante -= valor_reserva
+
+    if not reservas_planejadas:
+        return False, ['saldo_residual_recebido_zerado'], []
+    if restante > 0.000001:
+        return False, ['saldo_residual_recebido_insuficiente'], []
+    return True, [], reservas_planejadas
+
+
 def selecionar_pacotes_temporais_vencedores(
     resultado: ResultadoMotorTemporalConjunto,
     pacotes_valorados: dict[date, list[PacoteTemporalValorado]],
@@ -1486,22 +1637,29 @@ def selecionar_pacotes_temporais_vencedores(
     vencedores: dict[date, PacoteTemporalCandidato | None] = {}
     descartados: dict[date, list[PacoteTemporalDescartado]] = {}
     reserva_por_fonte: dict[str, float] = {}
+    reserva_por_recebido: dict[str, float] = {}
     for data_ref in resultado.horizonte_motor.datas_temporais:
         pacotes_data = list(pacotes_valorados.get(data_ref, []))
         filtrados: list[PacoteTemporalValorado] = []
         descartes_reserva: list[PacoteTemporalDescartado] = []
         for pv in pacotes_data:
             pacote = pv.pacote_candidato
-            if pacote.tipo_pacote not in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'}:
+            if pacote.tipo_pacote not in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes', 'pagamento_com_recebido'}:
                 filtrados.append(pv)
                 continue
             if not pacote.obrigacoes_referenciadas:
                 filtrados.append(pv)
                 continue
-            valido_reserva, motivos_reserva, _ = _avaliar_reserva_residual_fontes_pacote(
-                pacote,
-                reserva_por_fonte,
-            )
+            if pacote.tipo_pacote == 'pagamento_com_recebido':
+                valido_reserva, motivos_reserva, _ = _avaliar_reserva_residual_recebidos_pacote(
+                    pacote,
+                    reserva_por_recebido,
+                )
+            else:
+                valido_reserva, motivos_reserva, _ = _avaliar_reserva_residual_fontes_pacote(
+                    pacote,
+                    reserva_por_fonte,
+                )
             if not valido_reserva:
                 descartes_reserva.append(PacoteTemporalDescartado(
                     pacote_id=pacote.pacote_id,
@@ -1524,6 +1682,14 @@ def selecionar_pacotes_temporais_vencedores(
             if valido_reserva:
                 for fonte_id, valor_reservado in reservas_planejadas:
                     reserva_por_fonte[fonte_id] = reserva_por_fonte.get(fonte_id, 0.0) + valor_reservado
+        elif vencedor and vencedor.tipo_pacote == 'pagamento_com_recebido':
+            valido_reserva, _, reservas_planejadas = _avaliar_reserva_residual_recebidos_pacote(
+                vencedor,
+                reserva_por_recebido,
+            )
+            if valido_reserva:
+                for recebido_id, valor_reservado in reservas_planejadas:
+                    reserva_por_recebido[recebido_id] = reserva_por_recebido.get(recebido_id, 0.0) + valor_reservado
     return decisoes, vencedores, descartados
 
 
@@ -1665,8 +1831,11 @@ def _reservar_fontes_referenciais(
         alertas.extend(avisos_valor)
         if valor_fonte is None:
             continue
+        saldo_observado = max(float(valor_fonte) - reservas_acumuladas.get(fonte_id, 0.0), 0.0)
         if fonte_id not in saldos_disponiveis:
-            saldos_disponiveis[fonte_id] = max(float(valor_fonte) - reservas_acumuladas.get(fonte_id, 0.0), 0.0)
+            saldos_disponiveis[fonte_id] = saldo_observado
+        else:
+            saldos_disponiveis[fonte_id] = max(saldos_disponiveis.get(fonte_id, 0.0), saldo_observado)
         antes = saldos_disponiveis.get(fonte_id, 0.0)
         valor_reserva = min(antes, restante)
         if valor_reserva <= 0.0:
