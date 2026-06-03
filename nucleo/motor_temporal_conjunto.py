@@ -637,8 +637,20 @@ def montar_recebidos_temporais_dia(
     indice: IndiceTemporalMotor,
     data_motor: date,
 ) -> RecebidosTemporaisDia:
-    indices = list(indice.recebidos_por_data.get(data_motor, []))
-    recebidos = [estado.recebidos_temporais[i] for i in indices]
+    indices: list[int] = []
+    recebidos: list[dict[str, Any]] = []
+    for i, recebido in enumerate(estado.recebidos_temporais or []):
+        data_rec = _data_evento(recebido, 'data_disponibilidade', 'data_recebimento', 'data')
+        if data_rec is None or data_rec > data_motor:
+            continue
+        indices.append(i)
+        item = dict(recebido)
+        item['materializado_na_data'] = True
+        item['futuro_indisponivel_na_data'] = False
+        if item.get('aplicado') is not True and item.get('vinculado') is not True:
+            item['disponivel_na_referencia'] = True
+            item['futuro_indisponivel'] = False
+        recebidos.append(item)
     return RecebidosTemporaisDia(data=data_motor, indices_recebidos=indices, recebidos_referenciados=recebidos)
 
 
@@ -898,14 +910,13 @@ def _fonte_disponivel_referencialmente(fonte: dict[str, Any]) -> bool:
     return True
 
 
-def _recebido_disponivel_referencialmente(recebido: dict[str, Any]) -> bool:
-    if recebido.get('disponivel_na_referencia') is False:
+def _recebido_disponivel_referencialmente(recebido: dict[str, Any], data_motor: date) -> bool:
+    data_rec = _data_evento(recebido, 'data_disponibilidade', 'data_recebimento', 'data')
+    if data_rec is None or data_rec > data_motor:
         return False
     if recebido.get('aplicado') is True:
         return False
     if recebido.get('vinculado') is True:
-        return False
-    if recebido.get('futuro_indisponivel') is True:
         return False
     return True
 
@@ -1034,7 +1045,11 @@ def gerar_pacote_pagamento_combinacao_fontes(estado_dia: EstadoDiarioMotorTempor
 def gerar_pacote_pagamento_com_recebido(estado_dia: EstadoDiarioMotorTemporal) -> PacoteTemporalCandidato | None:
     if not estado_dia.obrigacoes.pagamentos_referenciados or not estado_dia.recebidos.recebidos_referenciados:
         return None
-    recebidos_disponiveis = [r for r in estado_dia.recebidos.recebidos_referenciados if _recebido_disponivel_referencialmente(r)]
+    recebidos_disponiveis = [
+        r
+        for r in estado_dia.recebidos.recebidos_referenciados
+        if _recebido_disponivel_referencialmente(r, estado_dia.data)
+    ]
     pacote = _montar_pacote_base(estado_dia.data, 'pagamento_com_recebido', '1')
     pacote.obrigacoes_referenciadas = list(estado_dia.obrigacoes.pagamentos_referenciados)
     pacote.valor_obrigacoes = sum(extrair_valor_obrigacao_referencial(o)[0] or 0.0 for o in pacote.obrigacoes_referenciadas)
