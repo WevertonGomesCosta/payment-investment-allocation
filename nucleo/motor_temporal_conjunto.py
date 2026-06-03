@@ -332,6 +332,12 @@ class DestinoSobraRecebidoTemporal:
     investimento_destino: str | None = None
     carteira_destino: str | None = None
     referencia_recebido_temporal: dict[str, Any] = field(default_factory=dict)
+    fonte_id_tecnico_normalizado: str | None = None
+    fonte_id_tecnico_original: str | None = None
+    pacotes_pagamento_ids: list[str] = field(default_factory=list)
+    obrigacoes_ids: list[str] = field(default_factory=list)
+    valor_pago_total: float = 0.0
+    qtd_pagamentos_vinculados: int = 0
 
 
 @dataclass(slots=True)
@@ -351,6 +357,12 @@ class LoteFuturoMaterializadoTemporal:
     obrigacao_id: str | None = None
     recebido_id: str | None = None
     referencia_recebido_temporal: dict[str, Any] = field(default_factory=dict)
+    fonte_id_tecnico_normalizado: str | None = None
+    fonte_id_tecnico_original: str | None = None
+    pacotes_pagamento_ids: list[str] = field(default_factory=list)
+    obrigacoes_ids: list[str] = field(default_factory=list)
+    valor_pago_total: float = 0.0
+    qtd_pagamentos_vinculados: int = 0
 
 
 @dataclass(slots=True)
@@ -2319,63 +2331,177 @@ def _fonte_id_recebido_materializacao(recebido: dict[str, Any], data_ref: date, 
     return _identificar_recebido_referencial(recebido, data_ref, 'materializacao_recebido', posicao)
 
 
-def _destino_explicito_recebido(destino_potencial: str, saldo_residual: float, valor_pago: float) -> str:
+def _normalizar_identificador_tecnico_recebido(valor: Any) -> str | None:
+    texto = str(valor or '').strip()
+    if not texto or texto.lower() in {'nan', 'none', 'n/d', 'nd'}:
+        return None
+    while texto.lower().startswith('recebido:'):
+        texto = texto[len('recebido:'):].strip()
+    texto = texto.strip(':').strip()
+    return texto or None
+
+
+def _chaves_normalizadas_recebido(*valores: Any) -> set[str]:
+    chaves: set[str] = set()
+    for valor in valores:
+        normalizado = _normalizar_identificador_tecnico_recebido(valor)
+        if normalizado:
+            chaves.add(normalizado)
+    return chaves
+
+
+def _indexar_reservas_recebidos_por_id_normalizado(
+    reservas: list[FonteReservadaTemporalmente] | None,
+) -> dict[str, list[FonteReservadaTemporalmente]]:
+    indice: dict[str, list[FonteReservadaTemporalmente]] = {}
+    for reserva in reservas or []:
+        if reserva.tipo_fonte != 'recebido_referencial':
+            continue
+        referencia = reserva.referencia_estado_temporal or {}
+        chaves = _chaves_normalizadas_recebido(
+            reserva.fonte_id,
+            reserva.fonte_id_tecnico,
+            referencia.get('fonte_id_tecnico'),
+            referencia.get('recebido_id'),
+            referencia.get('id'),
+            referencia.get('identificador'),
+            referencia.get('codigo'),
+        )
+        for chave in chaves:
+            indice.setdefault(chave, []).append(reserva)
+    return indice
+
+
+def _ids_unicos_preservando_ordem(valores: list[Any]) -> list[str]:
+    vistos: set[str] = set()
+    saida: list[str] = []
+    for valor in valores:
+        texto = str(valor or '').strip()
+        if not texto or texto.lower() in {'nan', 'none', 'n/d', 'nd'} or texto in vistos:
+            continue
+        vistos.add(texto)
+        saida.append(texto)
+    return saida
+
+
+def _destino_aplicacao_representa_lote_futuro(
+    recebido: dict[str, Any],
+    data_aplicacao: date | None,
+    data_referencia: date,
+) -> bool:
+    if data_aplicacao is None or data_aplicacao <= data_referencia:
+        return False
+    for campo in ('status_recebido', 'status_temporal', 'status', 'status_materializacao', 'motivo_indisponibilidade'):
+        texto = str(recebido.get(campo) or '').strip().lower()
+        if any(token in texto for token in ('ativo', 'exaurido', 'migrado', 'switching', 'historico', 'histórico')):
+            return False
+    if recebido.get('materializado') is True:
+        return False
+    return True
+
+
+def _destino_explicito_recebido(
+    destino_potencial: str,
+    saldo_residual: float,
+    valor_pago: float,
+    materializa_lote_futuro: bool,
+) -> str:
     destino = destino_potencial.strip().lower()
     if saldo_residual <= 0.000001:
         return 'pagamento' if valor_pago > 0.000001 else 'saldo_disponivel'
     if 'aplicacao' in destino or 'aporte' in destino:
-        return 'lote_futuro'
+        return 'lote_futuro' if materializa_lote_futuro else 'aporte'
     if 'reserva' in destino:
         return 'reserva'
     return 'saldo_disponivel'
+
+
+def _lote_id_operacional_unico(
+    lote_id: str | None,
+    fonte_id_normalizado: str | None,
+    usados: dict[str, str | None],
+) -> str | None:
+    if not lote_id:
+        return None
+    dono = usados.get(lote_id)
+    if dono is None:
+        usados[lote_id] = fonte_id_normalizado
+        return lote_id
+    if dono == fonte_id_normalizado:
+        return lote_id
+    sufixo = (fonte_id_normalizado or 'origem_recebido').replace('recebido', '').strip(':_ -') or 'origem_recebido'
+    sufixo = sufixo.replace('_', ' ')
+    candidato = f'{lote_id} {sufixo}'
+    contador = 2
+    while candidato in usados and usados[candidato] != fonte_id_normalizado:
+        candidato = f'{lote_id} {sufixo} {contador}'
+        contador += 1
+    usados[candidato] = fonte_id_normalizado
+    return candidato
 
 
 def materializar_destinos_sobras_recebidos_temporais(
     resultado: ResultadoMotorTemporalConjunto,
 ) -> tuple[list[DestinoSobraRecebidoTemporal], list[LoteFuturoMaterializadoTemporal], list[str]]:
     avisos: list[str] = []
-    reservas_recebidos: dict[str, list[FonteReservadaTemporalmente]] = {}
-    for reserva in resultado.fontes_reservadas_temporalmente or []:
-        if reserva.tipo_fonte != 'recebido_referencial':
-            continue
-        reservas_recebidos.setdefault(reserva.fonte_id, []).append(reserva)
+    reservas_recebidos = _indexar_reservas_recebidos_por_id_normalizado(resultado.fontes_reservadas_temporalmente)
 
     destinos: list[DestinoSobraRecebidoTemporal] = []
     lotes: list[LoteFuturoMaterializadoTemporal] = []
+    lotes_usados: dict[str, str | None] = {}
     for posicao, recebido in enumerate(resultado.eventos_temporais_base.recebidos or [], start=1):
         data_recebimento = _data_recebido(recebido, 'data_recebimento', 'data')
-        fonte_id = _campo_textual_recebido(recebido, 'fonte_id_tecnico', 'recebido_id')
-        if not fonte_id:
-            fonte_id = _fonte_id_recebido_materializacao(recebido, data_recebimento or resultado.data_referencia, posicao)
+        fonte_id_original = _campo_textual_recebido(recebido, 'fonte_id_tecnico', 'recebido_id')
+        if not fonte_id_original:
+            fonte_id_original = _fonte_id_recebido_materializacao(recebido, data_recebimento or resultado.data_referencia, posicao)
+        fonte_id_normalizado = _normalizar_identificador_tecnico_recebido(fonte_id_original)
         valor_original, avisos_valor = extrair_valor_recebido_referencial(recebido)
         avisos.extend(avisos_valor)
         if valor_original is None:
             valor_original = 0.0
-        valor_pago = sum(float(r.valor_reservado_referencial or 0.0) for r in reservas_recebidos.get(fonte_id, []))
-        saldo_residual = round(max(float(valor_original) - valor_pago, 0.0), 10)
+        reservas_fonte = reservas_recebidos.get(fonte_id_normalizado or '', [])
+        valor_pago = sum(float(r.valor_reservado_referencial or 0.0) for r in reservas_fonte)
+        saldo_residual = round(float(valor_original) - valor_pago, 10)
         if valor_pago > float(valor_original) + 0.000001:
-            avisos.append(f'recebido_usado_acima_do_valor_original:{fonte_id}')
+            avisos.append(f'recebido_usado_acima_do_valor_original:{fonte_id_original}')
+        if saldo_residual < -0.000001:
+            avisos.append(f'saldo_residual_recebido_negativo:{fonte_id_original}')
+        saldo_residual = round(max(saldo_residual, 0.0), 10)
         lote_id = _campo_textual_recebido(recebido, 'lote_id_operacional', 'lote_id_operacional_previsto')
         data_aplicacao = _data_recebido(recebido, 'data_aplicacao', 'data_investimento') or data_recebimento
         destino_potencial = _campo_textual_recebido(recebido, 'destino_potencial') or ''
-        destino_explicito = _destino_explicito_recebido(destino_potencial, saldo_residual, valor_pago)
-        reservas_fonte = reservas_recebidos.get(fonte_id, [])
-        pacote_pagamento_id = reservas_fonte[0].pacote_id if reservas_fonte else None
-        obrigacao_id = reservas_fonte[0].obrigacao_id if reservas_fonte else _campo_textual_recebido(recebido, 'pagamento_vinculado_id')
+        materializa_lote_futuro = _destino_aplicacao_representa_lote_futuro(
+            recebido,
+            data_aplicacao,
+            resultado.data_referencia,
+        )
+        lote_id_unico = _lote_id_operacional_unico(lote_id, fonte_id_normalizado, lotes_usados) if materializa_lote_futuro else lote_id
+        destino_explicito = _destino_explicito_recebido(
+            destino_potencial,
+            saldo_residual,
+            valor_pago,
+            materializa_lote_futuro,
+        )
+        pacotes_pagamento_ids = _ids_unicos_preservando_ordem([r.pacote_id for r in reservas_fonte])
+        obrigacoes_ids = _ids_unicos_preservando_ordem([r.obrigacao_id for r in reservas_fonte])
+        pacote_pagamento_id = pacotes_pagamento_ids[0] if pacotes_pagamento_ids else None
+        obrigacao_id = obrigacoes_ids[0] if obrigacoes_ids else _campo_textual_recebido(recebido, 'pagamento_vinculado_id')
         investimento = _campo_textual_recebido(recebido, 'investimento', 'investimento_destino', 'carteira_destino', 'carteira')
         status_materializacao = 'materializado_etapa5_sobra_recebido'
         if destino_explicito == 'lote_futuro':
             status_materializacao = 'materializado_etapa5_lote_futuro'
-            if not lote_id:
-                avisos.append(f'lote_futuro_sem_lote_id_operacional:{fonte_id}')
-            if not fonte_id:
+            if not lote_id_unico:
+                avisos.append(f'lote_futuro_sem_lote_id_operacional:{fonte_id_original}')
+            if not fonte_id_original:
                 avisos.append('lote_futuro_sem_fonte_tecnica')
             if not investimento:
-                avisos.append(f'lote_futuro_sem_carteira_destino:{fonte_id}')
+                avisos.append(f'lote_futuro_sem_carteira_destino:{fonte_id_original}')
+        elif ('aplicacao' in destino_potencial.lower() or 'aporte' in destino_potencial.lower()) and saldo_residual > 0.000001:
+            status_materializacao = 'materializado_etapa5_aporte_ja_representado_ou_nao_futuro'
         destino = DestinoSobraRecebidoTemporal(
             recebido_id=_campo_textual_recebido(recebido, 'recebido_id'),
-            fonte_id_tecnico=fonte_id,
-            lote_id_operacional=lote_id,
+            fonte_id_tecnico=fonte_id_original,
+            lote_id_operacional=lote_id_unico,
             data_recebimento=data_recebimento,
             data_aplicacao=data_aplicacao,
             valor_original=float(valor_original),
@@ -2389,12 +2515,18 @@ def materializar_destinos_sobras_recebidos_temporais(
             investimento_destino=investimento,
             carteira_destino=investimento,
             referencia_recebido_temporal=dict(recebido),
+            fonte_id_tecnico_normalizado=fonte_id_normalizado,
+            fonte_id_tecnico_original=fonte_id_original,
+            pacotes_pagamento_ids=pacotes_pagamento_ids,
+            obrigacoes_ids=obrigacoes_ids,
+            valor_pago_total=round(valor_pago, 10),
+            qtd_pagamentos_vinculados=len(reservas_fonte),
         )
         destinos.append(destino)
-        if destino_explicito == 'lote_futuro' and lote_id and fonte_id:
+        if destino_explicito == 'lote_futuro' and lote_id_unico and fonte_id_original:
             lotes.append(LoteFuturoMaterializadoTemporal(
-                lote_id_operacional=lote_id,
-                fonte_id_tecnico=fonte_id,
+                lote_id_operacional=lote_id_unico,
+                fonte_id_tecnico=fonte_id_original,
                 data_recebimento=data_recebimento,
                 data_aplicacao=data_aplicacao,
                 valor_original=float(valor_original),
@@ -2408,6 +2540,12 @@ def materializar_destinos_sobras_recebidos_temporais(
                 obrigacao_id=obrigacao_id,
                 recebido_id=_campo_textual_recebido(recebido, 'recebido_id'),
                 referencia_recebido_temporal=dict(recebido),
+                fonte_id_tecnico_normalizado=fonte_id_normalizado,
+                fonte_id_tecnico_original=fonte_id_original,
+                pacotes_pagamento_ids=pacotes_pagamento_ids,
+                obrigacoes_ids=obrigacoes_ids,
+                valor_pago_total=round(valor_pago, 10),
+                qtd_pagamentos_vinculados=len(reservas_fonte),
             ))
     return destinos, lotes, avisos
 
