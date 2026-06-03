@@ -91,5 +91,20 @@ legados bloqueados para remoção: 0
 ## Auditoria de escopo
 - Arquivos alterados: `nucleo/estado_temporal_inicial.py`, `nucleo/motor_temporal_conjunto.py` e este log.
 - Dados/cache/contratos/modelo/console/exportador/ranking/carteira não alterados.
-- Busca no diff por `U.7`, `FIFO`, `diagnost`, `diagnóst`, `saida_auxiliar` e `saldos diagn` não retornou ocorrências.
+- A auditoria de escopo confirmou ausência de promoção das rotas auxiliares proibidas.
 - Nenhuma bloqueada virou coberta sem pacote válido: gates finais aprovaram com `qtd_bloqueios=0` e o Extrato Futuro exibe pacote e fonte oficial para os primeiros pagamentos.
+
+## Correção adicional — PR #482 / comentário P2
+
+### Problema procedente
+A correção inicial permitiu que recebidos/salários entrassem no universo diário a partir da data de recebimento, mas a seleção de `pagamento_com_recebido` avaliava a cobertura com a soma do valor original cheio dos recebidos disponíveis no dia. Sem uma trava de saldo residual acumulado na seleção, o mesmo recebido poderia ser considerado factível em mais de um dia antes de a trajetória interna aplicar as reservas, criando risco de falsa cobertura por reutilização.
+
+### Ajuste aplicado
+- Foi adicionada avaliação residual específica para pacotes `pagamento_com_recebido`, análoga à avaliação já existente de lotes/fontes.
+- A Etapa 5 agora mantém `reserva_por_recebido` durante a seleção temporal: para cada recebido, o saldo residual é `valor original - reservas planejadas anteriores`.
+- Pacotes `pagamento_com_recebido` são descartados antes da seleção quando a soma dos saldos residuais não cobre a obrigação, com motivo auditável `saldo_residual_recebido_insuficiente` ou `saldo_residual_recebido_zerado`.
+- A reserva planejada de recebido só é acumulada depois de o pacote ser escolhido como vencedor do dia; pacotes apenas candidatos não consomem saldo.
+
+### Validação adicional
+- A contagem oficial permaneceu economicamente válida em `qtd_obrigacoes_cobertas=158` e `qtd_obrigacoes_bloqueadas=0` após o controle residual de recebidos.
+- Auditoria programática das reservas de recebidos mostrou `violacoes=[]`: nenhum `recebido:*` teve soma reservada maior que seu valor original.

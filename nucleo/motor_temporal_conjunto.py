@@ -1493,6 +1493,54 @@ def _avaliar_reserva_residual_fontes_pacote(
     return True, [], reservas_planejadas
 
 
+def _avaliar_reserva_residual_recebidos_pacote(
+    pacote: PacoteTemporalCandidato,
+    reserva_por_recebido: dict[str, float],
+) -> tuple[bool, list[str], list[tuple[str, float]]]:
+    recebidos = _extrair_recebidos_referenciados_pacote(pacote)
+    if not recebidos:
+        return False, ['recebido_ausente_para_reserva_referencial'], []
+
+    valor_necessario = float(pacote.valor_obrigacoes or 0.0)
+    if valor_necessario <= 0.0:
+        return True, [], []
+
+    reservas_planejadas: list[tuple[str, float]] = []
+    restante = valor_necessario
+    motivos: list[str] = []
+    recebidos_validos = 0
+    saldos_residuais: list[tuple[str, float]] = []
+
+    for posicao, recebido in enumerate(recebidos, start=1):
+        fonte_id = _identificar_recebido_referencial(recebido, pacote.data_referencia, pacote.pacote_id, posicao)
+        valor_recebido, avisos_recebido = extrair_valor_recebido_referencial(recebido)
+        motivos.extend(avisos_recebido)
+        if valor_recebido is None or valor_recebido <= 0.0:
+            motivos.append('recebido_sem_valor_referencial_positivo_para_reserva')
+            continue
+        recebidos_validos += 1
+        saldo_residual = max(float(valor_recebido) - reserva_por_recebido.get(fonte_id, 0.0), 0.0)
+        saldos_residuais.append((fonte_id, saldo_residual))
+
+    if recebidos_validos == 0:
+        return False, motivos or ['recebido_sem_valor_referencial_positivo_para_reserva'], []
+
+    for fonte_id, saldo_residual in saldos_residuais:
+        if restante <= 0.0:
+            break
+        if saldo_residual <= 0.0:
+            continue
+        valor_reserva = min(saldo_residual, restante)
+        reservas_planejadas.append((fonte_id, valor_reserva))
+        restante -= valor_reserva
+
+    if not reservas_planejadas:
+        return False, ['saldo_residual_recebido_zerado'], []
+    if restante > 0.000001:
+        return False, ['saldo_residual_recebido_insuficiente'], []
+    return True, [], reservas_planejadas
+
+
 def selecionar_pacotes_temporais_vencedores(
     resultado: ResultadoMotorTemporalConjunto,
     pacotes_valorados: dict[date, list[PacoteTemporalValorado]],
@@ -1501,22 +1549,29 @@ def selecionar_pacotes_temporais_vencedores(
     vencedores: dict[date, PacoteTemporalCandidato | None] = {}
     descartados: dict[date, list[PacoteTemporalDescartado]] = {}
     reserva_por_fonte: dict[str, float] = {}
+    reserva_por_recebido: dict[str, float] = {}
     for data_ref in resultado.horizonte_motor.datas_temporais:
         pacotes_data = list(pacotes_valorados.get(data_ref, []))
         filtrados: list[PacoteTemporalValorado] = []
         descartes_reserva: list[PacoteTemporalDescartado] = []
         for pv in pacotes_data:
             pacote = pv.pacote_candidato
-            if pacote.tipo_pacote not in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes'}:
+            if pacote.tipo_pacote not in {'pagamento_fonte_unica', 'pagamento_combinacao_fontes', 'pagamento_com_recebido'}:
                 filtrados.append(pv)
                 continue
             if not pacote.obrigacoes_referenciadas:
                 filtrados.append(pv)
                 continue
-            valido_reserva, motivos_reserva, _ = _avaliar_reserva_residual_fontes_pacote(
-                pacote,
-                reserva_por_fonte,
-            )
+            if pacote.tipo_pacote == 'pagamento_com_recebido':
+                valido_reserva, motivos_reserva, _ = _avaliar_reserva_residual_recebidos_pacote(
+                    pacote,
+                    reserva_por_recebido,
+                )
+            else:
+                valido_reserva, motivos_reserva, _ = _avaliar_reserva_residual_fontes_pacote(
+                    pacote,
+                    reserva_por_fonte,
+                )
             if not valido_reserva:
                 descartes_reserva.append(PacoteTemporalDescartado(
                     pacote_id=pacote.pacote_id,
@@ -1539,6 +1594,14 @@ def selecionar_pacotes_temporais_vencedores(
             if valido_reserva:
                 for fonte_id, valor_reservado in reservas_planejadas:
                     reserva_por_fonte[fonte_id] = reserva_por_fonte.get(fonte_id, 0.0) + valor_reservado
+        elif vencedor and vencedor.tipo_pacote == 'pagamento_com_recebido':
+            valido_reserva, _, reservas_planejadas = _avaliar_reserva_residual_recebidos_pacote(
+                vencedor,
+                reserva_por_recebido,
+            )
+            if valido_reserva:
+                for recebido_id, valor_reservado in reservas_planejadas:
+                    reserva_por_recebido[recebido_id] = reserva_por_recebido.get(recebido_id, 0.0) + valor_reservado
     return decisoes, vencedores, descartados
 
 
