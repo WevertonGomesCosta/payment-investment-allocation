@@ -177,6 +177,9 @@ def _descricao_obrigacao_oficial(item):
 
 
 def _fontes_obrigacao_oficial(item):
+    fontes_operacionais = list(_valor_oficial(item, 'fontes_referenciadas_operacionais', []) or [])
+    if fontes_operacionais:
+        return ' + '.join(str(f) for f in fontes_operacionais if f) or 'n/d'
     fontes = list(_valor_oficial(item, 'fontes_referenciadas', []) or [])
     return ' + '.join(str(f) for f in fontes if f) or 'n/d'
 
@@ -185,7 +188,7 @@ def _linha_pagamento_oficial(item, bloqueada=False):
     referencia = _valor_oficial(item, 'referencia_original', {}) or {}
     valor = _valor_oficial(item, 'valor_obrigacao_referencial', _valor_oficial(referencia, 'valor', 0.0))
     fontes = _fontes_obrigacao_oficial(item)
-    pacote_id = _valor_oficial(item, 'pacote_id') or 'n/d'
+    pacote_id = _valor_oficial(item, 'pacote_nome_operacional') or _valor_oficial(item, 'pacote_id') or 'n/d'
     motivo = _valor_oficial(item, 'motivo') or 'n/d'
     return {
         'Data': _data_obrigacao_oficial(item),

@@ -78,6 +78,22 @@ LedgerTemporalCanonico
 - metadados;
 - prontidão para a Etapa 7.
 
+
+## 8-A. Preservação de identificadores operacionais de fonte no ledger — `REGRA-LOTE-ID-OPERACIONAL-RECEBIDO-01`
+
+A Etapa 6 deve preservar, nos lançamentos de reserva e fonte utilizados, os identificadores já materializados pela Etapa 5.
+
+Campos normativos esperados, quando aplicável:
+
+```text
+fonte_id_tecnico
+lote_id_operacional
+```
+
+Esses campos podem estar presentes diretamente nos lançamentos do `LedgerTemporalCanonico` e/ou em seus metadados, desde que a informação seja preservada sem reinterpretação.
+
+A Etapa 6 não deve gerar `lote_id_operacional` por conta própria quando ele estiver ausente no `ResultadoMotorTemporalConjunto`. Nessa situação, deve preservar a lacuna ou o identificador recebido, conforme auditoria do ledger, sem consultar Etapa 4, planilha, console, XLSX ou dados brutos.
+
 ## 9. Processo interno da etapa
 
 A Etapa 6 deve executar uma orquestração de materialização contábil-canônica em `construir_ledger_temporal_canonico(...)`. Essa orquestração consome exclusivamente `ResultadoMotorTemporalConjunto` e converte coleções já materializadas pela Etapa 5 em estruturas próprias de ledger.

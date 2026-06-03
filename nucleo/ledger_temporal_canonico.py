@@ -56,6 +56,8 @@ class LancamentoFonteLedger:
     status: str = 'uso_referencial_sem_alteracao_real'
     referencia_original: dict[str, Any] = field(default_factory=dict)
     metadados: dict[str, Any] = field(default_factory=dict)
+    fonte_id_tecnico: str | None = None
+    lote_id_operacional: str | None = None
 
 
 @dataclass(slots=True)
@@ -73,6 +75,8 @@ class LancamentoReservaLedger:
     status: str = 'reserva_referencial_sem_bloqueio_bancario_real'
     referencia_original: dict[str, Any] = field(default_factory=dict)
     metadados: dict[str, Any] = field(default_factory=dict)
+    fonte_id_tecnico: str | None = None
+    lote_id_operacional: str | None = None
 
 
 @dataclass(slots=True)
@@ -236,6 +240,16 @@ def _reserva_para_lancamentos(reserva: Any) -> tuple[LancamentoReservaLedger, La
     fonte_id = _valor(reserva, 'fonte_id')
     pacote_id = _valor(reserva, 'pacote_id')
     referencia = _dict_referencia(_valor(reserva, 'referencia_estado_temporal', {}))
+    fonte_id_tecnico = _valor(reserva, 'fonte_id_tecnico') or fonte_id
+    lote_id_operacional = (
+        _valor(reserva, 'lote_id_operacional')
+        or referencia.get('lote_id_operacional')
+        or referencia.get('lote_id_operacional_previsto')
+        or referencia.get('lote_id')
+        or referencia.get('Lote (ID)')
+        or referencia.get('lote')
+    )
+    lote_id_operacional_ausente = not bool(lote_id_operacional)
     reserva_ledger = LancamentoReservaLedger(
         data=data_reserva,
         tipo='reserva_fonte_referencial',
@@ -248,7 +262,14 @@ def _reserva_para_lancamentos(reserva: Any) -> tuple[LancamentoReservaLedger, La
         tipo_fonte=_valor(reserva, 'tipo_fonte'),
         origem_fonte=_valor(reserva, 'origem_fonte'),
         referencia_original=referencia,
-        metadados={'origem': 'fontes_reservadas_temporalmente'},
+        metadados={
+            'origem': 'fontes_reservadas_temporalmente',
+            'fonte_id_tecnico': fonte_id_tecnico,
+            'lote_id_operacional': lote_id_operacional,
+            'lote_id_operacional_ausente': lote_id_operacional_ausente,
+        },
+        fonte_id_tecnico=fonte_id_tecnico,
+        lote_id_operacional=lote_id_operacional,
     )
     fonte_ledger = LancamentoFonteLedger(
         data=data_reserva,
@@ -262,7 +283,14 @@ def _reserva_para_lancamentos(reserva: Any) -> tuple[LancamentoReservaLedger, La
         tipo_fonte=_valor(reserva, 'tipo_fonte'),
         origem_fonte=_valor(reserva, 'origem_fonte'),
         referencia_original=referencia,
-        metadados={'origem': 'fontes_reservadas_temporalmente'},
+        metadados={
+            'origem': 'fontes_reservadas_temporalmente',
+            'fonte_id_tecnico': fonte_id_tecnico,
+            'lote_id_operacional': lote_id_operacional,
+            'lote_id_operacional_ausente': lote_id_operacional_ausente,
+        },
+        fonte_id_tecnico=fonte_id_tecnico,
+        lote_id_operacional=lote_id_operacional,
     )
     return reserva_ledger, fonte_ledger
 

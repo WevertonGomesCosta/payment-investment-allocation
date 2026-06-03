@@ -128,6 +128,143 @@ def _chave_data(data_ref: Any) -> str:
     return str(data_ref)
 
 
+def _texto_material(valor: Any) -> str:
+    texto = str(valor or '').strip()
+    if texto.lower() in {'', 'nan', 'none', 'n/d', 'nd'}:
+        return ''
+    return texto
+
+
+def _fonte_operacional_renderizavel(item: dict[str, Any]) -> str:
+    return (
+        _texto_material(item.get('lote_id_operacional'))
+        or _texto_material((item.get('metadados') or {}).get('lote_id_operacional'))
+    )
+
+
+def _enriquecer_fonte_identificacao(item: dict[str, Any]) -> dict[str, Any]:
+    saida = dict(item)
+    fonte_id = _texto_material(saida.get('fonte_id'))
+    fonte_id_tecnico = (
+        _texto_material(saida.get('fonte_id_tecnico'))
+        or _texto_material((saida.get('metadados') or {}).get('fonte_id_tecnico'))
+        or fonte_id
+    )
+    lote_id_operacional = _fonte_operacional_renderizavel(saida)
+    if fonte_id_tecnico:
+        saida['fonte_id_tecnico'] = fonte_id_tecnico
+    if lote_id_operacional:
+        saida['lote_id_operacional'] = lote_id_operacional
+        saida['fonte_nome_operacional'] = lote_id_operacional
+    else:
+        saida['lote_id_operacional_ausente'] = True
+        saida['fonte_nome_operacional'] = 'lote_id_operacional_ausente'
+    return saida
+
+
+def _indice_nomes_fontes(fontes: list[dict[str, Any]]) -> dict[str, str]:
+    indice: dict[str, str] = {}
+    for item in fontes:
+        fonte_id = _texto_material(item.get('fonte_id'))
+        if not fonte_id:
+            continue
+        indice[fonte_id] = _fonte_operacional_renderizavel(item) or 'lote_id_operacional_ausente'
+    return indice
+
+
+def _tipo_pacote_legivel(tipo_pacote: str) -> str:
+    mapa = {
+        'pagamento_com_recebido': 'pagamento com recebido',
+        'pagamento_combinacao_fontes': 'pagamento com combinação de fontes',
+        'pagamento_fonte_unica': 'pagamento com fonte única',
+        'sem_cobertura': 'sem cobertura',
+        'sem_obrigacao': 'sem obrigação',
+        'switching_integral_simples': 'switching integral',
+        'switching_integral_agregado': 'switching integral agregado',
+        'switching_mais_pagamento': 'switching mais pagamento',
+        'pay_only': 'pagamento',
+        'switch_then_pay': 'switching antes do pagamento',
+        'pay_then_switch': 'pagamento antes do switching',
+        'switch_only': 'switching',
+        'no_action': 'sem ação',
+    }
+    return mapa.get(tipo_pacote, tipo_pacote.replace('_', ' '))
+
+
+def _nome_pacote_operacional(pacote_id: Any, fontes_operacionais: list[str] | None = None) -> str:
+    pacote_txt = _texto_material(pacote_id)
+    if not pacote_txt:
+        return 'sem pacote válido'
+    partes = pacote_txt.split('::')
+    if len(partes) >= 2:
+        nome = f'{partes[0]} | {_tipo_pacote_legivel(partes[1])}'
+    else:
+        nome = pacote_txt
+    fontes = [f for f in (fontes_operacionais or []) if _texto_material(f)]
+    if len(fontes) == 1:
+        nome = f'{nome} | {fontes[0]}'
+    elif len(fontes) > 1:
+        nome = f'{nome} | {len(fontes)} fontes'
+    return nome
+
+
+def _enriquecer_obrigacao_identificacao(item: dict[str, Any], nomes_fontes: dict[str, str]) -> dict[str, Any]:
+    saida = dict(item)
+    fontes_tecnicas = [
+        str(f).strip()
+        for f in list(saida.get('fontes_referenciadas') or [])
+        if str(f).strip()
+    ]
+    fontes_operacionais = [
+        nomes_fontes.get(fonte) or 'lote_id_operacional_ausente'
+        for fonte in fontes_tecnicas
+    ]
+    saida['fontes_referenciadas_tecnicas'] = fontes_tecnicas
+    saida['fontes_referenciadas_operacionais'] = fontes_operacionais
+    saida['pacote_id_tecnico'] = saida.get('pacote_id')
+    saida['pacote_nome_operacional'] = _nome_pacote_operacional(saida.get('pacote_id'), fontes_operacionais)
+    return saida
+
+
+def _enriquecer_switching_identificacao(item: dict[str, Any]) -> dict[str, Any]:
+    saida = dict(item)
+    origem = _texto_material(saida.get('lote_origem_id') or saida.get('lote_origem'))
+    destino = _texto_material(saida.get('lote_destino_id') or saida.get('lote_destino'))
+    if origem or destino:
+        saida['switching_nome_operacional'] = f"{origem or 'origem n/d'} -> {destino or 'destino n/d'}"
+    else:
+        saida['switching_nome_operacional'] = _texto_material(saida.get('switching_id')) or 'switching sem identificação'
+    return saida
+
+
+def _enriquecer_identificacao_operacional_blocos(blocos: dict[str, Any]) -> dict[str, Any]:
+    saida = dict(blocos)
+    fontes_utilizadas = [
+        _enriquecer_fonte_identificacao(item)
+        for item in list(saida.get('fontes_utilizadas') or [])
+    ]
+    fontes_reservadas = [
+        _enriquecer_fonte_identificacao(item)
+        for item in list(saida.get('fontes_reservadas') or [])
+    ]
+    nomes_fontes = _indice_nomes_fontes(fontes_reservadas + fontes_utilizadas)
+    saida['fontes_utilizadas'] = fontes_utilizadas
+    saida['fontes_reservadas'] = fontes_reservadas
+    saida['obrigacoes_cobertas'] = [
+        _enriquecer_obrigacao_identificacao(item, nomes_fontes)
+        for item in list(saida.get('obrigacoes_cobertas') or [])
+    ]
+    saida['obrigacoes_bloqueadas'] = [
+        _enriquecer_obrigacao_identificacao(item, nomes_fontes)
+        for item in list(saida.get('obrigacoes_bloqueadas') or [])
+    ]
+    saida['switchings_escolhidos'] = [
+        _enriquecer_switching_identificacao(item)
+        for item in list(saida.get('switchings_escolhidos') or [])
+    ]
+    return saida
+
+
 def _snapshot_saldos(saldos_por_data: Any) -> dict[str, list[dict[str, Any]]]:
     if not saldos_por_data:
         return {}
@@ -434,6 +571,7 @@ def construir_pacote_saida_observavel_oficial(
         return _pacote_bloqueado_por_entrada_invalida(saida, lacunas)
 
     blocos = extrair_blocos_saida_canonica(saida)
+    blocos = _enriquecer_identificacao_operacional_blocos(blocos)
     resumo_operacional = preparar_resumo_operacional_observavel(blocos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(blocos)
     proximos_pagamentos = preparar_bloco_proximos_pagamentos(blocos)

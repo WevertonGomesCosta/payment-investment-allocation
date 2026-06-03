@@ -321,6 +321,33 @@ Informações candidatas, estimadas ou diagnósticas devem ser identificadas com
 
 Produto destino, oportunidade de switching ou ganho estimado não equivalem a lote pós-switching materializado.
 
+
+### 7-B.4. Identificação operacional de recebidos materializados — `REGRA-LOTE-ID-OPERACIONAL-RECEBIDO-01`
+
+Toda fonte usada em pagamento deve possuir identificação operacional compatível com a unidade de rastreabilidade do projeto.
+
+Quando a fonte já for lote materializado, a identificação operacional deve ser o próprio `Lote (ID)` existente no inventário temporal.
+
+Quando a fonte for recebido ou salário temporalmente disponível, a cadeia operacional deve preservar simultaneamente:
+
+- identificador técnico/auditável do recebido, por exemplo `recebido:recebido::salario_auto_00019`;
+- identificador operacional em padrão `Lote (ID)`, por exemplo `Lote 3900 jun.`;
+- pacote técnico original, quando aplicável.
+
+O `Lote (ID)` operacional de recebido ou salário representa fonte temporal materializada por disponibilidade de recebido. Ele não equivale automaticamente a lote aportado ativo em carteira, salvo quando o motor materializar decisão posterior de aporte ou lote futuro.
+
+A responsabilidade da cadeia é:
+
+```text
+Etapa 4 -> cria lote_id_operacional_previsto
+Etapa 5 -> promove para lote_id_operacional quando usado por pacote vencedor
+Etapa 6 -> preserva no LedgerTemporalCanonico
+Etapa 8 -> preserva na SaidaCanonicaOficial
+Etapa 9 -> apenas renderiza
+```
+
+A Etapa 9 não pode inferir `Lote (ID)` por valor, data ou descrição quando esse campo não estiver materializado na saída canônica; nesse caso, deve preservar identificadores técnicos e registrar lacuna ou bloqueio conforme o contrato da Etapa 9.
+
 ---
 
 ## 7-C. Regra de trajetória conjunta dos pacotes

@@ -109,6 +109,20 @@ A saída não deve ser confundida automaticamente com funções ou artefatos leg
 
 O schema implementado é representado pelas classes `SaidaCanonicaOficial`, `ResumoSaidaCanonicaOficial` e `BloqueioPreparacaoSaidaCanonicaOficial`.
 
+
+## 8-A. Preservação canônica de `lote_id_operacional` — `REGRA-LOTE-ID-OPERACIONAL-RECEBIDO-01`
+
+A Etapa 8 deve preservar na `SaidaCanonicaOficial` os campos de identificação operacional de fonte já existentes no `LedgerTemporalCanonico`, incluindo, quando aplicável:
+
+```text
+fonte_id_tecnico
+lote_id_operacional
+```
+
+A Etapa 8 não deve criar, inferir ou substituir `lote_id_operacional`. Sua responsabilidade é transportar, na saída canônica oficial, a identificação já validada e materializada no ledger.
+
+Se o ledger não contiver `lote_id_operacional` em uma fonte que deveria possuí-lo, a Etapa 8 deve preservar a evidência disponível e permitir que a etapa posterior registre lacuna de renderização, sem consultar Etapa 4, Etapa 5, planilha, console, XLSX ou dados brutos.
+
 ## 9. Processo interno da etapa
 
 A Etapa 8 executa um processo determinístico de preparação da saída oficial:

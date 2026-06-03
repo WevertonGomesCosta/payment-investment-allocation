@@ -48,7 +48,7 @@ DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
 
 DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
     'extrato_passado': ['Data', 'Conta', 'Despesa ID', 'Lote', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'],
-    'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Pacote do dia', 'Lote reserva', 'Lote pós-switching', 'Destino switching', 'Origem switching', 'Fonte switching', 'Data switching', 'Score switching', 'Necessita switching', 'Switching antes do pagamento', 'Switching depois do pagamento', 'Motivo bloqueio lote', 'Status recomendação', 'Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.', 'Pos sw?', 'Fonte pos sw', 'Saldo pos sw', 'Motivo pos sw', 'Origem saldo pos', 'Bruto pos', 'Líq. pos', 'Data saldo pos', 'Motivo saldo pos'],
+    'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Fonte técnica', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Pacote do dia', 'Pacote técnico', 'Lote reserva', 'Lote pós-switching', 'Destino switching', 'Origem switching', 'Fonte switching', 'Data switching', 'Score switching', 'Necessita switching', 'Switching antes do pagamento', 'Switching depois do pagamento', 'Motivo bloqueio lote', 'Status recomendação', 'Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.', 'Pos sw?', 'Fonte pos sw', 'Saldo pos sw', 'Motivo pos sw', 'Origem saldo pos', 'Bruto pos', 'Líq. pos', 'Data saldo pos', 'Motivo saldo pos'],
     'switching': ['Data sugerida', 'Lote origem', 'Produto origem', 'Produto destino switching', 'Ganho estimado', 'Valor líquido origem', 'Status'],
 }
 
@@ -642,20 +642,26 @@ def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: A
             status = _valor_observavel_oficial(item, 'status')
             motivo = _valor_observavel_oficial(item, 'motivo')
             pacote_id = _valor_observavel_oficial(item, 'pacote_id')
+            pacote_nome = _valor_observavel_oficial(item, 'pacote_nome_operacional')
             fontes = _valor_observavel_oficial(item, 'fontes_referenciadas', []) or []
+            fontes_operacionais = _valor_observavel_oficial(item, 'fontes_referenciadas_operacionais', []) or []
+            fontes_tecnicas = _valor_observavel_oficial(item, 'fontes_referenciadas_tecnicas', []) or fontes
             valor = (
                 _valor_observavel_oficial(item, 'valor_obrigacao_referencial')
                 if cobertura_integral == 'sim'
                 else _valor_observavel_oficial(item, 'valor_obrigacao_referencial')
             )
-            fonte_oficial = _texto_observavel(fontes)
-            pacote_oficial = _texto_observavel(pacote_id, 'sem_pacote_valido')
+            fonte_oficial = _texto_observavel(fontes_operacionais or fontes)
+            fonte_tecnica = _texto_observavel(fontes_tecnicas)
+            pacote_oficial = _texto_observavel(pacote_nome or pacote_id, 'sem_pacote_valido')
+            pacote_tecnico = _texto_observavel(pacote_id, 'sem_pacote_valido')
             linha = {
                 'Data': _valor_observavel_oficial(item, 'data') or referencia.get('data'),
                 'Conta': referencia.get('conta') or referencia.get('descricao') or referencia.get('Conta') or _texto_observavel(_valor_observavel_oficial(item, 'obrigacao_id')),
                 'Despesa ID': _valor_observavel_oficial(item, 'obrigacao_id') or referencia.get('pagamento_id') or referencia.get('id'),
                 'Valor': valor,
                 'Lote sugerido': fonte_oficial if cobertura_integral == 'sim' else 'n/d',
+                'Fonte técnica': fonte_tecnica if cobertura_integral == 'sim' else 'n/d',
                 'Saldo Antes': 'n/d',
                 'Bruto': valor if cobertura_integral == 'sim' else 'n/d',
                 'Imposto': 'n/d',
@@ -664,6 +670,7 @@ def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: A
                 'Cobertura integral': cobertura_integral,
                 'Estratégia': 'obrigacao_coberta_oficial' if cobertura_integral == 'sim' else 'obrigacao_bloqueada_oficial',
                 'Pacote do dia': pacote_oficial,
+                'Pacote técnico': pacote_tecnico,
                 'Lote reserva': fonte_oficial if cobertura_integral == 'sim' else 'n/d',
                 'Lote pós-switching': 'n/d',
                 'Destino switching': 'n/d',

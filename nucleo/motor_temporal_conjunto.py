@@ -271,6 +271,8 @@ class FonteReservadaTemporalmente:
     valor_disponivel_depois_referencial: float
     obrigacao_id: str | None = None
     referencia_estado_temporal: dict[str, Any] = field(default_factory=dict)
+    fonte_id_tecnico: str | None = None
+    lote_id_operacional: str | None = None
 
 
 @dataclass(slots=True)
@@ -1763,6 +1765,30 @@ def _identificar_recebido_referencial(
     return f'recebido_sem_id:{data_ref.isoformat()}:{pacote_id}:{posicao}'
 
 
+
+
+def _texto_material_motor(valor: Any) -> str:
+    texto = str(valor or '').strip()
+    if texto.lower() in {'', 'nan', 'none', 'n/d', 'nd'}:
+        return ''
+    return texto
+
+
+def _lote_id_operacional_de_fonte_reservada(fonte_id: str | None, referencia: dict[str, Any] | None) -> str | None:
+    ref = referencia or {}
+    for campo in (
+        'lote_id_operacional',
+        'lote_id_operacional_previsto',
+        'lote_id',
+        'Lote (ID)',
+        'lote',
+        'fonte_id',
+    ):
+        valor = _texto_material_motor(ref.get(campo))
+        if valor:
+            return valor
+    return fonte_id
+
 def _valor_total_obrigacoes_pacote(pacote: PacoteTemporalCandidato) -> tuple[float, list[str]]:
     avisos: list[str] = []
     if pacote.valor_obrigacoes is not None:
@@ -1855,6 +1881,11 @@ def _reservar_fontes_referenciais(
             valor_disponivel_depois_referencial=depois,
             obrigacao_id=obrigacao_id,
             referencia_estado_temporal=fonte.referencia_estado_temporal,
+            fonte_id_tecnico=fonte_id,
+            lote_id_operacional=_lote_id_operacional_de_fonte_reservada(
+                fonte_id,
+                fonte.referencia_estado_temporal,
+            ),
         ))
         restante -= valor_reserva
     return reservas, valor_necessario - restante, alertas
@@ -1900,6 +1931,11 @@ def _reservar_recebidos_referenciais(
             valor_disponivel_depois_referencial=depois,
             obrigacao_id=obrigacao_id,
             referencia_estado_temporal=recebido,
+            fonte_id_tecnico=fonte_id,
+            lote_id_operacional=_lote_id_operacional_de_fonte_reservada(
+                fonte_id,
+                recebido,
+            ),
         ))
         restante -= valor_reserva
     return reservas, valor_necessario - restante, alertas

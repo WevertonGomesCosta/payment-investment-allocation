@@ -56,6 +56,68 @@ def _float_seguro(*valores: Any) -> float:
     return 0.0
 
 
+_MESES_PT_LOTE_ID = {
+    1: 'jan.',
+    2: 'fev.',
+    3: 'mar.',
+    4: 'abr.',
+    5: 'mai.',
+    6: 'jun.',
+    7: 'jul.',
+    8: 'ago.',
+    9: 'set.',
+    10: 'out.',
+    11: 'nov.',
+    12: 'dez.',
+}
+
+
+def _texto_material_temporal(valor: Any) -> str:
+    texto = str(valor or '').strip()
+    if texto.lower() in {'', 'nan', 'none', 'n/d', 'nd'}:
+        return ''
+    return texto
+
+
+def _formatar_valor_lote_id_temporal(valor: Any) -> str:
+    if isinstance(valor, bool) or valor is None:
+        return ''
+    try:
+        numero = float(valor)
+    except Exception:
+        return ''
+    if numero <= 0:
+        return ''
+    if abs(numero - round(numero)) < 0.005:
+        return str(int(round(numero)))
+    texto = f'{numero:.2f}'.replace('.', ',')
+    texto = texto.rstrip('0').rstrip(',')
+    return texto
+
+
+def _lote_id_existente_ou_vazio(valor: Any) -> str:
+    texto = _texto_material_temporal(valor)
+    if texto.lower().startswith('lote '):
+        return texto
+    return ''
+
+
+def _lote_id_operacional_previsto_recebido(valor: Any, data_ref: Any, lote_existente: Any = None) -> str:
+    lote = _lote_id_existente_ou_vazio(lote_existente)
+    if lote:
+        return lote
+
+    valor_txt = _formatar_valor_lote_id_temporal(valor)
+    mes_txt = ''
+    if isinstance(data_ref, date):
+        mes_txt = _MESES_PT_LOTE_ID.get(data_ref.month, '')
+    if valor_txt and mes_txt:
+        return f'Lote {valor_txt} {mes_txt}'
+    if valor_txt:
+        return f'Lote {valor_txt}'
+    return ''
+
+
 
 
 def _status_switching_materializacao(data_ref: date, data_switching: Any, data_aplicacao: Any) -> str:
@@ -129,6 +191,13 @@ def _recebidos_temporais_canonicos(recebidos_auditaveis: Any, data_ref: date) ->
             'pagamento_vinculado_id': row.get('pagamento_vinculado_id'),
             'futuro_indisponivel': not bool(row.get('disponivel_na_data_referencia', False)),
             'materializado': bool(data_rec and data_rec <= data_ref),
+            'fonte_id_tecnico': recebido_id,
+            'lote_id_operacional_previsto': _lote_id_operacional_previsto_recebido(
+                _float_seguro(row.get('valor_liquido'), row.get('valor_bruto'), 0.0),
+                data_rec,
+                row.get('lote_id') or row.get('Lote (ID)') or row.get('lote'),
+            ),
+            'tipo_lote_operacional': 'recebido_temporal',
         })
     return saida
 
@@ -166,6 +235,13 @@ def _recebido_temporal_de_salario(row: dict[str, Any], data_ref: date) -> dict[s
         'usado_antes_da_aplicacao': bool(row.get('usado_antes_da_aplicacao')),
         'pagamento_vinculado_id': row.get('pagamento_vinculado_id'),
         'origem_canonica': 'salarios_canonicos',
+        'fonte_id_tecnico': recebido_id,
+        'lote_id_operacional_previsto': _lote_id_operacional_previsto_recebido(
+            _float_seguro(row.get('valor_liquido'), row.get('valor_bruto'), row.get('valor'), 0.0),
+            data_rec,
+            row.get('lote_id') or row.get('Lote (ID)') or row.get('lote'),
+        ),
+        'tipo_lote_operacional': 'recebido_temporal',
     }
 
 
