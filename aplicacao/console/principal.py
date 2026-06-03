@@ -221,6 +221,44 @@ def _linha_pagamento_oficial(item, bloqueada=False):
     }
 
 
+
+def _fonte_detalhe_operacional(detalhe):
+    return (
+        _valor_oficial(detalhe, 'lote_id_operacional')
+        or _valor_oficial(detalhe, 'fonte_nome_operacional')
+        or _valor_oficial(detalhe, 'fonte_id')
+        or 'n/d'
+    )
+
+
+def _fonte_detalhe_tecnica(detalhe):
+    return _valor_oficial(detalhe, 'fonte_id_tecnico') or _valor_oficial(detalhe, 'fonte_id') or 'n/d'
+
+
+def _linhas_detalhes_fontes_pagamento(item, *, bloqueada=False):
+    if bloqueada:
+        return []
+    detalhes = list(_valor_oficial(item, 'detalhes_fontes_resgate', []) or [])
+    if not detalhes:
+        return []
+    pacote_id = _valor_oficial(item, 'pacote_nome_operacional') or _valor_oficial(item, 'pacote_id') or 'n/d'
+    linhas = []
+    for detalhe in detalhes:
+        linhas.append({
+            'Data': _data_obrigacao_oficial(item),
+            'Conta': _descricao_obrigacao_oficial(item),
+            'Lote': _fonte_detalhe_operacional(detalhe),
+            'Fonte técnica': _fonte_detalhe_tecnica(detalhe),
+            'Pacote': pacote_id,
+            'Saldo ant.': _valor_economico_oficial(detalhe, 'saldo_antes_fonte', 'status_saldo_antes_fonte'),
+            'Bruto': _valor_economico_oficial(detalhe, 'valor_bruto_resgate', 'status_valor_bruto_resgate'),
+            'IR': _valor_economico_oficial(detalhe, 'imposto_resgate', 'status_imposto_resgate'),
+            'Liq.': _valor_economico_oficial(detalhe, 'valor_liquido_resgate', 'status_valor_liquido_resgate'),
+            'Rem.': _valor_economico_oficial(detalhe, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte'),
+            'Status': _valor_oficial(item, 'status') or 'coberta_oficial',
+        })
+    return linhas
+
 def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial) -> None:
     bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
     if bloco_console is None:
@@ -232,19 +270,33 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
     bloqueadas = list(getattr(bloco_console, 'obrigacoes_bloqueadas', []) or [])
 
     ultimas_cobertas = sorted(
-        cobertas,
-        key=lambda item: (_data_obrigacao_oficial(item) is None, _data_obrigacao_oficial(item), _valor_oficial(item, 'obrigacao_id') or ''),
+        [
+            item for item in cobertas
+            if _data_obrigacao_oficial(item) is not None
+            and (data_ref is None or _data_obrigacao_oficial(item) <= data_ref)
+        ],
+        key=lambda item: (_data_obrigacao_oficial(item), _valor_oficial(item, 'obrigacao_id') or ''),
         reverse=True,
     )[:5]
-    print('- últimos 5 pagamentos cobertos pela saída oficial:')
-    _imprimir_tabela(
-        ['Data', 'Conta', 'Lote', 'Pacote', 'Status'],
-        [
-            {k: linha[k] for k in ['Data', 'Conta', 'Lote', 'Pacote', 'Status']}
+    print('- últimos 5 pagamentos realizados — saída oficial:')
+    if ultimas_cobertas:
+        _imprimir_tabela(
+            ['Data', 'Conta', 'Lote', 'Pacote', 'Status'],
+            [
+                {k: linha[k] for k in ['Data', 'Conta', 'Lote', 'Pacote', 'Status']}
+                for linha in (_linha_pagamento_oficial(item, bloqueada=False) for item in ultimas_cobertas)
+            ],
+            limite=5,
+        )
+
+        linhas_ultimos_valores = [
+            {k: linha[k] for k in ['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']}
             for linha in (_linha_pagamento_oficial(item, bloqueada=False) for item in ultimas_cobertas)
-        ],
-        limite=5,
-    )
+        ]
+        print('\n- últimos 5 pagamentos realizados — valores oficiais:')
+        _imprimir_tabela(['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.'], linhas_ultimos_valores, limite=5)
+    else:
+        print('  sem_pagamentos_realizados_ate_data_referencia')
 
     proximas = []
     for item in cobertas:
@@ -279,6 +331,22 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
     ]
     print('\n- próximos 5 pagamentos — valores oficiais:')
     _imprimir_tabela(['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.'], linhas_valores, limite=5)
+
+    multifonte = [
+        item for item in proximas_ordenadas
+        if len(list(_valor_oficial(item, 'detalhes_fontes_resgate', []) or [])) > 1
+        and not str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente')
+    ]
+    linhas_multifonte = []
+    for item in multifonte[:5]:
+        linhas_multifonte.extend(_linhas_detalhes_fontes_pagamento(item))
+    if linhas_multifonte:
+        print('\n- pagamentos multifonte — detalhes por fonte oficiais:')
+        _imprimir_tabela(
+            ['Data', 'Conta', 'Lote', 'Fonte técnica', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status'],
+            linhas_multifonte,
+            limite=10,
+        )
 
     if bloqueadas:
         print('\n- obrigações bloqueadas oficiais:')
