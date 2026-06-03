@@ -1942,9 +1942,32 @@ def _agregar_metricas_fontes_resgate(detalhes: list[dict[str, Any]]) -> dict[str
             return 'ausente_na_fonte', 'ausente_na_fonte'
         return 'nao_materializado', 'nao_materializado'
 
+    def agregar_imposto() -> tuple[float | str | None, str]:
+        if not detalhes:
+            return 'nao_materializado', 'nao_materializado'
+        valores = [d.get('imposto_resgate') for d in detalhes]
+        status = [str(d.get('status_imposto_resgate') or '').strip() for d in detalhes]
+        numeros = [_numero_motor(v) for v in valores]
+        categorias = {str(v).strip() for v in valores if str(v).strip()} | {s for s in status if s}
+        if all(n is not None for n in numeros):
+            return round(sum(float(n) for n in numeros if n is not None), 10), 'materializado'
+        if categorias == {'nao_aplicavel'}:
+            return 'nao_aplicavel', 'nao_aplicavel'
+        if 'nao_materializado' in categorias:
+            return 'nao_materializado', 'nao_materializado'
+        if 'ausente_na_fonte' in categorias:
+            return 'ausente_na_fonte', 'ausente_na_fonte'
+        componentes_somaveis = (
+            n is not None or str(v).strip() == 'nao_aplicavel' or s == 'nao_aplicavel'
+            for n, v, s in zip(numeros, valores, status)
+        )
+        if all(componentes_somaveis):
+            return round(sum(float(n) for n in numeros if n is not None), 10), 'materializado'
+        return 'nao_materializado', 'nao_materializado'
+
     saldo_antes, status_saldo_antes = agregar('saldo_antes_fonte', 'status_saldo_antes_fonte')
     bruto, status_bruto = agregar('valor_bruto_resgate', 'status_valor_bruto_resgate')
-    imposto, status_imposto = agregar('imposto_resgate', 'status_imposto_resgate')
+    imposto, status_imposto = agregar_imposto()
     liquido, status_liquido = agregar('valor_liquido_resgate', 'status_valor_liquido_resgate')
     remanescente, status_remanescente = agregar('saldo_remanescente_fonte', 'status_saldo_remanescente_fonte')
     return {
