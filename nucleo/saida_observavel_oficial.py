@@ -439,7 +439,8 @@ def preparar_bloco_pagamentos_data_referencia(blocos: dict[str, Any]) -> list[di
     pagamentos: list[dict[str, Any]] = []
     for item in list(blocos['obrigacoes_cobertas']):
         if _data_observavel_item(item) == data_referencia:
-            pagamentos.append(_status_pagamento_observavel(item, bloqueada=False))
+            item_status = _status_pagamento_observavel(item, bloqueada=False)
+            pagamentos.extend(_expandir_pagamento_multifonte_observavel(item_status))
     for item in list(blocos['obrigacoes_bloqueadas']):
         if _data_observavel_item(item) == data_referencia:
             pagamentos.append(_status_pagamento_observavel(item, bloqueada=True))
@@ -473,6 +474,57 @@ def _valor_economico_detalhe_observavel(detalhe: dict[str, Any], campo: str, sta
     return detalhe.get(status_campo) or 'nao_materializado'
 
 
+def _fonte_operacional_detalhe_observavel(detalhe: dict[str, Any]) -> Any:
+    return (
+        detalhe.get('lote_id_operacional')
+        or detalhe.get('fonte_nome_operacional')
+        or detalhe.get('fonte_id')
+        or 'ausente_na_fonte'
+    )
+
+
+def _fonte_tecnica_detalhe_observavel(detalhe: dict[str, Any]) -> Any:
+    return detalhe.get('fonte_id_tecnico') or detalhe.get('fonte_id') or 'ausente_na_fonte'
+
+
+def _expandir_pagamento_multifonte_observavel(item: dict[str, Any]) -> list[dict[str, Any]]:
+    detalhes = [detalhe for detalhe in list(item.get('detalhes_fontes_resgate') or []) if isinstance(detalhe, dict)]
+    if len(detalhes) <= 1:
+        return [item]
+
+    linhas: list[dict[str, Any]] = []
+    for detalhe in detalhes:
+        fonte_operacional = _fonte_operacional_detalhe_observavel(detalhe)
+        fonte_tecnica = _fonte_tecnica_detalhe_observavel(detalhe)
+        liquido = _valor_economico_detalhe_observavel(detalhe, 'valor_liquido_resgate', 'status_valor_liquido_resgate')
+        linha = dict(item)
+        linha.update({
+            'valor_obrigacao_referencial': liquido,
+            'valor_coberto_referencial': liquido,
+            'fontes_referenciadas': [fonte_operacional],
+            'fontes_referenciadas_operacionais': [fonte_operacional],
+            'fontes_referenciadas_tecnicas': [fonte_tecnica],
+            'detalhes_fontes_resgate': [dict(detalhe)],
+            'saldo_antes_fonte': _valor_economico_detalhe_observavel(detalhe, 'saldo_antes_fonte', 'status_saldo_antes_fonte'),
+            'valor_bruto_resgate': _valor_economico_detalhe_observavel(detalhe, 'valor_bruto_resgate', 'status_valor_bruto_resgate'),
+            'imposto_resgate': _valor_economico_detalhe_observavel(detalhe, 'imposto_resgate', 'status_imposto_resgate'),
+            'valor_liquido_resgate': liquido,
+            'saldo_remanescente_fonte': _valor_economico_detalhe_observavel(detalhe, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte'),
+            'status_saldo_antes_fonte': detalhe.get('status_saldo_antes_fonte') or 'nao_materializado',
+            'status_valor_bruto_resgate': detalhe.get('status_valor_bruto_resgate') or 'nao_materializado',
+            'status_imposto_resgate': detalhe.get('status_imposto_resgate') or 'nao_materializado',
+            'status_valor_liquido_resgate': detalhe.get('status_valor_liquido_resgate') or 'nao_materializado',
+            'status_saldo_remanescente_fonte': detalhe.get('status_saldo_remanescente_fonte') or 'nao_materializado',
+            'fonte_id_tecnico': fonte_tecnica,
+            'lote_id_operacional': fonte_operacional,
+            'tipo_linha_observavel': 'detalhe_fonte_multifonte',
+            'Obrigacao ID': item.get('obrigacao_id') or detalhe.get('obrigacao_id'),
+            'Pacote ID': item.get('pacote_id') or detalhe.get('pacote_id'),
+        })
+        linhas.append(linha)
+    return linhas
+
+
 def preparar_bloco_pagamentos_por_fonte(blocos: dict[str, Any]) -> list[dict[str, Any]]:
     linhas: list[dict[str, Any]] = []
     for item in list(blocos['obrigacoes_cobertas']):
@@ -485,13 +537,8 @@ def preparar_bloco_pagamentos_por_fonte(blocos: dict[str, Any]) -> list[dict[str
         for detalhe in detalhes:
             if not isinstance(detalhe, dict):
                 continue
-            fonte_operacional = (
-                detalhe.get('lote_id_operacional')
-                or detalhe.get('fonte_nome_operacional')
-                or detalhe.get('fonte_id')
-                or 'ausente_na_fonte'
-            )
-            fonte_tecnica = detalhe.get('fonte_id_tecnico') or detalhe.get('fonte_id') or 'ausente_na_fonte'
+            fonte_operacional = _fonte_operacional_detalhe_observavel(detalhe)
+            fonte_tecnica = _fonte_tecnica_detalhe_observavel(detalhe)
             linhas.append({
                 'Data': _data_observavel_item(item),
                 'Conta': referencia.get('conta') or referencia.get('descricao') or referencia.get('Conta') or item.get('obrigacao_id'),
