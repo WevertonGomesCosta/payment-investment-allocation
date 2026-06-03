@@ -135,3 +135,44 @@ A lista `fontes_temporais` era montada antes da materialização final dos switc
 - Etapa 10 preservada: `divergências materiais=0`.
 - Etapa 11 preservada: `remoção automática autorizada=False`.
 - A auditoria de escopo continua sem promoção das rotas auxiliares proibidas.
+
+## Correção adicional — paridade console ↔ XLSX / saída oficial única
+
+### Divergência corrigida
+O console integrado ainda chamava `_render_amostras_pagamentos_operacionais(...)`, que constrói amostras a partir da rota observável legada/V17-C7 (`construir_amostras_pagamentos_operacionais` + `construir_pacote_saida_observavel_temporal`). Essa rota era útil como fallback, mas contradizia o `PacoteSaidaObservavelOficial`: próximos pagamentos cobertos no XLSX apareciam no console como `pendente_fonte_decisao_etapa5`, `pendente_decisao_etapa5` e `pendencia_runtime_obrigacao_futura_sem_decisao_etapa5`.
+
+### Regra corrigida
+- Na execução oficial integrada, quando `PacoteSaidaObservavelOficial` está presente e preparado, o console renderiza a seção de pagamentos diretamente a partir de `pacote_saida_observavel_oficial.bloco_console`.
+- A rota legada/V17-C7 permanece apenas como fallback quando o pacote oficial está ausente.
+- Próximos pagamentos cobertos passam a mostrar `Lote`/recebido, `Pacote` e `Status=coberta_oficial` vindos da saída oficial.
+- Obrigações bloqueadas oficiais passam a aparecer em tabela explícita com o motivo oficial.
+
+### Evidência do console após a correção
+```text
+- próximos 5 pagamentos — saída oficial:
+2026-06-03 | Faxina Rosa     | Lote 7600 jun.                        | 2026-06-03::pagamento_combinacao_fontes::1 | coberta_oficial | n/d
+2026-06-07 | Claro           | recebido:recebido::salario_auto_00019 | 2026-06-07::pagamento_com_recebido::1      | coberta_oficial | n/d
+2026-06-10 | Fran            | recebido:recebido::salario_auto_00019 | 2026-06-10::pagamento_com_recebido::1      | coberta_oficial | n/d
+2026-06-10 | Ginástica Biola | recebido:recebido::salario_auto_00019 | 2026-06-10::pagamento_com_recebido::1      | coberta_oficial | n/d
+2026-06-10 | Mari            | recebido:recebido::salario_auto_00019 | 2026-06-10::pagamento_com_recebido::1      | coberta_oficial | n/d
+
+- obrigações bloqueadas oficiais:
+2027-05-02 | Cartão NU | n/d | bloqueada_oficial | sem_pacote_valido_para_obrigacao_temporal
+```
+
+### Auditorias finais desta rodada
+- Console: `pendente_fonte_decisao_etapa5=0`, `pendente_decisao_etapa5=0`, `pendencia_runtime_obrigacao_futura_sem_decisao_etapa5=0` na seção de pagamentos oficiais.
+- Etapa 9: `qtd_obrigacoes_cobertas=157`, `qtd_obrigacoes_bloqueadas=1`, `qtd_fontes_utilizadas=152`, `qtd_fontes_reservadas=152`, `qtd_switchings_escolhidos=0`.
+- XLSX/Extrato Futuro: `linhas=158`, `cobertas=157`, `bloqueadas=1`, coerente com Etapa 9.
+- `exauridos_no_extrato=0`.
+- `migrados_no_extrato=0`.
+- `cobertas_sem_fonte_pacote=0`.
+- `violacoes_recebidos=0`.
+- Destinos pós-switching usados corretamente: `Lote 3120 mai`, `Lote 3000 mai Genial`, `Lote 3000 mai Neon`.
+- Etapa 10: `xlsx status=aprovado`, `divergências materiais=0`.
+- Etapa 11: `remoção automática autorizada=False`.
+- `dados/cache_bcb.json` não aparece em `git status --short` e fica fora do commit.
+
+### Pendências registradas sem rota paralela
+- A limpeza/redução de abas diagnósticas do XLSX permanece frente posterior para não aumentar risco neste fechamento.
+- A modelagem completa de sobras de recebidos futuros como aportes/lotes futuros permanece pendência econômica explícita para frente própria; nesta rodada foi preservado o saldo residual e impedida reutilização indevida, sem criar etapa, rota paralela ou sentinela.

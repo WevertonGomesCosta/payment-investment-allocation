@@ -157,6 +157,135 @@ def _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial=None
             })
         _imprimir_tabela(['codigo', 'severidade', 'origem', 'mensagem'], linhas, limite=8)
 
+
+
+def _valor_oficial(item, campo, padrao=None):
+    if isinstance(item, dict):
+        return item.get(campo, padrao)
+    return getattr(item, campo, padrao)
+
+
+def _data_obrigacao_oficial(item):
+    data = _valor_oficial(item, 'data')
+    referencia = _valor_oficial(item, 'referencia_original', {}) or {}
+    return data or _valor_oficial(referencia, 'data')
+
+
+def _descricao_obrigacao_oficial(item):
+    referencia = _valor_oficial(item, 'referencia_original', {}) or {}
+    return _valor_oficial(referencia, 'descricao') or _valor_oficial(referencia, 'conta') or _valor_oficial(item, 'obrigacao_id') or ''
+
+
+def _fontes_obrigacao_oficial(item):
+    fontes = list(_valor_oficial(item, 'fontes_referenciadas', []) or [])
+    return ' + '.join(str(f) for f in fontes if f) or 'n/d'
+
+
+def _linha_pagamento_oficial(item, bloqueada=False):
+    referencia = _valor_oficial(item, 'referencia_original', {}) or {}
+    valor = _valor_oficial(item, 'valor_obrigacao_referencial', _valor_oficial(referencia, 'valor', 0.0))
+    fontes = _fontes_obrigacao_oficial(item)
+    pacote_id = _valor_oficial(item, 'pacote_id') or 'n/d'
+    motivo = _valor_oficial(item, 'motivo') or 'n/d'
+    return {
+        'Data': _data_obrigacao_oficial(item),
+        'Conta': _descricao_obrigacao_oficial(item),
+        'Lote': fontes if not bloqueada else 'n/d',
+        'Pacote': pacote_id,
+        'Sw. ant.': 'não',
+        'Sw. dep.': 'não',
+        'Status': 'bloqueada_oficial' if bloqueada else 'coberta_oficial',
+        'Bloq.': motivo if bloqueada else 'n/d',
+        'Saldo ant.': 'n/d',
+        'Bruto': f'{float(valor or 0.0):.2f}',
+        'IR': 'n/d',
+        'Liq.': f'{float(_valor_oficial(item, "valor_coberto_referencial", valor) or 0.0):.2f}',
+        'Rem.': 'n/d',
+    }
+
+
+def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial) -> None:
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    if bloco_console is None:
+        return
+
+    _imprimir_titulo('PAGAMENTOS — AMOSTRAS OPERACIONAIS')
+    data_ref = getattr(pacote_saida_observavel_oficial, 'data_referencia', None)
+    cobertas = list(getattr(bloco_console, 'obrigacoes_cobertas', []) or [])
+    bloqueadas = list(getattr(bloco_console, 'obrigacoes_bloqueadas', []) or [])
+
+    ultimas_cobertas = sorted(
+        cobertas,
+        key=lambda item: (_data_obrigacao_oficial(item) is None, _data_obrigacao_oficial(item), _valor_oficial(item, 'obrigacao_id') or ''),
+        reverse=True,
+    )[:5]
+    print('- últimos 5 pagamentos cobertos pela saída oficial:')
+    _imprimir_tabela(
+        ['Data', 'Conta', 'Lote', 'Pacote', 'Status'],
+        [
+            {k: linha[k] for k in ['Data', 'Conta', 'Lote', 'Pacote', 'Status']}
+            for linha in (_linha_pagamento_oficial(item, bloqueada=False) for item in ultimas_cobertas)
+        ],
+        limite=5,
+    )
+
+    proximas = []
+    for item in cobertas:
+        data_item = _data_obrigacao_oficial(item)
+        if data_ref is None or data_item is None or data_item >= data_ref:
+            proximas.append((data_item, False, item))
+    for item in bloqueadas:
+        data_item = _data_obrigacao_oficial(item)
+        if data_ref is None or data_item is None or data_item >= data_ref:
+            proximas.append((data_item, True, item))
+    proximas_ordenadas = [item for _, _, item in sorted(
+        proximas,
+        key=lambda entrada: (entrada[0] is None, entrada[0], entrada[1], _valor_oficial(entrada[2], 'obrigacao_id') or ''),
+    )]
+
+    linhas_decisao = [
+        {k: linha[k] for k in ['Data', 'Conta', 'Lote', 'Pacote', 'Sw. ant.', 'Sw. dep.', 'Status', 'Bloq.']}
+        for linha in (
+            _linha_pagamento_oficial(item, bloqueada=str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente'))
+            for item in proximas_ordenadas[:5]
+        )
+    ]
+    print('\n- próximos 5 pagamentos — saída oficial:')
+    _imprimir_tabela(['Data', 'Conta', 'Lote', 'Pacote', 'Sw. ant.', 'Sw. dep.', 'Status', 'Bloq.'], linhas_decisao, limite=5)
+
+    linhas_valores = [
+        {k: linha[k] for k in ['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']}
+        for linha in (
+            _linha_pagamento_oficial(item, bloqueada=str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente'))
+            for item in proximas_ordenadas[:5]
+        )
+    ]
+    print('\n- próximos 5 pagamentos — valores oficiais:')
+    _imprimir_tabela(['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.'], linhas_valores, limite=5)
+
+    if bloqueadas:
+        print('\n- obrigações bloqueadas oficiais:')
+        linhas_bloqueadas = [
+            {k: linha[k] for k in ['Data', 'Conta', 'Pacote', 'Status', 'Bloq.']}
+            for linha in (_linha_pagamento_oficial(item, bloqueada=True) for item in bloqueadas[:5])
+        ]
+        _imprimir_tabela(['Data', 'Conta', 'Pacote', 'Status', 'Bloq.'], linhas_bloqueadas, limite=5)
+
+    print('\n- alertas operacionais:')
+    if bloqueadas:
+        linhas_alerta = [
+            {
+                'Data': _data_obrigacao_oficial(item),
+                'Conta': _descricao_obrigacao_oficial(item),
+                'problema': 'obrigacao_bloqueada_oficial',
+                'motivo': _valor_oficial(item, 'motivo') or 'n/d',
+            }
+            for item in bloqueadas[:5]
+        ]
+        _imprimir_tabela(['Data', 'Conta', 'problema', 'motivo'], linhas_alerta, limite=5)
+    else:
+        print('  [OK] sem alertas na amostra atual')
+
 def _render_secao_ranking_oficial(contexto_operacional, saida_canonica=None) -> None:
     ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     if ranking is None:
@@ -371,7 +500,10 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
 
     _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial)
 
-    _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
+    if pacote_saida_observavel_oficial is not None and getattr(pacote_saida_observavel_oficial, 'preparado', False):
+        _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial)
+    else:
+        _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
 
     _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
     _render_secao_switchings_oficiais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal)
