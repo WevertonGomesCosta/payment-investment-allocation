@@ -82,6 +82,37 @@ EstadoTemporalInicial
 - auditoria temporal;
 - metadados de origem da Etapa 3.
 
+
+## 8-A. Identificação operacional prevista de recebidos temporais — `REGRA-LOTE-ID-OPERACIONAL-RECEBIDO-01`
+
+Recebidos e salários temporalizados pela Etapa 4 devem preservar o identificador técnico original e, quando houver valor e data suficientes, devem receber identificador operacional previsto em padrão `Lote (ID)`.
+
+Campos normativos esperados nos recebidos temporais, quando aplicável:
+
+```text
+fonte_id_tecnico
+lote_id_operacional_previsto
+tipo_lote_operacional
+```
+
+A regra de formação é:
+
+```text
+lote_id_operacional_previsto = Lote <valor> <mês>.
+```
+
+Exemplo:
+
+```text
+fonte_id_tecnico = recebido:recebido::salario_auto_00019
+lote_id_operacional_previsto = Lote 3900 jun.
+tipo_lote_operacional = recebido_temporal
+```
+
+Essa identificação prevista não representa decisão econômica nem consumo da fonte. A Etapa 4 apenas estrutura o estado temporal inicial para que a Etapa 5 decida, a partir do `EstadoTemporalInicial`, se o recebido será usado, reservado, mantido ou futuramente aportado.
+
+A Etapa 4 continua proibida de escolher pacote vencedor, executar pagamento, gerar ledger, console ou XLSX.
+
 ## 9. Processo interno da etapa
 
 A Etapa 4 deve executar uma orquestração de construção temporal em `construir_estado_temporal_inicial(...)`, composta por blocos independentes e blocos derivados. A ordem documental abaixo não implica dependência causal entre todos os blocos; as dependências reais são explicitadas no fluxograma da seção 17.

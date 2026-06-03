@@ -74,6 +74,39 @@ ResultadoMotorTemporalConjunto
 - auditoria final;
 - `pronto_para_etapa6`.
 
+
+## 8-A. Promoção de `lote_id_operacional` para fontes recebidas usadas — `REGRA-LOTE-ID-OPERACIONAL-RECEBIDO-01`
+
+Quando a Etapa 5 selecionar pacote vencedor que usa ou reserva recebido/salário temporal disponível, o identificador previsto pela Etapa 4 deve ser promovido para identificador operacional efetivo da fonte.
+
+Campos normativos esperados nas fontes e reservas referenciais, quando aplicável:
+
+```text
+fonte_id_tecnico
+lote_id_operacional
+referencia_estado_temporal
+```
+
+A regra é:
+
+```text
+lote_id_operacional = recebido_temporal.lote_id_operacional_previsto
+```
+
+quando o recebido/salário for efetivamente usado, reservado ou consumido por pacote vencedor.
+
+Exemplo:
+
+```text
+fonte_id_tecnico = recebido:recebido::salario_auto_00019
+lote_id_operacional = Lote 3900 jun.
+pacote_id = 2026-06-07::pagamento_com_recebido::1
+```
+
+A promoção para `lote_id_operacional` não altera a decisão econômica, não cria aporte, não cria lote aportado ativo e não autoriza rendimento de investimento. Ela apenas materializa a identificação operacional da fonte temporal escolhida para pagamento ou reserva.
+
+A Etapa 5 deve continuar preservando o identificador técnico do recebido para auditoria e rastreabilidade.
+
 ## 9. Processo interno da etapa
 
 A Etapa 5 deve executar uma orquestração de motor temporal conjunto em `construir_resultado_motor_temporal_conjunto(...)`. Essa orquestração combina blocos sequenciais, loops por data, ramos alternativos de geração de pacotes, valoração, seleção, aplicação stateful da trajetória, auditorias em múltiplas camadas e fechamento funcional.

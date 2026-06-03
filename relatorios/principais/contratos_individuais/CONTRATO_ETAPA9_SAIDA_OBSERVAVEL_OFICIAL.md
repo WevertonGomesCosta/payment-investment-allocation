@@ -119,6 +119,39 @@ O nome `PacoteSaidaObservavelOficial` é adotado como nomenclatura contratual da
 
 Os blocos observáveis devem distinguir campos operacionais, campos diagnósticos preservados, bloqueios formais e lacunas de origem.
 
+
+## 8-A. Renderização de `lote_id_operacional` e preservação técnica — `REGRA-LOTE-ID-OPERACIONAL-RECEBIDO-01`
+
+A Etapa 9 deve renderizar como fonte operacional principal o campo `lote_id_operacional` já presente em `SaidaCanonicaOficial`.
+
+Quando disponível, a saída observável deve distinguir:
+
+```text
+Lote sugerido = lote_id_operacional
+Fonte técnica = fonte_id_tecnico
+Pacote técnico = pacote_id
+```
+
+Exemplo esperado em `Extrato Futuro`:
+
+```text
+Lote sugerido = Lote 3900 jun.
+Fonte técnica = recebido:recebido::salario_auto_00019
+Pacote técnico = 2026-06-07::pagamento_com_recebido::1
+```
+
+A Etapa 9 pode nomear colunas, ordenar linhas, formatar datas e montar blocos de console/XLSX. Ela não pode inferir `Lote (ID)` a partir de valor, data, descrição, salário ou recebido quando `lote_id_operacional` não estiver materializado em `SaidaCanonicaOficial`.
+
+É vedado que a coluna operacional de lote apresente como fonte principal:
+
+```text
+recebido:recebido::salario_auto_*
+Recebido Salário ...
+Recebido Bolsa ...
+```
+
+Esses identificadores podem aparecer apenas em campos técnicos, auxiliares, de auditoria ou lacuna formal, quando preservados pela cadeia anterior.
+
 ## 9. Processo interno da etapa
 
 A Etapa 9 deve executar um processo determinístico de renderização oficial:
