@@ -531,10 +531,7 @@ def _linha_lote_temporal_console(lote: dict) -> dict:
         'Data receb.': lote.get('data_recebimento'),
         'Data aplic.': lote.get('data_aplicacao'),
         'Status': lote.get('status_temporal') or lote.get('disponibilidade'),
-        'Orig.': lote.get('valor_original'),
-        'Bruto atual': lote.get('investimento_bruto'),
-        'Líq. atual': lote.get('valor_liquido_disponivel_atual') if lote.get('valor_liquido_disponivel_atual') is not None else lote.get('saldo_disponivel_atual'),
-        'Patr. líq.': lote.get('valor_liquido_disponivel_atual') if lote.get('valor_liquido_disponivel_atual') is not None else lote.get('saldo_disponivel_atual'),
+        'Valor original': lote.get('valor_original'),
     }
 
 
@@ -566,12 +563,11 @@ def _render_situacao_atual_oficial_minima(
 
     print('\n- patrimônio:')
     if inventario:
-        total_liquido = sum(float(lote.get('valor_liquido_disponivel_atual') or lote.get('saldo_disponivel_atual') or 0) for lote in inventario)
         total_original = sum(float(lote.get('valor_original') or 0) for lote in inventario)
         _imprimir_pares([
             ('qtd lotes no estado temporal', len(inventario)),
             ('valor original total', total_original),
-            ('patrimônio líquido observável', total_liquido),
+            ('status valores patrimoniais', 'situacao_atual_valores_nao_materializados_na_rota_oficial'),
         ])
     else:
         print('  patrimonio_nao_materializado_na_rota_oficial')
@@ -579,27 +575,26 @@ def _render_situacao_atual_oficial_minima(
     print('\n- lotes exauridos:')
     if exauridos:
         linhas = [_linha_lote_temporal_console(lote) for lote in exauridos]
-        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Orig.', 'Bruto atual', 'Líq. atual', 'Patr. líq.'], linhas, limite=None)
+        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Valor original'], linhas, limite=None)
     else:
         print('  [OK] sem lotes exauridos nesta execução')
 
     print('\n- lotes ativos:')
     if ativos:
         linhas = [_linha_lote_temporal_console(lote) for lote in ativos]
-        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Orig.', 'Bruto atual', 'Líq. atual', 'Patr. líq.'], linhas, limite=None)
+        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Valor original'], linhas, limite=None)
+        print('  valores patrimoniais: nao_materializado_na_rota_oficial')
     else:
         print('  lotes_ativos_nao_materializados_na_rota_oficial')
 
     print('\n- patrimônio total dos lotes:')
     if inventario:
-        total_liquido = sum(float(lote.get('valor_liquido_disponivel_atual') or lote.get('saldo_disponivel_atual') or 0) for lote in inventario)
-        total_bruto = sum(float(lote.get('investimento_bruto') or 0) for lote in inventario)
         _imprimir_tabela(
             ['Métrica', 'Valor'],
             [
                 {'Métrica': 'qtd_lotes', 'Valor': len(inventario)},
-                {'Métrica': 'patrimonio_bruto_observavel', 'Valor': total_bruto},
-                {'Métrica': 'patrimonio_liquido_observavel', 'Valor': total_liquido},
+                {'Métrica': 'patrimonio_bruto_observavel', 'Valor': 'patrimonio_total_nao_materializado_na_rota_oficial'},
+                {'Métrica': 'patrimonio_liquido_observavel', 'Valor': 'patrimonio_total_nao_materializado_na_rota_oficial'},
             ],
             limite=None,
         )
