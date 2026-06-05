@@ -184,6 +184,20 @@ def _fontes_obrigacao_oficial(item):
     return ' + '.join(str(f) for f in fontes if f) or 'n/d'
 
 
+
+def _valor_economico_oficial(item, campo, status_campo=None, padrao='nao_materializado'):
+    valor = _valor_oficial(item, campo)
+    if valor is None and status_campo:
+        status = _valor_oficial(item, status_campo)
+        if status:
+            return status
+    if valor is None:
+        return padrao
+    if isinstance(valor, (int, float)):
+        return f'{float(valor):.2f}'
+    texto = str(valor).strip()
+    return texto if texto else padrao
+
 def _linha_pagamento_oficial(item, bloqueada=False):
     referencia = _valor_oficial(item, 'referencia_original', {}) or {}
     valor = _valor_oficial(item, 'valor_obrigacao_referencial', _valor_oficial(referencia, 'valor', 0.0))
@@ -197,15 +211,42 @@ def _linha_pagamento_oficial(item, bloqueada=False):
         'Pacote': pacote_id,
         'Sw. ant.': 'não',
         'Sw. dep.': 'não',
-        'Status': 'bloqueada_oficial' if bloqueada else 'coberta_oficial',
+        'Status': _valor_oficial(item, 'status_observavel') or ('bloqueada_oficial' if bloqueada else 'coberta_oficial'),
         'Bloq.': motivo if bloqueada else 'n/d',
-        'Saldo ant.': 'n/d',
-        'Bruto': f'{float(valor or 0.0):.2f}',
-        'IR': 'n/d',
-        'Liq.': f'{float(_valor_oficial(item, "valor_coberto_referencial", valor) or 0.0):.2f}',
-        'Rem.': 'n/d',
+        'Saldo ant.': _valor_economico_oficial(item, 'saldo_antes_fonte', 'status_saldo_antes_fonte') if not bloqueada else 'nao_aplicavel',
+        'Bruto': _valor_economico_oficial(item, 'valor_bruto_resgate', 'status_valor_bruto_resgate') if not bloqueada else 'nao_aplicavel',
+        'IR': _valor_economico_oficial(item, 'imposto_resgate', 'status_imposto_resgate') if not bloqueada else 'nao_aplicavel',
+        'Liq.': _valor_economico_oficial(item, 'valor_liquido_resgate', 'status_valor_liquido_resgate') if not bloqueada else 'nao_aplicavel',
+        'Rem.': _valor_economico_oficial(item, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte') if not bloqueada else 'nao_aplicavel',
     }
 
+
+
+
+
+def _valor_linha_oficial(item, campo, padrao='nao_materializado'):
+    valor = _valor_oficial(item, campo)
+    if valor is None:
+        return padrao
+    if isinstance(valor, str):
+        texto = valor.strip()
+        return texto if texto else padrao
+    return valor
+
+def _linha_pagamento_fonte_oficial(item):
+    return {
+        'Data': _valor_oficial(item, 'Data'),
+        'Conta': _valor_oficial(item, 'Conta'),
+        'Lote': _valor_oficial(item, 'Lote/Fonte operacional') or 'n/d',
+        'Fonte técnica': _valor_oficial(item, 'Fonte técnica') or 'n/d',
+        'Pacote': _valor_oficial(item, 'Pacote') or 'n/d',
+        'Saldo ant.': _valor_linha_oficial(item, 'Saldo Antes'),
+        'Bruto': _valor_linha_oficial(item, 'Bruto'),
+        'IR': _valor_linha_oficial(item, 'IR', _valor_linha_oficial(item, 'Imposto')),
+        'Liq.': _valor_linha_oficial(item, 'Líquido'),
+        'Rem.': _valor_linha_oficial(item, 'Saldo Remanescente'),
+        'Status': _valor_oficial(item, 'Status') or 'coberta_oficial',
+    }
 
 def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial) -> None:
     bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
@@ -217,54 +258,80 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
     cobertas = list(getattr(bloco_console, 'obrigacoes_cobertas', []) or [])
     bloqueadas = list(getattr(bloco_console, 'obrigacoes_bloqueadas', []) or [])
 
-    ultimas_cobertas = sorted(
-        cobertas,
-        key=lambda item: (_data_obrigacao_oficial(item) is None, _data_obrigacao_oficial(item), _valor_oficial(item, 'obrigacao_id') or ''),
-        reverse=True,
-    )[:5]
-    print('- últimos 5 pagamentos cobertos pela saída oficial:')
-    _imprimir_tabela(
-        ['Data', 'Conta', 'Lote', 'Pacote', 'Status'],
-        [
-            {k: linha[k] for k in ['Data', 'Conta', 'Lote', 'Pacote', 'Status']}
-            for linha in (_linha_pagamento_oficial(item, bloqueada=False) for item in ultimas_cobertas)
-        ],
-        limite=5,
-    )
+    ultimas_cobertas = list(getattr(bloco_console, 'ultimos_pagamentos', []) or [])
+    print('- últimos 5 pagamentos realizados — saída oficial:')
+    if ultimas_cobertas:
+        _imprimir_tabela(
+            ['Data', 'Conta', 'Lote', 'Pacote', 'Status'],
+            [
+                {k: linha[k] for k in ['Data', 'Conta', 'Lote', 'Pacote', 'Status']}
+                for linha in (_linha_pagamento_oficial(item, bloqueada=False) for item in ultimas_cobertas)
+            ],
+            limite=5,
+        )
 
-    proximas = []
-    for item in cobertas:
-        data_item = _data_obrigacao_oficial(item)
-        if data_ref is None or data_item is None or data_item >= data_ref:
-            proximas.append((data_item, False, item))
-    for item in bloqueadas:
-        data_item = _data_obrigacao_oficial(item)
-        if data_ref is None or data_item is None or data_item >= data_ref:
-            proximas.append((data_item, True, item))
-    proximas_ordenadas = [item for _, _, item in sorted(
-        proximas,
-        key=lambda entrada: (entrada[0] is None, entrada[0], entrada[1], _valor_oficial(entrada[2], 'obrigacao_id') or ''),
-    )]
+        linhas_ultimos_valores = [
+            {k: linha[k] for k in ['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']}
+            for linha in (_linha_pagamento_oficial(item, bloqueada=False) for item in ultimas_cobertas)
+        ]
+        print('\n- últimos 5 pagamentos realizados — valores oficiais:')
+        _imprimir_tabela(['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.'], linhas_ultimos_valores, limite=5)
+    else:
+        print('  sem_pagamentos_realizados_ate_data_referencia')
+
+    pagamentos_data_referencia = list(getattr(bloco_console, 'pagamentos_data_referencia', []) or [])
+    print('\n- pagamentos na data de referência — saída oficial:')
+    if pagamentos_data_referencia:
+        colunas_data_ref = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status', 'Bloq.']
+        linhas_data_ref = [
+            {k: linha[k] for k in colunas_data_ref}
+            for linha in (
+                _linha_pagamento_oficial(item, bloqueada=str(_valor_oficial(item, 'status_observavel') or '').startswith('bloqueada') or str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente'))
+                for item in pagamentos_data_referencia
+            )
+        ]
+        _imprimir_tabela(colunas_data_ref, linhas_data_ref, limite=5)
+    else:
+        print('  sem_pagamentos_na_data_referencia')
+
+    proximas_ordenadas = list(getattr(bloco_console, 'proximos_pagamentos', []) or [])
 
     linhas_decisao = [
         {k: linha[k] for k in ['Data', 'Conta', 'Lote', 'Pacote', 'Sw. ant.', 'Sw. dep.', 'Status', 'Bloq.']}
         for linha in (
-            _linha_pagamento_oficial(item, bloqueada=str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente'))
+            _linha_pagamento_oficial(item, bloqueada=str(_valor_oficial(item, 'status_observavel') or '').startswith('bloqueada') or str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente'))
             for item in proximas_ordenadas[:5]
         )
     ]
     print('\n- próximos 5 pagamentos — saída oficial:')
-    _imprimir_tabela(['Data', 'Conta', 'Lote', 'Pacote', 'Sw. ant.', 'Sw. dep.', 'Status', 'Bloq.'], linhas_decisao, limite=5)
+    if linhas_decisao:
+        _imprimir_tabela(['Data', 'Conta', 'Lote', 'Pacote', 'Sw. ant.', 'Sw. dep.', 'Status', 'Bloq.'], linhas_decisao, limite=5)
+    else:
+        print('  sem_proximos_pagamentos')
 
     linhas_valores = [
         {k: linha[k] for k in ['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']}
         for linha in (
-            _linha_pagamento_oficial(item, bloqueada=str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente'))
+            _linha_pagamento_oficial(item, bloqueada=str(_valor_oficial(item, 'status_observavel') or '').startswith('bloqueada') or str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente'))
             for item in proximas_ordenadas[:5]
         )
     ]
     print('\n- próximos 5 pagamentos — valores oficiais:')
     _imprimir_tabela(['Data', 'Conta', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.'], linhas_valores, limite=5)
+
+    linhas_multifonte = [
+        _linha_pagamento_fonte_oficial(item)
+        for item in list(getattr(bloco_console, 'pagamentos_por_fonte', []) or [])
+    ]
+    if linhas_multifonte:
+        print('\n- pagamentos por fonte — detalhes oficiais:')
+        _imprimir_tabela(
+            ['Data', 'Conta', 'Lote', 'Fonte técnica', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status'],
+            linhas_multifonte,
+            limite=10,
+        )
+        exibidas = min(10, len(linhas_multifonte))
+        print(f'  linhas exibidas: {exibidas} de {len(linhas_multifonte)}; ver Obs Pagamentos Fontes no XLSX')
 
     if bloqueadas:
         print('\n- obrigações bloqueadas oficiais:')

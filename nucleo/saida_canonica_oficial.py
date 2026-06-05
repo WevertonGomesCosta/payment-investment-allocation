@@ -56,6 +56,7 @@ class SaidaCanonicaOficial:
     eventos: list[dict[str, Any]] = field(default_factory=list)
     obrigacoes_cobertas: list[dict[str, Any]] = field(default_factory=list)
     obrigacoes_bloqueadas: list[dict[str, Any]] = field(default_factory=list)
+    pagamentos_historicos_realizados: list[dict[str, Any]] = field(default_factory=list)
     fontes_utilizadas: list[dict[str, Any]] = field(default_factory=list)
     fontes_reservadas: list[dict[str, Any]] = field(default_factory=list)
     switchings_escolhidos: list[dict[str, Any]] = field(default_factory=list)
@@ -206,6 +207,7 @@ def _montar_saida(
         eventos=_snapshot_lista(_valor(ledger, 'eventos', [])) if incluir_operacional else [],
         obrigacoes_cobertas=_snapshot_lista(_valor(ledger, 'obrigacoes_cobertas', [])) if incluir_operacional else [],
         obrigacoes_bloqueadas=_snapshot_lista(_valor(ledger, 'obrigacoes_bloqueadas', [])) if incluir_operacional else [],
+        pagamentos_historicos_realizados=_snapshot_lista(_valor(ledger, 'pagamentos_historicos_realizados', [])) if incluir_operacional else [],
         fontes_utilizadas=_snapshot_lista(_valor(ledger, 'fontes_utilizadas', [])) if incluir_operacional else [],
         fontes_reservadas=_snapshot_lista(_valor(ledger, 'fontes_reservadas', [])) if incluir_operacional else [],
         switchings_escolhidos=_snapshot_lista(_valor(ledger, 'switchings_escolhidos', [])) if incluir_operacional else [],

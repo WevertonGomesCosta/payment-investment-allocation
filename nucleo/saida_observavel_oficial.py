@@ -44,7 +44,9 @@ class ResumoSaidaObservavelOficial:
 class BlocoConsoleSaidaObservavel:
     resumo_operacional: dict[str, Any] = field(default_factory=dict)
     ultimos_pagamentos: list[dict[str, Any]] = field(default_factory=list)
+    pagamentos_data_referencia: list[dict[str, Any]] = field(default_factory=list)
     proximos_pagamentos: list[dict[str, Any]] = field(default_factory=list)
+    pagamentos_por_fonte: list[dict[str, Any]] = field(default_factory=list)
     fontes_utilizadas: list[dict[str, Any]] = field(default_factory=list)
     obrigacoes_cobertas: list[dict[str, Any]] = field(default_factory=list)
     obrigacoes_bloqueadas: list[dict[str, Any]] = field(default_factory=list)
@@ -311,6 +313,7 @@ def extrair_blocos_saida_canonica(saida: SaidaCanonicaOficial) -> dict[str, Any]
         'eventos': _snapshot_lista(saida.eventos),
         'obrigacoes_cobertas': _snapshot_lista(saida.obrigacoes_cobertas),
         'obrigacoes_bloqueadas': _snapshot_lista(saida.obrigacoes_bloqueadas),
+        'pagamentos_historicos_realizados': _snapshot_lista(getattr(saida, 'pagamentos_historicos_realizados', [])),
         'fontes_utilizadas': _snapshot_lista(saida.fontes_utilizadas),
         'fontes_reservadas': _snapshot_lista(saida.fontes_reservadas),
         'switchings_escolhidos': _snapshot_lista(saida.switchings_escolhidos),
@@ -346,12 +349,212 @@ def preparar_resumo_operacional_observavel(blocos: dict[str, Any]) -> dict[str, 
     }
 
 
+def _data_observavel_item(item: dict[str, Any]) -> date | None:
+    data_item = item.get('data')
+    if isinstance(data_item, date):
+        return data_item
+    referencia = item.get('referencia_original') or {}
+    data_ref = referencia.get('data') if isinstance(referencia, dict) else None
+    return data_ref if isinstance(data_ref, date) else None
+
+
+def _status_pagamento_observavel(item: dict[str, Any], *, bloqueada: bool) -> dict[str, Any]:
+    saida = dict(item)
+    saida['status_observavel'] = 'bloqueada_oficial' if bloqueada else 'coberta_oficial'
+    return saida
+
+
+def _valor_historico_materializado(item: dict[str, Any], *chaves: str, padrao: Any = 'nao_materializado') -> Any:
+    for chave in chaves:
+        if chave not in item:
+            continue
+        valor = item.get(chave)
+        if valor is None:
+            continue
+        if isinstance(valor, float) and valor != valor:
+            continue
+        if isinstance(valor, str) and not valor.strip():
+            continue
+        return valor
+    return padrao
+
+
+def _status_valor_historico(valor: Any, padrao: str = 'nao_materializado') -> str:
+    return padrao if valor == padrao else 'materializado'
+
+
+def _normalizar_pagamento_historico_realizado(item: dict[str, Any]) -> dict[str, Any]:
+    fonte = item.get('fonte_resolvida_historica') or item.get('fonte_informada') or item.get('lote_usado')
+    saldo_antes = _valor_historico_materializado(item, 'Saldo Antes', 'saldo_antes')
+    bruto = _valor_historico_materializado(item, 'Bruto', 'valor_bruto_resgate', 'valor')
+    imposto = _valor_historico_materializado(item, 'Imposto', 'imposto_resgate')
+    liquido = _valor_historico_materializado(item, 'Líquido', 'Liquido', 'valor_liquido_resgate', 'valor')
+    remanescente = _valor_historico_materializado(item, 'Saldo Remanescente', 'saldo_remanescente')
+    return {
+        'data': _data_observavel_item(item),
+        'obrigacao_id': item.get('pagamento_id') or item.get('despesa_id') or item.get('id'),
+        'pacote_id': item.get('pacote_id') or 'nao_aplicavel',
+        'valor_obrigacao_referencial': item.get('valor'),
+        'valor_coberto_referencial': item.get('valor'),
+        'fontes_referenciadas_operacionais': [fonte] if fonte else [],
+        'fontes_referenciadas_tecnicas': [fonte] if fonte else [],
+        'pacote_nome_operacional': 'nao_aplicavel',
+        'origem': 'historico_pago_oficial',
+        'origem_formal': item.get('origem') or item.get('origem_valores_historicos') or 'historico_pago_oficial',
+        'status_observavel': 'realizada_oficial',
+        'status': 'realizada_oficial',
+        'referencia_original': dict(item),
+        'saldo_antes_fonte': saldo_antes,
+        'valor_bruto_resgate': bruto,
+        'imposto_resgate': imposto,
+        'valor_liquido_resgate': liquido,
+        'saldo_remanescente_fonte': remanescente,
+        'status_saldo_antes_fonte': item.get('status_saldo_antes_fonte') or _status_valor_historico(saldo_antes),
+        'status_valor_bruto_resgate': item.get('status_valor_bruto_resgate') or _status_valor_historico(bruto),
+        'status_imposto_resgate': item.get('status_imposto_resgate') or _status_valor_historico(imposto),
+        'status_valor_liquido_resgate': item.get('status_valor_liquido_resgate') or _status_valor_historico(liquido),
+        'status_saldo_remanescente_fonte': item.get('status_saldo_remanescente_fonte') or _status_valor_historico(remanescente),
+    }
+
+
 def preparar_bloco_ultimos_pagamentos(blocos: dict[str, Any], limite: int = 5) -> list[dict[str, Any]]:
-    return list(blocos['obrigacoes_cobertas'])[-limite:]
+    data_referencia = blocos.get('data_referencia')
+    realizados = [
+        _normalizar_pagamento_historico_realizado(item)
+        for item in list(blocos.get('pagamentos_historicos_realizados') or [])
+        if _data_observavel_item(item) is not None
+        and (not isinstance(data_referencia, date) or _data_observavel_item(item) <= data_referencia)
+    ]
+    return sorted(
+        realizados,
+        key=lambda item: (_data_observavel_item(item) or date.min, str(item.get('obrigacao_id') or '')),
+        reverse=True,
+    )[:limite]
+
+
+def preparar_bloco_pagamentos_data_referencia(blocos: dict[str, Any]) -> list[dict[str, Any]]:
+    data_referencia = blocos.get('data_referencia')
+    if not isinstance(data_referencia, date):
+        return []
+    pagamentos: list[dict[str, Any]] = []
+    for item in list(blocos['obrigacoes_cobertas']):
+        if _data_observavel_item(item) == data_referencia:
+            item_status = _status_pagamento_observavel(item, bloqueada=False)
+            pagamentos.extend(_expandir_pagamento_multifonte_observavel(item_status))
+    for item in list(blocos['obrigacoes_bloqueadas']):
+        if _data_observavel_item(item) == data_referencia:
+            pagamentos.append(_status_pagamento_observavel(item, bloqueada=True))
+    return sorted(
+        pagamentos,
+        key=lambda item: (item.get('status_observavel') == 'bloqueada_oficial', str(item.get('obrigacao_id') or '')),
+    )
 
 
 def preparar_bloco_proximos_pagamentos(blocos: dict[str, Any], limite: int = 5) -> list[dict[str, Any]]:
-    return list(blocos['obrigacoes_bloqueadas'])[:limite]
+    data_referencia = blocos.get('data_referencia')
+    proximos: list[dict[str, Any]] = []
+    for item in list(blocos['obrigacoes_cobertas']):
+        data_item = _data_observavel_item(item)
+        if data_item is None or not isinstance(data_referencia, date) or data_item > data_referencia:
+            proximos.append(_status_pagamento_observavel(item, bloqueada=False))
+    for item in list(blocos['obrigacoes_bloqueadas']):
+        data_item = _data_observavel_item(item)
+        if data_item is None or not isinstance(data_referencia, date) or data_item > data_referencia:
+            proximos.append(_status_pagamento_observavel(item, bloqueada=True))
+    return sorted(
+        proximos,
+        key=lambda item: (_data_observavel_item(item) is None, _data_observavel_item(item) or date.max, item.get('status_observavel') == 'bloqueada_oficial', str(item.get('obrigacao_id') or '')),
+    )[:limite]
+
+
+def _valor_economico_detalhe_observavel(detalhe: dict[str, Any], campo: str, status_campo: str) -> Any:
+    valor = detalhe.get(campo)
+    if valor is not None:
+        return valor
+    return detalhe.get(status_campo) or 'nao_materializado'
+
+
+def _fonte_operacional_detalhe_observavel(detalhe: dict[str, Any]) -> Any:
+    return (
+        detalhe.get('lote_id_operacional')
+        or detalhe.get('fonte_nome_operacional')
+        or detalhe.get('fonte_id')
+        or 'ausente_na_fonte'
+    )
+
+
+def _fonte_tecnica_detalhe_observavel(detalhe: dict[str, Any]) -> Any:
+    return detalhe.get('fonte_id_tecnico') or detalhe.get('fonte_id') or 'ausente_na_fonte'
+
+
+def _expandir_pagamento_multifonte_observavel(item: dict[str, Any]) -> list[dict[str, Any]]:
+    detalhes = [detalhe for detalhe in list(item.get('detalhes_fontes_resgate') or []) if isinstance(detalhe, dict)]
+    if len(detalhes) <= 1:
+        return [item]
+
+    linhas: list[dict[str, Any]] = []
+    for detalhe in detalhes:
+        fonte_operacional = _fonte_operacional_detalhe_observavel(detalhe)
+        fonte_tecnica = _fonte_tecnica_detalhe_observavel(detalhe)
+        liquido = _valor_economico_detalhe_observavel(detalhe, 'valor_liquido_resgate', 'status_valor_liquido_resgate')
+        linha = dict(item)
+        linha.update({
+            'valor_obrigacao_referencial': liquido,
+            'valor_coberto_referencial': liquido,
+            'fontes_referenciadas': [fonte_operacional],
+            'fontes_referenciadas_operacionais': [fonte_operacional],
+            'fontes_referenciadas_tecnicas': [fonte_tecnica],
+            'detalhes_fontes_resgate': [dict(detalhe)],
+            'saldo_antes_fonte': _valor_economico_detalhe_observavel(detalhe, 'saldo_antes_fonte', 'status_saldo_antes_fonte'),
+            'valor_bruto_resgate': _valor_economico_detalhe_observavel(detalhe, 'valor_bruto_resgate', 'status_valor_bruto_resgate'),
+            'imposto_resgate': _valor_economico_detalhe_observavel(detalhe, 'imposto_resgate', 'status_imposto_resgate'),
+            'valor_liquido_resgate': liquido,
+            'saldo_remanescente_fonte': _valor_economico_detalhe_observavel(detalhe, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte'),
+            'status_saldo_antes_fonte': detalhe.get('status_saldo_antes_fonte') or 'nao_materializado',
+            'status_valor_bruto_resgate': detalhe.get('status_valor_bruto_resgate') or 'nao_materializado',
+            'status_imposto_resgate': detalhe.get('status_imposto_resgate') or 'nao_materializado',
+            'status_valor_liquido_resgate': detalhe.get('status_valor_liquido_resgate') or 'nao_materializado',
+            'status_saldo_remanescente_fonte': detalhe.get('status_saldo_remanescente_fonte') or 'nao_materializado',
+            'fonte_id_tecnico': fonte_tecnica,
+            'lote_id_operacional': fonte_operacional,
+            'tipo_linha_observavel': 'detalhe_fonte_multifonte',
+            'Obrigacao ID': item.get('obrigacao_id') or detalhe.get('obrigacao_id'),
+            'Pacote ID': item.get('pacote_id') or detalhe.get('pacote_id'),
+        })
+        linhas.append(linha)
+    return linhas
+
+
+def preparar_bloco_pagamentos_por_fonte(blocos: dict[str, Any]) -> list[dict[str, Any]]:
+    linhas: list[dict[str, Any]] = []
+    for item in list(blocos['obrigacoes_cobertas']):
+        detalhes = list(item.get('detalhes_fontes_resgate') or [])
+        if not detalhes:
+            continue
+        referencia = item.get('referencia_original') or {}
+        pacote_id = item.get('pacote_id')
+        pacote = item.get('pacote_nome_operacional') or pacote_id or 'sem_pacote_valido'
+        for detalhe in detalhes:
+            if not isinstance(detalhe, dict):
+                continue
+            fonte_operacional = _fonte_operacional_detalhe_observavel(detalhe)
+            fonte_tecnica = _fonte_tecnica_detalhe_observavel(detalhe)
+            linhas.append({
+                'Data': _data_observavel_item(item),
+                'Conta': referencia.get('conta') or referencia.get('descricao') or referencia.get('Conta') or item.get('obrigacao_id'),
+                'Lote/Fonte operacional': fonte_operacional,
+                'Fonte técnica': fonte_tecnica,
+                'Pacote': pacote,
+                'Saldo Antes': _valor_economico_detalhe_observavel(detalhe, 'saldo_antes_fonte', 'status_saldo_antes_fonte'),
+                'Bruto': _valor_economico_detalhe_observavel(detalhe, 'valor_bruto_resgate', 'status_valor_bruto_resgate'),
+                'IR': _valor_economico_detalhe_observavel(detalhe, 'imposto_resgate', 'status_imposto_resgate'),
+                'Líquido': _valor_economico_detalhe_observavel(detalhe, 'valor_liquido_resgate', 'status_valor_liquido_resgate'),
+                'Saldo Remanescente': _valor_economico_detalhe_observavel(detalhe, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte'),
+                'Status': item.get('status_observavel') or 'coberta_oficial',
+                'Obrigacao ID': item.get('obrigacao_id'),
+                'Pacote ID': pacote_id,
+            })
+    return linhas
 
 
 def preparar_bloco_fontes_utilizadas_reservadas(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
@@ -416,7 +619,9 @@ def registrar_lacunas_renderizacao(
 def preparar_blocos_console(
     resumo: dict[str, Any],
     ultimos_pagamentos: list[dict[str, Any]],
+    pagamentos_data_referencia: list[dict[str, Any]],
     proximos_pagamentos: list[dict[str, Any]],
+    pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
     switchings: list[dict[str, Any]],
@@ -427,7 +632,9 @@ def preparar_blocos_console(
     return BlocoConsoleSaidaObservavel(
         resumo_operacional=resumo,
         ultimos_pagamentos=ultimos_pagamentos,
+        pagamentos_data_referencia=pagamentos_data_referencia,
         proximos_pagamentos=proximos_pagamentos,
+        pagamentos_por_fonte=pagamentos_por_fonte,
         fontes_utilizadas=fontes['fontes_utilizadas'],
         obrigacoes_cobertas=obrigacoes['obrigacoes_cobertas'],
         obrigacoes_bloqueadas=obrigacoes['obrigacoes_bloqueadas'],
@@ -444,7 +651,9 @@ def preparar_blocos_console(
 def preparar_blocos_xlsx(
     resumo: dict[str, Any],
     ultimos_pagamentos: list[dict[str, Any]],
+    pagamentos_data_referencia: list[dict[str, Any]],
     proximos_pagamentos: list[dict[str, Any]],
+    pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
     switchings: list[dict[str, Any]],
@@ -455,7 +664,9 @@ def preparar_blocos_xlsx(
     abas = {
         'Resumo Operacional': [resumo],
         'Ultimos Pagamentos': ultimos_pagamentos,
+        'Pagamentos Data Referencia': pagamentos_data_referencia,
         'Proximos Pagamentos': proximos_pagamentos,
+        'Pagamentos Fontes': pagamentos_por_fonte,
         'Fontes Utilizadas': fontes['fontes_utilizadas'],
         'Fontes Reservadas': fontes['fontes_reservadas'],
         'Obrigacoes Cobertas': obrigacoes['obrigacoes_cobertas'],
@@ -590,7 +801,9 @@ def construir_pacote_saida_observavel_oficial(
     blocos = _enriquecer_identificacao_operacional_blocos(blocos)
     resumo_operacional = preparar_resumo_operacional_observavel(blocos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(blocos)
+    pagamentos_data_referencia = preparar_bloco_pagamentos_data_referencia(blocos)
     proximos_pagamentos = preparar_bloco_proximos_pagamentos(blocos)
+    pagamentos_por_fonte = preparar_bloco_pagamentos_por_fonte(blocos)
     fontes = preparar_bloco_fontes_utilizadas_reservadas(blocos)
     obrigacoes = preparar_bloco_obrigacoes(blocos)
     switchings = preparar_bloco_switchings(blocos)
@@ -604,7 +817,9 @@ def construir_pacote_saida_observavel_oficial(
     bloco_console = preparar_blocos_console(
         resumo_operacional,
         ultimos_pagamentos,
+        pagamentos_data_referencia,
         proximos_pagamentos,
+        pagamentos_por_fonte,
         fontes,
         obrigacoes,
         switchings,
@@ -615,7 +830,9 @@ def construir_pacote_saida_observavel_oficial(
     bloco_xlsx = preparar_blocos_xlsx(
         resumo_operacional,
         ultimos_pagamentos,
+        pagamentos_data_referencia,
         proximos_pagamentos,
+        pagamentos_por_fonte,
         fontes,
         obrigacoes,
         switchings,

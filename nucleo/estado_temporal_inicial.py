@@ -391,6 +391,28 @@ def _materializar_fontes_data_referencia_de_lotes_ativos(
     return fontes_temporais + fontes_adicionais
 
 
+
+def _indice_valores_historicos_replay(contexto: ContextoOperacionalCanonico) -> dict[str, dict[str, object]]:
+    replay = getattr(contexto, 'replay_passado', None)
+    log = getattr(replay, 'log_passado', None)
+    if log is None or not hasattr(log, 'to_dict'):
+        return {}
+    indice: dict[str, dict[str, object]] = {}
+    for row in log.to_dict(orient='records'):
+        despesa_id = str(row.get('Despesa ID') or row.get('despesa_id') or '').strip()
+        if not despesa_id:
+            continue
+        indice[despesa_id] = {
+            'Lote': row.get('Lote'),
+            'Saldo Antes': row.get('Saldo Antes'),
+            'Bruto': row.get('Bruto'),
+            'Imposto': row.get('Imposto'),
+            'Líquido': row.get('Liquido') if row.get('Liquido') is not None else row.get('Líquido'),
+            'Saldo Remanescente': row.get('Saldo Remanescente'),
+            'origem_valores_historicos': 'replay_passado_controlado.log_passado',
+        }
+    return indice
+
 def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> EstadoTemporalInicial:
     data_ref = contexto.execucao.data_referencia
     gastos = contexto.dados_operacionais.gastos_canonicos
@@ -399,14 +421,18 @@ def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> 
     inventario = contexto.dados_operacionais.inventario_canonico
     switching = getattr(contexto.dados_operacionais, 'switching_canonico', None)
 
+    valores_historicos_por_pagamento = _indice_valores_historicos_replay(contexto)
     pagamentos_temporais = []
     for row in gastos.to_dict(orient='records'):
         pago = bool(row.get('pago'))
         data_pg = row.get('data')
         status = _status_data(data_pg, data_ref, pago)
         futuro = status == 'futuro'
-        pagamentos_temporais.append({
-            'pagamento_id': row.get('despesa_id') or row.get('id') or f"pg_{len(pagamentos_temporais)+1:05d}",
+        pagamento_id = row.get('despesa_id') or row.get('id') or f"pg_{len(pagamentos_temporais)+1:05d}"
+        valores_historicos = valores_historicos_por_pagamento.get(str(pagamento_id), {}) if pago else {}
+        fonte_historica = valores_historicos.get('Lote') or row.get('lote_usado_1') or row.get('lote_usado')
+        pagamento_temporal = {
+            'pagamento_id': pagamento_id,
             'data': data_pg,
             'descricao': row.get('descricao') or row.get('conta') or '',
             'valor': float(row.get('valor') or 0.0),
@@ -414,12 +440,15 @@ def construir_estado_temporal_inicial(contexto: ContextoOperacionalCanonico) -> 
             'status_temporal': status,
             'obrigacao_temporal': True,
             'fonte_informada': row.get('lote_usado_1') or row.get('lote_usado') or row.get('lote_origem'),
-            'fonte_resolvida_historica': (row.get('lote_usado_1') or row.get('lote_usado')) if pago else None,
+            'fonte_resolvida_historica': fonte_historica if pago else None,
             'fonte_a_decidir': bool(futuro or not pago),
             'vencido_na_referencia': status == 'vencido',
             'futuro_na_referencia': futuro,
             'bloqueios_preliminares': ['fonte_futura_a_decidir'] if futuro else [],
-        })
+        }
+        if valores_historicos:
+            pagamento_temporal.update(valores_historicos)
+        pagamentos_temporais.append(pagamento_temporal)
 
     inventario_temporal=[]
     for row in inventario.to_dict(orient='records'):

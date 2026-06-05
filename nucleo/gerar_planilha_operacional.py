@@ -626,6 +626,45 @@ def _texto_observavel(valor: Any, padrao: str = 'n/d') -> str:
     return texto if texto else padrao
 
 
+
+def _valor_economico_observavel(item: Any, campo: str, status_campo: str, padrao: str = 'nao_materializado') -> Any:
+    valor = _valor_observavel_oficial(item, campo)
+    if valor is None:
+        status = _valor_observavel_oficial(item, status_campo)
+        return status or padrao
+    if isinstance(valor, str):
+        texto = valor.strip()
+        return texto if texto else padrao
+    return valor
+
+
+def _fonte_operacional_detalhe_extrato(detalhe: Mapping[str, Any]) -> Any:
+    return (
+        detalhe.get('lote_id_operacional')
+        or detalhe.get('fonte_nome_operacional')
+        or detalhe.get('fonte_id')
+        or 'ausente_na_fonte'
+    )
+
+
+def _fonte_tecnica_detalhe_extrato(detalhe: Mapping[str, Any]) -> Any:
+    return detalhe.get('fonte_id_tecnico') or detalhe.get('fonte_id') or 'ausente_na_fonte'
+
+
+def _valor_economico_detalhe_extrato(detalhe: Mapping[str, Any], campo: str, status_campo: str) -> Any:
+    valor = detalhe.get(campo)
+    if valor is not None:
+        return valor
+    return detalhe.get(status_campo) or 'nao_materializado'
+
+
+def _detalhes_multifonte_extrato(item: Any, cobertura_integral: str) -> list[Mapping[str, Any]]:
+    if cobertura_integral != 'sim':
+        return []
+    detalhes = _valor_observavel_oficial(item, 'detalhes_fontes_resgate', []) or []
+    return [detalhe for detalhe in list(detalhes) if isinstance(detalhe, Mapping)]
+
+
 def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: Any) -> list[dict[str, Any]]:
     if pacote_saida_observavel_oficial is None:
         return []
@@ -646,57 +685,73 @@ def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: A
             fontes = _valor_observavel_oficial(item, 'fontes_referenciadas', []) or []
             fontes_operacionais = _valor_observavel_oficial(item, 'fontes_referenciadas_operacionais', []) or []
             fontes_tecnicas = _valor_observavel_oficial(item, 'fontes_referenciadas_tecnicas', []) or fontes
-            valor = (
-                _valor_observavel_oficial(item, 'valor_obrigacao_referencial')
-                if cobertura_integral == 'sim'
-                else _valor_observavel_oficial(item, 'valor_obrigacao_referencial')
-            )
-            fonte_oficial = _texto_observavel(fontes_operacionais or fontes)
-            fonte_tecnica = _texto_observavel(fontes_tecnicas)
             pacote_oficial = _texto_observavel(pacote_nome or pacote_id, 'sem_pacote_valido')
             pacote_tecnico = _texto_observavel(pacote_id, 'sem_pacote_valido')
-            linha = {
-                'Data': _valor_observavel_oficial(item, 'data') or referencia.get('data'),
-                'Conta': referencia.get('conta') or referencia.get('descricao') or referencia.get('Conta') or _texto_observavel(_valor_observavel_oficial(item, 'obrigacao_id')),
-                'Despesa ID': _valor_observavel_oficial(item, 'obrigacao_id') or referencia.get('pagamento_id') or referencia.get('id'),
-                'Valor': valor,
-                'Lote sugerido': fonte_oficial if cobertura_integral == 'sim' else 'n/d',
-                'Fonte técnica': fonte_tecnica if cobertura_integral == 'sim' else 'n/d',
-                'Saldo Antes': 'n/d',
-                'Bruto': valor if cobertura_integral == 'sim' else 'n/d',
-                'Imposto': 'n/d',
-                'Líquido': _valor_observavel_oficial(item, 'valor_coberto_referencial') if cobertura_integral == 'sim' else 'n/d',
-                'Saldo Remanescente': 'n/d',
-                'Cobertura integral': cobertura_integral,
-                'Estratégia': 'obrigacao_coberta_oficial' if cobertura_integral == 'sim' else 'obrigacao_bloqueada_oficial',
-                'Pacote do dia': pacote_oficial,
-                'Pacote técnico': pacote_tecnico,
-                'Lote reserva': fonte_oficial if cobertura_integral == 'sim' else 'n/d',
-                'Lote pós-switching': 'n/d',
-                'Destino switching': 'n/d',
-                'Origem switching': 'n/d',
-                'Fonte switching': 'n/d',
-                'Data switching': 'n/d',
-                'Score switching': 'n/d',
-                'Necessita switching': 'não',
-                'Switching antes do pagamento': 'não',
-                'Switching depois do pagamento': 'não',
-                'Motivo bloqueio lote': _texto_observavel(motivo, '') if cobertura_integral != 'sim' else '',
-                'Status recomendação': _texto_observavel(status, 'status_oficial_indisponivel'),
-                'Saldo temp. ant.': 'n/d',
-                'Consumo temp.': 'n/d',
-                'Saldo temp. dep.': 'n/d',
-                'Pos sw?': 'não',
-                'Fonte pos sw': 'n/d',
-                'Saldo pos sw': 'n/d',
-                'Motivo pos sw': 'n/d',
-                'Origem saldo pos': 'n/d',
-                'Bruto pos': 'n/d',
-                'Líq. pos': 'n/d',
-                'Data saldo pos': 'n/d',
-                'Motivo saldo pos': 'n/d',
-            }
-            linhas.append(linha)
+            detalhes_multifonte = _detalhes_multifonte_extrato(item, cobertura_integral)
+            detalhes_renderizacao: list[Mapping[str, Any] | None] = detalhes_multifonte if len(detalhes_multifonte) > 1 else [None]
+
+            for detalhe in detalhes_renderizacao:
+                if detalhe is not None:
+                    fonte_oficial = _texto_observavel(_fonte_operacional_detalhe_extrato(detalhe))
+                    fonte_tecnica = _texto_observavel(_fonte_tecnica_detalhe_extrato(detalhe))
+                    valor = _valor_economico_detalhe_extrato(detalhe, 'valor_liquido_resgate', 'status_valor_liquido_resgate')
+                    saldo_antes = _valor_economico_detalhe_extrato(detalhe, 'saldo_antes_fonte', 'status_saldo_antes_fonte')
+                    bruto = _valor_economico_detalhe_extrato(detalhe, 'valor_bruto_resgate', 'status_valor_bruto_resgate')
+                    imposto = _valor_economico_detalhe_extrato(detalhe, 'imposto_resgate', 'status_imposto_resgate')
+                    liquido = valor
+                    saldo_remanescente = _valor_economico_detalhe_extrato(detalhe, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte')
+                else:
+                    valor = _valor_observavel_oficial(item, 'valor_obrigacao_referencial')
+                    fonte_oficial = _texto_observavel(fontes_operacionais or fontes) if cobertura_integral == 'sim' else 'n/d'
+                    fonte_tecnica = _texto_observavel(fontes_tecnicas) if cobertura_integral == 'sim' else 'n/d'
+                    saldo_antes = _valor_economico_observavel(item, 'saldo_antes_fonte', 'status_saldo_antes_fonte') if cobertura_integral == 'sim' else 'nao_aplicavel'
+                    bruto = _valor_economico_observavel(item, 'valor_bruto_resgate', 'status_valor_bruto_resgate') if cobertura_integral == 'sim' else 'nao_aplicavel'
+                    imposto = _valor_economico_observavel(item, 'imposto_resgate', 'status_imposto_resgate') if cobertura_integral == 'sim' else 'nao_aplicavel'
+                    liquido = _valor_economico_observavel(item, 'valor_liquido_resgate', 'status_valor_liquido_resgate') if cobertura_integral == 'sim' else 'nao_aplicavel'
+                    saldo_remanescente = _valor_economico_observavel(item, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte') if cobertura_integral == 'sim' else 'nao_aplicavel'
+
+                linha = {
+                    'Data': _valor_observavel_oficial(item, 'data') or referencia.get('data'),
+                    'Conta': referencia.get('conta') or referencia.get('descricao') or referencia.get('Conta') or _texto_observavel(_valor_observavel_oficial(item, 'obrigacao_id')),
+                    'Despesa ID': _valor_observavel_oficial(item, 'obrigacao_id') or referencia.get('pagamento_id') or referencia.get('id'),
+                    'Valor': valor,
+                    'Lote sugerido': fonte_oficial,
+                    'Fonte técnica': fonte_tecnica,
+                    'Saldo Antes': saldo_antes,
+                    'Bruto': bruto,
+                    'Imposto': imposto,
+                    'Líquido': liquido,
+                    'Saldo Remanescente': saldo_remanescente,
+                    'Cobertura integral': cobertura_integral,
+                    'Estratégia': 'obrigacao_coberta_oficial' if cobertura_integral == 'sim' else 'obrigacao_bloqueada_oficial',
+                    'Pacote do dia': pacote_oficial,
+                    'Pacote técnico': pacote_tecnico,
+                    'Lote reserva': fonte_oficial if cobertura_integral == 'sim' else 'n/d',
+                    'Lote pós-switching': 'n/d',
+                    'Destino switching': 'n/d',
+                    'Origem switching': 'n/d',
+                    'Fonte switching': 'n/d',
+                    'Data switching': 'n/d',
+                    'Score switching': 'n/d',
+                    'Necessita switching': 'não',
+                    'Switching antes do pagamento': 'não',
+                    'Switching depois do pagamento': 'não',
+                    'Motivo bloqueio lote': _texto_observavel(motivo, '') if cobertura_integral != 'sim' else '',
+                    'Status recomendação': _texto_observavel(status, 'status_oficial_indisponivel'),
+                    'Saldo temp. ant.': 'n/d',
+                    'Consumo temp.': 'n/d',
+                    'Saldo temp. dep.': 'n/d',
+                    'Pos sw?': 'não',
+                    'Fonte pos sw': 'n/d',
+                    'Saldo pos sw': 'n/d',
+                    'Motivo pos sw': 'n/d',
+                    'Origem saldo pos': 'n/d',
+                    'Bruto pos': 'n/d',
+                    'Líq. pos': 'n/d',
+                    'Data saldo pos': 'n/d',
+                    'Motivo saldo pos': 'n/d',
+                }
+                linhas.append(linha)
 
     return linhas
 
@@ -750,9 +805,8 @@ def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None) -> 
 
     ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, "extrato_futuro"))
     headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
-    extrato_futuro = list(getattr(saida, 'extrato_futuro', []) or [])
-    if not extrato_futuro:
-        extrato_futuro = _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial)
+    extrato_futuro_oficial = _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial)
+    extrato_futuro = extrato_futuro_oficial or list(getattr(saida, 'extrato_futuro', []) or [])
     _apply_table_style(ws_futuro, headers_futuro, _rows(extrato_futuro, headers_futuro), freeze=True)
 
     lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos", modo_bootstrap_pacote=True)
