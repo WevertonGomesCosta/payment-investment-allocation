@@ -18,10 +18,6 @@ from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
 from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_oficial
 from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_oficial
 from nucleo.limpeza_depreciacao_controlada import construir_resultado_limpeza_depreciacao_controlada
-from nucleo.identidade_baseline import VERSAO_BASELINE
-from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
-from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
-from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 
 
 def _valor(objeto, campo, padrao=None):
@@ -165,7 +161,6 @@ def carregar_contexto_e_saida():
             resultado_gates_validacao_nucleo,
             None,
             None,
-            None,
         )
 
     saida_canonica_oficial = construir_saida_canonica_oficial(
@@ -173,20 +168,12 @@ def carregar_contexto_e_saida():
         gates=resultado_gates_validacao_nucleo,
     )
     pacote_saida_observavel_oficial = construir_pacote_saida_observavel_oficial(saida_canonica_oficial)
-    saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional_canonico, versao=VERSAO_BASELINE)
-    matriz = construir_matriz_elegibilidade_fontes_s7b(
-        contexto_operacional_canonico,
-        data_referencia=saida_canonica.data_referencia,
-        saida_canonica_preconstruida=saida_canonica,
-    )
-    saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
     return (
         contexto_operacional_canonico,
         estado_temporal_inicial,
         resultado_motor_temporal_conjunto,
         ledger_temporal_canonico,
         resultado_gates_validacao_nucleo,
-        saida_canonica,
         saida_canonica_oficial,
         pacote_saida_observavel_oficial,
     )
@@ -199,7 +186,6 @@ def main():
         resultado_motor_temporal_conjunto,
         ledger_temporal_canonico,
         resultado_gates_validacao_nucleo,
-        saida_canonica,
         saida_canonica_oficial,
         pacote_saida_observavel_oficial,
     ) = carregar_contexto_e_saida()
@@ -219,15 +205,17 @@ def main():
 
     render_console(
         contexto_operacional_canonico,
-        saida_canonica,
+        None,
         estado_temporal_inicial=estado_temporal_inicial,
         pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
     )
 
     caminho_saida = gerar_planilha_operacional(
         contexto=contexto_operacional_canonico,
-        saida=saida_canonica,
+        saida=saida_canonica_oficial,
         pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+        incluir_abas_diagnosticas=False,
+        modo_artefato='oficial',
     )
 
     print(f"Saída operacional gerada em: {caminho_saida}")
