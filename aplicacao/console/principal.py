@@ -282,14 +282,15 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
     pagamentos_data_referencia = list(getattr(bloco_console, 'pagamentos_data_referencia', []) or [])
     print('\n- pagamentos na data de referência — saída oficial:')
     if pagamentos_data_referencia:
+        colunas_data_ref = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status', 'Bloq.']
         linhas_data_ref = [
-            {k: linha[k] for k in ['Data', 'Conta', 'Lote', 'Pacote', 'Status', 'Bloq.']}
+            {k: linha[k] for k in colunas_data_ref}
             for linha in (
                 _linha_pagamento_oficial(item, bloqueada=str(_valor_oficial(item, 'status_observavel') or '').startswith('bloqueada') or str(_valor_oficial(item, 'tipo') or '').endswith('bloqueada_referencialmente'))
                 for item in pagamentos_data_referencia
             )
         ]
-        _imprimir_tabela(['Data', 'Conta', 'Lote', 'Pacote', 'Status', 'Bloq.'], linhas_data_ref, limite=5)
+        _imprimir_tabela(colunas_data_ref, linhas_data_ref, limite=5)
     else:
         print('  sem_pagamentos_na_data_referencia')
 
