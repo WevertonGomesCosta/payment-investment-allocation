@@ -21,6 +21,9 @@ from nucleo.identidade_baseline import (
     caminho_saida_operacional,
     nome_relatorio_operacional,
 )
+from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
+from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
+from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
 from nucleo.saida_observavel import (
     construir_blocos_situacao_atual,
@@ -95,35 +98,10 @@ def _nome_aba_operacional(contexto, chave: str) -> str:
 
 
 
-def _valor_booleano_explicito(valor: Any) -> bool:
-    if isinstance(valor, bool):
-        return valor
-    if isinstance(valor, (int, float)):
-        return valor == 1
-    if isinstance(valor, str):
-        return valor.strip().lower() in {'1', 'true', 'sim', 's', 'yes', 'y', 'diagnostico', 'diagnóstico'}
-    return False
-
-
 def _usar_abas_diagnosticas(contexto) -> bool:
     cfg = _config_planilha_operacional(contexto)
     valor = cfg.get('incluir_abas_diagnosticas', False)
-    return _valor_booleano_explicito(valor)
-
-
-def _resolver_incluir_abas_diagnosticas(
-    contexto,
-    incluir_abas_diagnosticas: bool | None,
-    modo_artefato: str,
-) -> bool:
-    if incluir_abas_diagnosticas is not None:
-        return bool(incluir_abas_diagnosticas)
-
-    modo = str(modo_artefato or 'oficial').strip().lower()
-    if modo in {'diagnostico', 'diagnóstico', 'diagnostic'}:
-        return _usar_abas_diagnosticas(contexto)
-
-    return False
+    return bool(valor)
 
 def _nome_arquivo_operacional(contexto) -> str:
     cfg = _config_planilha_operacional(contexto)
@@ -535,10 +513,11 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     rows_carteira = quadro_carteira.astype(object).where(quadro_carteira.notna(), '').values.tolist()
     _apply_table_style(ws_carteira, headers_carteira, rows_carteira, freeze=True)
 
-    ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
-    top30 = ranking.top30.copy()
-    rows_top30 = top30.astype(object).where(top30.notna(), '').values.tolist()
-    _apply_table_style(ws_top30, list(top30.columns), rows_top30, freeze=True)
+    if _usar_abas_diagnosticas(contexto):
+        ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
+        top30 = ranking.top30.copy()
+        rows_top30 = top30.astype(object).where(top30.notna(), '').values.tolist()
+        _apply_table_style(ws_top30, list(top30.columns), rows_top30, freeze=True)
 
     ws_resumo = wb.create_sheet(_nome_aba_operacional(contexto, 'resumo_switching'))
     resumo_rows = [
@@ -592,28 +571,14 @@ def _adicionar_situacao_atual(wb, contexto, saida, pacote_saida_observavel_tempo
 
 def _adicionar_auditoria_saida_canonica(wb, contexto, saida) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'saida_canonica'))
-    resumo = getattr(saida, 'resumo', None)
-    linhas = [
-        {'Métrica': 'origem', 'Valor': type(saida).__name__},
-        {'Métrica': 'status', 'Valor': getattr(saida, 'status', 'nao_aplicavel')},
-        {'Métrica': 'ok', 'Valor': getattr(saida, 'ok', 'nao_aplicavel')},
-        {'Métrica': 'preparada', 'Valor': getattr(saida, 'preparada', 'nao_aplicavel')},
-        {'Métrica': 'data_referencia', 'Valor': getattr(saida, 'data_referencia', 'nao_aplicavel')},
-        {'Métrica': 'qtd_eventos_ledger', 'Valor': getattr(resumo, 'qtd_eventos_ledger', 'nao_aplicavel')},
-        {'Métrica': 'qtd_obrigacoes_cobertas', 'Valor': getattr(resumo, 'qtd_obrigacoes_cobertas', 'nao_aplicavel')},
-        {'Métrica': 'qtd_obrigacoes_bloqueadas', 'Valor': getattr(resumo, 'qtd_obrigacoes_bloqueadas', 'nao_aplicavel')},
-        {'Métrica': 'qtd_fontes_utilizadas', 'Valor': getattr(resumo, 'qtd_fontes_utilizadas', 'nao_aplicavel')},
-        {'Métrica': 'qtd_fontes_reservadas', 'Valor': getattr(resumo, 'qtd_fontes_reservadas', 'nao_aplicavel')},
-        {'Métrica': 'qtd_switchings_escolhidos', 'Valor': getattr(resumo, 'qtd_switchings_escolhidos', 'nao_aplicavel')},
-        {'Métrica': 'qtd_bloqueios_ledger', 'Valor': getattr(resumo, 'qtd_bloqueios_ledger', 'nao_aplicavel')},
-        {'Métrica': 'qtd_avisos_ledger', 'Valor': getattr(resumo, 'qtd_avisos_ledger', 'nao_aplicavel')},
-        {'Métrica': 'qtd_bloqueios_gates', 'Valor': getattr(resumo, 'qtd_bloqueios_gates', 'nao_aplicavel')},
-        {'Métrica': 'qtd_avisos_gates', 'Valor': getattr(resumo, 'qtd_avisos_gates', 'nao_aplicavel')},
-    ]
-    for k, v in dict(getattr(saida, 'metadados', {}) or {}).items():
+    auditoria = dict(getattr(saida, 'auditoria', {}) or {})
+    auditoria['qtd_switchings'] = len(getattr(saida, 'switchings', None) or [])
+
+    linhas = []
+    for k, v in auditoria.items():
         if isinstance(v, (list, dict, tuple, set)):
             continue
-        linhas.append({'Métrica': f'metadados.{k}', 'Valor': v})
+        linhas.append({'Métrica': k, 'Valor': v})
     _apply_table_style(ws, ['Métrica', 'Valor'], _rows(linhas, ['Métrica', 'Valor']), freeze=True)
 
 
@@ -932,17 +897,14 @@ def main(
             instalar_automaticamente=False,
         )
 
-    incluir_abas_diagnosticas = _resolver_incluir_abas_diagnosticas(
-        contexto,
-        incluir_abas_diagnosticas,
-        modo_artefato,
-    )
-
-    if saida is None and pacote_saida_observavel_oficial is None:
-        raise ValueError(
-            'pacote_saida_observavel_oficial é obrigatório na rota oficial; '
-            'fallback silencioso V17/S7 foi desabilitado.'
+    if saida is None:
+        saida = construir_saida_canonica_com_switching_v17_c7(contexto, versao=VERSAO_BASELINE)
+        matriz = construir_matriz_elegibilidade_fontes_s7b(
+            contexto,
+            data_referencia=saida.data_referencia,
+            saida_canonica_preconstruida=saida,
         )
+        saida, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida, matriz)
 
     saida_interna, saida_externa = _caminhos_saida_operacional(contexto)
 
@@ -951,51 +913,31 @@ def main(
     ws_passado = wb.active
     ws_passado.title = _nome_aba_operacional(contexto, "extrato_passado")
     headers_passado = _cabecalhos_operacionais(contexto, "extrato_passado")
-    extrato_passado_bruto = list(
-        getattr(saida, 'extrato_passado', None)
-        or getattr(saida, 'pagamentos_historicos_realizados', None)
-        or []
-    )
-    if getattr(saida, 'pagamentos_historicos_realizados', None) is not None:
-        extrato_passado = _normalizar_extrato_passado_oficial(extrato_passado_bruto)
-        if 'Valor' not in headers_passado:
-            pos = headers_passado.index('Despesa ID') + 1 if 'Despesa ID' in headers_passado else len(headers_passado)
-            headers_passado = headers_passado[:pos] + ['Valor'] + headers_passado[pos:]
-    else:
-        extrato_passado = extrato_passado_bruto
-    _apply_table_style(ws_passado, headers_passado, _rows(extrato_passado, headers_passado), freeze=True)
+    _apply_table_style(ws_passado, headers_passado, _rows(saida.extrato_passado, headers_passado), freeze=True)
 
     ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, "extrato_futuro"))
     headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
     extrato_futuro_oficial = _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial)
-    if pacote_saida_observavel_oficial is not None:
-        extrato_futuro = extrato_futuro_oficial
-    else:
-        extrato_futuro = list(getattr(saida, 'extrato_futuro', []) or [])
+    extrato_futuro = extrato_futuro_oficial or list(getattr(saida, 'extrato_futuro', []) or [])
     _apply_table_style(ws_futuro, headers_futuro, _rows(extrato_futuro, headers_futuro), freeze=True)
 
-    usar_compatibilidade_temporal = bool(getattr(saida, 'extrato_futuro', None) is not None)
-    pacote_consolidado = None
-    if usar_compatibilidade_temporal:
-        lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos", modo_bootstrap_pacote=True)
-        pacote_semente = construir_pacote_saida_observavel_temporal(contexto, saida, lotes_ativos_observaveis=lotes_ativos_observaveis)
-        lotes_exauridos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="exauridos", pacote_saida_observavel_temporal=pacote_semente)
-        pacote_consolidado = construir_pacote_saida_observavel_temporal(
-            contexto,
-            saida,
-            lotes_ativos_observaveis=lotes_ativos_observaveis,
-            lotes_exauridos_observaveis=lotes_exauridos_observaveis,
-            pagamentos_realizados_observaveis=list(getattr(saida, "extrato_passado", []) or []),
-        )
+    lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos", modo_bootstrap_pacote=True)
+    pacote_semente = construir_pacote_saida_observavel_temporal(contexto, saida, lotes_ativos_observaveis=lotes_ativos_observaveis)
+    lotes_exauridos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="exauridos", pacote_saida_observavel_temporal=pacote_semente)
+    pacote_consolidado = construir_pacote_saida_observavel_temporal(
+        contexto,
+        saida,
+        lotes_ativos_observaveis=lotes_ativos_observaveis,
+        lotes_exauridos_observaveis=lotes_exauridos_observaveis,
+        pagamentos_realizados_observaveis=list(getattr(saida, "extrato_passado", []) or []),
+    )
 
     ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, "switching"))
     headers_switching = _cabecalhos_operacionais(contexto, "switching")
-    switchings_observaveis = _switchings_oficiais_xlsx(pacote_saida_observavel_oficial)
-    if not switchings_observaveis and usar_compatibilidade_temporal:
-        switchings_observaveis = construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal=pacote_consolidado)
+    switchings_observaveis = construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal=pacote_consolidado)
     _apply_table_style(ws_switching, headers_switching, _rows(switchings_observaveis, headers_switching), freeze=True)
 
-    if incluir_abas_diagnosticas:
+    if _usar_abas_diagnosticas(contexto):
         ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
         headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
         linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
@@ -1017,16 +959,13 @@ def main(
         )
 
     _adicionar_abas_ranking(wb, contexto)
-    if usar_compatibilidade_temporal:
-        _adicionar_situacao_atual(wb, contexto, saida, pacote_consolidado)
-    else:
-        _adicionar_situacao_atual_oficial(wb, contexto, saida, pacote_saida_observavel_oficial)
+    _adicionar_situacao_atual(wb, contexto, saida, pacote_consolidado)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
     _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial)
-    if incluir_abas_diagnosticas:
-        _adicionar_aba_tabela_operacional_pagamentos(wb)
-        _adicionar_abas_saida_operacional_pagamentos_u7(wb)
-        _adicionar_aba_auditoria_fontes(wb, contexto, saida)
+    _adicionar_aba_tabela_operacional_pagamentos(wb)
+    _adicionar_abas_saida_operacional_pagamentos_u7(wb)
+    _adicionar_aba_auditoria_fontes(wb, contexto, saida)
+    if _usar_abas_diagnosticas(contexto):
         _adicionar_aba_auditoria_fifo(wb, contexto, saida)
         _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, saida)
 
