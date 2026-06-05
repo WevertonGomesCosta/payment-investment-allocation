@@ -21,9 +21,6 @@ from nucleo.identidade_baseline import (
     caminho_saida_operacional,
     nome_relatorio_operacional,
 )
-from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
-from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
-from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
 from nucleo.saida_observavel import (
     construir_blocos_situacao_atual,
@@ -772,7 +769,7 @@ def _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial) -> 
         headers, linhas_normalizadas = _normalizar_linhas_observaveis(linhas)
         _apply_table_style(ws, headers, _rows(linhas_normalizadas, headers), freeze=True)
 
-def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None) -> Path:
+def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None, incluir_abas_diagnosticas: bool | None = None) -> Path:
     """Gera a planilha operacional.
 
     Quando contexto e saida são informados, esta função não recarrega planilha,
@@ -785,14 +782,14 @@ def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None) -> 
             instalar_automaticamente=False,
         )
 
-    if saida is None:
-        saida = construir_saida_canonica_com_switching_v17_c7(contexto, versao=VERSAO_BASELINE)
-        matriz = construir_matriz_elegibilidade_fontes_s7b(
-            contexto,
-            data_referencia=saida.data_referencia,
-            saida_canonica_preconstruida=saida,
+    if incluir_abas_diagnosticas is None:
+        incluir_abas_diagnosticas = _usar_abas_diagnosticas(contexto)
+
+    if saida is None and pacote_saida_observavel_oficial is None:
+        raise ValueError(
+            'pacote_saida_observavel_oficial é obrigatório na rota oficial; '
+            'fallback silencioso V17/S7 foi desabilitado.'
         )
-        saida, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida, matriz)
 
     saida_interna, saida_externa = _caminhos_saida_operacional(contexto)
 
@@ -801,31 +798,44 @@ def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None) -> 
     ws_passado = wb.active
     ws_passado.title = _nome_aba_operacional(contexto, "extrato_passado")
     headers_passado = _cabecalhos_operacionais(contexto, "extrato_passado")
-    _apply_table_style(ws_passado, headers_passado, _rows(saida.extrato_passado, headers_passado), freeze=True)
+    extrato_passado = list(
+        getattr(saida, 'extrato_passado', None)
+        or getattr(saida, 'pagamentos_historicos_realizados', None)
+        or []
+    )
+    _apply_table_style(ws_passado, headers_passado, _rows(extrato_passado, headers_passado), freeze=True)
 
     ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, "extrato_futuro"))
     headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
     extrato_futuro_oficial = _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial)
-    extrato_futuro = extrato_futuro_oficial or list(getattr(saida, 'extrato_futuro', []) or [])
+    if pacote_saida_observavel_oficial is not None:
+        extrato_futuro = extrato_futuro_oficial
+    else:
+        extrato_futuro = list(getattr(saida, 'extrato_futuro', []) or [])
     _apply_table_style(ws_futuro, headers_futuro, _rows(extrato_futuro, headers_futuro), freeze=True)
 
-    lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos", modo_bootstrap_pacote=True)
-    pacote_semente = construir_pacote_saida_observavel_temporal(contexto, saida, lotes_ativos_observaveis=lotes_ativos_observaveis)
-    lotes_exauridos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="exauridos", pacote_saida_observavel_temporal=pacote_semente)
-    pacote_consolidado = construir_pacote_saida_observavel_temporal(
-        contexto,
-        saida,
-        lotes_ativos_observaveis=lotes_ativos_observaveis,
-        lotes_exauridos_observaveis=lotes_exauridos_observaveis,
-        pagamentos_realizados_observaveis=list(getattr(saida, "extrato_passado", []) or []),
-    )
+    usar_compatibilidade_temporal = bool(getattr(saida, 'extrato_futuro', None) is not None)
+    pacote_consolidado = None
+    if usar_compatibilidade_temporal:
+        lotes_ativos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="ativos", modo_bootstrap_pacote=True)
+        pacote_semente = construir_pacote_saida_observavel_temporal(contexto, saida, lotes_ativos_observaveis=lotes_ativos_observaveis)
+        lotes_exauridos_observaveis = construir_linhas_lotes_consolidados(contexto, saida, tipo="exauridos", pacote_saida_observavel_temporal=pacote_semente)
+        pacote_consolidado = construir_pacote_saida_observavel_temporal(
+            contexto,
+            saida,
+            lotes_ativos_observaveis=lotes_ativos_observaveis,
+            lotes_exauridos_observaveis=lotes_exauridos_observaveis,
+            pagamentos_realizados_observaveis=list(getattr(saida, "extrato_passado", []) or []),
+        )
 
     ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, "switching"))
     headers_switching = _cabecalhos_operacionais(contexto, "switching")
-    switchings_observaveis = construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal=pacote_consolidado)
+    switchings_observaveis = []
+    if usar_compatibilidade_temporal:
+        switchings_observaveis = construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal=pacote_consolidado)
     _apply_table_style(ws_switching, headers_switching, _rows(switchings_observaveis, headers_switching), freeze=True)
 
-    if _usar_abas_diagnosticas(contexto):
+    if incluir_abas_diagnosticas:
         ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
         headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
         linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
@@ -847,13 +857,14 @@ def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None) -> 
         )
 
     _adicionar_abas_ranking(wb, contexto)
-    _adicionar_situacao_atual(wb, contexto, saida, pacote_consolidado)
+    if usar_compatibilidade_temporal:
+        _adicionar_situacao_atual(wb, contexto, saida, pacote_consolidado)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)
     _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial)
-    _adicionar_aba_tabela_operacional_pagamentos(wb)
-    _adicionar_abas_saida_operacional_pagamentos_u7(wb)
-    _adicionar_aba_auditoria_fontes(wb, contexto, saida)
-    if _usar_abas_diagnosticas(contexto):
+    if incluir_abas_diagnosticas:
+        _adicionar_aba_tabela_operacional_pagamentos(wb)
+        _adicionar_abas_saida_operacional_pagamentos_u7(wb)
+        _adicionar_aba_auditoria_fontes(wb, contexto, saida)
         _adicionar_aba_auditoria_fifo(wb, contexto, saida)
         _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, saida)
 
