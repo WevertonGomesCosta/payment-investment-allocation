@@ -30,6 +30,8 @@ class ResumoSaidaCanonicaOficial:
     qtd_fontes_utilizadas: int
     qtd_fontes_reservadas: int
     qtd_switchings_escolhidos: int
+    qtd_switchings_realizados_operacionais: int
+    qtd_lotes_pos_switching_materializados: int
     qtd_destinos_sobras_recebidos: int
     qtd_lotes_futuros_materializados: int
     qtd_bloqueios_ledger: int
@@ -60,6 +62,8 @@ class SaidaCanonicaOficial:
     fontes_utilizadas: list[dict[str, Any]] = field(default_factory=list)
     fontes_reservadas: list[dict[str, Any]] = field(default_factory=list)
     switchings_escolhidos: list[dict[str, Any]] = field(default_factory=list)
+    switchings_realizados_operacionais: list[dict[str, Any]] = field(default_factory=list)
+    lotes_pos_switching_materializados: list[dict[str, Any]] = field(default_factory=list)
     saldos_referenciais_por_data: dict[date, list[dict[str, Any]]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
     lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
@@ -122,6 +126,8 @@ def _resumo(
         qtd_fontes_utilizadas=len(_valor(ledger, 'fontes_utilizadas', []) or []),
         qtd_fontes_reservadas=len(_valor(ledger, 'fontes_reservadas', []) or []),
         qtd_switchings_escolhidos=len(_valor(ledger, 'switchings_escolhidos', []) or []),
+        qtd_switchings_realizados_operacionais=len(_valor(ledger, 'switchings_realizados_operacionais', []) or []),
+        qtd_lotes_pos_switching_materializados=len(_valor(ledger, 'lotes_pos_switching_materializados', []) or []),
         qtd_destinos_sobras_recebidos=len(_valor(ledger, 'destinos_sobras_recebidos', []) or []),
         qtd_lotes_futuros_materializados=len(_valor(ledger, 'lotes_futuros_materializados', []) or []),
         qtd_bloqueios_ledger=len(_valor(ledger, 'bloqueios', []) or []),
@@ -211,6 +217,8 @@ def _montar_saida(
         fontes_utilizadas=_snapshot_lista(_valor(ledger, 'fontes_utilizadas', [])) if incluir_operacional else [],
         fontes_reservadas=_snapshot_lista(_valor(ledger, 'fontes_reservadas', [])) if incluir_operacional else [],
         switchings_escolhidos=_snapshot_lista(_valor(ledger, 'switchings_escolhidos', [])) if incluir_operacional else [],
+        switchings_realizados_operacionais=_snapshot_lista(_valor(ledger, 'switchings_realizados_operacionais', [])) if incluir_operacional else [],
+        lotes_pos_switching_materializados=_snapshot_lista(_valor(ledger, 'lotes_pos_switching_materializados', [])) if incluir_operacional else [],
         saldos_referenciais_por_data=_snapshot_saldos(_valor(ledger, 'saldos_referenciais_por_data', {})) if incluir_operacional else {},
         destinos_sobras_recebidos=_snapshot_lista(_valor(ledger, 'destinos_sobras_recebidos', [])) if incluir_operacional else [],
         lotes_futuros_materializados=_snapshot_lista(_valor(ledger, 'lotes_futuros_materializados', [])) if incluir_operacional else [],

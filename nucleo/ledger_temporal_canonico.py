@@ -169,6 +169,8 @@ class LedgerTemporalCanonico:
     fontes_utilizadas: list[LancamentoFonteLedger] = field(default_factory=list)
     fontes_reservadas: list[LancamentoReservaLedger] = field(default_factory=list)
     switchings_escolhidos: list[LancamentoSwitchingLedger] = field(default_factory=list)
+    switchings_realizados_operacionais: list[dict[str, Any]] = field(default_factory=list)
+    lotes_pos_switching_materializados: list[dict[str, Any]] = field(default_factory=list)
     saldos_referenciais_por_data: dict[date, list[SaldoLedgerTemporal]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
     lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
@@ -190,6 +192,7 @@ _CAMPOS_ESPERADOS_RESULTADO = [
     'obrigacoes_cobertas_temporalmente',
     'obrigacoes_bloqueadas_temporalmente',
     'switchings_escolhidos_temporalmente',
+    'eventos_temporais_base',
     'destinos_sobras_recebidos_temporais',
     'lotes_futuros_materializados',
     'auditoria_trajetoria_temporal_interna',
@@ -426,6 +429,42 @@ def _switching_para_ledger(switching: Any) -> LancamentoSwitchingLedger:
     )
 
 
+def _switching_operacional_para_ledger(switching: Any) -> dict[str, Any]:
+    snapshot = _dict_referencia(switching)
+    snapshot['origem'] = 'ResultadoMotorTemporalConjunto.eventos_temporais_base.switchings_realizados'
+    snapshot['status_observavel'] = snapshot.get('status_temporal') or 'switching_operacional_preservado'
+    snapshot['data'] = snapshot.get('data_switching') or snapshot.get('data_aplicacao')
+    snapshot['lote_origem_id'] = snapshot.get('lote_origem') or snapshot.get('lote_origem_id')
+    snapshot['lote_destino_id'] = snapshot.get('lote_destino') or snapshot.get('lote_destino_id')
+    snapshot['valor_liquido_migrado_referencial'] = snapshot.get('valor_liquido_migrado')
+    return snapshot
+
+
+def _lote_pos_switching_materializado_para_ledger(switching: Any) -> dict[str, Any] | None:
+    snapshot = _dict_referencia(switching)
+    if str(snapshot.get('status_temporal') or '').strip() != 'materializado':
+        return None
+    lote_destino = snapshot.get('lote_destino') or snapshot.get('lote_destino_id')
+    if not lote_destino:
+        return None
+    return {
+        'lote_id': lote_destino,
+        'lote_id_operacional': lote_destino,
+        'status_temporal': 'ativo_pos_switching',
+        'origem_canonica': 'switching_canonico_preservado_etapa6',
+        'origem': 'ResultadoMotorTemporalConjunto.eventos_temporais_base.switchings_realizados',
+        'origem_switching': snapshot.get('lote_origem') or snapshot.get('lote_origem_id'),
+        'switching_id': snapshot.get('switching_id'),
+        'produto': snapshot.get('produto_destino'),
+        'produto_destino': snapshot.get('produto_destino'),
+        'data_switching': snapshot.get('data_switching'),
+        'data_aplicacao': snapshot.get('data_aplicacao'),
+        'data_recebimento': snapshot.get('data_recebimento'),
+        'valor_liquido_migrado': snapshot.get('valor_liquido_migrado'),
+        'referencia_switching_temporal': snapshot,
+    }
+
+
 def _saldos_por_data(resultado: ResultadoMotorTemporalConjunto) -> dict[date, list[SaldoLedgerTemporal]]:
     saida: dict[date, list[SaldoLedgerTemporal]] = {}
     trajetoria = _valor(resultado, 'trajetoria_temporal_interna_escolhida')
@@ -534,6 +573,8 @@ def _auditar_ledger(ledger: LedgerTemporalCanonico, resultado: ResultadoMotorTem
         'qtd_fontes_utilizadas': len(ledger.fontes_utilizadas),
         'qtd_fontes_reservadas': len(ledger.fontes_reservadas),
         'qtd_switchings_escolhidos': len(ledger.switchings_escolhidos),
+        'qtd_switchings_realizados_operacionais': len(ledger.switchings_realizados_operacionais),
+        'qtd_lotes_pos_switching_materializados': len(ledger.lotes_pos_switching_materializados),
         'qtd_destinos_sobras_recebidos': len(ledger.destinos_sobras_recebidos),
         'qtd_lotes_futuros_materializados': len(ledger.lotes_futuros_materializados),
         'qtd_bloqueios': len(ledger.bloqueios),
@@ -614,6 +655,16 @@ def construir_ledger_temporal_canonico(
         lancamento = _switching_para_ledger(switching)
         ledger.switchings_escolhidos.append(lancamento)
         _registrar_lancamento(ledger, lancamento.data, lancamento)
+
+    eventos_base = _valor(resultado, 'eventos_temporais_base')
+    for switching in _lista(_valor(eventos_base, 'switchings_realizados', [])):
+        switching_snapshot = _switching_operacional_para_ledger(switching)
+        ledger.switchings_realizados_operacionais.append(switching_snapshot)
+        _registrar_lancamento(ledger, switching_snapshot.get('data'), switching_snapshot)
+        lote_pos = _lote_pos_switching_materializado_para_ledger(switching)
+        if lote_pos is not None:
+            ledger.lotes_pos_switching_materializados.append(lote_pos)
+            _registrar_lancamento(ledger, lote_pos.get('data_aplicacao') or lote_pos.get('data_switching'), lote_pos)
 
     for destino in _lista(_valor(resultado, 'destinos_sobras_recebidos_temporais', [])):
         destino_snapshot = _dict_referencia(destino)

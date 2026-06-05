@@ -29,6 +29,8 @@ class ResumoSaidaObservavelOficial:
     qtd_fontes_utilizadas: int
     qtd_fontes_reservadas: int
     qtd_switchings_escolhidos: int
+    qtd_switchings_realizados_operacionais: int
+    qtd_lotes_pos_switching_materializados: int
     qtd_destinos_sobras_recebidos: int
     qtd_lotes_futuros_materializados: int
     qtd_saldos_referenciais_datas: int
@@ -51,6 +53,8 @@ class BlocoConsoleSaidaObservavel:
     obrigacoes_cobertas: list[dict[str, Any]] = field(default_factory=list)
     obrigacoes_bloqueadas: list[dict[str, Any]] = field(default_factory=list)
     switchings_escolhidos: list[dict[str, Any]] = field(default_factory=list)
+    switchings_realizados_operacionais: list[dict[str, Any]] = field(default_factory=list)
+    lotes_pos_switching_materializados: list[dict[str, Any]] = field(default_factory=list)
     saldos_referenciais: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
     lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
@@ -268,6 +272,10 @@ def _enriquecer_identificacao_operacional_blocos(blocos: dict[str, Any]) -> dict
         _enriquecer_switching_identificacao(item)
         for item in list(saida.get('switchings_escolhidos') or [])
     ]
+    saida['switchings_realizados_operacionais'] = [
+        _enriquecer_switching_identificacao(item)
+        for item in list(saida.get('switchings_realizados_operacionais') or [])
+    ]
     return saida
 
 
@@ -317,6 +325,8 @@ def extrair_blocos_saida_canonica(saida: SaidaCanonicaOficial) -> dict[str, Any]
         'fontes_utilizadas': _snapshot_lista(saida.fontes_utilizadas),
         'fontes_reservadas': _snapshot_lista(saida.fontes_reservadas),
         'switchings_escolhidos': _snapshot_lista(saida.switchings_escolhidos),
+        'switchings_realizados_operacionais': _snapshot_lista(getattr(saida, 'switchings_realizados_operacionais', [])),
+        'lotes_pos_switching_materializados': _snapshot_lista(getattr(saida, 'lotes_pos_switching_materializados', [])),
         'saldos_referenciais': _snapshot_saldos(saida.saldos_referenciais_por_data),
         'destinos_sobras_recebidos': _snapshot_lista(getattr(saida, 'destinos_sobras_recebidos', [])),
         'lotes_futuros_materializados': _snapshot_lista(getattr(saida, 'lotes_futuros_materializados', [])),
@@ -343,6 +353,8 @@ def preparar_resumo_operacional_observavel(blocos: dict[str, Any]) -> dict[str, 
         'qtd_fontes_utilizadas': len(blocos['fontes_utilizadas']),
         'qtd_fontes_reservadas': len(blocos['fontes_reservadas']),
         'qtd_switchings_escolhidos': len(blocos['switchings_escolhidos']),
+        'qtd_switchings_realizados_operacionais': len(blocos.get('switchings_realizados_operacionais', [])),
+        'qtd_lotes_pos_switching_materializados': len(blocos.get('lotes_pos_switching_materializados', [])),
         'qtd_destinos_sobras_recebidos': len(blocos.get('destinos_sobras_recebidos', [])),
         'qtd_lotes_futuros_materializados': len(blocos.get('lotes_futuros_materializados', [])),
         'qtd_datas_saldos_referenciais': len(blocos['saldos_referenciais']),
@@ -572,8 +584,11 @@ def preparar_bloco_obrigacoes(blocos: dict[str, Any]) -> dict[str, list[dict[str
     }
 
 
-def preparar_bloco_switchings(blocos: dict[str, Any]) -> list[dict[str, Any]]:
-    return list(blocos['switchings_escolhidos'])
+def preparar_bloco_switchings(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    return {
+        'switchings_escolhidos': list(blocos['switchings_escolhidos']),
+        'switchings_realizados_operacionais': list(blocos.get('switchings_realizados_operacionais', [])),
+    }
 
 
 def preparar_bloco_saldos(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
@@ -591,6 +606,7 @@ def preservar_avisos_bloqueios_evidencias(blocos: dict[str, Any]) -> dict[str, A
         'evidencias': list(blocos['evidencias_gates']),
         'destinos_sobras_recebidos': list(blocos.get('destinos_sobras_recebidos', [])),
         'lotes_futuros_materializados': list(blocos.get('lotes_futuros_materializados', [])),
+        'lotes_pos_switching_materializados': list(blocos.get('lotes_pos_switching_materializados', [])),
     }
 
 
@@ -614,6 +630,28 @@ def registrar_lacunas_renderizacao(
                 'SaidaCanonicaOficial não contém obrigações cobertas nem bloqueadas para compor pagamentos observáveis.',
             )
         )
+
+    resumo = blocos.get('resumo_saida_canonica') or {}
+    campos_prioridade2 = {
+        'patrimonio_total_lotes': 'patrimônio total dos lotes',
+        'bruto_sacado': 'bruto sacado',
+        'liquido_sacado': 'líquido sacado',
+        'bruto_atual': 'bruto atual',
+        'liquido_atual': 'líquido atual',
+        'patrimonio_liquido': 'patrimônio líquido',
+        'rendimento_liquido': 'rendimento líquido',
+        'resumo_recebidos_valores': 'resumo de recebidos em valores',
+    }
+    for campo, rotulo in campos_prioridade2.items():
+        if campo in blocos or campo in resumo:
+            continue
+        lacunas.append(
+            _nova_lacuna(
+                f'{campo}_nao_materializado_na_saida_canonica_oficial',
+                f'{rotulo} não está materializado na SaidaCanonicaOficial; Etapa 9 preserva lacuna objetiva sem mascarar com zero.',
+                {'campo': campo, 'origem_requerida': 'LedgerTemporalCanonico validado'},
+            )
+        )
     return lacunas
 
 
@@ -625,7 +663,7 @@ def preparar_blocos_console(
     pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
-    switchings: list[dict[str, Any]],
+    switchings: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
     preservados: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
@@ -639,7 +677,9 @@ def preparar_blocos_console(
         fontes_utilizadas=fontes['fontes_utilizadas'],
         obrigacoes_cobertas=obrigacoes['obrigacoes_cobertas'],
         obrigacoes_bloqueadas=obrigacoes['obrigacoes_bloqueadas'],
-        switchings_escolhidos=switchings,
+        switchings_escolhidos=switchings.get('switchings_escolhidos', []),
+        switchings_realizados_operacionais=switchings.get('switchings_realizados_operacionais', []),
+        lotes_pos_switching_materializados=preservados.get('lotes_pos_switching_materializados', []),
         saldos_referenciais=saldos,
         destinos_sobras_recebidos=preservados.get('destinos_sobras_recebidos', []),
         lotes_futuros_materializados=preservados.get('lotes_futuros_materializados', []),
@@ -657,7 +697,7 @@ def preparar_blocos_xlsx(
     pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
-    switchings: list[dict[str, Any]],
+    switchings: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
     preservados: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
@@ -672,7 +712,9 @@ def preparar_blocos_xlsx(
         'Fontes Reservadas': fontes['fontes_reservadas'],
         'Obrigacoes Cobertas': obrigacoes['obrigacoes_cobertas'],
         'Obrigacoes Bloqueadas': obrigacoes['obrigacoes_bloqueadas'],
-        'Switchings Escolhidos': switchings,
+        'Switchings Escolhidos': switchings.get('switchings_escolhidos', []),
+        'Switchings Realizados Operacionais': switchings.get('switchings_realizados_operacionais', []),
+        'Lotes Pos Switching Materializados': preservados.get('lotes_pos_switching_materializados', []),
         'Destinos Sobras Recebidos': preservados.get('destinos_sobras_recebidos', []),
         'Lotes Futuros Materializados': preservados.get('lotes_futuros_materializados', []),
         'Avisos': [{'aviso': aviso} if not isinstance(aviso, dict) else aviso for aviso in preservados['avisos']],
@@ -746,6 +788,8 @@ def _resumo_pacote(
         qtd_fontes_utilizadas=len(blocos.get('fontes_utilizadas', [])),
         qtd_fontes_reservadas=len(blocos.get('fontes_reservadas', [])),
         qtd_switchings_escolhidos=len(blocos.get('switchings_escolhidos', [])),
+        qtd_switchings_realizados_operacionais=len(blocos.get('switchings_realizados_operacionais', [])),
+        qtd_lotes_pos_switching_materializados=len(blocos.get('lotes_pos_switching_materializados', [])),
         qtd_destinos_sobras_recebidos=len(blocos.get('destinos_sobras_recebidos', [])),
         qtd_lotes_futuros_materializados=len(blocos.get('lotes_futuros_materializados', [])),
         qtd_saldos_referenciais_datas=len(blocos.get('saldos_referenciais', {})),
