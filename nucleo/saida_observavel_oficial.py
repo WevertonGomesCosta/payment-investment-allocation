@@ -54,6 +54,9 @@ class BlocoConsoleSaidaObservavel:
     obrigacoes_bloqueadas: list[dict[str, Any]] = field(default_factory=list)
     switchings_escolhidos: list[dict[str, Any]] = field(default_factory=list)
     switchings_realizados_operacionais: list[dict[str, Any]] = field(default_factory=list)
+    switchings_metricas: list[dict[str, Any]] = field(default_factory=list)
+    switchings_amostra: list[dict[str, Any]] = field(default_factory=list)
+    switchings_resumo_operacional: list[dict[str, Any]] = field(default_factory=list)
     lotes_pos_switching_materializados: list[dict[str, Any]] = field(default_factory=list)
     saldos_referenciais: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
@@ -584,10 +587,75 @@ def preparar_bloco_obrigacoes(blocos: dict[str, Any]) -> dict[str, list[dict[str
     }
 
 
-def preparar_bloco_switchings(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+def _valor_switching_observavel(item: dict[str, Any], *campos: str, padrao: Any = None) -> Any:
+    for campo in campos:
+        valor = item.get(campo)
+        if valor is not None and str(valor).strip():
+            return valor
+    referencia = item.get('referencia_original') or {}
+    if isinstance(referencia, dict):
+        for campo in campos:
+            valor = referencia.get(campo)
+            if valor is not None and str(valor).strip():
+                return valor
+    return padrao
+
+
+def _linha_switching_observavel(item: dict[str, Any]) -> dict[str, Any]:
     return {
-        'switchings_escolhidos': list(blocos['switchings_escolhidos']),
-        'switchings_realizados_operacionais': list(blocos.get('switchings_realizados_operacionais', [])),
+        'Data': _valor_switching_observavel(item, 'data', 'data_switching', 'data_aplicacao'),
+        'Lote origem': _valor_switching_observavel(item, 'lote_origem_id', 'lote_origem'),
+        'Lote destino': _valor_switching_observavel(item, 'lote_destino_id', 'lote_destino'),
+        'Produto origem': _valor_switching_observavel(
+            item,
+            'produto_origem',
+            'investimento_origem',
+            'carteira_origem',
+            padrao='nao_materializado',
+        ),
+        'Produto destino': _valor_switching_observavel(
+            item,
+            'produto_destino',
+            'investimento_destino',
+            'carteira_destino',
+            padrao='nao_materializado',
+        ),
+    }
+
+
+def preparar_bloco_switchings(blocos: dict[str, Any]) -> dict[str, Any]:
+    switchings_escolhidos = list(blocos['switchings_escolhidos'])
+    switchings_operacionais = list(blocos.get('switchings_realizados_operacionais', []))
+    lotes_pos = list(blocos.get('lotes_pos_switching_materializados', []))
+
+    # Na rota oficial pós-PR496, os switchings realizados operacionais são a evidência
+    # materializada da janela. Se não houver switchings_escolhidos futuros/econômicos,
+    # a contagem de candidatos avaliados para a janela observável deve refletir os
+    # switchings operacionais preservados, sem inventar dados no console.
+    candidatos_avaliados = len(switchings_escolhidos) if switchings_escolhidos else len(switchings_operacionais)
+
+    metricas = [
+        {'Métrica': 'Lotes avaliados para switching', 'Valor': len(switchings_operacionais)},
+        {'Métrica': 'Candidatos avaliados para switching', 'Valor': candidatos_avaliados},
+        {'Métrica': 'Switchings promovidos/executados', 'Valor': len(switchings_operacionais)},
+        {'Métrica': 'Origem da amostra', 'Valor': 'V225'},
+    ]
+
+    resumo_operacional = [
+        {'Métrica': 'Total de switchings promovidos', 'Valor': len(switchings_operacionais)},
+        {'Métrica': 'Total de lotes sintéticos pós-switching', 'Valor': len(lotes_pos)},
+        {
+            'Métrica': 'Total de aportes futuros',
+            'Valor': 'aportes_futuros_nao_materializados_na_rota_oficial',
+        },
+    ]
+
+    return {
+        'switchings_escolhidos': switchings_escolhidos,
+        'switchings_realizados_operacionais': switchings_operacionais,
+        'switchings_metricas': metricas,
+        'switchings_amostra': [_linha_switching_observavel(item) for item in switchings_operacionais],
+        'switchings_resumo_operacional': resumo_operacional,
     }
 
 
@@ -679,6 +747,9 @@ def preparar_blocos_console(
         obrigacoes_bloqueadas=obrigacoes['obrigacoes_bloqueadas'],
         switchings_escolhidos=switchings.get('switchings_escolhidos', []),
         switchings_realizados_operacionais=switchings.get('switchings_realizados_operacionais', []),
+        switchings_metricas=switchings.get('switchings_metricas', []),
+        switchings_amostra=switchings.get('switchings_amostra', []),
+        switchings_resumo_operacional=switchings.get('switchings_resumo_operacional', []),
         lotes_pos_switching_materializados=preservados.get('lotes_pos_switching_materializados', []),
         saldos_referenciais=saldos,
         destinos_sobras_recebidos=preservados.get('destinos_sobras_recebidos', []),

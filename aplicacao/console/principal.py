@@ -481,52 +481,47 @@ def _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_obse
 def _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> None:
     ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
-    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
-    switchings_escolhidos = list(getattr(bloco_console, 'switchings_escolhidos', []) or [])
-    switchings_operacionais = list(getattr(bloco_console, 'switchings_realizados_operacionais', []) or [])
-    switchings = switchings_operacionais or switchings_escolhidos
+    qtd_destinos = (
+        len(ranking.quadro_destinos_switch)
+        if ranking is not None and isinstance(getattr(ranking, 'quadro_destinos_switch', None), pd.DataFrame)
+        else 0
+    )
 
-    linhas = []
-    for item in switchings[:10]:
-        if not isinstance(item, dict):
-            continue
-        linhas.append({
-            'Data': item.get('data') or item.get('data_switching') or item.get('data_aplicacao') or item.get('Data'),
-            'Lote origem': item.get('lote_origem_id') or item.get('lote_origem') or item.get('Lote origem'),
-            'Lote destino': item.get('lote_destino_id') or item.get('lote_destino') or item.get('Lote destino'),
-            'Produto origem': item.get('produto_origem') or item.get('Produto origem') or 'nao_materializado',
-            'Produto destino': item.get('produto_destino') or item.get('Produto destino'),
-        })
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    metricas = [dict(item) for item in list(getattr(bloco_console, 'switchings_metricas', []) or [])]
+    amostra = [dict(item) for item in list(getattr(bloco_console, 'switchings_amostra', []) or [])]
+    resumo_curto = [dict(item) for item in list(getattr(bloco_console, 'switchings_resumo_operacional', []) or [])]
+
+    metricas_complementares = [
+        {'Métrica': 'Destinos elegíveis de switching', 'Valor': qtd_destinos},
+        {'Métrica': 'Destino top 1 do ranking', 'Valor': destino_top1},
+    ]
+
+    # Inserir métricas complementares na ordem do formato-alvo.
+    metricas_por_nome = {item.get('Métrica'): item.get('Valor') for item in metricas}
+    linhas_metricas = [
+        {'Métrica': 'Lotes avaliados para switching', 'Valor': metricas_por_nome.get('Lotes avaliados para switching')},
+        {'Métrica': 'Candidatos avaliados para switching', 'Valor': metricas_por_nome.get('Candidatos avaliados para switching')},
+        metricas_complementares[0],
+        {'Métrica': 'Switchings promovidos/executados', 'Valor': metricas_por_nome.get('Switchings promovidos/executados')},
+        metricas_complementares[1],
+        {'Métrica': 'Origem da amostra', 'Valor': metricas_por_nome.get('Origem da amostra', VERSAO_BASELINE)},
+    ]
 
     _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
-    _imprimir_pares([
-        ('lotes avaliados para switching', len(switchings)),
-        ('candidatos avaliados para switching', len(switchings_escolhidos)),
-        (
-            'destinos elegíveis de switching',
-            len(ranking.quadro_destinos_switch)
-            if ranking is not None and isinstance(getattr(ranking, 'quadro_destinos_switch', None), pd.DataFrame)
-            else 0,
-        ),
-        ('switchings promovidos/executados', len(switchings_operacionais)),
-        ('destino top 1 do ranking', destino_top1),
-        ('origem da amostra', getattr(pacote_saida_observavel_oficial, 'saida_origem', 'PacoteSaidaObservavelOficial')),
-    ])
+    _imprimir_tabela(['Métrica', 'Valor'], linhas_metricas, limite=None)
 
-    print('- amostra de switchings oficiais preservados:')
-    if linhas:
-        _imprimir_tabela(['Data', 'Lote origem', 'Lote destino', 'Produto origem', 'Produto destino'], linhas, limite=5)
+    print('\n- amostra de switchings reais da janela:')
+    if amostra:
+        _imprimir_tabela(['Data', 'Lote origem', 'Lote destino', 'Produto origem', 'Produto destino'], amostra, limite=10)
     else:
         print('  sem_switchings_oficiais_materializados')
 
-    lotes_pos = list(getattr(bloco_console, 'lotes_pos_switching_materializados', []) or [])
     print('\n- resumo operacional curto:')
-    _imprimir_pares([
-        ('total de switchings operacionais preservados', len(switchings_operacionais)),
-        ('total de switchings escolhidos preservados', len(switchings_escolhidos)),
-        ('total de lotes pós-switching materializados', len(lotes_pos)),
-        ('total de aportes futuros', 'aportes_futuros_nao_materializados_na_rota_oficial'),
-    ])
+    if resumo_curto:
+        _imprimir_tabela(['Métrica', 'Valor'], resumo_curto, limite=None)
+    else:
+        print('  resumo_switching_nao_materializado_no_pacote_saida_observavel_oficial')
 
 
 def _linha_lote_temporal_console(lote: dict) -> dict:
