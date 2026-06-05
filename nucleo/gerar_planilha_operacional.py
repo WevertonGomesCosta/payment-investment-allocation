@@ -78,10 +78,35 @@ def _nome_aba_operacional(contexto, chave: str) -> str:
 
 
 
+def _valor_booleano_explicito(valor: Any) -> bool:
+    if isinstance(valor, bool):
+        return valor
+    if isinstance(valor, (int, float)):
+        return valor == 1
+    if isinstance(valor, str):
+        return valor.strip().lower() in {'1', 'true', 'sim', 's', 'yes', 'y', 'diagnostico', 'diagnóstico'}
+    return False
+
+
 def _usar_abas_diagnosticas(contexto) -> bool:
     cfg = _config_planilha_operacional(contexto)
     valor = cfg.get('incluir_abas_diagnosticas', False)
-    return bool(valor)
+    return _valor_booleano_explicito(valor)
+
+
+def _resolver_incluir_abas_diagnosticas(
+    contexto,
+    incluir_abas_diagnosticas: bool | None,
+    modo_artefato: str,
+) -> bool:
+    if incluir_abas_diagnosticas is not None:
+        return bool(incluir_abas_diagnosticas)
+
+    modo = str(modo_artefato or 'oficial').strip().lower()
+    if modo in {'diagnostico', 'diagnóstico', 'diagnostic'}:
+        return _usar_abas_diagnosticas(contexto)
+
+    return False
 
 def _nome_arquivo_operacional(contexto) -> str:
     cfg = _config_planilha_operacional(contexto)
@@ -454,7 +479,7 @@ def _adicionar_abas_saida_operacional_pagamentos_u7(wb) -> dict[str, Any]:
     }
 
 
-def _adicionar_abas_ranking(wb, contexto) -> None:
+def _adicionar_abas_ranking(wb, contexto, *, incluir_abas_diagnosticas: bool = False) -> None:
     ranking = getattr(contexto, 'ranking_carteira', None)
     if ranking is None:
         return
@@ -499,7 +524,7 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     rows_carteira = quadro_carteira.astype(object).where(quadro_carteira.notna(), '').values.tolist()
     _apply_table_style(ws_carteira, headers_carteira, rows_carteira, freeze=True)
 
-    if _usar_abas_diagnosticas(contexto):
+    if incluir_abas_diagnosticas:
         ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
         top30 = ranking.top30.copy()
         rows_top30 = top30.astype(object).where(top30.notna(), '').values.tolist()
@@ -769,7 +794,14 @@ def _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial) -> 
         headers, linhas_normalizadas = _normalizar_linhas_observaveis(linhas)
         _apply_table_style(ws, headers, _rows(linhas_normalizadas, headers), freeze=True)
 
-def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None, incluir_abas_diagnosticas: bool | None = None) -> Path:
+def main(
+    *,
+    contexto=None,
+    saida=None,
+    pacote_saida_observavel_oficial=None,
+    incluir_abas_diagnosticas: bool | None = None,
+    modo_artefato: str = 'oficial',
+) -> Path:
     """Gera a planilha operacional.
 
     Quando contexto e saida são informados, esta função não recarrega planilha,
@@ -782,8 +814,11 @@ def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None, inc
             instalar_automaticamente=False,
         )
 
-    if incluir_abas_diagnosticas is None:
-        incluir_abas_diagnosticas = _usar_abas_diagnosticas(contexto)
+    incluir_abas_diagnosticas = _resolver_incluir_abas_diagnosticas(
+        contexto,
+        incluir_abas_diagnosticas,
+        modo_artefato,
+    )
 
     if saida is None and pacote_saida_observavel_oficial is None:
         raise ValueError(
@@ -856,7 +891,7 @@ def main(*, contexto=None, saida=None, pacote_saida_observavel_oficial=None, inc
             freeze=True,
         )
 
-    _adicionar_abas_ranking(wb, contexto)
+    _adicionar_abas_ranking(wb, contexto, incluir_abas_diagnosticas=incluir_abas_diagnosticas)
     if usar_compatibilidade_temporal:
         _adicionar_situacao_atual(wb, contexto, saida, pacote_consolidado)
     _adicionar_auditoria_saida_canonica(wb, contexto, saida)

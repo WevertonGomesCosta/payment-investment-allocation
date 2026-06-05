@@ -214,6 +214,8 @@ def main():
         contexto=contexto_operacional_canonico,
         saida=saida_canonica_oficial,
         pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+        incluir_abas_diagnosticas=False,
+        modo_artefato='oficial',
     )
 
     print(f"Saída operacional gerada em: {caminho_saida}")
