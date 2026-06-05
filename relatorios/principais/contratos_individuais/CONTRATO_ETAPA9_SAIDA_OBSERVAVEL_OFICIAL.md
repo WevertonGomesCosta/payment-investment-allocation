@@ -152,71 +152,6 @@ Recebido Bolsa ...
 
 Esses identificadores podem aparecer apenas em campos técnicos, auxiliares, de auditoria ou lacuna formal, quando preservados pela cadeia anterior.
 
-
-## 8-B. Renderização oficial do `Extrato Futuro` por detalhes de fonte — `REGRA-EXTRATO-FUTURO-DETALHES-FONTES-01`
-
-Quando uma obrigação coberta em `SaidaCanonicaOficial` contiver `detalhes_fontes_resgate` materializado, a Etapa 9 deve usar esse detalhamento como fonte operacional primária para a renderização de pagamentos/fonte.
-
-Essa regra se aplica inclusive quando `detalhes_fontes_resgate` contiver apenas uma fonte. A Etapa 9 não deve tratar detalhe unitário como ausência de detalhamento.
-
-Para cada item de `detalhes_fontes_resgate`, o `Extrato Futuro` deve renderizar uma linha operacional observável com a seguinte precedência de campos:
-
-```text
-Lote sugerido       = detalhe.lote_id_operacional
-                    ou detalhe.fonte_nome_operacional
-                    ou detalhe.fonte_id
-
-Fonte técnica       = detalhe.fonte_id_tecnico
-                    ou detalhe.fonte_id
-
-Saldo Antes         = detalhe.saldo_antes_fonte
-                    ou detalhe.status_saldo_antes_fonte
-
-Bruto               = detalhe.valor_bruto_resgate
-                    ou detalhe.status_valor_bruto_resgate
-
-Imposto             = detalhe.imposto_resgate
-                    ou detalhe.status_imposto_resgate
-
-Líquido             = detalhe.valor_liquido_resgate
-                    ou detalhe.status_valor_liquido_resgate
-
-Saldo Remanescente  = detalhe.saldo_remanescente_fonte
-                    ou detalhe.status_saldo_remanescente_fonte
-```
-
-Quando `detalhes_fontes_resgate` estiver materializado, é vedado que `Extrato Futuro.Lote sugerido` use valor agregado de `fontes_referenciadas`, `fontes_referenciadas_operacionais` ou campos equivalentes em substituição ao detalhe operacional de fonte. Campos agregados podem permanecer em blocos observáveis auxiliares, desde que não contradigam a linha operacional do `Extrato Futuro`.
-
-Na ausência de `detalhes_fontes_resgate`, a Etapa 9 pode renderizar os campos diretos da obrigação coberta ou registrar lacuna objetiva, conforme a disponibilidade em `SaidaCanonicaOficial`.
-
-O `Extrato Futuro` oficial padrão deve manter apenas as colunas obrigatórias de pagamentos/fonte:
-
-```text
-Data
-Conta
-Despesa ID
-Valor
-Lote sugerido
-Fonte técnica
-Saldo Antes
-Bruto
-Imposto
-Líquido
-Saldo Remanescente
-Cobertura integral
-Pacote do dia
-Pacote técnico
-Motivo bloqueio lote
-Status recomendação
-```
-
-Colunas de switching, pós-switching, saldo temporal, saldo pós-switching, origem de switching, destino de switching, score de switching ou campos diagnósticos equivalentes não pertencem ao `Extrato Futuro` oficial padrão desta regra. Esses campos só podem voltar ao produto oficial padrão mediante frente contratual própria que defina nascimento canônico, schema, paridade e responsabilidade da etapa correta.
-
-A camada de console pode resumir pagamentos por limite visual de linhas, mas o XLSX oficial deve preservar a granularidade por fonte no `Extrato Futuro` sempre que `detalhes_fontes_resgate` estiver materializado.
-
-Esta regra não autoriza a Etapa 9 a reotimizar, revalorar, escolher nova fonte, reconstruir motor, consultar ledger diretamente, consultar planilha, usar rotas legadas ou inferir fonte a partir de valor, data, descrição ou salário. Ela apenas define a renderização observável de campos já materializados em `SaidaCanonicaOficial`.
-
-
 ## 9. Processo interno da etapa
 
 A Etapa 9 deve executar um processo determinístico de renderização oficial:
@@ -493,7 +428,6 @@ A parada deve preservar evidência objetiva da lacuna ou violação, indicando a
 
 - `FECHAMENTO-CONTRATOS-ETAPAS-1-8-01`: congela a cadeia Etapas 1–8 e determina que console/XLSX pertencem a camada posterior à Etapa 8.
 - `ETAPA9-CONTRATO-01`: cria este contrato individual da Etapa 9, define `PacoteSaidaObservavelOficial` como saída formal prevista e estabelece entrada exclusiva em `SaidaCanonicaOficial`.
-- `PATCH-CONTRATUAL-OBSERVAVEL-PAGAMENTOS-ROTA-01`: formaliza que `Extrato Futuro` deve usar `detalhes_fontes_resgate` quando materializado, inclusive em detalhe unitário, e restringe o produto oficial padrão às colunas obrigatórias de pagamentos/fonte.
 - Refinamento documental da `ETAPA9-CONTRATO-01`: revisa a Seção 14 para incluir mapa funcional previsto da Etapa 9 e revisa a Seção 17 para explicitar entrada, módulo previsto, função pública prevista, blocos internos, saída e destino posterior, sem nós de proibição no fluxograma.
 
 Esta frente não altera código, runtime, contratos das Etapas 1–8, contrato operacional mestre, modelo matemático-estatístico-financeiro, dados, saídas, scripts diagnósticos, console ou XLSX.
