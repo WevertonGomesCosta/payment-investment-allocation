@@ -484,13 +484,9 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
     Esta função não carrega planilha, não baixa dados e não reconstrói cache.
     Ela apenas renderiza o estado recebido.
     """
-    if saida_canonica is None and pacote_saida_observavel_oficial is not None:
-        _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial)
-        if getattr(pacote_saida_observavel_oficial, 'preparado', False):
-            _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial)
-        return
+    usando_pacote_oficial_sem_saida_legada = saida_canonica is None and pacote_saida_observavel_oficial is not None
 
-    if saida_canonica is None:
+    if saida_canonica is None and pacote_saida_observavel_oficial is None:
         saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional, versao=VERSAO_BASELINE)
         matriz = construir_matriz_elegibilidade_fontes_s7b(
             contexto_operacional,
@@ -498,17 +494,20 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
             saida_canonica_preconstruida=saida_canonica,
         )
         saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
-    ativos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="ativos", modo_bootstrap_pacote=True)
-    exauridos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="exauridos", modo_bootstrap_pacote=True)
-    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_operacional, pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(contexto_operacional, saida_canonica, lotes_ativos_observaveis=ativos_obs, lotes_exauridos_observaveis=exauridos_obs), estado_temporal_inicial=estado_temporal_inicial)
-    pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
-    pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(
-        contexto_operacional,
-        saida_canonica,
-        lotes_ativos_observaveis=ativos_obs,
-        lotes_exauridos_observaveis=exauridos_obs,
-        pagamentos_realizados_observaveis=pagamentos_obs,
-    )
+
+    pacote_saida_observavel_temporal = None
+    if saida_canonica is not None:
+        ativos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="ativos", modo_bootstrap_pacote=True)
+        exauridos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="exauridos", modo_bootstrap_pacote=True)
+        amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_operacional, pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(contexto_operacional, saida_canonica, lotes_ativos_observaveis=ativos_obs, lotes_exauridos_observaveis=exauridos_obs), estado_temporal_inicial=estado_temporal_inicial)
+        pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
+        pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(
+            contexto_operacional,
+            saida_canonica,
+            lotes_ativos_observaveis=ativos_obs,
+            lotes_exauridos_observaveis=exauridos_obs,
+            pagamentos_realizados_observaveis=pagamentos_obs,
+        )
 
     pacote_config = contexto_operacional.pacote_config
     contexto = contexto_operacional.execucao
@@ -578,8 +577,11 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
 
     if pacote_saida_observavel_oficial is not None and getattr(pacote_saida_observavel_oficial, 'preparado', False):
         _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial)
-    else:
+    elif saida_canonica is not None:
         _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
+
+    if usando_pacote_oficial_sem_saida_legada:
+        return
 
     _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
     _render_secao_switchings_oficiais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal)
