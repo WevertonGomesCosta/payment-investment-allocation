@@ -456,7 +456,8 @@ def preparar_bloco_proximos_pagamentos(blocos: dict[str, Any], limite: int = 5) 
     for item in list(blocos['obrigacoes_cobertas']):
         data_item = _data_observavel_item(item)
         if data_item is None or not isinstance(data_referencia, date) or data_item > data_referencia:
-            proximos.append(_status_pagamento_observavel(item, bloqueada=False))
+            item_status = _status_pagamento_observavel(item, bloqueada=False)
+            proximos.extend(_expandir_pagamento_multifonte_observavel(item_status))
     for item in list(blocos['obrigacoes_bloqueadas']):
         data_item = _data_observavel_item(item)
         if data_item is None or not isinstance(data_referencia, date) or data_item > data_referencia:
@@ -489,7 +490,7 @@ def _fonte_tecnica_detalhe_observavel(detalhe: dict[str, Any]) -> Any:
 
 def _expandir_pagamento_multifonte_observavel(item: dict[str, Any]) -> list[dict[str, Any]]:
     detalhes = [detalhe for detalhe in list(item.get('detalhes_fontes_resgate') or []) if isinstance(detalhe, dict)]
-    if len(detalhes) <= 1:
+    if not detalhes:
         return [item]
 
     linhas: list[dict[str, Any]] = []

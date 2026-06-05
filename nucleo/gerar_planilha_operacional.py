@@ -45,7 +45,24 @@ DEFAULT_ABAS_PLANILHA_OPERACIONAL = {
 
 DEFAULT_CABECALHOS_PLANILHA_OPERACIONAL = {
     'extrato_passado': ['Data', 'Conta', 'Despesa ID', 'Lote', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'],
-    'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Fonte técnica', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Estratégia', 'Pacote do dia', 'Pacote técnico', 'Lote reserva', 'Lote pós-switching', 'Destino switching', 'Origem switching', 'Fonte switching', 'Data switching', 'Score switching', 'Necessita switching', 'Switching antes do pagamento', 'Switching depois do pagamento', 'Motivo bloqueio lote', 'Status recomendação', 'Saldo temp. ant.', 'Consumo temp.', 'Saldo temp. dep.', 'Pos sw?', 'Fonte pos sw', 'Saldo pos sw', 'Motivo pos sw', 'Origem saldo pos', 'Bruto pos', 'Líq. pos', 'Data saldo pos', 'Motivo saldo pos'],
+    'extrato_futuro': [
+        'Data',
+        'Conta',
+        'Despesa ID',
+        'Valor',
+        'Lote sugerido',
+        'Fonte técnica',
+        'Saldo Antes',
+        'Bruto',
+        'Imposto',
+        'Líquido',
+        'Saldo Remanescente',
+        'Cobertura integral',
+        'Pacote do dia',
+        'Pacote técnico',
+        'Motivo bloqueio lote',
+        'Status recomendação',
+    ],
     'switching': ['Data sugerida', 'Lote origem', 'Produto origem', 'Produto destino switching', 'Ganho estimado', 'Valor líquido origem', 'Status'],
 }
 
@@ -143,13 +160,7 @@ def _cabecalhos_operacionais(contexto, chave: str) -> list[str]:
     if chave != 'extrato_futuro':
         return headers_cfg
 
-    merged = []
-    seen = set()
-    for h in headers_cfg + default_headers:
-        if h not in seen:
-            merged.append(h)
-            seen.add(h)
-    return merged
+    return default_headers
 
 
 def _valor(item: dict[str, Any], chave: str) -> Any:
@@ -745,7 +756,7 @@ def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: A
             pacote_oficial = _texto_observavel(pacote_nome or pacote_id, 'sem_pacote_valido')
             pacote_tecnico = _texto_observavel(pacote_id, 'sem_pacote_valido')
             detalhes_multifonte = _detalhes_multifonte_extrato(item, cobertura_integral)
-            detalhes_renderizacao: list[Mapping[str, Any] | None] = detalhes_multifonte if len(detalhes_multifonte) > 1 else [None]
+            detalhes_renderizacao: list[Mapping[str, Any] | None] = detalhes_multifonte if detalhes_multifonte else [None]
 
             for detalhe in detalhes_renderizacao:
                 if detalhe is not None:
