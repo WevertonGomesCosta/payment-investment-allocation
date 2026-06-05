@@ -423,6 +423,216 @@ def _render_secao_switchings_oficiais(contexto_operacional, saida_canonica=None,
         print('- próximos 3 aportes (resumo):')
         _imprimir_tabela(['Data', 'Lote', 'Valor', 'Status'], alocacao['linhas'], limite=3)
 
+
+def _linhas_ranking_oficial_contexto(contexto_operacional, limite=10) -> list[dict]:
+    ranking = getattr(contexto_operacional, 'ranking_carteira', None)
+    quadro = getattr(ranking, 'quadro_destinos_switch', None)
+    if not isinstance(quadro, pd.DataFrame) or quadro.empty:
+        return []
+
+    linhas = []
+    for _, row in quadro.head(limite).iterrows():
+        linhas.append({
+            'Rank': row.get('rank_destino'),
+            'Produto': row.get('nome'),
+            'Score': row.get('score_final'),
+            'Proxy terminal': row.get('proxy_terminal_destino'),
+            'Liquidez': row.get('liquidez_dias'),
+            'Carência': row.get('carencia_dias'),
+            'Ticket mín.': row.get('aplicacao_minima'),
+        })
+    return linhas
+
+
+def _abas_xlsx_oficiais(pacote_saida_observavel_oficial) -> dict:
+    bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
+    abas = getattr(bloco_xlsx, 'abas', {}) or {}
+    return dict(abas) if isinstance(abas, dict) else {}
+
+
+def _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> None:
+    ranking = getattr(contexto_operacional, 'ranking_carteira', None)
+    _imprimir_titulo('RANQUEAMENTO OFICIAL DA CARTEIRA')
+    if ranking is None:
+        print('- status: ranking_nao_materializado_na_rota_oficial')
+        return
+
+    _imprimir_pares([
+        ('produtos totais', ranking.resumo.get('produtos_total')),
+        ('produtos ativos ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')),
+        ('destinos elegíveis de switching', ranking.auditoria.get('qtd_destinos_switch')),
+        ('destino top 1', ranking.auditoria.get('destino_top1')),
+        ('método', ranking.auditoria.get('metodo')),
+        ('origem da amostra', getattr(pacote_saida_observavel_oficial, 'saida_origem', 'PacoteSaidaObservavelOficial')),
+    ])
+
+    print('- amostra do ranking relevante do dia:')
+    linhas = _linhas_ranking_oficial_contexto(contexto_operacional, limite=10)
+    if linhas:
+        _imprimir_tabela(
+            ['Rank', 'Produto', 'Score', 'Proxy terminal', 'Liquidez', 'Carência', 'Ticket mín.'],
+            linhas,
+            limite=10,
+        )
+    else:
+        print('  ranking_amostra_nao_materializada_na_rota_oficial')
+
+
+def _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> None:
+    ranking = getattr(contexto_operacional, 'ranking_carteira', None)
+    destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
+    abas = _abas_xlsx_oficiais(pacote_saida_observavel_oficial)
+    switchings = list(abas.get('Switchings Escolhidos') or [])
+
+    linhas = []
+    for item in switchings[:10]:
+        if not isinstance(item, dict):
+            continue
+        linhas.append({
+            'Data': item.get('data') or item.get('data_sugerida') or item.get('Data'),
+            'Lote origem': item.get('lote_origem_id') or item.get('lote_origem') or item.get('Lote origem'),
+            'Lote destino': item.get('lote_destino_id') or item.get('lote_destino') or item.get('Lote destino'),
+            'Produto origem': item.get('produto_origem') or item.get('Produto origem'),
+            'Produto destino': item.get('produto_destino') or item.get('Produto destino'),
+        })
+
+    _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
+    _imprimir_pares([
+        ('lotes avaliados para switching', len(switchings)),
+        ('candidatos avaliados para switching', len(switchings)),
+        (
+            'destinos elegíveis de switching',
+            len(ranking.quadro_destinos_switch)
+            if ranking is not None and isinstance(getattr(ranking, 'quadro_destinos_switch', None), pd.DataFrame)
+            else 0,
+        ),
+        ('switchings promovidos/executados', len(switchings)),
+        ('destino top 1 do ranking', destino_top1),
+        ('origem da amostra', getattr(pacote_saida_observavel_oficial, 'saida_origem', 'PacoteSaidaObservavelOficial')),
+    ])
+
+    print('- amostra de switchings oficiais materializados:')
+    if linhas:
+        _imprimir_tabela(['Data', 'Lote origem', 'Lote destino', 'Produto origem', 'Produto destino'], linhas, limite=5)
+    else:
+        print('  sem_switchings_oficiais_materializados')
+
+    print('\n- resumo operacional curto:')
+    _imprimir_pares([
+        ('total de switchings promovidos', len(switchings)),
+        ('total de lotes sintéticos pós-switching', 'lotes_sinteticos_nao_materializados_na_rota_oficial'),
+        ('total de aportes futuros', 'aportes_futuros_nao_materializados_na_rota_oficial'),
+    ])
+
+
+def _linha_lote_temporal_console(lote: dict) -> dict:
+    return {
+        'Lote': lote.get('lote_id'),
+        'Data receb.': lote.get('data_recebimento'),
+        'Data aplic.': lote.get('data_aplicacao'),
+        'Status': lote.get('status_temporal') or lote.get('disponibilidade'),
+        'Orig.': lote.get('valor_original'),
+        'Bruto atual': lote.get('investimento_bruto'),
+        'Líq. atual': lote.get('valor_liquido_disponivel_atual') if lote.get('valor_liquido_disponivel_atual') is not None else lote.get('saldo_disponivel_atual'),
+        'Patr. líq.': lote.get('valor_liquido_disponivel_atual') if lote.get('valor_liquido_disponivel_atual') is not None else lote.get('saldo_disponivel_atual'),
+    }
+
+
+def _render_situacao_atual_oficial_minima(
+    contexto_operacional,
+    estado_temporal_inicial=None,
+    pacote_saida_observavel_oficial=None,
+) -> None:
+    _imprimir_titulo('SITUAÇÃO ATUAL')
+    resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None)
+    data_referencia = getattr(pacote_saida_observavel_oficial, 'data_referencia', None) or getattr(estado_temporal_inicial, 'data_referencia', None)
+
+    _imprimir_pares([
+        ('data de referência', data_referencia),
+        ('status do fechamento econômico', getattr(pacote_saida_observavel_oficial, 'status', 'status_oficial_indisponivel')),
+        ('fonte do fechamento', getattr(pacote_saida_observavel_oficial, 'origem_formal', 'PacoteSaidaObservavelOficial')),
+        ('fechamentos com fallback CDI', 'nao_aplicavel_rota_oficial'),
+        ('último fator explícito CDI', 'nao_materializado_na_rota_oficial'),
+        ('data confirmada da série', data_referencia),
+    ])
+
+    inventario = list(getattr(estado_temporal_inicial, 'inventario_temporal', []) or [])
+    exauridos = [lote for lote in inventario if str(lote.get('status_temporal') or '').startswith('exaurido')]
+    ativos = [
+        lote for lote in inventario
+        if str(lote.get('status_temporal') or '').strip() == 'ativo'
+        and not bool(lote.get('migrado_por_switching'))
+    ]
+
+    print('\n- patrimônio:')
+    if inventario:
+        total_liquido = sum(float(lote.get('valor_liquido_disponivel_atual') or lote.get('saldo_disponivel_atual') or 0) for lote in inventario)
+        total_original = sum(float(lote.get('valor_original') or 0) for lote in inventario)
+        _imprimir_pares([
+            ('qtd lotes no estado temporal', len(inventario)),
+            ('valor original total', total_original),
+            ('patrimônio líquido observável', total_liquido),
+        ])
+    else:
+        print('  patrimonio_nao_materializado_na_rota_oficial')
+
+    print('\n- lotes exauridos:')
+    if exauridos:
+        linhas = [_linha_lote_temporal_console(lote) for lote in exauridos]
+        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Orig.', 'Bruto atual', 'Líq. atual', 'Patr. líq.'], linhas, limite=None)
+    else:
+        print('  [OK] sem lotes exauridos nesta execução')
+
+    print('\n- lotes ativos:')
+    if ativos:
+        linhas = [_linha_lote_temporal_console(lote) for lote in ativos]
+        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Orig.', 'Bruto atual', 'Líq. atual', 'Patr. líq.'], linhas, limite=None)
+    else:
+        print('  lotes_ativos_nao_materializados_na_rota_oficial')
+
+    print('\n- patrimônio total dos lotes:')
+    if inventario:
+        total_liquido = sum(float(lote.get('valor_liquido_disponivel_atual') or lote.get('saldo_disponivel_atual') or 0) for lote in inventario)
+        total_bruto = sum(float(lote.get('investimento_bruto') or 0) for lote in inventario)
+        _imprimir_tabela(
+            ['Métrica', 'Valor'],
+            [
+                {'Métrica': 'qtd_lotes', 'Valor': len(inventario)},
+                {'Métrica': 'patrimonio_bruto_observavel', 'Valor': total_bruto},
+                {'Métrica': 'patrimonio_liquido_observavel', 'Valor': total_liquido},
+            ],
+            limite=None,
+        )
+    else:
+        print('  patrimonio_total_nao_materializado_na_rota_oficial')
+
+    print('\n- resumo de recebidos:')
+    recebidos = list(getattr(estado_temporal_inicial, 'recebidos_temporais', []) or [])
+    if recebidos:
+        valor_total = sum(float(item.get('valor') or item.get('Valor') or 0) for item in recebidos if isinstance(item, dict))
+        _imprimir_pares([
+            ('qtd_recebidos_temporais', len(recebidos)),
+            ('valor_total_recebidos_temporais', valor_total),
+            ('qtd_destinos_sobras_recebidos', getattr(resumo, 'qtd_destinos_sobras_recebidos', 'nao_aplicavel')),
+        ])
+    else:
+        print('  resumo_recebidos_nao_materializado_na_rota_oficial')
+
+
+def _render_operacional_pos_pagamentos_oficial(
+    contexto_operacional,
+    estado_temporal_inicial=None,
+    pacote_saida_observavel_oficial=None,
+) -> None:
+    _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_observavel_oficial)
+    _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial)
+    _render_situacao_atual_oficial_minima(
+        contexto_operacional,
+        estado_temporal_inicial=estado_temporal_inicial,
+        pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+    )
+
+
 def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, resumo_fechamento, resumo_recebidos, pacote_saida_observavel_temporal=None, estado_temporal_inicial=None) -> None:
     _imprimir_titulo('SITUAÇÃO ATUAL')
 
@@ -581,6 +791,11 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
         _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
 
     if usando_pacote_oficial_sem_saida_legada:
+        _render_operacional_pos_pagamentos_oficial(
+            contexto_operacional,
+            estado_temporal_inicial=estado_temporal_inicial,
+            pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+        )
         return
 
     _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
