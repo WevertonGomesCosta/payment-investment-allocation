@@ -208,6 +208,9 @@ def main():
         None,
         estado_temporal_inicial=estado_temporal_inicial,
         pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+        resultado_motor_temporal_conjunto=resultado_motor_temporal_conjunto,
+        ledger_temporal_canonico=ledger_temporal_canonico,
+        saida_canonica_oficial=saida_canonica_oficial,
     )
 
     caminho_saida = gerar_planilha_operacional(

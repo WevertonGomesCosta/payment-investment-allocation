@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 import pandas as pd
 
@@ -478,6 +479,117 @@ def _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_obse
         print('  ranking_amostra_nao_materializada_na_rota_oficial')
 
 
+def _as_dict_oficial(item):
+    if item is None:
+        return {}
+    if isinstance(item, dict):
+        return dict(item)
+    if is_dataclass(item):
+        return asdict(item)
+    return {campo: getattr(item, campo) for campo in dir(item) if not campo.startswith('_') and not callable(getattr(item, campo))}
+
+
+def _valor_oficial_generico(item, *campos, padrao=None):
+    atual = item
+    for campo in campos:
+        if atual is None:
+            return padrao
+        if isinstance(atual, dict):
+            atual = atual.get(campo, padrao)
+        else:
+            atual = getattr(atual, campo, padrao)
+    return atual
+
+
+def _switchings_materializados_oficiais(saida_canonica_oficial=None, ledger_temporal_canonico=None) -> tuple[list[dict], str]:
+    switchings = list(getattr(saida_canonica_oficial, 'switchings_escolhidos', []) or [])
+    origem = 'SaidaCanonicaOficial.switchings_escolhidos'
+    if not switchings:
+        switchings = list(getattr(ledger_temporal_canonico, 'switchings_escolhidos', []) or [])
+        origem = 'LedgerTemporalCanonico.switchings_escolhidos'
+    return [_as_dict_oficial(item) for item in switchings], origem
+
+
+def _produto_switching(item: dict, chave: str):
+    ref = item.get('referencia_original') if isinstance(item.get('referencia_original'), dict) else {}
+    meta = item.get('metadados') if isinstance(item.get('metadados'), dict) else {}
+    return item.get(chave) or ref.get(chave) or meta.get(chave)
+
+
+def _linha_switching_oficial(item: dict) -> dict:
+    return {
+        'Data': item.get('data') or item.get('data_sugerida') or item.get('Data') or _valor_oficial_generico(item.get('referencia_original'), 'data'),
+        'Lote origem': item.get('lote_origem_id') or item.get('lote_origem') or item.get('Lote origem') or _valor_oficial_generico(item.get('referencia_original'), 'lote_origem'),
+        'Lote destino': item.get('lote_destino_id') or item.get('lote_destino') or item.get('Lote destino') or _valor_oficial_generico(item.get('referencia_original'), 'lote_destino'),
+        'Produto origem': _produto_switching(item, 'produto_origem'),
+        'Produto destino': _produto_switching(item, 'produto_destino'),
+    }
+
+
+def _contar_switchings_candidatos_resultado(resultado_motor_temporal_conjunto=None) -> tuple[int | str, int | str]:
+    pacotes_por_data = getattr(resultado_motor_temporal_conjunto, 'pacotes_temporais_candidatos_por_data', None) or {}
+    if not pacotes_por_data:
+        return 'nao_materializado_na_rota_oficial', 'nao_materializado_na_rota_oficial'
+    candidatos = []
+    lotes = set()
+    for pacotes in pacotes_por_data.values():
+        for pacote in list(pacotes or []):
+            for switching in list(getattr(pacote, 'switchings_candidatos', []) or []):
+                candidatos.append(switching)
+                lote = getattr(switching, 'lote_origem_id', None)
+                if lote:
+                    lotes.add(str(lote))
+    return len(lotes), len(candidatos)
+
+
+def _render_secao_switchings_oficiais_rica(
+    contexto_operacional,
+    resultado_motor_temporal_conjunto=None,
+    ledger_temporal_canonico=None,
+    saida_canonica_oficial=None,
+    pacote_saida_observavel_oficial=None,
+) -> None:
+    ranking = getattr(contexto_operacional, 'ranking_carteira', None)
+    destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
+    switchings, origem_switchings = _switchings_materializados_oficiais(saida_canonica_oficial, ledger_temporal_canonico)
+    linhas = [_linha_switching_oficial(item) for item in switchings[:10]]
+    lotes_avaliados, candidatos_avaliados = _contar_switchings_candidatos_resultado(resultado_motor_temporal_conjunto)
+
+    _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
+    _imprimir_pares([
+        ('lotes avaliados para switching', lotes_avaliados),
+        ('candidatos avaliados para switching', candidatos_avaliados),
+        (
+            'destinos elegíveis de switching',
+            len(ranking.quadro_destinos_switch)
+            if ranking is not None and isinstance(getattr(ranking, 'quadro_destinos_switch', None), pd.DataFrame)
+            else 'nao_materializado_na_rota_oficial',
+        ),
+        ('switchings promovidos/executados', len(switchings)),
+        ('destino top 1 do ranking', destino_top1 or 'nao_materializado_na_rota_oficial'),
+        ('origem da amostra', origem_switchings),
+    ])
+
+    print('- amostra de switchings reais da janela (independente de pagamentos):')
+    if linhas:
+        _imprimir_tabela(['Data', 'Lote origem', 'Lote destino', 'Produto origem', 'Produto destino'], linhas, limite=5)
+    else:
+        print('  switchings_escolhidos_nao_materializados_na_rota_oficial')
+
+    bloqueados = list(getattr(contexto_operacional, '_switchings_bloqueados_gate_auditoria', []) or [])[:10]
+    if bloqueados:
+        print('- candidatos bloqueados por gate (auditoria):')
+        _imprimir_tabela(['Data', 'Lote origem', 'Produto origem', 'Destino', 'Status'], bloqueados, limite=5)
+
+    resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None) or getattr(saida_canonica_oficial, 'resumo', None)
+    print('\n- resumo operacional curto:')
+    _imprimir_pares([
+        ('total de switchings promovidos', len(switchings)),
+        ('total de lotes sintéticos pós-switching', getattr(resumo, 'qtd_lotes_futuros_materializados', 'nao_materializado_na_rota_oficial')),
+        ('total de aportes futuros', getattr(resumo, 'qtd_destinos_sobras_recebidos', 'nao_materializado_na_rota_oficial')),
+    ])
+
+
 def _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> None:
     ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
@@ -534,6 +646,144 @@ def _linha_lote_temporal_console(lote: dict) -> dict:
         'Valor original': lote.get('valor_original'),
     }
 
+
+
+def _float_materializado(valor):
+    if valor is None:
+        return None
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        return None
+
+
+def _status_lote_temporal(lote: dict) -> str:
+    return str(lote.get('status_temporal') or lote.get('disponibilidade') or '').strip()
+
+
+def _linha_lote_identificacao_oficial(lote: dict) -> dict:
+    return {
+        'Lote': lote.get('lote_id'),
+        'Data receb.': lote.get('data_recebimento'),
+        'Data aplic.': lote.get('data_aplicacao'),
+        'Status': _status_lote_temporal(lote),
+        'Origem': lote.get('origem_canonica'),
+    }
+
+
+def _linha_lote_valores_oficial(lote: dict) -> dict:
+    return {
+        'Lote': lote.get('lote_id'),
+        'Valor original': lote.get('valor_original', 'nao_materializado_na_rota_oficial'),
+        'Invest. bruto': lote.get('investimento_bruto', 'nao_materializado_na_rota_oficial'),
+        'Saldo atual': lote.get('saldo_disponivel_atual', 'nao_materializado_na_rota_oficial'),
+        'Patr. líq.': lote.get('valor_liquido_disponivel_atual', lote.get('valor_liquido_migrado', 'nao_materializado_na_rota_oficial')),
+    }
+
+
+def _cache_cdi_oficial(contexto_operacional, estado_temporal_inicial=None):
+    return getattr(estado_temporal_inicial, 'cache_cdi', None) or getattr(contexto_operacional, 'cache_cdi', None)
+
+
+def _resumo_fechamento_oficial(contexto_operacional, estado_temporal_inicial=None, ledger_temporal_canonico=None, saida_canonica_oficial=None, pacote_saida_observavel_oficial=None) -> list[tuple[str, object]]:
+    cache_cdi = _cache_cdi_oficial(contexto_operacional, estado_temporal_inicial)
+    auditoria = getattr(cache_cdi, 'auditoria', None) or {}
+    serie = getattr(cache_cdi, 'serie_cdi', None) or {}
+    chaves_fallback = [k for k in auditoria if 'fallback' in str(k).lower() and 'cdi' in str(k).lower()]
+    fallback_cdi = next((auditoria.get(k) for k in chaves_fallback if auditoria.get(k) not in (None, '')), 'nao_materializado_na_rota_oficial')
+    ultimo_fator = max(serie.keys()) if serie else 'nao_materializado_na_rota_oficial'
+    data_referencia = (
+        getattr(saida_canonica_oficial, 'data_referencia', None)
+        or getattr(ledger_temporal_canonico, 'data_referencia', None)
+        or getattr(pacote_saida_observavel_oficial, 'data_referencia', None)
+        or getattr(estado_temporal_inicial, 'data_referencia', None)
+    )
+    return [
+        ('data de referência', data_referencia),
+        ('status do fechamento econômico', getattr(saida_canonica_oficial, 'status', None) or getattr(pacote_saida_observavel_oficial, 'status', 'nao_materializado_na_rota_oficial')),
+        ('fonte do fechamento', getattr(saida_canonica_oficial, 'origem_formal', None) or getattr(pacote_saida_observavel_oficial, 'origem_formal', 'nao_materializado_na_rota_oficial')),
+        ('fechamentos com fallback CDI', fallback_cdi),
+        ('último fator explícito CDI', ultimo_fator),
+        ('data confirmada da série', ultimo_fator if ultimo_fator != 'nao_materializado_na_rota_oficial' else data_referencia),
+    ]
+
+
+def _render_situacao_atual_oficial_rica(
+    contexto_operacional,
+    estado_temporal_inicial=None,
+    ledger_temporal_canonico=None,
+    saida_canonica_oficial=None,
+    pacote_saida_observavel_oficial=None,
+) -> None:
+    _imprimir_titulo('SITUAÇÃO ATUAL')
+    _imprimir_pares(_resumo_fechamento_oficial(
+        contexto_operacional,
+        estado_temporal_inicial=estado_temporal_inicial,
+        ledger_temporal_canonico=ledger_temporal_canonico,
+        saida_canonica_oficial=saida_canonica_oficial,
+        pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+    ))
+
+    inventario = list(getattr(estado_temporal_inicial, 'inventario_temporal', []) or [])
+    exauridos = [lote for lote in inventario if _status_lote_temporal(lote).startswith('exaurido') or _status_lote_temporal(lote) == 'migrado_por_switching']
+    ativos = [
+        lote for lote in inventario
+        if _status_lote_temporal(lote) in {'ativo', 'ativo_pos_switching', 'disponivel'}
+        and not bool(lote.get('migrado_por_switching'))
+    ]
+
+    print('\n- lotes exauridos:')
+    if exauridos:
+        print('  identificação:')
+        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Origem'], [_linha_lote_identificacao_oficial(lote) for lote in exauridos], limite=None)
+        print('\n  valores e patrimônio:')
+        _imprimir_tabela(['Lote', 'Valor original', 'Invest. bruto', 'Saldo atual', 'Patr. líq.'], [_linha_lote_valores_oficial(lote) for lote in exauridos], limite=None)
+    elif inventario:
+        print('  [OK] sem lotes exauridos nesta execução')
+    else:
+        print('  lotes_exauridos_nao_materializados_na_rota_oficial')
+
+    print('\n- lotes ativos:')
+    if ativos:
+        print('  identificação:')
+        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Origem'], [_linha_lote_identificacao_oficial(lote) for lote in ativos], limite=None)
+        print('\n  valores e patrimônio:')
+        _imprimir_tabela(['Lote', 'Valor original', 'Invest. bruto', 'Saldo atual', 'Patr. líq.'], [_linha_lote_valores_oficial(lote) for lote in ativos], limite=None)
+    elif inventario:
+        print('  [OK] sem lotes ativos acima do limiar nesta execução')
+    else:
+        print('  lotes_ativos_nao_materializados_na_rota_oficial')
+
+    print('\n- patrimônio total dos lotes:')
+    if inventario:
+        total_original = round(sum(_float_materializado(lote.get('valor_original')) or 0.0 for lote in inventario), 2)
+        total_bruto = round(sum(_float_materializado(lote.get('investimento_bruto')) or 0.0 for lote in inventario), 2)
+        total_liquido = round(sum(_float_materializado(lote.get('valor_liquido_disponivel_atual')) or _float_materializado(lote.get('valor_liquido_migrado')) or 0.0 for lote in inventario), 2)
+        _imprimir_tabela(
+            ['Métrica', 'Valor'],
+            [
+                {'Métrica': 'qtd_lotes', 'Valor': len(inventario)},
+                {'Métrica': 'valor_original_total', 'Valor': total_original},
+                {'Métrica': 'investimento_bruto_total', 'Valor': total_bruto},
+                {'Métrica': 'patrimonio_liquido_materializado_total', 'Valor': total_liquido},
+            ],
+            limite=None,
+        )
+    else:
+        print('  patrimonio_total_nao_materializado_na_rota_oficial')
+
+    print('\n- resumo de recebidos:')
+    recebidos = [item for item in list(getattr(estado_temporal_inicial, 'recebidos_temporais', []) or []) if isinstance(item, dict)]
+    if recebidos:
+        valor_total = round(sum(_float_materializado(item.get('valor') or item.get('Valor')) or 0.0 for item in recebidos), 2)
+        resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None) or getattr(saida_canonica_oficial, 'resumo', None)
+        _imprimir_pares([
+            ('qtd_recebidos_temporais', len(recebidos)),
+            ('valor_total_recebidos_temporais', valor_total),
+            ('qtd_destinos_sobras_recebidos', getattr(resumo, 'qtd_destinos_sobras_recebidos', 'nao_materializado_na_rota_oficial')),
+        ])
+    else:
+        print('  resumo_recebidos_nao_materializado_na_rota_oficial')
 
 def _render_situacao_atual_oficial_minima(
     contexto_operacional,
@@ -616,14 +866,25 @@ def _render_situacao_atual_oficial_minima(
 
 def _render_operacional_pos_pagamentos_oficial(
     contexto_operacional,
+    resultado_motor_temporal_conjunto=None,
+    ledger_temporal_canonico=None,
+    saida_canonica_oficial=None,
     estado_temporal_inicial=None,
     pacote_saida_observavel_oficial=None,
 ) -> None:
     _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_observavel_oficial)
-    _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial)
-    _render_situacao_atual_oficial_minima(
+    _render_secao_switchings_oficiais_rica(
+        contexto_operacional,
+        resultado_motor_temporal_conjunto=resultado_motor_temporal_conjunto,
+        ledger_temporal_canonico=ledger_temporal_canonico,
+        saida_canonica_oficial=saida_canonica_oficial,
+        pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+    )
+    _render_situacao_atual_oficial_rica(
         contexto_operacional,
         estado_temporal_inicial=estado_temporal_inicial,
+        ledger_temporal_canonico=ledger_temporal_canonico,
+        saida_canonica_oficial=saida_canonica_oficial,
         pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
     )
 
@@ -683,7 +944,15 @@ def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, res
         print('\n- resumo de recebidos:')
         _imprimir_pares(list(resumo_recebidos.items()))
 
-def render_console(contexto_operacional, saida_canonica=None, estado_temporal_inicial=None, pacote_saida_observavel_oficial=None) -> None:
+def render_console(
+    contexto_operacional,
+    saida_canonica=None,
+    estado_temporal_inicial=None,
+    pacote_saida_observavel_oficial=None,
+    resultado_motor_temporal_conjunto=None,
+    ledger_temporal_canonico=None,
+    saida_canonica_oficial=None,
+) -> None:
     """Renderiza o console usando contexto e saída canônica já construídos.
 
     Esta função não carrega planilha, não baixa dados e não reconstrói cache.
@@ -788,6 +1057,9 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
     if usando_pacote_oficial_sem_saida_legada:
         _render_operacional_pos_pagamentos_oficial(
             contexto_operacional,
+            resultado_motor_temporal_conjunto=resultado_motor_temporal_conjunto,
+            ledger_temporal_canonico=ledger_temporal_canonico,
+            saida_canonica_oficial=saida_canonica_oficial,
             estado_temporal_inicial=estado_temporal_inicial,
             pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
         )
