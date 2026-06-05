@@ -524,6 +524,7 @@ class ResultadoMotorTemporalConjunto:
     switchings_escolhidos_temporalmente: list[SwitchingEscolhidoTemporalmente] | None = None
     destinos_sobras_recebidos_temporais: list[DestinoSobraRecebidoTemporal] | None = None
     lotes_futuros_materializados: list[LoteFuturoMaterializadoTemporal] | None = None
+    lotes_patrimoniais_temporais: list[dict[str, Any]] | None = None
     auditoria_trajetoria_temporal_interna: AuditoriaTrajetoriaTemporalInterna | None = None
     sumario_final_etapa5: SumarioFinalEtapa5 | None = None
     auditoria_final_etapa5: AuditoriaFinalResultadoMotorTemporalConjunto | None = None
@@ -679,6 +680,22 @@ def montar_eventos_temporais_base(
         recebidos=list(estado.recebidos_temporais or []),
         switchings_realizados=list(estado.switching_temporal_realizado or []),
     )
+
+
+def montar_lotes_patrimoniais_temporais(estado: EstadoTemporalInicial) -> list[dict[str, Any]]:
+    lotes: list[dict[str, Any]] = []
+    for item in list(estado.inventario_temporal or []):
+        if not isinstance(item, dict):
+            continue
+        lote_id = item.get('lote_id') or item.get('lote_id_operacional')
+        if not lote_id:
+            continue
+        snapshot = dict(item)
+        snapshot['lote_id_operacional'] = lote_id
+        snapshot['origem_dados'] = 'ResultadoMotorTemporalConjunto.lotes_patrimoniais_temporais'
+        snapshot['origem_estado_temporal'] = snapshot.get('origem_canonica') or 'EstadoTemporalInicial.inventario_temporal'
+        lotes.append(snapshot)
+    return lotes
 
 
 def montar_dias_motor_temporal(
@@ -3406,6 +3423,7 @@ def construir_resultado_motor_temporal_conjunto(
         estado_simulacao_inicial=estado_simulacao,
         eventos_temporais_base=eventos_base,
         status_interface_etapa5=status_interface,
+        lotes_patrimoniais_temporais=montar_lotes_patrimoniais_temporais(estado),
         auditoria_consumo_estado_temporal=auditoria,
         metadados={
             'etapa': '5',
@@ -3418,6 +3436,7 @@ def construir_resultado_motor_temporal_conjunto(
             'sem_execucao_switching': True,
             'sem_ledger': True,
             'sem_console_xlsx': True,
+            'com_lotes_patrimoniais_temporais': True,
         },
         dias_motor=dias_motor,
         estado_diario_motor=estado_diario_motor,

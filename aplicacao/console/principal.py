@@ -481,57 +481,61 @@ def _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_obse
 def _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> None:
     ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
-    abas = _abas_xlsx_oficiais(pacote_saida_observavel_oficial)
-    switchings = list(abas.get('Switchings Escolhidos') or [])
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    switchings_escolhidos = list(getattr(bloco_console, 'switchings_escolhidos', []) or [])
+    switchings_operacionais = list(getattr(bloco_console, 'switchings_realizados_operacionais', []) or [])
+    switchings = switchings_operacionais or switchings_escolhidos
 
     linhas = []
     for item in switchings[:10]:
         if not isinstance(item, dict):
             continue
         linhas.append({
-            'Data': item.get('data') or item.get('data_sugerida') or item.get('Data'),
+            'Data': item.get('data') or item.get('data_switching') or item.get('data_aplicacao') or item.get('Data'),
             'Lote origem': item.get('lote_origem_id') or item.get('lote_origem') or item.get('Lote origem'),
             'Lote destino': item.get('lote_destino_id') or item.get('lote_destino') or item.get('Lote destino'),
-            'Produto origem': item.get('produto_origem') or item.get('Produto origem'),
+            'Produto origem': item.get('produto_origem') or item.get('Produto origem') or 'nao_materializado',
             'Produto destino': item.get('produto_destino') or item.get('Produto destino'),
         })
 
     _imprimir_titulo('SWITCHINGS CANDIDATOS / CLASSIFICADOS')
     _imprimir_pares([
         ('lotes avaliados para switching', len(switchings)),
-        ('candidatos avaliados para switching', len(switchings)),
+        ('candidatos avaliados para switching', len(switchings_escolhidos)),
         (
             'destinos elegíveis de switching',
             len(ranking.quadro_destinos_switch)
             if ranking is not None and isinstance(getattr(ranking, 'quadro_destinos_switch', None), pd.DataFrame)
             else 0,
         ),
-        ('switchings promovidos/executados', len(switchings)),
+        ('switchings promovidos/executados', len(switchings_operacionais)),
         ('destino top 1 do ranking', destino_top1),
         ('origem da amostra', getattr(pacote_saida_observavel_oficial, 'saida_origem', 'PacoteSaidaObservavelOficial')),
     ])
 
-    print('- amostra de switchings oficiais materializados:')
+    print('- amostra de switchings oficiais preservados:')
     if linhas:
         _imprimir_tabela(['Data', 'Lote origem', 'Lote destino', 'Produto origem', 'Produto destino'], linhas, limite=5)
     else:
         print('  sem_switchings_oficiais_materializados')
 
+    lotes_pos = list(getattr(bloco_console, 'lotes_pos_switching_materializados', []) or [])
     print('\n- resumo operacional curto:')
     _imprimir_pares([
-        ('total de switchings promovidos', len(switchings)),
-        ('total de lotes sintéticos pós-switching', 'lotes_sinteticos_nao_materializados_na_rota_oficial'),
+        ('total de switchings operacionais preservados', len(switchings_operacionais)),
+        ('total de switchings escolhidos preservados', len(switchings_escolhidos)),
+        ('total de lotes pós-switching materializados', len(lotes_pos)),
         ('total de aportes futuros', 'aportes_futuros_nao_materializados_na_rota_oficial'),
     ])
 
 
 def _linha_lote_temporal_console(lote: dict) -> dict:
     return {
-        'Lote': lote.get('lote_id'),
+        'Lote': lote.get('lote_id') or lote.get('lote_id_operacional'),
         'Data receb.': lote.get('data_recebimento'),
         'Data aplic.': lote.get('data_aplicacao'),
-        'Status': lote.get('status_temporal') or lote.get('disponibilidade'),
-        'Valor original': lote.get('valor_original'),
+        'Status': lote.get('status_temporal') or lote.get('status_materializacao') or lote.get('disponibilidade'),
+        'Valor original': lote.get('valor_original') if lote.get('valor_original') is not None else 'nao_materializado',
     }
 
 
@@ -542,7 +546,8 @@ def _render_situacao_atual_oficial_minima(
 ) -> None:
     _imprimir_titulo('SITUAÇÃO ATUAL')
     resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None)
-    data_referencia = getattr(pacote_saida_observavel_oficial, 'data_referencia', None) or getattr(estado_temporal_inicial, 'data_referencia', None)
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    data_referencia = getattr(pacote_saida_observavel_oficial, 'data_referencia', None)
 
     _imprimir_pares([
         ('data de referência', data_referencia),
@@ -553,65 +558,55 @@ def _render_situacao_atual_oficial_minima(
         ('data confirmada da série', data_referencia),
     ])
 
-    inventario = list(getattr(estado_temporal_inicial, 'inventario_temporal', []) or [])
-    exauridos = [lote for lote in inventario if str(lote.get('status_temporal') or '').startswith('exaurido')]
-    ativos = [
-        lote for lote in inventario
-        if str(lote.get('status_temporal') or '').strip() == 'ativo'
-        and not bool(lote.get('migrado_por_switching'))
-    ]
+    lotes_ativos = list(getattr(bloco_console, 'lotes_ativos_patrimoniais', []) or [])
+    lotes_exauridos = list(getattr(bloco_console, 'lotes_exauridos_patrimoniais', []) or [])
+    lotes_migrados = list(getattr(bloco_console, 'lotes_migrados_patrimoniais', []) or [])
+    patrimonio_total = dict(getattr(bloco_console, 'patrimonio_total_lotes', {}) or {})
+    resumo_recebidos_valores = dict(getattr(bloco_console, 'resumo_recebidos_valores', {}) or {})
 
     print('\n- patrimônio:')
-    if inventario:
-        total_original = sum(float(lote.get('valor_original') or 0) for lote in inventario)
-        _imprimir_pares([
-            ('qtd lotes no estado temporal', len(inventario)),
-            ('valor original total', total_original),
-            ('status valores patrimoniais', 'situacao_atual_valores_nao_materializados_na_rota_oficial'),
-        ])
-    else:
-        print('  patrimonio_nao_materializado_na_rota_oficial')
+    _imprimir_pares([
+        ('qtd lotes ativos patrimoniais', len(lotes_ativos)),
+        ('qtd lotes exauridos patrimoniais', len(lotes_exauridos)),
+        ('qtd lotes migrados patrimoniais', len(lotes_migrados)),
+        ('valor original total', patrimonio_total.get('valor_original', 'nao_materializado')),
+        ('patrimônio líquido total', patrimonio_total.get('patrimonio_liquido', 'nao_materializado')),
+        ('rendimento líquido total', patrimonio_total.get('rendimento_liquido', 'nao_materializado')),
+        ('status valores patrimoniais', patrimonio_total.get('status_auditoria', 'nao_materializado')),
+    ])
+
+    colunas_lotes = ['lote_id_operacional', 'status_ciclo', 'data_inicio_rendimento', 'data_fim_rendimento', 'regra_data_fim_rendimento', 'valor_original', 'bruto_sacado', 'liquido_sacado', 'bruto_atual', 'liquido_atual', 'patrimonio_liquido', 'rendimento_liquido', 'status_auditoria']
 
     print('\n- lotes exauridos:')
-    if exauridos:
-        linhas = [_linha_lote_temporal_console(lote) for lote in exauridos]
-        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Valor original'], linhas, limite=None)
+    if lotes_exauridos:
+        _imprimir_tabela(colunas_lotes, lotes_exauridos, limite=None)
     else:
-        print('  [OK] sem lotes exauridos nesta execução')
+        print('  lotes_exauridos_nao_materializados_no_pacote_saida_observavel_oficial')
 
     print('\n- lotes ativos:')
-    if ativos:
-        linhas = [_linha_lote_temporal_console(lote) for lote in ativos]
-        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Valor original'], linhas, limite=None)
-        print('  valores patrimoniais: nao_materializado_na_rota_oficial')
+    if lotes_ativos:
+        _imprimir_tabela(colunas_lotes, lotes_ativos, limite=None)
     else:
-        print('  lotes_ativos_nao_materializados_na_rota_oficial')
+        print('  lotes_ativos_nao_materializados_no_pacote_saida_observavel_oficial')
+
+    print('\n- lotes migrados por switching:')
+    if lotes_migrados:
+        _imprimir_tabela(colunas_lotes + ['data_switching'], lotes_migrados, limite=None)
+    else:
+        print('  lotes_migrados_nao_materializados_no_pacote_saida_observavel_oficial')
 
     print('\n- patrimônio total dos lotes:')
-    if inventario:
-        _imprimir_tabela(
-            ['Métrica', 'Valor'],
-            [
-                {'Métrica': 'qtd_lotes', 'Valor': len(inventario)},
-                {'Métrica': 'patrimonio_bruto_observavel', 'Valor': 'patrimonio_total_nao_materializado_na_rota_oficial'},
-                {'Métrica': 'patrimonio_liquido_observavel', 'Valor': 'patrimonio_total_nao_materializado_na_rota_oficial'},
-            ],
-            limite=None,
-        )
-    else:
-        print('  patrimonio_total_nao_materializado_na_rota_oficial')
+    _imprimir_tabela(
+        ['Métrica', 'Valor'],
+        [{'Métrica': chave, 'Valor': valor} for chave, valor in patrimonio_total.items()],
+        limite=None,
+    )
 
     print('\n- resumo de recebidos:')
-    recebidos = list(getattr(estado_temporal_inicial, 'recebidos_temporais', []) or [])
-    if recebidos:
-        valor_total = sum(float(item.get('valor') or item.get('Valor') or 0) for item in recebidos if isinstance(item, dict))
-        _imprimir_pares([
-            ('qtd_recebidos_temporais', len(recebidos)),
-            ('valor_total_recebidos_temporais', valor_total),
-            ('qtd_destinos_sobras_recebidos', getattr(resumo, 'qtd_destinos_sobras_recebidos', 'nao_aplicavel')),
-        ])
-    else:
-        print('  resumo_recebidos_nao_materializado_na_rota_oficial')
+    _imprimir_pares(list(resumo_recebidos_valores.items()) or [
+        ('qtd_destinos_sobras_recebidos', getattr(resumo, 'qtd_destinos_sobras_recebidos', 'nao_aplicavel')),
+        ('resumo_valores_recebidos', 'resumo_recebidos_nao_materializado_na_rota_oficial'),
+    ])
 
 
 def _render_operacional_pos_pagamentos_oficial(

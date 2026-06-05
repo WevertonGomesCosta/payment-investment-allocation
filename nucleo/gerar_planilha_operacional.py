@@ -557,6 +557,9 @@ def _adicionar_situacao_atual_oficial(wb, contexto, saida, pacote_saida_observav
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
     resumo = getattr(saida, 'resumo', None)
     pacote_resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None)
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    patrimonio_total = dict(getattr(bloco_console, 'patrimonio_total_lotes', {}) or {})
+    resumo_recebidos = dict(getattr(bloco_console, 'resumo_recebidos_valores', {}) or {})
     linhas = [
         {'Métrica': 'origem', 'Valor': type(saida).__name__},
         {'Métrica': 'status', 'Valor': getattr(saida, 'status', 'nao_aplicavel')},
@@ -568,9 +571,19 @@ def _adicionar_situacao_atual_oficial(wb, contexto, saida, pacote_saida_observav
         {'Métrica': 'qtd_fontes_utilizadas', 'Valor': getattr(resumo, 'qtd_fontes_utilizadas', 'nao_aplicavel')},
         {'Métrica': 'qtd_fontes_reservadas', 'Valor': getattr(resumo, 'qtd_fontes_reservadas', 'nao_aplicavel')},
         {'Métrica': 'qtd_switchings_escolhidos', 'Valor': getattr(resumo, 'qtd_switchings_escolhidos', 'nao_aplicavel')},
+        {'Métrica': 'qtd_switchings_realizados_operacionais', 'Valor': getattr(resumo, 'qtd_switchings_realizados_operacionais', 'nao_aplicavel')},
+        {'Métrica': 'qtd_lotes_pos_switching_materializados', 'Valor': getattr(resumo, 'qtd_lotes_pos_switching_materializados', 'nao_aplicavel')},
         {'Métrica': 'qtd_lotes_futuros_materializados', 'Valor': getattr(resumo, 'qtd_lotes_futuros_materializados', 'nao_aplicavel')},
         {'Métrica': 'qtd_lacunas_renderizacao', 'Valor': getattr(pacote_resumo, 'qtd_lacunas_renderizacao', 'nao_aplicavel')},
     ]
+    for chave, valor in patrimonio_total.items():
+        if isinstance(valor, (list, dict, tuple, set)):
+            continue
+        linhas.append({'Métrica': f'patrimonio_total_lotes.{chave}', 'Valor': valor})
+    for chave, valor in resumo_recebidos.items():
+        if isinstance(valor, (list, dict, tuple, set)):
+            continue
+        linhas.append({'Métrica': f'resumo_recebidos_valores.{chave}', 'Valor': valor})
     _apply_table_style(ws, ['Métrica', 'Valor'], _rows(linhas, ['Métrica', 'Valor']), freeze=True)
 
 
@@ -890,7 +903,7 @@ def _normalizar_extrato_passado_oficial(itens: Iterable[Any]) -> list[dict[str, 
 def _switchings_oficiais_xlsx(pacote_saida_observavel_oficial: Any) -> list[dict[str, Any]]:
     bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
     abas = getattr(bloco_xlsx, 'abas', {}) or {}
-    registros = list(abas.get('Switchings Escolhidos') or [])
+    registros = list(abas.get('Switchings Realizados Operacionais') or abas.get('Switchings Escolhidos') or [])
     linhas = []
     for item in registros:
         if is_dataclass(item):
@@ -899,12 +912,12 @@ def _switchings_oficiais_xlsx(pacote_saida_observavel_oficial: Any) -> list[dict
             continue
         row = dict(item)
         linhas.append({
-            'Data sugerida': row.get('data') or row.get('data_sugerida') or row.get('Data sugerida'),
+            'Data sugerida': row.get('data') or row.get('data_switching') or row.get('data_aplicacao') or row.get('data_sugerida') or row.get('Data sugerida'),
             'Lote origem': row.get('lote_origem_id') or row.get('lote_origem') or row.get('Lote origem'),
             'Produto origem': row.get('produto_origem') or row.get('Produto origem') or 'nao_aplicavel',
             'Produto destino switching': row.get('produto_destino') or row.get('lote_destino_id') or row.get('lote_destino') or row.get('Produto destino switching'),
             'Ganho estimado': row.get('ganho_estimado') or row.get('Ganho estimado') or 'nao_aplicavel',
-            'Valor líquido origem': row.get('valor_liquido_origem') or row.get('valor') or row.get('Valor líquido origem'),
+            'Valor líquido origem': row.get('valor_liquido_origem') or row.get('valor_liquido_migrado') or row.get('valor_liquido_migrado_referencial') or row.get('valor') or row.get('Valor líquido origem'),
             'Status': row.get('status') or row.get('Status') or 'oficial',
         })
     return linhas
