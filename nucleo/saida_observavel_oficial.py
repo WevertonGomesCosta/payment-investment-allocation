@@ -29,6 +29,9 @@ class ResumoSaidaObservavelOficial:
     qtd_fontes_utilizadas: int
     qtd_fontes_reservadas: int
     qtd_switchings_escolhidos: int
+    qtd_switchings_realizados_operacionais: int
+    qtd_lotes_pos_switching_materializados: int
+    qtd_lotes_patrimoniais: int
     qtd_destinos_sobras_recebidos: int
     qtd_lotes_futuros_materializados: int
     qtd_saldos_referenciais_datas: int
@@ -51,6 +54,14 @@ class BlocoConsoleSaidaObservavel:
     obrigacoes_cobertas: list[dict[str, Any]] = field(default_factory=list)
     obrigacoes_bloqueadas: list[dict[str, Any]] = field(default_factory=list)
     switchings_escolhidos: list[dict[str, Any]] = field(default_factory=list)
+    switchings_realizados_operacionais: list[dict[str, Any]] = field(default_factory=list)
+    lotes_pos_switching_materializados: list[dict[str, Any]] = field(default_factory=list)
+    lotes_ativos_patrimoniais: list[dict[str, Any]] = field(default_factory=list)
+    lotes_exauridos_patrimoniais: list[dict[str, Any]] = field(default_factory=list)
+    lotes_migrados_patrimoniais: list[dict[str, Any]] = field(default_factory=list)
+    patrimonio_total_lotes: dict[str, Any] = field(default_factory=dict)
+    auditoria_lotes_patrimoniais: dict[str, Any] = field(default_factory=dict)
+    resumo_recebidos_valores: dict[str, Any] = field(default_factory=dict)
     saldos_referenciais: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
     lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
@@ -268,6 +279,10 @@ def _enriquecer_identificacao_operacional_blocos(blocos: dict[str, Any]) -> dict
         _enriquecer_switching_identificacao(item)
         for item in list(saida.get('switchings_escolhidos') or [])
     ]
+    saida['switchings_realizados_operacionais'] = [
+        _enriquecer_switching_identificacao(item)
+        for item in list(saida.get('switchings_realizados_operacionais') or [])
+    ]
     return saida
 
 
@@ -317,6 +332,10 @@ def extrair_blocos_saida_canonica(saida: SaidaCanonicaOficial) -> dict[str, Any]
         'fontes_utilizadas': _snapshot_lista(saida.fontes_utilizadas),
         'fontes_reservadas': _snapshot_lista(saida.fontes_reservadas),
         'switchings_escolhidos': _snapshot_lista(saida.switchings_escolhidos),
+        'switchings_realizados_operacionais': _snapshot_lista(getattr(saida, 'switchings_realizados_operacionais', [])),
+        'lotes_pos_switching_materializados': _snapshot_lista(getattr(saida, 'lotes_pos_switching_materializados', [])),
+        'lotes_patrimoniais': _snapshot_lista(getattr(saida, 'lotes_patrimoniais', [])),
+        'auditoria_lotes_patrimoniais': _snapshot_item(getattr(saida, 'auditoria_lotes_patrimoniais', {})),
         'saldos_referenciais': _snapshot_saldos(saida.saldos_referenciais_por_data),
         'destinos_sobras_recebidos': _snapshot_lista(getattr(saida, 'destinos_sobras_recebidos', [])),
         'lotes_futuros_materializados': _snapshot_lista(getattr(saida, 'lotes_futuros_materializados', [])),
@@ -343,6 +362,9 @@ def preparar_resumo_operacional_observavel(blocos: dict[str, Any]) -> dict[str, 
         'qtd_fontes_utilizadas': len(blocos['fontes_utilizadas']),
         'qtd_fontes_reservadas': len(blocos['fontes_reservadas']),
         'qtd_switchings_escolhidos': len(blocos['switchings_escolhidos']),
+        'qtd_switchings_realizados_operacionais': len(blocos.get('switchings_realizados_operacionais', [])),
+        'qtd_lotes_pos_switching_materializados': len(blocos.get('lotes_pos_switching_materializados', [])),
+        'qtd_lotes_patrimoniais': len(blocos.get('lotes_patrimoniais', [])),
         'qtd_destinos_sobras_recebidos': len(blocos.get('destinos_sobras_recebidos', [])),
         'qtd_lotes_futuros_materializados': len(blocos.get('lotes_futuros_materializados', [])),
         'qtd_datas_saldos_referenciais': len(blocos['saldos_referenciais']),
@@ -572,8 +594,11 @@ def preparar_bloco_obrigacoes(blocos: dict[str, Any]) -> dict[str, list[dict[str
     }
 
 
-def preparar_bloco_switchings(blocos: dict[str, Any]) -> list[dict[str, Any]]:
-    return list(blocos['switchings_escolhidos'])
+def preparar_bloco_switchings(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    return {
+        'switchings_escolhidos': list(blocos['switchings_escolhidos']),
+        'switchings_realizados_operacionais': list(blocos.get('switchings_realizados_operacionais', [])),
+    }
 
 
 def preparar_bloco_saldos(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
@@ -591,7 +616,76 @@ def preservar_avisos_bloqueios_evidencias(blocos: dict[str, Any]) -> dict[str, A
         'evidencias': list(blocos['evidencias_gates']),
         'destinos_sobras_recebidos': list(blocos.get('destinos_sobras_recebidos', [])),
         'lotes_futuros_materializados': list(blocos.get('lotes_futuros_materializados', [])),
+        'lotes_pos_switching_materializados': list(blocos.get('lotes_pos_switching_materializados', [])),
+        'lotes_patrimoniais': list(blocos.get('lotes_patrimoniais', [])),
+        'auditoria_lotes_patrimoniais': dict(blocos.get('auditoria_lotes_patrimoniais', {}) or {}),
     }
+
+
+def _numero_observavel(valor: Any) -> float | None:
+    if valor is None:
+        return None
+    try:
+        numero = float(valor)
+    except (TypeError, ValueError):
+        return None
+    if numero != numero:
+        return None
+    return numero
+
+
+def preparar_blocos_lotes_patrimoniais(blocos: dict[str, Any]) -> dict[str, Any]:
+    lotes = list(blocos.get('lotes_patrimoniais') or [])
+    ativos = [lote for lote in lotes if str(lote.get('status_ciclo') or '') == 'ativo']
+    exauridos = [lote for lote in lotes if str(lote.get('status_ciclo') or '') == 'exaurido_por_saque']
+    migrados = [lote for lote in lotes if str(lote.get('status_ciclo') or '') == 'migrado_por_switching']
+
+    totais: dict[str, Any] = {'qtd_lotes': len(lotes), 'status_auditoria': 'ok'}
+    campos = [
+        ('valor_original', 'valor_original_total'),
+        ('bruto_sacado', 'bruto_sacado_total'),
+        ('liquido_sacado', 'liquido_sacado_total'),
+        ('bruto_atual', 'bruto_atual_total'),
+        ('liquido_atual', 'liquido_atual_total'),
+        ('patrimonio_liquido', 'patrimonio_liquido_total'),
+        ('rendimento_liquido', 'rendimento_liquido_total'),
+    ]
+    lacunas: list[str] = []
+    for campo, total in campos:
+        valores = [_numero_observavel(lote.get(campo)) for lote in lotes]
+        if any(valor is None for valor in valores):
+            totais[total] = 'nao_materializado_integralmente'
+            lacunas.append(total)
+        else:
+            totais[total] = round(sum(float(valor) for valor in valores if valor is not None), 10)
+    if lacunas:
+        totais['status_auditoria'] = 'parcial_com_lacunas'
+        totais['lacunas'] = lacunas
+    return {
+        'lotes_ativos_patrimoniais': ativos,
+        'lotes_exauridos_patrimoniais': exauridos,
+        'lotes_migrados_patrimoniais': migrados,
+        'patrimonio_total_lotes': totais,
+        'auditoria_lotes_patrimoniais': dict(blocos.get('auditoria_lotes_patrimoniais', {}) or {}),
+    }
+
+
+def preparar_resumo_recebidos_valores(blocos: dict[str, Any]) -> dict[str, Any]:
+    recebidos = list(blocos.get('destinos_sobras_recebidos') or [])
+    resumo: dict[str, Any] = {'qtd_destinos_sobras_recebidos': len(recebidos), 'status_auditoria': 'ok'}
+    campos = ['valor_original', 'valor_pagamento_referencial', 'saldo_residual_recebido', 'valor_pago_total']
+    lacunas: list[str] = []
+    for campo in campos:
+        valores = [_numero_observavel(item.get(campo)) for item in recebidos]
+        if any(valor is None for valor in valores):
+            resumo[campo] = 'nao_materializado_integralmente'
+            lacunas.append(campo)
+        else:
+            resumo[campo] = round(sum(float(valor) for valor in valores if valor is not None), 10)
+    if lacunas:
+        resumo['status_auditoria'] = 'parcial_com_lacunas'
+        resumo['lacunas'] = lacunas
+    return resumo
 
 
 def registrar_lacunas_renderizacao(
@@ -614,6 +708,43 @@ def registrar_lacunas_renderizacao(
                 'SaidaCanonicaOficial não contém obrigações cobertas nem bloqueadas para compor pagamentos observáveis.',
             )
         )
+
+    if not blocos.get('lotes_patrimoniais'):
+        for campo, rotulo in {
+            'patrimonio_total_lotes': 'patrimônio total dos lotes',
+            'bruto_sacado': 'bruto sacado',
+            'liquido_sacado': 'líquido sacado',
+            'bruto_atual': 'bruto atual',
+            'liquido_atual': 'líquido atual',
+            'patrimonio_liquido': 'patrimônio líquido',
+            'rendimento_liquido': 'rendimento líquido',
+        }.items():
+            lacunas.append(
+                _nova_lacuna(
+                    f'{campo}_nao_materializado_na_saida_canonica_oficial',
+                    f'{rotulo} não está materializado na SaidaCanonicaOficial; Etapa 9 preserva lacuna objetiva sem mascarar com zero.',
+                    {'campo': campo, 'origem_requerida': 'LedgerTemporalCanonico validado'},
+                )
+            )
+    if not blocos.get('destinos_sobras_recebidos'):
+        lacunas.append(
+            _nova_lacuna(
+                'resumo_recebidos_valores_nao_materializado_na_saida_canonica_oficial',
+                'resumo de recebidos em valores não está materializado na SaidaCanonicaOficial; Etapa 9 preserva lacuna objetiva sem mascarar com zero.',
+                {'campo': 'resumo_recebidos_valores', 'origem_requerida': 'LedgerTemporalCanonico validado'},
+            )
+        )
+
+    lotes_patrimoniais = preparar_blocos_lotes_patrimoniais(blocos) if blocos.get('lotes_patrimoniais') else {}
+    patrimonio_total = lotes_patrimoniais.get('patrimonio_total_lotes', {}) if lotes_patrimoniais else {}
+    if patrimonio_total.get('status_auditoria') == 'parcial_com_lacunas':
+        lacunas.append(
+            _nova_lacuna(
+                'patrimonio_total_lotes_parcial_com_lacunas',
+                'Patrimônio por lote está materializado parcialmente; totais preservam nao_materializado_integralmente para campos incompletos.',
+                {'lacunas': list(patrimonio_total.get('lacunas') or [])},
+            )
+        )
     return lacunas
 
 
@@ -625,8 +756,10 @@ def preparar_blocos_console(
     pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
-    switchings: list[dict[str, Any]],
+    switchings: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
+    lotes_patrimoniais: dict[str, Any],
+    resumo_recebidos_valores: dict[str, Any],
     preservados: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
 ) -> BlocoConsoleSaidaObservavel:
@@ -639,7 +772,15 @@ def preparar_blocos_console(
         fontes_utilizadas=fontes['fontes_utilizadas'],
         obrigacoes_cobertas=obrigacoes['obrigacoes_cobertas'],
         obrigacoes_bloqueadas=obrigacoes['obrigacoes_bloqueadas'],
-        switchings_escolhidos=switchings,
+        switchings_escolhidos=switchings.get('switchings_escolhidos', []),
+        switchings_realizados_operacionais=switchings.get('switchings_realizados_operacionais', []),
+        lotes_pos_switching_materializados=preservados.get('lotes_pos_switching_materializados', []),
+        lotes_ativos_patrimoniais=lotes_patrimoniais.get('lotes_ativos_patrimoniais', []),
+        lotes_exauridos_patrimoniais=lotes_patrimoniais.get('lotes_exauridos_patrimoniais', []),
+        lotes_migrados_patrimoniais=lotes_patrimoniais.get('lotes_migrados_patrimoniais', []),
+        patrimonio_total_lotes=lotes_patrimoniais.get('patrimonio_total_lotes', {}),
+        auditoria_lotes_patrimoniais=lotes_patrimoniais.get('auditoria_lotes_patrimoniais', {}),
+        resumo_recebidos_valores=resumo_recebidos_valores,
         saldos_referenciais=saldos,
         destinos_sobras_recebidos=preservados.get('destinos_sobras_recebidos', []),
         lotes_futuros_materializados=preservados.get('lotes_futuros_materializados', []),
@@ -657,8 +798,10 @@ def preparar_blocos_xlsx(
     pagamentos_por_fonte: list[dict[str, Any]],
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
-    switchings: list[dict[str, Any]],
+    switchings: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
+    lotes_patrimoniais: dict[str, Any],
+    resumo_recebidos_valores: dict[str, Any],
     preservados: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
 ) -> BlocoXLSXSaidaObservavel:
@@ -672,7 +815,15 @@ def preparar_blocos_xlsx(
         'Fontes Reservadas': fontes['fontes_reservadas'],
         'Obrigacoes Cobertas': obrigacoes['obrigacoes_cobertas'],
         'Obrigacoes Bloqueadas': obrigacoes['obrigacoes_bloqueadas'],
-        'Switchings Escolhidos': switchings,
+        'Switchings Escolhidos': switchings.get('switchings_escolhidos', []),
+        'Switchings Realizados Operacionais': switchings.get('switchings_realizados_operacionais', []),
+        'Lotes Pos Switching Materializados': preservados.get('lotes_pos_switching_materializados', []),
+        'Lotes Ativos Patrimoniais': lotes_patrimoniais.get('lotes_ativos_patrimoniais', []),
+        'Lotes Exauridos Patrimoniais': lotes_patrimoniais.get('lotes_exauridos_patrimoniais', []),
+        'Lotes Migrados Patrimoniais': lotes_patrimoniais.get('lotes_migrados_patrimoniais', []),
+        'Patrimonio Total Lotes': [lotes_patrimoniais.get('patrimonio_total_lotes', {})],
+        'Auditoria Lotes Patrimoniais': [lotes_patrimoniais.get('auditoria_lotes_patrimoniais', {})],
+        'Resumo Recebidos Valores': [resumo_recebidos_valores],
         'Destinos Sobras Recebidos': preservados.get('destinos_sobras_recebidos', []),
         'Lotes Futuros Materializados': preservados.get('lotes_futuros_materializados', []),
         'Avisos': [{'aviso': aviso} if not isinstance(aviso, dict) else aviso for aviso in preservados['avisos']],
@@ -746,6 +897,9 @@ def _resumo_pacote(
         qtd_fontes_utilizadas=len(blocos.get('fontes_utilizadas', [])),
         qtd_fontes_reservadas=len(blocos.get('fontes_reservadas', [])),
         qtd_switchings_escolhidos=len(blocos.get('switchings_escolhidos', [])),
+        qtd_switchings_realizados_operacionais=len(blocos.get('switchings_realizados_operacionais', [])),
+        qtd_lotes_pos_switching_materializados=len(blocos.get('lotes_pos_switching_materializados', [])),
+        qtd_lotes_patrimoniais=len(blocos.get('lotes_patrimoniais', [])),
         qtd_destinos_sobras_recebidos=len(blocos.get('destinos_sobras_recebidos', [])),
         qtd_lotes_futuros_materializados=len(blocos.get('lotes_futuros_materializados', [])),
         qtd_saldos_referenciais_datas=len(blocos.get('saldos_referenciais', {})),
@@ -809,6 +963,8 @@ def construir_pacote_saida_observavel_oficial(
     obrigacoes = preparar_bloco_obrigacoes(blocos)
     switchings = preparar_bloco_switchings(blocos)
     saldos = preparar_bloco_saldos(blocos)
+    lotes_patrimoniais = preparar_blocos_lotes_patrimoniais(blocos)
+    resumo_recebidos_valores = preparar_resumo_recebidos_valores(blocos)
     preservados = preservar_avisos_bloqueios_evidencias(blocos)
     lacunas.extend(registrar_lacunas_renderizacao(saida, blocos))
 
@@ -825,6 +981,8 @@ def construir_pacote_saida_observavel_oficial(
         obrigacoes,
         switchings,
         saldos,
+        lotes_patrimoniais,
+        resumo_recebidos_valores,
         preservados,
         lacunas,
     )
@@ -838,6 +996,8 @@ def construir_pacote_saida_observavel_oficial(
         obrigacoes,
         switchings,
         saldos,
+        lotes_patrimoniais,
+        resumo_recebidos_valores,
         preservados,
         lacunas,
     )

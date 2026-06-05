@@ -169,6 +169,10 @@ class LedgerTemporalCanonico:
     fontes_utilizadas: list[LancamentoFonteLedger] = field(default_factory=list)
     fontes_reservadas: list[LancamentoReservaLedger] = field(default_factory=list)
     switchings_escolhidos: list[LancamentoSwitchingLedger] = field(default_factory=list)
+    switchings_realizados_operacionais: list[dict[str, Any]] = field(default_factory=list)
+    lotes_pos_switching_materializados: list[dict[str, Any]] = field(default_factory=list)
+    lotes_patrimoniais: list[dict[str, Any]] = field(default_factory=list)
+    auditoria_lotes_patrimoniais: dict[str, Any] = field(default_factory=dict)
     saldos_referenciais_por_data: dict[date, list[SaldoLedgerTemporal]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
     lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
@@ -190,8 +194,10 @@ _CAMPOS_ESPERADOS_RESULTADO = [
     'obrigacoes_cobertas_temporalmente',
     'obrigacoes_bloqueadas_temporalmente',
     'switchings_escolhidos_temporalmente',
+    'eventos_temporais_base',
     'destinos_sobras_recebidos_temporais',
     'lotes_futuros_materializados',
+    'lotes_patrimoniais_temporais',
     'auditoria_trajetoria_temporal_interna',
     'auditoria_final_etapa5',
     'fechamento_funcional_etapa5',
@@ -426,6 +432,319 @@ def _switching_para_ledger(switching: Any) -> LancamentoSwitchingLedger:
     )
 
 
+def _switching_operacional_para_ledger(switching: Any) -> dict[str, Any]:
+    snapshot = _dict_referencia(switching)
+    snapshot['origem'] = 'ResultadoMotorTemporalConjunto.eventos_temporais_base.switchings_realizados'
+    snapshot['status_observavel'] = snapshot.get('status_temporal') or 'switching_operacional_preservado'
+    snapshot['data'] = snapshot.get('data_switching') or snapshot.get('data_aplicacao')
+    snapshot['lote_origem_id'] = snapshot.get('lote_origem') or snapshot.get('lote_origem_id')
+    snapshot['lote_destino_id'] = snapshot.get('lote_destino') or snapshot.get('lote_destino_id')
+    snapshot['valor_liquido_migrado_referencial'] = snapshot.get('valor_liquido_migrado')
+    return snapshot
+
+
+def _lote_pos_switching_materializado_para_ledger(switching: Any) -> dict[str, Any] | None:
+    snapshot = _dict_referencia(switching)
+    if str(snapshot.get('status_temporal') or '').strip() != 'materializado':
+        return None
+    lote_destino = snapshot.get('lote_destino') or snapshot.get('lote_destino_id')
+    if not lote_destino:
+        return None
+    return {
+        'lote_id': lote_destino,
+        'lote_id_operacional': lote_destino,
+        'status_temporal': 'ativo_pos_switching',
+        'origem_canonica': 'switching_canonico_preservado_etapa6',
+        'origem': 'ResultadoMotorTemporalConjunto.eventos_temporais_base.switchings_realizados',
+        'origem_switching': snapshot.get('lote_origem') or snapshot.get('lote_origem_id'),
+        'switching_id': snapshot.get('switching_id'),
+        'produto': snapshot.get('produto_destino'),
+        'produto_destino': snapshot.get('produto_destino'),
+        'data_switching': snapshot.get('data_switching'),
+        'data_aplicacao': snapshot.get('data_aplicacao'),
+        'data_recebimento': snapshot.get('data_recebimento'),
+        'valor_liquido_migrado': snapshot.get('valor_liquido_migrado'),
+        'referencia_switching_temporal': snapshot,
+    }
+
+
+def _numero_ledger(valor: Any) -> float | None:
+    if valor is None:
+        return None
+    try:
+        numero = float(valor)
+    except (TypeError, ValueError):
+        return None
+    if numero != numero:
+        return None
+    return numero
+
+
+def _somar_materializado(itens: list[Any], campo: str, status_campo: str) -> float | None:
+    valores: list[float] = []
+    for item in itens:
+        status = str(_valor(item, status_campo, '') or '').strip()
+        valor = _numero_ledger(_valor(item, campo))
+        if valor is None:
+            if status and status not in {'nao_aplicavel'}:
+                return None
+            continue
+        valores.append(valor)
+    if not valores:
+        return 0.0
+    return round(sum(valores), 10)
+
+
+def _status_ciclo_lote(
+    lote: dict[str, Any],
+    switching_por_origem: dict[str, dict[str, Any]],
+    reservas: list[Any],
+    *,
+    valor_original: float | None,
+    liquido_sacado: float | None,
+    liquido_atual: float | None,
+) -> str:
+    lote_id = str(lote.get('lote_id_operacional') or lote.get('lote_id') or '').strip()
+    status = str(lote.get('status_temporal') or lote.get('status_ciclo') or '').strip()
+    if lote_id in switching_por_origem:
+        return 'migrado_por_switching'
+    if status.startswith('exaurido'):
+        return 'exaurido_por_saque'
+
+    ultimo_saldo = _ultimo_saldo_remanescente(reservas)
+    if reservas and ultimo_saldo is not None and abs(ultimo_saldo) <= 0.01:
+        return 'exaurido_por_saque'
+    if reservas and liquido_atual is None and valor_original is not None and liquido_sacado is not None and liquido_sacado >= valor_original - 0.01:
+        return 'exaurido_por_saque'
+
+    if status in {'ativo_pos_switching', 'ativo'} or _lote_pos_switching(lote):
+        return 'ativo'
+    return status or 'status_ciclo_nao_materializado'
+
+
+def _data_inicio_lote(lote: dict[str, Any]) -> Any:
+    return lote.get('data_aplicacao') or lote.get('data_recebimento')
+
+
+def _valor_lote(lote: dict[str, Any], *campos: str) -> Any:
+    for campo in campos:
+        if campo in lote and lote.get(campo) is not None:
+            return lote.get(campo)
+    return None
+
+
+def _valor_numerico_lote(lote: dict[str, Any], *campos: str) -> float | None:
+    for campo in campos:
+        if campo not in lote:
+            continue
+        numero = _numero_ledger(lote.get(campo))
+        if numero is not None:
+            return numero
+    return None
+
+
+def _ultimo_saldo_remanescente(reservas: list[Any]) -> float | None:
+    reservas_ordenadas = sorted(
+        reservas,
+        key=lambda reserva: (_valor(reserva, 'data') is None, _valor(reserva, 'data')),
+    )
+    for reserva in reversed(reservas_ordenadas):
+        saldo = _numero_ledger(_valor(reserva, 'saldo_remanescente_fonte'))
+        if saldo is not None:
+            return saldo
+    return None
+
+
+def _lote_pos_switching(lote: dict[str, Any]) -> bool:
+    status = str(lote.get('status_temporal') or '').strip()
+    return status == 'ativo_pos_switching' or bool(lote.get('sintetico_pos_switching')) or lote.get('origem_canonica') == 'switching_canonico'
+
+
+def _auditar_lote_patrimonial(lote: dict[str, Any]) -> dict[str, Any]:
+    lacunas: list[str] = []
+    bloqueios: list[str] = []
+    obrigatorios = [
+        'lote_id_operacional',
+        'status_ciclo',
+        'data_inicio_rendimento',
+        'data_fim_rendimento',
+        'regra_data_fim_rendimento',
+        'valor_original',
+        'bruto_sacado',
+        'liquido_sacado',
+        'bruto_atual',
+        'liquido_atual',
+        'patrimonio_liquido',
+        'rendimento_liquido',
+        'origem_dados',
+    ]
+    for campo in obrigatorios:
+        if lote.get(campo) is None:
+            lacunas.append(f'{campo}_ausente')
+    valor_original = _numero_ledger(lote.get('valor_original'))
+    patrimonio_liquido = _numero_ledger(lote.get('patrimonio_liquido'))
+    rendimento_liquido = _numero_ledger(lote.get('rendimento_liquido'))
+    if valor_original is not None and patrimonio_liquido is not None and rendimento_liquido is not None:
+        esperado = round(patrimonio_liquido - valor_original, 10)
+        if abs(esperado - rendimento_liquido) > 0.01:
+            bloqueios.append('rendimento_liquido_diverge_do_patrimonio_menos_original')
+    status_ciclo = str(lote.get('status_ciclo') or '')
+    if status_ciclo == 'exaurido_por_saque':
+        if _numero_ledger(lote.get('bruto_atual')) != 0.0 or _numero_ledger(lote.get('liquido_atual')) != 0.0:
+            bloqueios.append('exaurido_por_saque_com_atual_nao_zero')
+        if lote.get('regra_data_fim_rendimento') != 'data_ultimo_uso':
+            bloqueios.append('exaurido_por_saque_regra_data_fim_invalida')
+    if status_ciclo == 'migrado_por_switching':
+        if lote.get('data_fim_rendimento') != lote.get('data_switching'):
+            bloqueios.append('migrado_por_switching_data_fim_diferente_data_switching')
+        if lote.get('regra_data_fim_rendimento') != 'data_switching':
+            bloqueios.append('migrado_por_switching_regra_data_fim_invalida')
+    if status_ciclo == 'ativo' and lote.get('regra_data_fim_rendimento') != 'data_referencia':
+        bloqueios.append('ativo_regra_data_fim_invalida')
+    status_auditoria = 'ok' if not lacunas and not bloqueios else ('lacuna' if lacunas and not bloqueios else 'bloqueio')
+    return {
+        'lote_id_operacional': lote.get('lote_id_operacional'),
+        'status_auditoria': status_auditoria,
+        'lacunas': lacunas,
+        'bloqueios': bloqueios,
+    }
+
+
+def _construir_lotes_patrimoniais(ledger: LedgerTemporalCanonico, resultado: ResultadoMotorTemporalConjunto) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    lotes_origem = [_dict_referencia(lote) for lote in _lista(_valor(resultado, 'lotes_patrimoniais_temporais', []))]
+    reservas_por_lote: dict[str, list[Any]] = {}
+    for reserva in ledger.fontes_reservadas:
+        lote_id = str(_valor(reserva, 'lote_id_operacional') or '').strip()
+        if not lote_id:
+            continue
+        reservas_por_lote.setdefault(lote_id, []).append(reserva)
+
+    eventos_base = _valor(resultado, 'eventos_temporais_base')
+    switching_por_origem: dict[str, dict[str, Any]] = {}
+    for switching in _lista(_valor(eventos_base, 'switchings_realizados', [])):
+        snapshot = _dict_referencia(switching)
+        if str(snapshot.get('status_temporal') or '').strip() != 'materializado':
+            continue
+        origem = str(snapshot.get('lote_origem') or snapshot.get('lote_origem_id') or '').strip()
+        if origem:
+            switching_por_origem[origem] = snapshot
+
+    saida: list[dict[str, Any]] = []
+    auditorias: list[dict[str, Any]] = []
+    for lote in lotes_origem:
+        lote_id = str(lote.get('lote_id_operacional') or lote.get('lote_id') or '').strip()
+        if not lote_id:
+            continue
+        reservas = reservas_por_lote.get(lote_id, [])
+        bruto_sacado = _somar_materializado(reservas, 'valor_bruto_resgate', 'status_valor_bruto_resgate')
+        liquido_sacado = _somar_materializado(reservas, 'valor_liquido_resgate', 'status_valor_liquido_resgate')
+        data_ultimo_uso = max((_valor(reserva, 'data') for reserva in reservas if _valor(reserva, 'data') is not None), default=None)
+        switching = switching_por_origem.get(lote_id)
+        data_switching = _valor(switching, 'data_switching') or _valor(switching, 'data_aplicacao') if switching else lote.get('data_switching')
+        valor_migrado = _numero_ledger(_valor(switching, 'valor_liquido_migrado') if switching else lote.get('valor_liquido_migrado'))
+        valor_original = _valor_numerico_lote(lote, 'valor_original')
+        bruto_atual = _valor_numerico_lote(
+            lote,
+            'valor_bruto_disponivel_atual',
+            'valor_bruto_disponivel',
+            'saldo_bruto_atual',
+            'saldo_bruto',
+            'bruto_atual',
+            'valor_atual_bruto',
+            'investimento_bruto',
+        )
+        liquido_atual = _valor_numerico_lote(
+            lote,
+            'valor_liquido_disponivel_atual',
+            'valor_liquido_disponivel',
+            'saldo_disponivel_atual',
+            'saldo_disponivel',
+            'liquido_atual',
+            'valor_atual_liquido',
+        )
+        if _lote_pos_switching(lote) and valor_migrado is not None:
+            if valor_original is None or abs(valor_original) <= 0.01:
+                valor_original = valor_migrado
+            if liquido_atual is None or abs(liquido_atual) <= 0.01:
+                liquido_atual = valor_migrado
+            if bruto_atual is None or abs(bruto_atual) <= 0.01:
+                bruto_atual = valor_migrado
+        status_ciclo = _status_ciclo_lote(
+            lote,
+            switching_por_origem,
+            reservas,
+            valor_original=valor_original,
+            liquido_sacado=liquido_sacado,
+            liquido_atual=liquido_atual,
+        )
+
+        regra_data_fim = None
+        data_fim = None
+        patrimonio_liquido = None
+        if status_ciclo == 'ativo':
+            regra_data_fim = 'data_referencia'
+            data_fim = ledger.data_referencia
+            if bruto_atual == 0.0:
+                bruto_atual = None
+            if liquido_atual == 0.0:
+                liquido_atual = None
+            if liquido_sacado is not None and liquido_atual is not None:
+                patrimonio_liquido = round(liquido_sacado + liquido_atual, 10)
+        elif status_ciclo == 'exaurido_por_saque':
+            regra_data_fim = 'data_ultimo_uso'
+            data_fim = data_ultimo_uso
+            bruto_atual = 0.0
+            liquido_atual = 0.0
+            if liquido_sacado is not None:
+                patrimonio_liquido = liquido_sacado
+        elif status_ciclo == 'migrado_por_switching':
+            regra_data_fim = 'data_switching'
+            data_fim = data_switching
+            bruto_atual = 0.0
+            liquido_atual = 0.0
+            if liquido_sacado is not None and valor_migrado is not None:
+                patrimonio_liquido = round(liquido_sacado + valor_migrado, 10)
+        rendimento_liquido = None
+        if patrimonio_liquido is not None and valor_original is not None:
+            rendimento_liquido = round(patrimonio_liquido - valor_original, 10)
+
+        item = {
+            'lote_id_operacional': lote_id,
+            'status_ciclo': status_ciclo,
+            'data_inicio_rendimento': _data_inicio_lote(lote),
+            'data_fim_rendimento': data_fim,
+            'regra_data_fim_rendimento': regra_data_fim,
+            'valor_original': valor_original,
+            'bruto_sacado': bruto_sacado,
+            'liquido_sacado': liquido_sacado,
+            'bruto_atual': bruto_atual,
+            'liquido_atual': liquido_atual,
+            'patrimonio_liquido': patrimonio_liquido,
+            'rendimento_liquido': rendimento_liquido,
+            'data_ultimo_uso': data_ultimo_uso,
+            'data_switching': data_switching,
+            'valor_liquido_migrado': valor_migrado,
+            'origem_dados': 'ResultadoMotorTemporalConjunto.lotes_patrimoniais_temporais+fontes_reservadas_temporalmente',
+            'referencia_lote_temporal': lote,
+        }
+        auditoria_lote = _auditar_lote_patrimonial(item)
+        item['status_auditoria'] = auditoria_lote['status_auditoria']
+        item['lacunas_auditoria'] = auditoria_lote['lacunas']
+        item['bloqueios_auditoria'] = auditoria_lote['bloqueios']
+        saida.append(item)
+        auditorias.append(auditoria_lote)
+
+    auditoria = {
+        'origem': 'LedgerTemporalCanonico.lotes_patrimoniais',
+        'qtd_lotes': len(saida),
+        'qtd_ok': sum(1 for item in auditorias if item.get('status_auditoria') == 'ok'),
+        'qtd_lacunas': sum(1 for item in auditorias if item.get('lacunas')),
+        'qtd_bloqueios': sum(1 for item in auditorias if item.get('bloqueios')),
+        'lotes': auditorias,
+    }
+    return saida, auditoria
+
+
 def _saldos_por_data(resultado: ResultadoMotorTemporalConjunto) -> dict[date, list[SaldoLedgerTemporal]]:
     saida: dict[date, list[SaldoLedgerTemporal]] = {}
     trajetoria = _valor(resultado, 'trajetoria_temporal_interna_escolhida')
@@ -534,6 +853,9 @@ def _auditar_ledger(ledger: LedgerTemporalCanonico, resultado: ResultadoMotorTem
         'qtd_fontes_utilizadas': len(ledger.fontes_utilizadas),
         'qtd_fontes_reservadas': len(ledger.fontes_reservadas),
         'qtd_switchings_escolhidos': len(ledger.switchings_escolhidos),
+        'qtd_switchings_realizados_operacionais': len(ledger.switchings_realizados_operacionais),
+        'qtd_lotes_pos_switching_materializados': len(ledger.lotes_pos_switching_materializados),
+        'qtd_lotes_patrimoniais': len(ledger.lotes_patrimoniais),
         'qtd_destinos_sobras_recebidos': len(ledger.destinos_sobras_recebidos),
         'qtd_lotes_futuros_materializados': len(ledger.lotes_futuros_materializados),
         'qtd_bloqueios': len(ledger.bloqueios),
@@ -615,6 +937,16 @@ def construir_ledger_temporal_canonico(
         ledger.switchings_escolhidos.append(lancamento)
         _registrar_lancamento(ledger, lancamento.data, lancamento)
 
+    eventos_base = _valor(resultado, 'eventos_temporais_base')
+    for switching in _lista(_valor(eventos_base, 'switchings_realizados', [])):
+        switching_snapshot = _switching_operacional_para_ledger(switching)
+        ledger.switchings_realizados_operacionais.append(switching_snapshot)
+        _registrar_lancamento(ledger, switching_snapshot.get('data'), switching_snapshot)
+        lote_pos = _lote_pos_switching_materializado_para_ledger(switching)
+        if lote_pos is not None:
+            ledger.lotes_pos_switching_materializados.append(lote_pos)
+            _registrar_lancamento(ledger, lote_pos.get('data_aplicacao') or lote_pos.get('data_switching'), lote_pos)
+
     for destino in _lista(_valor(resultado, 'destinos_sobras_recebidos_temporais', [])):
         destino_snapshot = _dict_referencia(destino)
         destino_snapshot['origem'] = 'ResultadoMotorTemporalConjunto.destinos_sobras_recebidos_temporais'
@@ -626,6 +958,10 @@ def construir_ledger_temporal_canonico(
         lote_snapshot['origem'] = 'ResultadoMotorTemporalConjunto.lotes_futuros_materializados'
         ledger.lotes_futuros_materializados.append(lote_snapshot)
         _registrar_lancamento(ledger, _valor(lote, 'data_aplicacao') or _valor(lote, 'data_recebimento'), lote_snapshot)
+
+    ledger.lotes_patrimoniais, ledger.auditoria_lotes_patrimoniais = _construir_lotes_patrimoniais(ledger, resultado)
+    for lote_patrimonial in ledger.lotes_patrimoniais:
+        _registrar_lancamento(ledger, lote_patrimonial.get('data_fim_rendimento'), lote_patrimonial)
 
     ledger.saldos_referenciais_por_data = _saldos_por_data(resultado)
     for data_ref, saldos in ledger.saldos_referenciais_por_data.items():
