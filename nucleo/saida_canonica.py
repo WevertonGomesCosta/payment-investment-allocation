@@ -1956,6 +1956,30 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
         return float(fallback)
 
     pos_ids = {_norm(x.get('lote_id')) for _, x in pos_df.iterrows() if _norm(x.get('lote_id'))}
+
+    extrato_original_por_despesa = {
+        str(row.get('Despesa ID') or '').strip(): dict(row)
+        for row in list(extrato_passado or [])
+        if str(row.get('Despesa ID') or '').strip()
+    }
+    residual_pos_por_lote: dict[str, dict[str, Any]] = {}
+    for row in list(extrato_passado or []):
+        fontes_row = _parts(row.get('Lote')) + _parts(row.get('Lotes usados'))
+        fontes_pos_row = [fonte for fonte in dict.fromkeys(fontes_row) if fonte in pos_ids]
+        if not fontes_pos_row:
+            continue
+        saldo_rem_original = _round_monetario(row.get('Saldo Remanescente'), None)
+        if saldo_rem_original in (None, ''):
+            continue
+        data_row = _parse_data_canonica(row.get('Data'))
+        for fonte in fontes_pos_row:
+            anterior = residual_pos_por_lote.get(fonte)
+            if anterior is None or (data_row is not None and (anterior.get('data') is None or data_row >= anterior.get('data'))):
+                residual_pos_por_lote[fonte] = {
+                    'saldo_liq': float(saldo_rem_original),
+                    'data': data_row,
+                }
+
     ativos_nao_pos = []
     ativos_pos_agrupados: dict[str, list[dict[str, Any]]] = {}
     for l in list(lotes_ativos or []):
@@ -1981,7 +2005,7 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
                 if sv not in (None,''):
                     base[c] = sv
         ativos_por_lote[lid] = base
-    pos_saldos: dict[str, dict[str, float]] = {}
+    pos_saldos: dict[str, dict[str, Any]] = {}
     uso_val_prev = 0
     lotes_pos_duplicados: set[str] = set()
     for _, r in pos_df.iterrows():
@@ -1997,8 +2021,17 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
         else:
             saldo_liq = valor_original
             saldo_bruto = valor_original
+        item_pos = dict(r.to_dict())
         if lid not in pos_saldos:
-            pos_saldos[lid] = {'saldo_liq': float(saldo_liq), 'bruto_ref': float(saldo_bruto), 'liq_ref': float(saldo_liq), 'qtd_linhas': 1.0}
+            pos_saldos[lid] = {
+                'saldo_liq': float(saldo_liq),
+                'bruto_ref': float(saldo_bruto),
+                'liq_ref': float(saldo_liq),
+                'qtd_linhas': 1.0,
+                'item_pos': item_pos,
+                'ultimo_uso': None,
+                'teve_consumo': False,
+            }
         else:
             lotes_pos_duplicados.add(lid)
             pos_saldos[lid]['saldo_liq'] += float(saldo_liq)
@@ -2031,8 +2064,9 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
             qtd_multifonte_misto += 1
         valor = float(_round_monetario(g.get('valor'), 0.0) or 0.0)
         valor_rateio = valor / max(len(fontes_distintas), 1)
+        data_consumo = _parse_data_canonica(g.get('data'))
         for l in fontes_pos:
-            consumo_por_lote[l].append({'despesa_id': desp, 'valor': valor_rateio})
+            consumo_por_lote[l].append({'despesa_id': desp, 'valor': valor_rateio, 'data': data_consumo})
 
     aggr_por_despesa: dict[str, dict[str, Any]] = {}
     for lote_id, itens in consumo_por_lote.items():
@@ -2048,6 +2082,12 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
             rec['soma_saldo_rem_pos'] += saldo_rem
             rec['qtd_fontes_pos'] += 1
             rec['lotes'].add(lote_id)
+            pos_saldos[lote_id]['teve_consumo'] = True
+            data_consumo = it.get('data')
+            if data_consumo is not None:
+                ultimo_uso = pos_saldos[lote_id].get('ultimo_uso')
+                if ultimo_uso is None or data_consumo > ultimo_uso:
+                    pos_saldos[lote_id]['ultimo_uso'] = data_consumo
         pos_saldos[lote_id]['saldo_liq'] = saldo
 
     idx_por_despesa = {str(x.get('Despesa ID') or '').strip(): i for i, x in enumerate(extrato_passado)}
@@ -2058,8 +2098,15 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
         if i is None:
             continue
         linha = dict(extrato_passado[i])
+        linha_original = extrato_original_por_despesa.get(desp, {})
         saldo_antes = _round_monetario(rec['soma_saldo_antes_pos'], 0.0)
         saldo_rem = _round_monetario(rec['soma_saldo_rem_pos'], 0.0)
+        saldo_antes_original = _round_monetario(linha_original.get('Saldo Antes'), None)
+        saldo_rem_original = _round_monetario(linha_original.get('Saldo Remanescente'), None)
+        if saldo_antes_original not in (None, ''):
+            saldo_antes = saldo_antes_original
+        if saldo_rem_original not in (None, ''):
+            saldo_rem = saldo_rem_original
         linha['Saldo Antes'] = saldo_antes
         linha['Saldo Remanescente'] = saldo_rem
         if int(rec['qtd_fontes_pos']) > 1:
@@ -2077,6 +2124,13 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
             novos_ativos.append(l)
             continue
         saldo_final = float(pos_saldos[lid]['saldo_liq'] or 0.0)
+        residual_extrato = residual_pos_por_lote.get(lid)
+        if residual_extrato is not None and float(residual_extrato.get('saldo_liq') or 0.0) > limiar:
+            saldo_final = float(residual_extrato.get('saldo_liq') or 0.0)
+            pos_saldos[lid]['saldo_liq'] = saldo_final
+            pos_saldos[lid]['teve_consumo'] = True
+            if residual_extrato.get('data') is not None:
+                pos_saldos[lid]['ultimo_uso'] = residual_extrato.get('data')
         bruto_ref = float(pos_saldos[lid]['bruto_ref'] or saldo_final)
         liq_ref = float(pos_saldos[lid]['liq_ref'] or saldo_final)
         nl = dict(l)
@@ -2088,11 +2142,29 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
             novos_exauridos.append(nl)
             ex += 1
         else:
-            ratio = (saldo_final / liq_ref) if liq_ref > 0 else 1.0
-            bruto_final = _round_monetario(bruto_ref * ratio, saldo_final) if liq_ref > 0 else _round_monetario(saldo_final, 0.0)
+            saldo_final = _round_monetario(saldo_final, 0.0)
+            ultimo_uso = pos_saldos[lid].get('ultimo_uso')
+            if bool(pos_saldos[lid].get('teve_consumo')) and ultimo_uso is not None:
+                item_residual = dict(pos_saldos[lid].get('item_pos') or {})
+                item_residual['data_switching'] = ultimo_uso
+                precificacao_residual = _precificar_destino_pos_switching_canonico(
+                    contexto,
+                    item_residual,
+                    lote_id=str(nl.get('Lote') or lid),
+                    valor_original=saldo_final,
+                )
+                bruto_final = _round_monetario(precificacao_residual.get('bruto'), saldo_final)
+                liquido_final = _round_monetario(precificacao_residual.get('liquido'), saldo_final)
+                nl['Último uso'] = _fmt_data(ultimo_uso)
+                nl['Método precificação residual pós-switching'] = str(precificacao_residual.get('metodo') or '')
+                nl['Data base residual pós-switching'] = _fmt_data(ultimo_uso)
+            else:
+                ratio = (saldo_final / liq_ref) if liq_ref > 0 else 1.0
+                bruto_final = _round_monetario(bruto_ref * ratio, saldo_final) if liq_ref > 0 else saldo_final
+                liquido_final = saldo_final
             nl['Bruto'] = bruto_final
-            nl['Líquido'] = _round_monetario(saldo_final, 0.0)
-            nl['Saldo rem'] = _round_monetario(saldo_final, 0.0)
+            nl['Líquido'] = liquido_final
+            nl['Saldo rem'] = bruto_final
             nl['Status'] = 'ativo_pos_switching'
             novos_ativos.append(nl)
             at += 1
