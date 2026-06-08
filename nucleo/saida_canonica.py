@@ -1957,22 +1957,30 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
 
     pos_ids = {_norm(x.get('lote_id')) for _, x in pos_df.iterrows() if _norm(x.get('lote_id'))}
 
+    def _fontes_distintas_linha(row: dict[str, Any]) -> list[str]:
+        fontes = _parts(row.get('Lote')) + _parts(row.get('Lotes usados'))
+        return list(dict.fromkeys(fonte for fonte in fontes if fonte))
+
+    def _fonte_unica_pos_linha(row: dict[str, Any]) -> str:
+        fontes = _fontes_distintas_linha(row)
+        if len(fontes) == 1 and fontes[0] in pos_ids:
+            return fontes[0]
+        return ''
+
     extrato_original_por_despesa = {
         str(row.get('Despesa ID') or '').strip(): dict(row)
         for row in list(extrato_passado or [])
-        if str(row.get('Despesa ID') or '').strip()
+        if str(row.get('Despesa ID') or '').strip() and _fonte_unica_pos_linha(row)
     }
     residual_pos_por_lote: dict[str, dict[str, Any]] = {}
     for row in list(extrato_passado or []):
-        fontes_row = _parts(row.get('Lote')) + _parts(row.get('Lotes usados'))
-        fontes_pos_row = [fonte for fonte in dict.fromkeys(fontes_row) if fonte in pos_ids]
-        if len(fontes_pos_row) != 1:
+        fonte = _fonte_unica_pos_linha(row)
+        if not fonte:
             continue
         saldo_rem_original = _round_monetario(row.get('Saldo Remanescente'), None)
         if saldo_rem_original in (None, ''):
             continue
         data_row = _parse_data_canonica(row.get('Data'))
-        fonte = fontes_pos_row[0]
         anterior = residual_pos_por_lote.get(fonte)
         if anterior is None or (data_row is not None and (anterior.get('data') is None or data_row >= anterior.get('data'))):
             residual_pos_por_lote[fonte] = {
@@ -2127,18 +2135,18 @@ def _aplicar_consumo_pagamentos_passados_lotes_pos_switching(
         residual_extrato = residual_pos_por_lote.get(lid)
         data_residual_extrato = residual_extrato.get('data') if residual_extrato is not None else None
         ultimo_uso_replay = pos_saldos[lid].get('ultimo_uso')
+        saldo_residual_extrato = float(residual_extrato.get('saldo_liq') or 0.0) if residual_extrato is not None else 0.0
         residual_extrato_aplicavel = (
             residual_extrato is not None
             and data_residual_extrato is not None
-            and float(residual_extrato.get('saldo_liq') or 0.0) > limiar
             and (ultimo_uso_replay is None or data_residual_extrato >= ultimo_uso_replay)
         )
         if residual_extrato_aplicavel:
-            saldo_final = float(residual_extrato.get('saldo_liq') or 0.0)
+            saldo_final = saldo_residual_extrato
             pos_saldos[lid]['saldo_liq'] = saldo_final
             pos_saldos[lid]['teve_consumo'] = True
             pos_saldos[lid]['ultimo_uso'] = data_residual_extrato
-            pos_saldos[lid]['residual_medido_no_consumo'] = True
+            pos_saldos[lid]['residual_medido_no_consumo'] = saldo_final > limiar
         bruto_ref = float(pos_saldos[lid]['bruto_ref'] or saldo_final)
         liq_ref = float(pos_saldos[lid]['liq_ref'] or saldo_final)
         nl = dict(l)
