@@ -15,6 +15,43 @@ ENTRADA_FORMAL = 'PacoteSaidaObservavelOficial'
 MODULO_PARIDADE = 'nucleo/paridade_renderizacao_oficial.py'
 ETAPA_PARIDADE = 10
 PREFIXO_ABA_OBSERVAVEL = 'Obs '
+
+ABAS_XLSX_OFICIAIS_CONTRATUAIS: dict[str, list[str]] = {
+    'Extrato Passado': [
+        'Data', 'Conta', 'Despesa ID', 'Lote', 'Saldo Antes',
+        'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente',
+    ],
+    'Extrato Futuro': [
+        'Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido',
+        'Fonte técnica', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido',
+        'Saldo Remanescente', 'Cobertura integral', 'Pacote do dia',
+        'Pacote técnico', 'Motivo bloqueio lote', 'Status recomendação',
+    ],
+    'Switching': [
+        'Data sugerida', 'Lote origem', 'Produto origem',
+        'Produto destino switching', 'Ganho estimado',
+        'Valor líquido origem', 'Status',
+    ],
+    'Carteira': [
+        'Rank', 'Produto', 'Score Final', 'Proxy Terminal',
+        'Retorno Proxy aa', 'Liquidez Dias', 'Carência Dias',
+        'Aplicação Mínima', 'Aplicação Máxima', 'Tipo Produto',
+        'Somente Combo', 'Status Confirmação', 'Campos Pendentes',
+    ],
+    'Situação Atual': [],
+}
+
+BLOCOS_SITUACAO_ATUAL_OBRIGATORIOS: tuple[str, ...] = (
+    'Lotes exauridos — identificação',
+    'Lotes exauridos — valores e patrimônio',
+    'Lotes ativos — identificação',
+    'Lotes ativos — valores e patrimônio',
+    'Origens migradas por switching — reconciliação patrimonial',
+    'Patrimônio total dos lotes',
+    'Recebidos auditáveis',
+    'Fechamento econômico',
+    'Resumo de recebidos',
+)
 CATEGORIAS_DIVERGENCIA = (
     'PARIDADE_OK',
     'ARTEFATO_RENDERIZADO_AUSENTE',
@@ -244,19 +281,24 @@ def _nome_aba_saida_observavel_local(nome_base: str, usados: set[str]) -> str:
 
 
 def extrair_blocos_esperados_do_pacote(pacote_saida_observavel: PacoteSaidaObservavelOficial) -> dict[str, Any]:
-    abas_origem = dict(getattr(getattr(pacote_saida_observavel, 'bloco_xlsx', None), 'abas', {}) or {})
-    if not abas_origem:
-        abas_origem = {'Resumo Operacional': [getattr(pacote_saida_observavel, 'metadados', {}) or {}]}
-    usados: set[str] = set()
     abas_xlsx: dict[str, dict[str, Any]] = {}
-    for nome_base, linhas in abas_origem.items():
-        nome_renderizado = _nome_aba_saida_observavel_local(nome_base, usados)
-        headers, linhas_normalizadas = _normalizar_linhas_observaveis_local(linhas)
-        abas_xlsx[nome_renderizado] = {
-            'nome_base': nome_base,
-            'headers': headers,
-            'linhas': linhas_normalizadas,
-        }
+    for nome, headers in ABAS_XLSX_OFICIAIS_CONTRATUAIS.items():
+        if nome == 'Situação Atual':
+            abas_xlsx[nome] = {
+                'nome_base': nome,
+                'headers': [],
+                'linhas': None,
+                'validacao': 'blocos_obrigatorios',
+                'blocos_obrigatorios': list(BLOCOS_SITUACAO_ATUAL_OBRIGATORIOS),
+            }
+        else:
+            abas_xlsx[nome] = {
+                'nome_base': nome,
+                'headers': list(headers),
+                'linhas': None,
+                'validacao': 'estrutura',
+            }
+
     bloco_console = getattr(pacote_saida_observavel, 'bloco_console', None)
     return {
         'abas_xlsx': abas_xlsx,
@@ -295,10 +337,12 @@ def ler_renderizacao_xlsx(caminho_xlsx: Path | str | None) -> dict[str, Any]:
     try:
         abas: dict[str, dict[str, Any]] = {}
         for nome in wb.sheetnames:
-            if not str(nome).startswith(PREFIXO_ABA_OBSERVAVEL):
-                continue
             ws = wb[nome]
             linhas = list(ws.iter_rows(values_only=True))
+            texto_linhas = [
+                ' | '.join('' if valor is None else str(valor) for valor in linha)
+                for linha in linhas
+            ]
             if linhas:
                 headers = [str(valor) for valor in linhas[0] if valor is not None]
                 registros = []
@@ -312,7 +356,12 @@ def ler_renderizacao_xlsx(caminho_xlsx: Path | str | None) -> dict[str, Any]:
             else:
                 headers = []
                 registros = []
-            abas[nome] = {'headers': headers, 'linhas': registros}
+            abas[nome] = {
+                'headers': headers,
+                'linhas': registros,
+                'texto_linhas': texto_linhas,
+                'qtd_linhas_brutas': len(linhas),
+            }
         return {'auditavel': True, 'existe': True, 'caminho': str(caminho), 'abas': abas}
     finally:
         wb.close()
@@ -570,17 +619,55 @@ def auditar_paridade_xlsx(
 
     observado = dict(lido.get('abas', {}) or {})
     divergencias = comparar_presenca_estrutura(esperado, observado, alvo='xlsx')
+
     for aba in sorted(set(esperado) & set(observado)):
-        headers_esperados = list(esperado[aba]['headers'])
-        headers_observados = list(observado[aba]['headers'])
+        espec = esperado[aba]
+        modo_validacao = espec.get('validacao', 'estrutura')
+        observado_aba = observado[aba]
+
+        if modo_validacao == 'blocos_obrigatorios':
+            texto_aba = '\n'.join(str(linha) for linha in observado_aba.get('texto_linhas', []) or [])
+            for bloco in espec.get('blocos_obrigatorios', []) or []:
+                if str(bloco) not in texto_aba:
+                    divergencias.append(
+                        _nova_divergencia(
+                            'DIVERGENCIA_ESTRUTURAL',
+                            'xlsx',
+                            f'Bloco obrigatório ausente na aba {aba}: {bloco}.',
+                            material=True,
+                            aba=aba,
+                            esperado=bloco,
+                        )
+                    )
+            continue
+
+        headers_esperados = list(espec.get('headers') or [])
+        headers_observados = list(observado_aba.get('headers') or [])
         divergencias.extend(comparar_headers(aba, headers_esperados, headers_observados))
-        linhas_esperadas = list(esperado[aba]['linhas'])
-        linhas_observadas = list(observado[aba]['linhas'])
-        divergencias.extend(comparar_quantidade_linhas(aba, linhas_esperadas, linhas_observadas))
-        if headers_esperados == headers_observados:
-            divergencias.extend(
-                comparar_conteudo_normalizado(aba, headers_esperados, linhas_esperadas, linhas_observadas)
+
+        linhas_observadas = list(observado_aba.get('linhas') or [])
+        if not linhas_observadas:
+            divergencias.append(
+                _nova_divergencia(
+                    'DIVERGENCIA_QTD_LINHAS',
+                    'xlsx',
+                    f'Aba {aba} não possui linhas de dados observáveis.',
+                    material=True,
+                    aba=aba,
+                    esperado='ao menos 1 linha de dados',
+                    observado=0,
+                )
             )
+
+        linhas_esperadas = espec.get('linhas')
+        if linhas_esperadas is not None:
+            linhas_esperadas = list(linhas_esperadas)
+            divergencias.extend(comparar_quantidade_linhas(aba, linhas_esperadas, linhas_observadas))
+            if headers_esperados == headers_observados:
+                divergencias.extend(
+                    comparar_conteudo_normalizado(aba, headers_esperados, linhas_esperadas, linhas_observadas)
+                )
+
     divergencias = classificar_divergencias(divergencias)
     ok = not any(div.material for div in divergencias)
     return AuditoriaParidadeXLSX(
