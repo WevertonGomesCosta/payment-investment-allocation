@@ -227,6 +227,7 @@ def main():
     caminho_saida = gerar_planilha_operacional(
         contexto=contexto_operacional_canonico,
         saida=saida_canonica,
+        estado_temporal_inicial=estado_temporal_inicial,
         pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
     )
 

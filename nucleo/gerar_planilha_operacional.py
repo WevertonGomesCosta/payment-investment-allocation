@@ -468,7 +468,7 @@ def _adicionar_abas_saida_operacional_pagamentos_u7(wb) -> dict[str, Any]:
     }
 
 
-def _adicionar_abas_ranking(wb, contexto) -> None:
+def _adicionar_abas_ranking(wb, contexto, *, incluir_abas_diagnosticas: bool = False) -> None:
     ranking = getattr(contexto, 'ranking_carteira', None)
     if ranking is None:
         return
@@ -513,22 +513,22 @@ def _adicionar_abas_ranking(wb, contexto) -> None:
     rows_carteira = quadro_carteira.astype(object).where(quadro_carteira.notna(), '').values.tolist()
     _apply_table_style(ws_carteira, headers_carteira, rows_carteira, freeze=True)
 
-    if _usar_abas_diagnosticas(contexto):
+    if incluir_abas_diagnosticas:
         ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
         top30 = ranking.top30.copy()
         rows_top30 = top30.astype(object).where(top30.notna(), '').values.tolist()
         _apply_table_style(ws_top30, list(top30.columns), rows_top30, freeze=True)
 
-    ws_resumo = wb.create_sheet(_nome_aba_operacional(contexto, 'resumo_switching'))
-    resumo_rows = [
-        ['produtos_total', ranking.resumo.get('produtos_total')],
-        ['produtos_ativos_ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')],
-        ['qtd_destinos_switch', ranking.auditoria.get('qtd_destinos_switch')],
-        ['destino_top1', ranking.auditoria.get('destino_top1')],
-        ['qtd_diffs_materiais_nucleo', ranking.validacao.get('qtd_diffs_materiais_nucleo')],
-        ['aceite_nucleo', ranking.validacao.get('aceite_nucleo')],
-    ]
-    _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows)
+        ws_resumo = wb.create_sheet(_nome_aba_operacional(contexto, 'resumo_switching'))
+        resumo_rows = [
+            ['produtos_total', ranking.resumo.get('produtos_total')],
+            ['produtos_ativos_ranqueados', ranking.resumo.get('produtos_ativos_ranqueados')],
+            ['qtd_destinos_switch', ranking.auditoria.get('qtd_destinos_switch')],
+            ['destino_top1', ranking.auditoria.get('destino_top1')],
+            ['qtd_diffs_materiais_nucleo', ranking.validacao.get('qtd_diffs_materiais_nucleo')],
+            ['aceite_nucleo', ranking.validacao.get('aceite_nucleo')],
+        ]
+        _apply_table_style(ws_resumo, ['indicador', 'valor'], resumo_rows)
 
 
 
@@ -555,11 +555,18 @@ def _adicionar_situacao_atual_oficial(wb, contexto, saida, pacote_saida_observav
     _apply_table_style(ws, ['Métrica', 'Valor'], _rows(linhas, ['Métrica', 'Valor']), freeze=True)
 
 
-def _adicionar_situacao_atual(wb, contexto, saida, pacote_saida_observavel_temporal) -> None:
+def _adicionar_situacao_atual(wb, contexto, saida, pacote_saida_observavel_temporal, estado_temporal_inicial=None) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
     r = 1
 
-    for idx, bloco in enumerate(construir_blocos_situacao_atual(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)):
+    for idx, bloco in enumerate(
+        construir_blocos_situacao_atual(
+            contexto,
+            saida,
+            pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+            estado_temporal_inicial=estado_temporal_inicial,
+        )
+    ):
         r = _apply_table_style(
             ws,
             bloco['headers'],
@@ -882,6 +889,7 @@ def main(
     contexto=None,
     saida=None,
     pacote_saida_observavel_oficial=None,
+    estado_temporal_inicial=None,
     incluir_abas_diagnosticas: bool | None = None,
     modo_artefato: str = 'oficial',
 ) -> Path:
@@ -907,6 +915,14 @@ def main(
         saida, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida, matriz)
 
     saida_interna, saida_externa = _caminhos_saida_operacional(contexto)
+
+    modo_oficial = str(modo_artefato or 'oficial').strip().lower() == 'oficial'
+    diagnostico_solicitado = (
+        bool(incluir_abas_diagnosticas)
+        if incluir_abas_diagnosticas is not None
+        else _usar_abas_diagnosticas(contexto)
+    )
+    incluir_extras_diagnosticas = (not modo_oficial) and diagnostico_solicitado
 
     wb = Workbook()
 
@@ -937,7 +953,7 @@ def main(
     switchings_observaveis = construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal=pacote_consolidado)
     _apply_table_style(ws_switching, headers_switching, _rows(switchings_observaveis, headers_switching), freeze=True)
 
-    if _usar_abas_diagnosticas(contexto):
+    if incluir_extras_diagnosticas:
         ws_switching_sint = wb.create_sheet("Lotes Sinteticos Pos-Sw")
         headers_switching_sint = ['Data', 'Lotes origem', 'Destino', 'Novo lote', 'Valor líquido total', 'Origem valor']
         linhas_switching_sint = list(getattr(saida, 'lotes_sinteticos_pos_switching_console', lambda **_: [])(limite=200) or [])
@@ -958,14 +974,25 @@ def main(
             freeze=True,
         )
 
-    _adicionar_abas_ranking(wb, contexto)
-    _adicionar_situacao_atual(wb, contexto, saida, pacote_consolidado)
-    _adicionar_auditoria_saida_canonica(wb, contexto, saida)
-    _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial)
-    _adicionar_aba_tabela_operacional_pagamentos(wb)
-    _adicionar_abas_saida_operacional_pagamentos_u7(wb)
-    _adicionar_aba_auditoria_fontes(wb, contexto, saida)
-    if _usar_abas_diagnosticas(contexto):
+    _adicionar_abas_ranking(
+        wb,
+        contexto,
+        incluir_abas_diagnosticas=incluir_extras_diagnosticas,
+    )
+    _adicionar_situacao_atual(
+        wb,
+        contexto,
+        saida,
+        pacote_consolidado,
+        estado_temporal_inicial=estado_temporal_inicial,
+    )
+
+    if incluir_extras_diagnosticas:
+        _adicionar_auditoria_saida_canonica(wb, contexto, saida)
+        _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial)
+        _adicionar_aba_tabela_operacional_pagamentos(wb)
+        _adicionar_abas_saida_operacional_pagamentos_u7(wb)
+        _adicionar_aba_auditoria_fontes(wb, contexto, saida)
         _adicionar_aba_auditoria_fifo(wb, contexto, saida)
         _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, saida)
 
