@@ -10,6 +10,13 @@ def _fmt_data(valor: Optional[date]) -> Optional[str]:
     return valor.isoformat() if hasattr(valor, 'isoformat') else None
 
 
+def _ultimo_dia_util_bancario_anterior(data_referencia: date, calendario_financeiro: Any) -> date:
+    data_cursor = data_referencia - timedelta(days=1)
+    while not eh_dia_util_bancario(data_cursor, calendario_financeiro):
+        data_cursor -= timedelta(days=1)
+    return data_cursor
+
+
 def resumir_fechamento_situacao_atual(
     *,
     data_referencia: date,
@@ -39,20 +46,25 @@ def resumir_fechamento_situacao_atual(
             return resumo
 
         qtd_fallback = 0
+        data_fechamento_observado = _ultimo_dia_util_bancario_anterior(data_referencia, calendario_financeiro)
+        resumo['data_fechamento_confirmado'] = _fmt_data(data_fechamento_observado)
+
         if ultima_data_disponivel is not None:
             atual = ultima_data_disponivel + timedelta(days=1)
-            while atual <= data_referencia:
+            while atual <= data_fechamento_observado:
                 if eh_dia_util_bancario(atual, calendario_financeiro):
                     qtd_fallback += 1
                 atual += timedelta(days=1)
-            resumo['data_fechamento_confirmado'] = _fmt_data(ultima_data_disponivel)
 
         if qtd_fallback > 0:
-            resumo['status_fechamento'] = 'estimado por fallback CDI'
-            resumo['fonte_fechamento'] = 'fallback_encadeado_ultimo_fator_cdi'
+            resumo['status_fechamento'] = 'fechamento observado em D-1 útil com fallback CDI'
+            resumo['fonte_fechamento'] = 'fallback_cdi_ate_d_menos_1_util'
             resumo['usa_fallback_cdi'] = True
             resumo['qtd_fechamentos_fallback_cdi'] = int(qtd_fallback)
-            resumo['observacao'] = 'a situação atual usa o último fator explícito do CDI para fechar dias úteis consecutivos sem fator novo.'
+            resumo['observacao'] = (
+                'a situação atual fecha economicamente no último dia útil anterior à data de referência; '
+                'dias úteis sem fator CDI explícito até esse fechamento usam fallback do último fator disponível.'
+            )
             return resumo
 
         resumo['status_fechamento'] = 'confirmado até o último dia útil explícito'
