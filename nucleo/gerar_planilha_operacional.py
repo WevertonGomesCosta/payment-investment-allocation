@@ -838,6 +838,75 @@ def _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial) -> 
         _apply_table_style(ws, headers, _rows(linhas_normalizadas, headers), freeze=True)
 
 
+def _referencia_original_mapping(row: Mapping[str, Any]) -> Mapping[str, Any]:
+    referencia = row.get('referencia_original') or row.get('Referência original') or {}
+    if is_dataclass(referencia):
+        referencia = asdict(referencia)
+    return referencia if isinstance(referencia, Mapping) else {}
+
+
+def _valor_materializado(valor: Any) -> bool:
+    if valor is None:
+        return False
+    if isinstance(valor, float) and valor != valor:
+        return False
+    if isinstance(valor, str) and not valor.strip():
+        return False
+    return True
+
+
+def _buscar_campo_extrato_passado(row: Mapping[str, Any], *campos: str, padrao: Any = None) -> Any:
+    referencia = _referencia_original_mapping(row)
+    for fonte in (row, referencia):
+        for campo in campos:
+            if campo in fonte and _valor_materializado(fonte.get(campo)):
+                return fonte.get(campo)
+    return padrao
+
+
+def _primeiro_item_materializado(valor: Any) -> Any:
+    if isinstance(valor, (list, tuple)):
+        for item in valor:
+            if _valor_materializado(item):
+                return item
+        return None
+    return valor if _valor_materializado(valor) else None
+
+
+def _buscar_lote_extrato_passado(row: Mapping[str, Any]) -> Any:
+    for campo in ('fontes_referenciadas_operacionais', 'fontes_referenciadas_tecnicas'):
+        lote = _primeiro_item_materializado(row.get(campo))
+        if lote is not None:
+            return lote
+
+    lote = _buscar_campo_extrato_passado(
+        row,
+        'fonte_resolvida_historica',
+        'fonte_informada',
+        'lote_usado',
+        'Lote usado',
+        'Lote',
+        'Lote sugerido',
+        'fonte',
+    )
+    return lote if _valor_materializado(lote) else 'lote_nao_materializado_oficial'
+
+
+def _buscar_valor_extrato_passado(
+    row: Mapping[str, Any],
+    *campos: str,
+    padrao: Any = 'nao_materializado',
+    fallbacks: tuple[str, ...] = (),
+) -> Any:
+    valor = _buscar_campo_extrato_passado(row, *campos)
+    if _valor_materializado(valor):
+        return valor
+    valor = _buscar_campo_extrato_passado(row, *fallbacks)
+    if _valor_materializado(valor):
+        return valor
+    return padrao
+
+
 def _normalizar_extrato_passado_oficial(itens: Iterable[Any]) -> list[dict[str, Any]]:
     linhas = []
     for item in list(itens or []):
@@ -847,42 +916,61 @@ def _normalizar_extrato_passado_oficial(itens: Iterable[Any]) -> list[dict[str, 
             continue
         row = dict(item)
         linha = dict(row)
-        data = row.get('data') or row.get('Data')
-        conta = row.get('descricao') or row.get('conta') or row.get('Conta')
-        despesa_id = row.get('pagamento_id') or row.get('despesa_id') or row.get('id') or row.get('Despesa ID')
-        valor = row.get('valor') if row.get('valor') is not None else row.get('Valor')
-        lote = (
-            row.get('Lote')
-            or row.get('Lote sugerido')
-            or row.get('fonte_resolvida_historica')
-            or row.get('fonte')
-            or row.get('fonte_informada')
+
+        data = _buscar_campo_extrato_passado(row, 'data', 'Data')
+        conta = _buscar_campo_extrato_passado(row, 'conta', 'descricao', 'Descrição', 'Conta')
+        despesa_id = _buscar_campo_extrato_passado(
+            row,
+            'obrigacao_id',
+            'pagamento_id',
+            'despesa_id',
+            'id',
+            'Despesa ID',
         )
-        if data is not None:
-            linha['Data'] = data
-        if conta is not None:
-            linha['Conta'] = conta
-        if despesa_id is not None:
-            linha['Despesa ID'] = despesa_id
-        if valor is not None:
-            linha['Valor'] = valor
-            linha.setdefault('Bruto', valor)
-            linha.setdefault('Líquido', valor)
-        if lote is not None:
-            linha['Lote'] = lote
-            linha.setdefault('Lote sugerido', lote)
-        for destino, origem in [
-            ('Saldo Antes', 'saldo_antes'),
-            ('Bruto', 'bruto'),
-            ('Imposto', 'imposto'),
-            ('Líquido', 'liquido'),
-            ('Saldo Remanescente', 'saldo_remanescente'),
-        ]:
-            if destino not in linha and origem in row:
-                linha[destino] = row[origem]
+        lote = _buscar_lote_extrato_passado(row)
+        saldo_antes = _buscar_valor_extrato_passado(row, 'saldo_antes_fonte', 'Saldo Antes', 'saldo_antes')
+        bruto = _buscar_valor_extrato_passado(
+            row,
+            'valor_bruto_resgate',
+            'Bruto',
+            'valor_bruto',
+            'valor',
+            'Valor',
+            fallbacks=('valor_coberto_referencial', 'valor_obrigacao_referencial'),
+        )
+        imposto = _buscar_valor_extrato_passado(row, 'imposto_resgate', 'Imposto', 'IR', 'imposto')
+        liquido = _buscar_valor_extrato_passado(
+            row,
+            'valor_liquido_resgate',
+            'Líquido',
+            'Liquido',
+            'valor_liquido',
+            'valor',
+            'Valor',
+            fallbacks=('valor_coberto_referencial', 'valor_obrigacao_referencial'),
+        )
+        saldo_remanescente = _buscar_valor_extrato_passado(
+            row,
+            'saldo_remanescente_fonte',
+            'Saldo Remanescente',
+            'saldo_remanescente',
+        )
+
+        linha['Data'] = data
+        linha['Conta'] = conta if _valor_materializado(conta) else 'conta_nao_materializada_oficial'
+        linha['Despesa ID'] = despesa_id if _valor_materializado(despesa_id) else 'despesa_id_nao_materializado_oficial'
+        linha['Lote'] = lote
+        linha['Lote sugerido'] = lote
+        linha['Saldo Antes'] = saldo_antes
+        linha['Bruto'] = bruto
+        linha['Imposto'] = imposto
+        linha['Líquido'] = liquido
+        linha['Saldo Remanescente'] = saldo_remanescente
+        if not _valor_materializado(linha.get('Valor')):
+            linha['Valor'] = liquido if _valor_materializado(liquido) else bruto
+
         linhas.append(linha)
     return linhas
-
 
 def _switchings_oficiais_xlsx(pacote_saida_observavel_oficial: Any) -> list[dict[str, Any]]:
     bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
