@@ -469,10 +469,8 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_sa
         liquido_atual = 0.0 if tipo == 'exauridos' else round(para_float(item.get('Líquido')), 2)
         if tipo == 'ativos' and saldo_final_replay > 0:
             bruto_atual = max(bruto_atual, saldo_final_replay)
-            liquido_atual = max(liquido_atual, saldo_final_replay)
         if origem_exaurida_com_saldo_replay:
             bruto_atual = saldo_final_replay
-            liquido_atual = saldo_final_replay
 
         patrimonio_liquido = round(liquido_sacado + liquido_atual, 2)
         rendimento_liquido = calcular_rendimento_liquido_observavel(
