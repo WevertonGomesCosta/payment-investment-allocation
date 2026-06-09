@@ -188,9 +188,19 @@ def _valor_economico_oficial(item, campo, status_campo=None, padrao='nao_materia
     texto = str(valor).strip()
     return texto if texto else padrao
 
-def _linha_pagamento_oficial(item, bloqueada=False):
+def _valor_obrigacao_oficial(item):
     referencia = _valor_oficial(item, 'referencia_original', {}) or {}
-    valor = _valor_oficial(item, 'valor_obrigacao_referencial', _valor_oficial(referencia, 'valor', 0.0))
+    valor = (
+        _valor_oficial(item, 'valor_obrigacao_referencial')
+        if _valor_oficial(item, 'valor_obrigacao_referencial') is not None
+        else _valor_oficial(item, 'valor_coberto_referencial')
+    )
+    if valor is None:
+        valor = _valor_oficial(referencia, 'valor') or _valor_oficial(referencia, 'Valor')
+    return valor if valor is not None else 'valor_obrigacao_nao_materializado_oficial'
+
+
+def _linha_pagamento_oficial(item, bloqueada=False):
     fontes = _fontes_obrigacao_oficial(item)
     pacote_id = _valor_oficial(item, 'pacote_nome_operacional') or _valor_oficial(item, 'pacote_id') or 'n/d'
     motivo = _valor_oficial(item, 'motivo') or 'n/d'
@@ -199,6 +209,7 @@ def _linha_pagamento_oficial(item, bloqueada=False):
         'Conta': _descricao_obrigacao_oficial(item),
         'Lote': fontes if not bloqueada else 'n/d',
         'Pacote': pacote_id,
+        'Valor': _valor_obrigacao_oficial(item),
         'Sw. ant.': 'não',
         'Sw. dep.': 'não',
         'Status': _valor_oficial(item, 'status_observavel') or ('bloqueada_oficial' if bloqueada else 'coberta_oficial'),
@@ -263,7 +274,7 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
     pagamentos_data_referencia = list(getattr(bloco_console, 'pagamentos_data_referencia', []) or [])
     print('\n- pagamentos na data de referência — saída oficial:')
     if pagamentos_data_referencia:
-        colunas_data_ref = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status', 'Bloq.']
+        colunas_data_ref = ['Data', 'Conta', 'Valor', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status', 'Bloq.']
         linhas_data_ref = [
             {k: linha[k] for k in colunas_data_ref}
             for linha in (
@@ -277,7 +288,7 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
 
     proximas_ordenadas = list(getattr(bloco_console, 'proximos_pagamentos', []) or [])
 
-    colunas_proximos = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
+    colunas_proximos = ['Data', 'Conta', 'Valor', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
     linhas_proximos = [
         {k: linha[k] for k in colunas_proximos}
         for linha in (
@@ -294,10 +305,10 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
     if bloqueadas:
         print('\n- obrigações bloqueadas oficiais:')
         linhas_bloqueadas = [
-            {k: linha[k] for k in ['Data', 'Conta', 'Pacote', 'Status', 'Bloq.']}
+            {k: linha[k] for k in ['Data', 'Conta', 'Valor', 'Pacote', 'Status', 'Bloq.']}
             for linha in (_linha_pagamento_oficial(item, bloqueada=True) for item in bloqueadas[:5])
         ]
-        _imprimir_tabela(['Data', 'Conta', 'Pacote', 'Status', 'Bloq.'], linhas_bloqueadas, limite=5)
+        _imprimir_tabela(['Data', 'Conta', 'Valor', 'Pacote', 'Status', 'Bloq.'], linhas_bloqueadas, limite=5)
 
     print('\n- alertas operacionais:')
     if bloqueadas:
@@ -498,59 +509,25 @@ def _render_situacao_atual_oficial_minima(
     pacote_saida_observavel_oficial=None,
 ) -> None:
     _imprimir_titulo('SITUAÇÃO ATUAL')
-    resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None)
-    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
-    data_referencia = getattr(pacote_saida_observavel_oficial, 'data_referencia', None)
+    bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
+    abas = getattr(bloco_xlsx, 'abas', {}) or {}
+    blocos = list(abas.get('Situacao Atual Blocos') or [])
 
-    _imprimir_pares([
-        ('data de referência', data_referencia),
-        ('status do fechamento econômico', getattr(pacote_saida_observavel_oficial, 'status', 'status_oficial_indisponivel')),
-        ('fonte do fechamento', getattr(pacote_saida_observavel_oficial, 'origem_formal', 'PacoteSaidaObservavelOficial')),
-        ('fechamentos com fallback CDI', 'nao_aplicavel_rota_oficial'),
-        ('último fator explícito CDI', 'nao_materializado_na_rota_oficial'),
-        ('data confirmada da série', data_referencia),
-    ])
+    if not blocos:
+        print('  situacao_atual_blocos_nao_materializados_no_pacote_saida_observavel_oficial')
+        return
 
-    lotes_pos_switching = list(getattr(bloco_console, 'lotes_pos_switching_materializados', []) or [])
-    lotes_futuros = list(getattr(bloco_console, 'lotes_futuros_materializados', []) or [])
-
-    print('\n- patrimônio:')
-    _imprimir_pares([
-        ('qtd lotes pós-switching materializados', len(lotes_pos_switching)),
-        ('qtd lotes futuros materializados', len(lotes_futuros)),
-        ('valor original total', 'patrimonio_total_nao_materializado_na_rota_oficial'),
-        ('status valores patrimoniais', 'situacao_atual_valores_nao_materializados_na_rota_oficial'),
-    ])
-
-    print('\n- lotes exauridos:')
-    print('  lotes_exauridos_nao_materializados_no_pacote_saida_observavel_oficial')
-
-    print('\n- lotes ativos/pós-switching:')
-    lotes_ativos = lotes_pos_switching + lotes_futuros
-    if lotes_ativos:
-        linhas = [_linha_lote_temporal_console(lote) for lote in lotes_ativos]
-        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Valor original'], linhas, limite=None)
-        print('  valores patrimoniais: nao_materializado_na_rota_oficial')
-    else:
-        print('  lotes_ativos_nao_materializados_no_pacote_saida_observavel_oficial')
-
-    print('\n- patrimônio total dos lotes:')
-    _imprimir_tabela(
-        ['Métrica', 'Valor'],
-        [
-            {'Métrica': 'qtd_lotes_observaveis_oficiais', 'Valor': len(lotes_ativos)},
-            {'Métrica': 'patrimonio_bruto_observavel', 'Valor': 'patrimonio_total_nao_materializado_na_rota_oficial'},
-            {'Métrica': 'patrimonio_liquido_observavel', 'Valor': 'patrimonio_total_nao_materializado_na_rota_oficial'},
-        ],
-        limite=None,
-    )
-
-    print('\n- resumo de recebidos:')
-    _imprimir_pares([
-        ('qtd_destinos_sobras_recebidos', getattr(resumo, 'qtd_destinos_sobras_recebidos', 'nao_aplicavel')),
-        ('resumo_valores_recebidos', 'resumo_recebidos_nao_materializado_na_rota_oficial'),
-    ])
-
+    for bloco in blocos:
+        if not isinstance(bloco, dict):
+            continue
+        titulo = bloco.get('titulo') or 'Bloco oficial'
+        headers = list(bloco.get('headers') or ['Métrica', 'Valor', 'Status'])
+        linhas = list(bloco.get('linhas') or [])
+        print(f'\n- {titulo}:')
+        if linhas:
+            _imprimir_tabela(headers, linhas, limite=None)
+        else:
+            print('  bloco_oficial_sem_linhas_materializadas')
 
 def _render_operacional_pos_pagamentos_oficial(
     contexto_operacional,
