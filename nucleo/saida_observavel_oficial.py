@@ -583,36 +583,77 @@ def preparar_bloco_ultimos_pagamentos(
     return [_projetar_ultimo_pagamento_do_modelo(linha) for linha in ultimos]
 
 
-def preparar_bloco_pagamentos_data_referencia(blocos: dict[str, Any]) -> list[dict[str, Any]]:
-    data_referencia = blocos.get('data_referencia')
+def _chave_ordenacao_obrigacao_observavel(item: dict[str, Any]) -> tuple[Any, ...]:
+    data_item = _data_observavel_item(item)
+    return (
+        data_item is None,
+        data_item or date.max,
+        str(item.get('status_observavel') or ''),
+        str(item.get('obrigacao_id') or ''),
+        str(item.get('pacote_id') or ''),
+    )
+
+
+def preparar_modelo_obrigacoes_observaveis(blocos: dict[str, Any]) -> list[dict[str, Any]]:
+    modelo: list[dict[str, Any]] = []
+    for item in list(blocos['obrigacoes_cobertas']):
+        linha = _status_pagamento_observavel(item, bloqueada=False)
+        linha['tipo_obrigacao_observavel'] = 'coberta'
+        linha['cobertura_integral'] = 'sim'
+        modelo.append(linha)
+    for item in list(blocos['obrigacoes_bloqueadas']):
+        linha = _status_pagamento_observavel(item, bloqueada=True)
+        linha['tipo_obrigacao_observavel'] = 'bloqueada'
+        linha['cobertura_integral'] = 'não'
+        modelo.append(linha)
+    return sorted(modelo, key=_chave_ordenacao_obrigacao_observavel)
+
+
+def _obrigacoes_do_modelo_por_tipo(
+    modelo_obrigacoes: list[dict[str, Any]],
+    tipo: str,
+) -> list[dict[str, Any]]:
+    return [
+        dict(item)
+        for item in modelo_obrigacoes
+        if item.get('tipo_obrigacao_observavel') == tipo
+    ]
+
+
+def preparar_bloco_pagamentos_data_referencia(
+    modelo_obrigacoes: list[dict[str, Any]],
+    data_referencia: date | None,
+) -> list[dict[str, Any]]:
     if not isinstance(data_referencia, date):
         return []
     pagamentos: list[dict[str, Any]] = []
-    for item in list(blocos['obrigacoes_cobertas']):
-        if _data_observavel_item(item) == data_referencia:
-            item_status = _status_pagamento_observavel(item, bloqueada=False)
-            pagamentos.extend(_expandir_pagamento_multifonte_observavel(item_status))
-    for item in list(blocos['obrigacoes_bloqueadas']):
-        if _data_observavel_item(item) == data_referencia:
-            pagamentos.append(_status_pagamento_observavel(item, bloqueada=True))
+    for item in modelo_obrigacoes:
+        if _data_observavel_item(item) != data_referencia:
+            continue
+        if item.get('tipo_obrigacao_observavel') == 'coberta':
+            pagamentos.extend(_expandir_pagamento_multifonte_observavel(item))
+        elif item.get('tipo_obrigacao_observavel') == 'bloqueada':
+            pagamentos.append(dict(item))
     return sorted(
         pagamentos,
         key=lambda item: (item.get('status_observavel') == 'bloqueada_oficial', str(item.get('obrigacao_id') or '')),
     )
 
 
-def preparar_bloco_proximos_pagamentos(blocos: dict[str, Any], limite: int = 5) -> list[dict[str, Any]]:
-    data_referencia = blocos.get('data_referencia')
+def preparar_bloco_proximos_pagamentos(
+    modelo_obrigacoes: list[dict[str, Any]],
+    data_referencia: date | None,
+    limite: int = 5,
+) -> list[dict[str, Any]]:
     proximos: list[dict[str, Any]] = []
-    for item in list(blocos['obrigacoes_cobertas']):
+    for item in modelo_obrigacoes:
         data_item = _data_observavel_item(item)
-        if data_item is None or not isinstance(data_referencia, date) or data_item > data_referencia:
-            item_status = _status_pagamento_observavel(item, bloqueada=False)
-            proximos.extend(_expandir_pagamento_multifonte_observavel(item_status))
-    for item in list(blocos['obrigacoes_bloqueadas']):
-        data_item = _data_observavel_item(item)
-        if data_item is None or not isinstance(data_referencia, date) or data_item > data_referencia:
-            proximos.append(_status_pagamento_observavel(item, bloqueada=True))
+        if data_item is not None and isinstance(data_referencia, date) and data_item <= data_referencia:
+            continue
+        if item.get('tipo_obrigacao_observavel') == 'coberta':
+            proximos.extend(_expandir_pagamento_multifonte_observavel(item))
+        elif item.get('tipo_obrigacao_observavel') == 'bloqueada':
+            proximos.append(dict(item))
     return sorted(
         proximos,
         key=lambda item: (_data_observavel_item(item) is None, _data_observavel_item(item) or date.max, item.get('status_observavel') == 'bloqueada_oficial', str(item.get('obrigacao_id') or '')),
@@ -642,7 +683,7 @@ def _fonte_tecnica_detalhe_observavel(detalhe: dict[str, Any]) -> Any:
 def _expandir_pagamento_multifonte_observavel(item: dict[str, Any]) -> list[dict[str, Any]]:
     detalhes = [detalhe for detalhe in list(item.get('detalhes_fontes_resgate') or []) if isinstance(detalhe, dict)]
     if not detalhes:
-        return [item]
+        return [dict(item)]
 
     linhas: list[dict[str, Any]] = []
     for detalhe in detalhes:
@@ -677,9 +718,11 @@ def _expandir_pagamento_multifonte_observavel(item: dict[str, Any]) -> list[dict
     return linhas
 
 
-def preparar_bloco_pagamentos_por_fonte(blocos: dict[str, Any]) -> list[dict[str, Any]]:
+def preparar_bloco_pagamentos_por_fonte(modelo_obrigacoes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     linhas: list[dict[str, Any]] = []
-    for item in list(blocos['obrigacoes_cobertas']):
+    for item in modelo_obrigacoes:
+        if item.get('tipo_obrigacao_observavel') != 'coberta':
+            continue
         detalhes = list(item.get('detalhes_fontes_resgate') or [])
         if not detalhes:
             continue
@@ -709,17 +752,69 @@ def preparar_bloco_pagamentos_por_fonte(blocos: dict[str, Any]) -> list[dict[str
     return linhas
 
 
+def _texto_obrigacao_materializado(valor: Any, padrao: str = 'n/d') -> str:
+    if isinstance(valor, (list, tuple, set)):
+        textos = [_texto_material(item) for item in valor]
+        textos = [texto for texto in textos if texto]
+        return ' + '.join(textos) if textos else padrao
+    texto = _texto_material(valor)
+    return texto if texto else padrao
+
+
+def _valor_obrigacao_economico(item: dict[str, Any], campo: str, status_campo: str, cobertura_integral: str) -> Any:
+    if cobertura_integral != 'sim':
+        return 'nao_aplicavel'
+    valor = item.get(campo)
+    if valor is not None:
+        return valor
+    return item.get(status_campo) or 'nao_materializado'
+
+
+def _linhas_extrato_futuro_do_modelo(modelo_obrigacoes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    linhas: list[dict[str, Any]] = []
+    for item in modelo_obrigacoes:
+        cobertura_integral = 'sim' if item.get('tipo_obrigacao_observavel') == 'coberta' else 'não'
+        itens_renderizacao = _expandir_pagamento_multifonte_observavel(item) if cobertura_integral == 'sim' else [dict(item)]
+        for linha_modelo in itens_renderizacao:
+            referencia = linha_modelo.get('referencia_original') or {}
+            fontes = linha_modelo.get('fontes_referenciadas') or []
+            fontes_operacionais = linha_modelo.get('fontes_referenciadas_operacionais') or fontes
+            fontes_tecnicas = linha_modelo.get('fontes_referenciadas_tecnicas') or fontes
+            pacote_id = linha_modelo.get('pacote_id')
+            pacote_nome = linha_modelo.get('pacote_nome_operacional')
+            linhas.append({
+                'Data': _data_observavel_item(linha_modelo),
+                'Conta': referencia.get('conta') or referencia.get('descricao') or referencia.get('Conta') or linha_modelo.get('obrigacao_id'),
+                'Despesa ID': linha_modelo.get('obrigacao_id') or referencia.get('pagamento_id') or referencia.get('id'),
+                'Valor': linha_modelo.get('valor_obrigacao_referencial'),
+                'Lote sugerido': _texto_obrigacao_materializado(fontes_operacionais if cobertura_integral == 'sim' else None),
+                'Fonte técnica': _texto_obrigacao_materializado(fontes_tecnicas if cobertura_integral == 'sim' else None),
+                'Saldo Antes': _valor_obrigacao_economico(linha_modelo, 'saldo_antes_fonte', 'status_saldo_antes_fonte', cobertura_integral),
+                'Bruto': _valor_obrigacao_economico(linha_modelo, 'valor_bruto_resgate', 'status_valor_bruto_resgate', cobertura_integral),
+                'Imposto': _valor_obrigacao_economico(linha_modelo, 'imposto_resgate', 'status_imposto_resgate', cobertura_integral),
+                'Líquido': _valor_obrigacao_economico(linha_modelo, 'valor_liquido_resgate', 'status_valor_liquido_resgate', cobertura_integral),
+                'Saldo Remanescente': _valor_obrigacao_economico(linha_modelo, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte', cobertura_integral),
+                'Cobertura integral': cobertura_integral,
+                'Pacote do dia': _texto_obrigacao_materializado(pacote_nome or pacote_id, 'sem_pacote_valido'),
+                'Pacote técnico': _texto_obrigacao_materializado(pacote_id, 'sem_pacote_valido'),
+                'Motivo bloqueio lote': _texto_obrigacao_materializado(linha_modelo.get('motivo'), '') if cobertura_integral != 'sim' else '',
+                'Status recomendação': _texto_obrigacao_materializado(linha_modelo.get('status') or linha_modelo.get('status_observavel'), 'status_oficial_indisponivel'),
+            })
+    return linhas
+
+
+def preparar_bloco_obrigacoes(modelo_obrigacoes: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    return {
+        'obrigacoes_cobertas': _obrigacoes_do_modelo_por_tipo(modelo_obrigacoes, 'coberta'),
+        'obrigacoes_bloqueadas': _obrigacoes_do_modelo_por_tipo(modelo_obrigacoes, 'bloqueada'),
+        'extrato_futuro': _linhas_extrato_futuro_do_modelo(modelo_obrigacoes),
+    }
+
+
 def preparar_bloco_fontes_utilizadas_reservadas(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     return {
         'fontes_utilizadas': list(blocos['fontes_utilizadas']),
         'fontes_reservadas': list(blocos['fontes_reservadas']),
-    }
-
-
-def preparar_bloco_obrigacoes(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    return {
-        'obrigacoes_cobertas': list(blocos['obrigacoes_cobertas']),
-        'obrigacoes_bloqueadas': list(blocos['obrigacoes_bloqueadas']),
     }
 
 
@@ -737,48 +832,115 @@ def _valor_switching_observavel(item: dict[str, Any], *campos: str, padrao: Any 
     return padrao
 
 
-def _linha_switching_observavel(item: dict[str, Any]) -> dict[str, Any]:
+def _linha_modelo_switching_observavel(item: dict[str, Any], origem_modelo: str) -> dict[str, Any]:
     return {
-        'Data': _valor_switching_observavel(item, 'data', 'data_switching', 'data_aplicacao'),
-        'Lote origem': _valor_switching_observavel(item, 'lote_origem_id', 'lote_origem'),
-        'Lote destino': _valor_switching_observavel(item, 'lote_destino_id', 'lote_destino'),
-        'Produto origem': _valor_switching_observavel(
+        'data': _valor_switching_observavel(item, 'data', 'data_switching', 'data_aplicacao', 'data_sugerida'),
+        'lote_origem': _valor_switching_observavel(item, 'lote_origem_id', 'lote_origem'),
+        'lote_destino': _valor_switching_observavel(item, 'lote_destino_id', 'lote_destino'),
+        'produto_origem': _valor_switching_observavel(
             item,
             'produto_origem',
             'investimento_origem',
             'carteira_origem',
             padrao='nao_materializado',
         ),
-        'Produto destino': _valor_switching_observavel(
+        'produto_destino': _valor_switching_observavel(
             item,
             'produto_destino',
             'investimento_destino',
             'carteira_destino',
             padrao='nao_materializado',
         ),
+        'ganho_estimado': _valor_switching_observavel(item, 'ganho_estimado', 'ganho_estimado_liquido', padrao='nao_aplicavel'),
+        'valor_liquido_origem': _valor_switching_observavel(
+            item,
+            'valor_liquido_origem',
+            'valor_liquido_migrado',
+            'valor_liquido_migrado_referencial',
+            'valor',
+            padrao='nao_materializado',
+        ),
+        'status': _valor_switching_observavel(item, 'status', 'status_observavel', padrao='oficial'),
+        'origem_evidencia': item.get('origem') or item.get('origem_formal') or origem_modelo,
+        'tipo_switching': _valor_switching_observavel(item, 'tipo_switching', 'tipo', padrao='nao_materializado'),
+        'origem_modelo': origem_modelo,
+        'referencia_original': dict(item),
+        'campos_auditoria': dict(item.get('auditoria') or item.get('metadados') or {}),
     }
 
 
-def preparar_bloco_switchings(blocos: dict[str, Any]) -> dict[str, Any]:
-    switchings_escolhidos = list(blocos['switchings_escolhidos'])
-    switchings_operacionais = list(blocos.get('switchings_realizados_operacionais', []))
-    lotes_pos = list(blocos.get('lotes_pos_switching_materializados', []))
+def preparar_modelo_switching_observavel(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    escolhidos = [
+        _linha_modelo_switching_observavel(item, 'switchings_escolhidos')
+        for item in list(blocos.get('switchings_escolhidos') or [])
+    ]
+    realizados = [
+        _linha_modelo_switching_observavel(item, 'switchings_realizados_operacionais')
+        for item in list(blocos.get('switchings_realizados_operacionais') or [])
+    ]
+    lotes_pos = [dict(item) for item in list(blocos.get('lotes_pos_switching_materializados') or [])]
+    return {
+        'switchings_escolhidos': escolhidos,
+        'switchings_realizados_operacionais': realizados,
+        'lotes_pos_switching_materializados': lotes_pos,
+    }
 
-    # Na rota oficial pós-PR496, os switchings realizados operacionais são a evidência
-    # materializada da janela. Se não houver switchings_escolhidos futuros/econômicos,
-    # a contagem de candidatos avaliados para a janela observável deve refletir os
-    # switchings operacionais preservados, sem inventar dados no console.
-    candidatos_avaliados = len(switchings_escolhidos) if switchings_escolhidos else len(switchings_operacionais)
+
+def _linha_switching_observavel(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        'Data': item.get('data'),
+        'Lote origem': item.get('lote_origem'),
+        'Lote destino': item.get('lote_destino'),
+        'Produto origem': item.get('produto_origem'),
+        'Produto destino': item.get('produto_destino'),
+    }
+
+
+def _linha_switching_xlsx_observavel(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        'Data sugerida': item.get('data'),
+        'Lote origem': item.get('lote_origem'),
+        'Produto origem': item.get('produto_origem'),
+        'Produto destino switching': item.get('produto_destino') or item.get('lote_destino'),
+        'Ganho estimado': item.get('ganho_estimado'),
+        'Valor líquido origem': item.get('valor_liquido_origem'),
+        'Status': item.get('status'),
+    }
+
+
+def _projetar_switching_para_bloco_origem(item: dict[str, Any]) -> dict[str, Any]:
+    original = dict(item.get('referencia_original') or {})
+    original.setdefault('data', item.get('data'))
+    original.setdefault('lote_origem_id', item.get('lote_origem'))
+    original.setdefault('lote_destino_id', item.get('lote_destino'))
+    original.setdefault('produto_origem', item.get('produto_origem'))
+    original.setdefault('produto_destino', item.get('produto_destino'))
+    original.setdefault('ganho_estimado', item.get('ganho_estimado'))
+    original.setdefault('valor_liquido_origem', item.get('valor_liquido_origem'))
+    original.setdefault('status', item.get('status'))
+    return original
+
+
+def preparar_bloco_switchings(modelo_switching: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    switchings_escolhidos_modelo = list(modelo_switching.get('switchings_escolhidos', []))
+    switchings_operacionais_modelo = list(modelo_switching.get('switchings_realizados_operacionais', []))
+    lotes_pos = list(modelo_switching.get('lotes_pos_switching_materializados', []))
+
+    candidatos_avaliados = (
+        len(switchings_escolhidos_modelo)
+        if switchings_escolhidos_modelo
+        else len(switchings_operacionais_modelo)
+    )
 
     metricas = [
-        {'Métrica': 'Lotes avaliados para switching', 'Valor': len(switchings_operacionais)},
+        {'Métrica': 'Lotes avaliados para switching', 'Valor': len(switchings_operacionais_modelo)},
         {'Métrica': 'Candidatos avaliados para switching', 'Valor': candidatos_avaliados},
-        {'Métrica': 'Switchings promovidos/executados', 'Valor': len(switchings_operacionais)},
+        {'Métrica': 'Switchings promovidos/executados', 'Valor': len(switchings_operacionais_modelo)},
         {'Métrica': 'Origem da amostra', 'Valor': 'V225'},
     ]
 
     resumo_operacional = [
-        {'Métrica': 'Total de switchings promovidos', 'Valor': len(switchings_operacionais)},
+        {'Métrica': 'Total de switchings promovidos', 'Valor': len(switchings_operacionais_modelo)},
         {'Métrica': 'Total de lotes sintéticos pós-switching', 'Valor': len(lotes_pos)},
         {
             'Métrica': 'Total de aportes futuros',
@@ -787,11 +949,18 @@ def preparar_bloco_switchings(blocos: dict[str, Any]) -> dict[str, Any]:
     ]
 
     return {
-        'switchings_escolhidos': switchings_escolhidos,
-        'switchings_realizados_operacionais': switchings_operacionais,
+        'switchings_escolhidos': [
+            _projetar_switching_para_bloco_origem(item)
+            for item in switchings_escolhidos_modelo
+        ],
+        'switchings_realizados_operacionais': [
+            _projetar_switching_para_bloco_origem(item)
+            for item in switchings_operacionais_modelo
+        ],
         'switchings_metricas': metricas,
-        'switchings_amostra': [_linha_switching_observavel(item) for item in switchings_operacionais],
+        'switchings_amostra': [_linha_switching_observavel(item) for item in switchings_operacionais_modelo],
         'switchings_resumo_operacional': resumo_operacional,
+        'switching_xlsx': [_linha_switching_xlsx_observavel(item) for item in switchings_operacionais_modelo],
     }
 
 
@@ -913,6 +1082,8 @@ def preparar_blocos_xlsx(
     abas = {
         'Resumo Operacional': [resumo],
         'Extrato Passado': extrato_passado,
+        'Extrato Futuro': obrigacoes.get('extrato_futuro', []),
+        'Switching': switchings.get('switching_xlsx', []),
         'Ultimos Pagamentos': ultimos_pagamentos,
         'Pagamentos Data Referencia': pagamentos_data_referencia,
         'Proximos Pagamentos': proximos_pagamentos,
@@ -1055,14 +1226,23 @@ def construir_pacote_saida_observavel_oficial(
     blocos = _enriquecer_identificacao_operacional_blocos(blocos)
     resumo_operacional = preparar_resumo_operacional_observavel(blocos)
     modelo_pagamentos_historicos = preparar_modelo_pagamentos_historicos_observavel(blocos)
+    modelo_obrigacoes = preparar_modelo_obrigacoes_observaveis(blocos)
+    modelo_switching = preparar_modelo_switching_observavel(blocos)
+
     extrato_passado = preparar_bloco_extrato_passado(modelo_pagamentos_historicos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(modelo_pagamentos_historicos)
-    pagamentos_data_referencia = preparar_bloco_pagamentos_data_referencia(blocos)
-    proximos_pagamentos = preparar_bloco_proximos_pagamentos(blocos)
-    pagamentos_por_fonte = preparar_bloco_pagamentos_por_fonte(blocos)
+    pagamentos_data_referencia = preparar_bloco_pagamentos_data_referencia(
+        modelo_obrigacoes,
+        blocos.get('data_referencia'),
+    )
+    proximos_pagamentos = preparar_bloco_proximos_pagamentos(
+        modelo_obrigacoes,
+        blocos.get('data_referencia'),
+    )
+    pagamentos_por_fonte = preparar_bloco_pagamentos_por_fonte(modelo_obrigacoes)
     fontes = preparar_bloco_fontes_utilizadas_reservadas(blocos)
-    obrigacoes = preparar_bloco_obrigacoes(blocos)
-    switchings = preparar_bloco_switchings(blocos)
+    obrigacoes = preparar_bloco_obrigacoes(modelo_obrigacoes)
+    switchings = preparar_bloco_switchings(modelo_switching)
     saldos = preparar_bloco_saldos(blocos)
     preservados = preservar_avisos_bloqueios_evidencias(blocos)
     lacunas.extend(registrar_lacunas_renderizacao(saida, blocos))
