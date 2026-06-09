@@ -625,6 +625,12 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
     Esta função não carrega planilha, não baixa dados e não reconstrói cache.
     Ela apenas renderiza o estado recebido.
     """
+    if saida_canonica is None and pacote_saida_observavel_oficial is not None:
+        raise RuntimeError(
+            'render_console recebeu pacote_saida_observavel_oficial sem saida_canonica; '
+            'reconstrução legada silenciosa bloqueada nesta microetapa.'
+        )
+
     if saida_canonica is None:
         saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional, versao=VERSAO_BASELINE)
         matriz = construir_matriz_elegibilidade_fontes_s7b(
