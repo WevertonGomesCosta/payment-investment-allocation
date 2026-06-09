@@ -14,6 +14,12 @@ if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
 from nucleo.contexto_operacional_canonico import carregar_contexto_operacional_canonico
+from nucleo.estado_temporal_inicial import construir_estado_temporal_inicial
+from nucleo.motor_temporal_conjunto import construir_resultado_motor_temporal_conjunto
+from nucleo.ledger_temporal_canonico import construir_ledger_temporal_canonico
+from nucleo.gates_validacao_nucleo import validar_gates_nucleo
+from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
+from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_oficial
 from nucleo.identidade_baseline import (
     VERSAO_BASELINE,
     VERSAO_SLUG,
@@ -531,26 +537,46 @@ def _adicionar_abas_ranking(wb, contexto, *, incluir_abas_diagnosticas: bool = F
 
 def _adicionar_situacao_atual_oficial(wb, contexto, saida, pacote_saida_observavel_oficial) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
-    resumo = getattr(saida, 'resumo', None)
-    pacote_resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None)
-    linhas = [
-        {'Métrica': 'origem', 'Valor': type(saida).__name__},
-        {'Métrica': 'status', 'Valor': getattr(saida, 'status', 'nao_aplicavel')},
-        {'Métrica': 'ok', 'Valor': getattr(saida, 'ok', 'nao_aplicavel')},
-        {'Métrica': 'preparada', 'Valor': getattr(saida, 'preparada', 'nao_aplicavel')},
-        {'Métrica': 'data_referencia', 'Valor': getattr(saida, 'data_referencia', 'nao_aplicavel')},
-        {'Métrica': 'qtd_obrigacoes_cobertas', 'Valor': getattr(resumo, 'qtd_obrigacoes_cobertas', 'nao_aplicavel')},
-        {'Métrica': 'qtd_obrigacoes_bloqueadas', 'Valor': getattr(resumo, 'qtd_obrigacoes_bloqueadas', 'nao_aplicavel')},
-        {'Métrica': 'qtd_fontes_utilizadas', 'Valor': getattr(resumo, 'qtd_fontes_utilizadas', 'nao_aplicavel')},
-        {'Métrica': 'qtd_fontes_reservadas', 'Valor': getattr(resumo, 'qtd_fontes_reservadas', 'nao_aplicavel')},
-        {'Métrica': 'qtd_switchings_escolhidos', 'Valor': getattr(resumo, 'qtd_switchings_escolhidos', 'nao_aplicavel')},
-        {'Métrica': 'qtd_switchings_realizados_operacionais', 'Valor': getattr(resumo, 'qtd_switchings_realizados_operacionais', 'nao_aplicavel')},
-        {'Métrica': 'qtd_lotes_pos_switching_materializados', 'Valor': getattr(resumo, 'qtd_lotes_pos_switching_materializados', 'nao_aplicavel')},
-        {'Métrica': 'qtd_lotes_futuros_materializados', 'Valor': getattr(resumo, 'qtd_lotes_futuros_materializados', 'nao_aplicavel')},
-        {'Métrica': 'qtd_lacunas_renderizacao', 'Valor': getattr(pacote_resumo, 'qtd_lacunas_renderizacao', 'nao_aplicavel')},
-    ]
-    _apply_table_style(ws, ['Métrica', 'Valor'], _rows(linhas, ['Métrica', 'Valor']), freeze=True)
+    bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
+    abas = dict(getattr(bloco_xlsx, 'abas', {}) or {})
+    blocos = list(abas.get('Situacao Atual Blocos') or [])
 
+    if not blocos:
+        resumo = getattr(saida, 'resumo', None)
+        pacote_resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None)
+        blocos = [
+            {
+                'titulo': 'Fechamento econômico',
+                'headers': ['Métrica', 'Valor'],
+                'linhas': [
+                    {'Métrica': 'origem', 'Valor': type(saida).__name__},
+                    {'Métrica': 'status', 'Valor': getattr(saida, 'status', 'nao_aplicavel')},
+                    {'Métrica': 'ok', 'Valor': getattr(saida, 'ok', 'nao_aplicavel')},
+                    {'Métrica': 'preparada', 'Valor': getattr(saida, 'preparada', 'nao_aplicavel')},
+                    {'Métrica': 'data_referencia', 'Valor': getattr(saida, 'data_referencia', 'nao_aplicavel')},
+                    {'Métrica': 'qtd_obrigacoes_cobertas', 'Valor': getattr(resumo, 'qtd_obrigacoes_cobertas', 'nao_aplicavel')},
+                    {'Métrica': 'qtd_obrigacoes_bloqueadas', 'Valor': getattr(resumo, 'qtd_obrigacoes_bloqueadas', 'nao_aplicavel')},
+                    {'Métrica': 'qtd_lacunas_renderizacao', 'Valor': getattr(pacote_resumo, 'qtd_lacunas_renderizacao', 'nao_aplicavel')},
+                ],
+            }
+        ]
+
+    r = 1
+    for idx, bloco in enumerate(blocos):
+        if not isinstance(bloco, Mapping):
+            continue
+        titulo = str(bloco.get('titulo') or 'Bloco oficial')
+        headers = list(bloco.get('headers') or ['Métrica', 'Valor', 'Status'])
+        linhas = list(bloco.get('linhas') or [])
+        if not linhas:
+            linhas = [_linha_lacuna_oficial(headers, f'{titulo}_sem_linhas_materializadas')]
+        r = _apply_table_style(
+            ws,
+            headers,
+            _rows(linhas, headers),
+            start_row=r if idx == 0 else r + 3,
+            title=titulo,
+        )
 
 def _adicionar_situacao_atual(wb, contexto, saida, pacote_saida_observavel_temporal, estado_temporal_inicial=None) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
@@ -895,9 +921,7 @@ def _linha_lacuna_oficial(headers: list[str], mensagem: str) -> dict[str, Any]:
 def _linhas_extrato_passado_oficial_observavel(pacote_saida_observavel_oficial: Any) -> list[dict[str, Any]]:
     bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
     abas = dict(getattr(bloco_xlsx, 'abas', {}) or {})
-    registros = list(abas.get('Ultimos Pagamentos') or [])
-    if not registros:
-        registros = list(abas.get('Pagamentos Data Referencia') or [])
+    registros = list(abas.get('Pagamentos Historicos Realizados') or [])
     return _normalizar_extrato_passado_oficial(registros)
 
 
@@ -966,10 +990,24 @@ def main(
     partir dos objetos já construídos pela rota principal.
     """
     if contexto is None:
-        contexto = carregar_contexto_operacional_canonico(
-            raiz_repositorio=RAIZ,
-            instalar_automaticamente=False,
-        )
+        if saida is None and pacote_saida_observavel_oficial is None and str(modo_artefato or 'oficial').strip().lower() == 'oficial':
+            contexto = carregar_contexto_operacional_canonico(
+                raiz_repositorio=RAIZ,
+                instalar_automaticamente=False,
+            )
+            estado_temporal_inicial = construir_estado_temporal_inicial(contexto)
+            resultado_motor = construir_resultado_motor_temporal_conjunto(estado_temporal_inicial)
+            ledger = construir_ledger_temporal_canonico(resultado_motor)
+            gates = validar_gates_nucleo(ledger)
+            if not gates.pronto_para_etapa8:
+                raise RuntimeError('gates_nucleo_nao_prontos_para_saida_oficial')
+            saida_oficial = construir_saida_canonica_oficial(ledger=ledger, gates=gates)
+            pacote_saida_observavel_oficial = construir_pacote_saida_observavel_oficial(saida_oficial)
+        else:
+            contexto = carregar_contexto_operacional_canonico(
+                raiz_repositorio=RAIZ,
+                instalar_automaticamente=False,
+            )
 
     saida_interna, saida_externa = _caminhos_saida_operacional(contexto)
 

@@ -19,6 +19,11 @@ from aplicacao.console.common import (
 from aplicacao.console.secoes_execucao import render_secao_execucao
 from nucleo.contexto_operacional_canonico import carregar_contexto_operacional_canonico
 from nucleo.estado_temporal_inicial import construir_estado_temporal_inicial
+from nucleo.motor_temporal_conjunto import construir_resultado_motor_temporal_conjunto
+from nucleo.ledger_temporal_canonico import construir_ledger_temporal_canonico
+from nucleo.gates_validacao_nucleo import validar_gates_nucleo
+from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
+from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_oficial
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
@@ -785,7 +790,22 @@ def main() -> None:
         instalar_automaticamente=False,
     )
     estado_temporal_inicial = construir_estado_temporal_inicial(contexto_operacional)
-    render_console(contexto_operacional, estado_temporal_inicial=estado_temporal_inicial)
+    resultado_motor_temporal_conjunto = construir_resultado_motor_temporal_conjunto(estado_temporal_inicial)
+    ledger_temporal_canonico = construir_ledger_temporal_canonico(resultado_motor_temporal_conjunto)
+    resultado_gates_validacao_nucleo = validar_gates_nucleo(ledger_temporal_canonico)
+    if not resultado_gates_validacao_nucleo.pronto_para_etapa8:
+        print('Console oficial bloqueado: gates_nucleo_nao_prontos_para_etapa8')
+        return
+    saida_canonica_oficial = construir_saida_canonica_oficial(
+        ledger=ledger_temporal_canonico,
+        gates=resultado_gates_validacao_nucleo,
+    )
+    pacote_saida_observavel_oficial = construir_pacote_saida_observavel_oficial(saida_canonica_oficial)
+    render_console(
+        contexto_operacional,
+        estado_temporal_inicial=estado_temporal_inicial,
+        pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+    )
 
 if __name__ == '__main__':
     main()

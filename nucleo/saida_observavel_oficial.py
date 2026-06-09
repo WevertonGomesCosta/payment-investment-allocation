@@ -723,6 +723,154 @@ def registrar_lacunas_renderizacao(
     return lacunas
 
 
+BLOCOS_SITUACAO_ATUAL_OFICIAL = (
+    'Lotes exauridos — identificação',
+    'Lotes exauridos — valores e patrimônio',
+    'Lotes ativos — identificação',
+    'Lotes ativos — valores e patrimônio',
+    'Origens migradas por switching — reconciliação patrimonial',
+    'Patrimônio total dos lotes',
+    'Recebidos auditáveis',
+    'Fechamento econômico',
+    'Resumo de recebidos',
+)
+
+
+def _linha_lacuna_situacao_atual(codigo: str, mensagem: str) -> dict[str, Any]:
+    return {
+        'Métrica': codigo,
+        'Valor': mensagem,
+        'Status': 'lacuna_oficial',
+    }
+
+
+def _valor_lote_oficial(item: dict[str, Any], *campos: str, padrao: Any = 'nao_materializado') -> Any:
+    for campo in campos:
+        valor = item.get(campo)
+        if valor is not None and str(valor).strip():
+            return valor
+    referencia = item.get('referencia_original') or {}
+    if isinstance(referencia, dict):
+        for campo in campos:
+            valor = referencia.get(campo)
+            if valor is not None and str(valor).strip():
+                return valor
+    return padrao
+
+
+def _linha_lote_situacao_atual(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        'Lote': _valor_lote_oficial(item, 'lote_id_operacional', 'lote_id', 'lote_destino_id', 'lote_destino'),
+        'Data receb.': _valor_lote_oficial(item, 'data_recebimento', 'data', padrao='nao_materializado'),
+        'Data aplic.': _valor_lote_oficial(item, 'data_aplicacao', 'data_switching', padrao='nao_materializado'),
+        'Status': _valor_lote_oficial(item, 'status_temporal', 'status_materializacao', 'status', padrao='ativo_oficial'),
+        'Origem': _valor_lote_oficial(item, 'origem', 'origem_formal', padrao='SaidaCanonicaOficial'),
+    }
+
+
+def _linha_valores_lote_situacao_atual(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        'Lote': _valor_lote_oficial(item, 'lote_id_operacional', 'lote_id', 'lote_destino_id', 'lote_destino'),
+        'Valor original': _valor_lote_oficial(item, 'valor_original', 'valor_liquido_migrado', 'valor_liquido_migrado_referencial'),
+        'Patrimônio bruto': _valor_lote_oficial(item, 'patrimonio_bruto', 'valor_bruto_atual'),
+        'Patrimônio líquido': _valor_lote_oficial(item, 'patrimonio_liquido', 'valor_liquido_atual'),
+        'Status': _valor_lote_oficial(item, 'status_valores', 'status', padrao='valores_parciais_ou_lacuna_oficial'),
+    }
+
+
+def _linha_switching_reconciliacao(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        'Data': _valor_switching_observavel(item, 'data', 'data_switching', 'data_aplicacao'),
+        'Lote origem': _valor_switching_observavel(item, 'lote_origem_id', 'lote_origem'),
+        'Lote destino': _valor_switching_observavel(item, 'lote_destino_id', 'lote_destino'),
+        'Valor migrado': _valor_switching_observavel(item, 'valor_liquido_migrado', 'valor_liquido_migrado_referencial', 'valor'),
+        'Status': _valor_switching_observavel(item, 'status', padrao='switching_operacional_oficial'),
+    }
+
+
+def _linha_recebido_auditavel(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        'Data': _valor_lote_oficial(item, 'data', 'data_recebimento', padrao='nao_materializado'),
+        'Destino': _valor_lote_oficial(item, 'destino_id', 'lote_id', 'lote_id_operacional', 'nome'),
+        'Valor': _valor_lote_oficial(item, 'valor', 'valor_destinado', 'valor_original'),
+        'Status': _valor_lote_oficial(item, 'status', 'status_temporal', padrao='recebido_auditavel_oficial'),
+    }
+
+
+def preparar_blocos_situacao_atual_oficial(
+    blocos: dict[str, Any],
+    resumo_operacional: dict[str, Any],
+    lacunas: list[LacunaRenderizacaoSaidaObservavel],
+) -> list[dict[str, Any]]:
+    lotes_pos = list(blocos.get('lotes_pos_switching_materializados') or [])
+    lotes_futuros = list(blocos.get('lotes_futuros_materializados') or [])
+    lotes_ativos = lotes_pos + lotes_futuros
+    switchings_operacionais = list(blocos.get('switchings_realizados_operacionais') or [])
+    recebidos = list(blocos.get('destinos_sobras_recebidos') or [])
+    resumo_saida = blocos.get('resumo_saida_canonica') or {}
+
+    return [
+        {
+            'titulo': 'Lotes exauridos — identificação',
+            'headers': ['Métrica', 'Valor', 'Status'],
+            'linhas': [_linha_lacuna_situacao_atual('lotes_exauridos_nao_materializados', 'SaidaCanonicaOficial ainda não materializa identificação de lotes exauridos.')],
+        },
+        {
+            'titulo': 'Lotes exauridos — valores e patrimônio',
+            'headers': ['Métrica', 'Valor', 'Status'],
+            'linhas': [_linha_lacuna_situacao_atual('valores_lotes_exauridos_nao_materializados', 'SaidaCanonicaOficial ainda não materializa valores patrimoniais de lotes exauridos.')],
+        },
+        {
+            'titulo': 'Lotes ativos — identificação',
+            'headers': ['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Origem'],
+            'linhas': [_linha_lote_situacao_atual(item) for item in lotes_ativos] or [{'Lote': 'lotes_ativos_nao_materializados', 'Data receb.': 'nao_materializado', 'Data aplic.': 'nao_materializado', 'Status': 'lacuna_oficial', 'Origem': 'SaidaCanonicaOficial'}],
+        },
+        {
+            'titulo': 'Lotes ativos — valores e patrimônio',
+            'headers': ['Lote', 'Valor original', 'Patrimônio bruto', 'Patrimônio líquido', 'Status'],
+            'linhas': [_linha_valores_lote_situacao_atual(item) for item in lotes_ativos] or [{'Lote': 'lotes_ativos_valores_nao_materializados', 'Valor original': 'nao_materializado', 'Patrimônio bruto': 'nao_materializado', 'Patrimônio líquido': 'nao_materializado', 'Status': 'lacuna_oficial'}],
+        },
+        {
+            'titulo': 'Origens migradas por switching — reconciliação patrimonial',
+            'headers': ['Data', 'Lote origem', 'Lote destino', 'Valor migrado', 'Status'],
+            'linhas': [_linha_switching_reconciliacao(item) for item in switchings_operacionais] or [{'Data': 'nao_materializado', 'Lote origem': 'switchings_operacionais_nao_materializados', 'Lote destino': 'nao_materializado', 'Valor migrado': 'nao_materializado', 'Status': 'lacuna_oficial'}],
+        },
+        {
+            'titulo': 'Patrimônio total dos lotes',
+            'headers': ['Métrica', 'Valor', 'Status'],
+            'linhas': [
+                {'Métrica': 'qtd_lotes_ativos_observaveis', 'Valor': len(lotes_ativos), 'Status': 'materializado'},
+                {'Métrica': 'patrimonio_total_lotes', 'Valor': resumo_saida.get('patrimonio_total_lotes', 'nao_materializado'), 'Status': 'materializado' if 'patrimonio_total_lotes' in resumo_saida else 'lacuna_oficial'},
+                {'Métrica': 'patrimonio_liquido', 'Valor': resumo_saida.get('patrimonio_liquido', 'nao_materializado'), 'Status': 'materializado' if 'patrimonio_liquido' in resumo_saida else 'lacuna_oficial'},
+            ],
+        },
+        {
+            'titulo': 'Recebidos auditáveis',
+            'headers': ['Data', 'Destino', 'Valor', 'Status'],
+            'linhas': [_linha_recebido_auditavel(item) for item in recebidos] or [{'Data': 'nao_materializado', 'Destino': 'recebidos_auditaveis_nao_materializados', 'Valor': 'nao_materializado', 'Status': 'lacuna_oficial'}],
+        },
+        {
+            'titulo': 'Fechamento econômico',
+            'headers': ['Métrica', 'Valor', 'Status'],
+            'linhas': [
+                {'Métrica': 'data_referencia', 'Valor': blocos.get('data_referencia'), 'Status': 'materializado'},
+                {'Métrica': 'status_saida_canonica', 'Valor': blocos.get('status_saida_canonica'), 'Status': 'materializado'},
+                {'Métrica': 'saida_canonica_preparada', 'Valor': blocos.get('saida_canonica_preparada'), 'Status': 'materializado'},
+                {'Métrica': 'saida_canonica_ok', 'Valor': blocos.get('saida_canonica_ok'), 'Status': 'materializado'},
+                {'Métrica': 'qtd_lacunas_renderizacao', 'Valor': len(lacunas), 'Status': 'materializado'},
+            ],
+        },
+        {
+            'titulo': 'Resumo de recebidos',
+            'headers': ['Métrica', 'Valor', 'Status'],
+            'linhas': [
+                {'Métrica': 'qtd_destinos_sobras_recebidos', 'Valor': resumo_operacional.get('qtd_destinos_sobras_recebidos'), 'Status': 'materializado'},
+                {'Métrica': 'resumo_recebidos_valores', 'Valor': resumo_saida.get('resumo_recebidos_valores', 'nao_materializado'), 'Status': 'materializado' if 'resumo_recebidos_valores' in resumo_saida else 'lacuna_oficial'},
+            ],
+        },
+    ]
+
+
 def preparar_blocos_console(
     resumo: dict[str, Any],
     ultimos_pagamentos: list[dict[str, Any]],
@@ -762,6 +910,7 @@ def preparar_blocos_console(
 
 def preparar_blocos_xlsx(
     resumo: dict[str, Any],
+    pagamentos_historicos_realizados: list[dict[str, Any]],
     ultimos_pagamentos: list[dict[str, Any]],
     pagamentos_data_referencia: list[dict[str, Any]],
     proximos_pagamentos: list[dict[str, Any]],
@@ -772,9 +921,11 @@ def preparar_blocos_xlsx(
     saldos: dict[str, list[dict[str, Any]]],
     preservados: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
+    situacao_atual_blocos: list[dict[str, Any]],
 ) -> BlocoXLSXSaidaObservavel:
     abas = {
         'Resumo Operacional': [resumo],
+        'Pagamentos Historicos Realizados': pagamentos_historicos_realizados,
         'Ultimos Pagamentos': ultimos_pagamentos,
         'Pagamentos Data Referencia': pagamentos_data_referencia,
         'Proximos Pagamentos': proximos_pagamentos,
@@ -791,6 +942,7 @@ def preparar_blocos_xlsx(
         'Avisos': [{'aviso': aviso} if not isinstance(aviso, dict) else aviso for aviso in preservados['avisos']],
         'Bloqueios': preservados['bloqueios'],
         'Lacunas Renderizacao': [asdict(lacuna) for lacuna in lacunas],
+        'Situacao Atual Blocos': situacao_atual_blocos,
     }
     for data_ref, registros in saldos.items():
         abas[f'Saldos {data_ref}'] = registros
@@ -926,6 +1078,11 @@ def construir_pacote_saida_observavel_oficial(
     saldos = preparar_bloco_saldos(blocos)
     preservados = preservar_avisos_bloqueios_evidencias(blocos)
     lacunas.extend(registrar_lacunas_renderizacao(saida, blocos))
+    pagamentos_historicos_realizados = [
+        _normalizar_pagamento_historico_realizado(item)
+        for item in list(blocos.get('pagamentos_historicos_realizados') or [])
+    ]
+    situacao_atual_blocos = preparar_blocos_situacao_atual_oficial(blocos, resumo_operacional, lacunas)
 
     preparado = isinstance(saida, SaidaCanonicaOficial)
     status = 'preparado_com_lacunas' if lacunas else 'preparado'
@@ -945,6 +1102,7 @@ def construir_pacote_saida_observavel_oficial(
     )
     bloco_xlsx = preparar_blocos_xlsx(
         resumo_operacional,
+        pagamentos_historicos_realizados,
         ultimos_pagamentos,
         pagamentos_data_referencia,
         proximos_pagamentos,
@@ -955,6 +1113,7 @@ def construir_pacote_saida_observavel_oficial(
         saldos,
         preservados,
         lacunas,
+        situacao_atual_blocos,
     )
     auditoria = auditar_pacote_saida_observavel(
         entrada_tipo=type(saida).__name__,
