@@ -366,11 +366,27 @@ def preparar_resumo_operacional_observavel(blocos: dict[str, Any]) -> dict[str, 
 
 def _data_observavel_item(item: dict[str, Any]) -> date | None:
     data_item = item.get('data')
+    if isinstance(data_item, datetime):
+        return data_item.date()
     if isinstance(data_item, date):
         return data_item
+    if isinstance(data_item, str):
+        try:
+            return date.fromisoformat(data_item[:10])
+        except ValueError:
+            pass
     referencia = item.get('referencia_original') or {}
     data_ref = referencia.get('data') if isinstance(referencia, dict) else None
-    return data_ref if isinstance(data_ref, date) else None
+    if isinstance(data_ref, datetime):
+        return data_ref.date()
+    if isinstance(data_ref, date):
+        return data_ref
+    if isinstance(data_ref, str):
+        try:
+            return date.fromisoformat(data_ref[:10])
+        except ValueError:
+            return None
+    return None
 
 
 def _status_pagamento_observavel(item: dict[str, Any], *, bloqueada: bool) -> dict[str, Any]:
@@ -430,6 +446,97 @@ def _normalizar_pagamento_historico_realizado(item: dict[str, Any]) -> dict[str,
         'status_valor_liquido_resgate': item.get('status_valor_liquido_resgate') or _status_valor_historico(liquido),
         'status_saldo_remanescente_fonte': item.get('status_saldo_remanescente_fonte') or _status_valor_historico(remanescente),
     }
+
+
+def _data_extrato_passado_materializada(item: dict[str, Any]) -> Any:
+    data_item = _data_observavel_item(item)
+    if data_item is not None:
+        return data_item
+    return _valor_historico_materializado(item, 'Data', 'data')
+
+
+def _linha_extrato_passado_canonico(item: dict[str, Any]) -> dict[str, Any]:
+    conta = _valor_historico_materializado(
+        item,
+        'Conta',
+        'conta',
+        'fonte_informada',
+        'fonte_resolvida_historica',
+    )
+    lote = _valor_historico_materializado(
+        item,
+        'Lote',
+        'lote',
+        'lote_usado',
+        'lote_id_operacional',
+        'fonte_resolvida_historica',
+    )
+    return {
+        'Data': _data_extrato_passado_materializada(item),
+        'Conta': conta,
+        'Despesa ID': _valor_historico_materializado(
+            item,
+            'Despesa ID',
+            'despesa_id',
+            'pagamento_id',
+            'obrigacao_id',
+            'id',
+        ),
+        'Lote': lote,
+        'Saldo Antes': _valor_historico_materializado(
+            item,
+            'Saldo Antes',
+            'saldo_antes',
+            'saldo_antes_fonte',
+        ),
+        'Bruto': _valor_historico_materializado(
+            item,
+            'Bruto',
+            'valor_bruto_resgate',
+            'valor_bruto',
+            'valor',
+        ),
+        'Imposto': _valor_historico_materializado(
+            item,
+            'Imposto',
+            'imposto_resgate',
+            'imposto',
+        ),
+        'Líquido': _valor_historico_materializado(
+            item,
+            'Líquido',
+            'Liquido',
+            'valor_liquido_resgate',
+            'valor_liquido',
+            'valor',
+        ),
+        'Saldo Remanescente': _valor_historico_materializado(
+            item,
+            'Saldo Remanescente',
+            'saldo_remanescente',
+            'saldo_remanescente_fonte',
+        ),
+    }
+
+
+def preparar_bloco_extrato_passado(blocos: dict[str, Any]) -> list[dict[str, Any]]:
+    data_referencia = blocos.get('data_referencia')
+    linhas: list[dict[str, Any]] = []
+    for item in list(blocos.get('pagamentos_historicos_realizados') or []):
+        data_item = _data_observavel_item(item)
+        if isinstance(data_referencia, date) and data_item is not None and data_item > data_referencia:
+            continue
+        linhas.append(_linha_extrato_passado_canonico(item))
+
+    return sorted(
+        linhas,
+        key=lambda linha: (
+            not isinstance(linha.get('Data'), date),
+            linha.get('Data') if isinstance(linha.get('Data'), date) else date.max,
+            str(linha.get('Despesa ID') or ''),
+            str(linha.get('Lote') or ''),
+        ),
+    )
 
 
 def preparar_bloco_ultimos_pagamentos(blocos: dict[str, Any], limite: int = 5) -> list[dict[str, Any]]:
@@ -762,6 +869,7 @@ def preparar_blocos_console(
 
 def preparar_blocos_xlsx(
     resumo: dict[str, Any],
+    extrato_passado: list[dict[str, Any]],
     ultimos_pagamentos: list[dict[str, Any]],
     pagamentos_data_referencia: list[dict[str, Any]],
     proximos_pagamentos: list[dict[str, Any]],
@@ -775,6 +883,7 @@ def preparar_blocos_xlsx(
 ) -> BlocoXLSXSaidaObservavel:
     abas = {
         'Resumo Operacional': [resumo],
+        'Extrato Passado': extrato_passado,
         'Ultimos Pagamentos': ultimos_pagamentos,
         'Pagamentos Data Referencia': pagamentos_data_referencia,
         'Proximos Pagamentos': proximos_pagamentos,
@@ -917,6 +1026,7 @@ def construir_pacote_saida_observavel_oficial(
     blocos = _enriquecer_identificacao_operacional_blocos(blocos)
     resumo_operacional = preparar_resumo_operacional_observavel(blocos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(blocos)
+    extrato_passado = preparar_bloco_extrato_passado(blocos)
     pagamentos_data_referencia = preparar_bloco_pagamentos_data_referencia(blocos)
     proximos_pagamentos = preparar_bloco_proximos_pagamentos(blocos)
     pagamentos_por_fonte = preparar_bloco_pagamentos_por_fonte(blocos)
@@ -945,6 +1055,7 @@ def construir_pacote_saida_observavel_oficial(
     )
     bloco_xlsx = preparar_blocos_xlsx(
         resumo_operacional,
+        extrato_passado,
         ultimos_pagamentos,
         pagamentos_data_referencia,
         proximos_pagamentos,
