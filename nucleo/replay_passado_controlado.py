@@ -28,7 +28,11 @@ from typing import Any, Optional
 import re
 import pandas as pd
 
-from nucleo.calendario_financeiro import PacoteCalendarioFinanceiro, calcular_dias_lote
+from nucleo.calendario_financeiro import (
+    PacoteCalendarioFinanceiro,
+    calcular_dias_lote,
+    eh_dia_util_bancario,
+)
 from nucleo.dados_operacionais_canonicos import PacoteDadosOperacionaisCanonicos
 from nucleo.nucleo_financeiro_minimo import (
     Lote,
@@ -262,6 +266,16 @@ def _contexto_inconsistencia(conta: dict[str, Any], restante: Optional[float] = 
     }
 
 
+def _ultimo_dia_util_bancario_anterior(
+    data_referencia: date,
+    calendario_financeiro: PacoteCalendarioFinanceiro,
+) -> date:
+    data_cursor = data_referencia - timedelta(days=1)
+    while not eh_dia_util_bancario(data_cursor, calendario_financeiro):
+        data_cursor -= timedelta(days=1)
+    return data_cursor
+
+
 def _materializar_lotes_historicos_exauridos(dados_operacionais: PacoteDadosOperacionaisCanonicos) -> tuple[list[Lote], dict[str, Lote], dict[str, Any]]:
     inventario = dados_operacionais.inventario_canonico.copy()
     exauridos = inventario[inventario.get('situacao_investimento').eq('nao_aportado_exaurido')].copy() if len(inventario) else inventario
@@ -346,6 +360,10 @@ def carregar_replay_passado_controlado(
     data_inicial = min(data_inicial_lotes, data_inicial_contas)
     data_final_historico = max(contas_pagas['data'])
     data_final = max(data_final_historico, data_referencia)
+    data_fechamento_observado = _ultimo_dia_util_bancario_anterior(
+        data_referencia,
+        calendario_financeiro,
+    )
     log_registros: list[dict[str, Any]] = []
     inconsistencias: list[dict[str, Any]] = []
     contas_por_data: dict[date, list[dict[str, Any]]] = {}
@@ -380,7 +398,7 @@ def carregar_replay_passado_controlado(
             calendario_financeiro,
             serie_cdi=serie_cdi,
             taxa_proj=calendario_financeiro.taxa_dia_base,
-            data_fechamento_referencia=data_referencia,
+            data_fechamento_referencia=data_fechamento_observado,
         )
         if info_capitalizacao.get('fallback'):
             qtd_fechamentos_referencia_com_fallback += 1
