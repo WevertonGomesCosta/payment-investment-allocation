@@ -22,9 +22,6 @@ from nucleo.estado_temporal_inicial import construir_estado_temporal_inicial
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.leitor_planilha import construir_resumo_planilha
 from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
-from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
-from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
-from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 from nucleo.saida_observavel import (
     construir_amostras_pagamentos_operacionais,
     construir_linhas_lotes_consolidados,
@@ -625,25 +622,30 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
     Esta função não carrega planilha, não baixa dados e não reconstrói cache.
     Ela apenas renderiza o estado recebido.
     """
-    if saida_canonica is None:
-        saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional, versao=VERSAO_BASELINE)
-        matriz = construir_matriz_elegibilidade_fontes_s7b(
-            contexto_operacional,
-            data_referencia=saida_canonica.data_referencia,
-            saida_canonica_preconstruida=saida_canonica,
+    pacote_saida_observavel_temporal = None
+    if saida_canonica is not None:
+        ativos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="ativos", modo_bootstrap_pacote=True)
+        exauridos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="exauridos", modo_bootstrap_pacote=True)
+        amostras_obs = construir_amostras_pagamentos_operacionais(
+            saida_canonica,
+            limite=1000,
+            contexto=contexto_operacional,
+            pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(
+                contexto_operacional,
+                saida_canonica,
+                lotes_ativos_observaveis=ativos_obs,
+                lotes_exauridos_observaveis=exauridos_obs,
+            ),
+            estado_temporal_inicial=estado_temporal_inicial,
         )
-        saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
-    ativos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="ativos", modo_bootstrap_pacote=True)
-    exauridos_obs = construir_linhas_lotes_consolidados(contexto_operacional, saida_canonica, tipo="exauridos", modo_bootstrap_pacote=True)
-    amostras_obs = construir_amostras_pagamentos_operacionais(saida_canonica, limite=1000, contexto=contexto_operacional, pacote_saida_observavel_temporal=construir_pacote_saida_observavel_temporal(contexto_operacional, saida_canonica, lotes_ativos_observaveis=ativos_obs, lotes_exauridos_observaveis=exauridos_obs), estado_temporal_inicial=estado_temporal_inicial)
-    pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
-    pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(
-        contexto_operacional,
-        saida_canonica,
-        lotes_ativos_observaveis=ativos_obs,
-        lotes_exauridos_observaveis=exauridos_obs,
-        pagamentos_realizados_observaveis=pagamentos_obs,
-    )
+        pagamentos_obs = list((amostras_obs.get("realizados") or {}).get("linhas") or [])
+        pacote_saida_observavel_temporal = construir_pacote_saida_observavel_temporal(
+            contexto_operacional,
+            saida_canonica,
+            lotes_ativos_observaveis=ativos_obs,
+            lotes_exauridos_observaveis=exauridos_obs,
+            pagamentos_realizados_observaveis=pagamentos_obs,
+        )
 
     pacote_config = contexto_operacional.pacote_config
     contexto = contexto_operacional.execucao
@@ -713,8 +715,25 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
 
     if pacote_saida_observavel_oficial is not None and getattr(pacote_saida_observavel_oficial, 'preparado', False):
         _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial)
-    else:
-        _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
+        _render_operacional_pos_pagamentos_oficial(
+            contexto_operacional,
+            estado_temporal_inicial=estado_temporal_inicial,
+            pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+        )
+        return
+
+    if saida_canonica is None:
+        _imprimir_titulo('LACUNA OFICIAL DE RENDERIZAÇÃO')
+        print('- status: pacote_saida_observavel_oficial_indisponivel')
+        print('- ação: nenhuma reconstrução legada foi executada pelo console oficial')
+        return
+
+    _render_amostras_pagamentos_operacionais(
+        contexto_operacional,
+        saida_canonica,
+        pacote_saida_observavel_temporal,
+        estado_temporal_inicial=estado_temporal_inicial,
+    )
 
     _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
     _render_secao_switchings_oficiais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal)
@@ -766,14 +785,7 @@ def main() -> None:
         instalar_automaticamente=False,
     )
     estado_temporal_inicial = construir_estado_temporal_inicial(contexto_operacional)
-    saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional, versao=VERSAO_BASELINE)
-    matriz = construir_matriz_elegibilidade_fontes_s7b(
-        contexto_operacional,
-        data_referencia=saida_canonica.data_referencia,
-        saida_canonica_preconstruida=saida_canonica,
-    )
-    saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
-    render_console(contexto_operacional, saida_canonica, estado_temporal_inicial=estado_temporal_inicial)
+    render_console(contexto_operacional, estado_temporal_inicial=estado_temporal_inicial)
 
 if __name__ == '__main__':
     main()

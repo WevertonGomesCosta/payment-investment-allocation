@@ -21,9 +21,6 @@ from nucleo.identidade_baseline import (
     caminho_saida_operacional,
     nome_relatorio_operacional,
 )
-from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
-from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
-from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
 from nucleo.saida_observavel import (
     construir_blocos_situacao_atual,
@@ -884,6 +881,75 @@ def _switchings_oficiais_xlsx(pacote_saida_observavel_oficial: Any) -> list[dict
     return linhas
 
 
+def _linha_lacuna_oficial(headers: list[str], mensagem: str) -> dict[str, Any]:
+    linha = {header: None for header in headers}
+    if headers:
+        linha[headers[0]] = mensagem
+    if 'Status' in linha:
+        linha['Status'] = 'lacuna_oficial'
+    if 'Status recomendação' in linha:
+        linha['Status recomendação'] = 'lacuna_oficial'
+    return linha
+
+
+def _linhas_extrato_passado_oficial_observavel(pacote_saida_observavel_oficial: Any) -> list[dict[str, Any]]:
+    bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
+    abas = dict(getattr(bloco_xlsx, 'abas', {}) or {})
+    registros = list(abas.get('Ultimos Pagamentos') or [])
+    if not registros:
+        registros = list(abas.get('Pagamentos Data Referencia') or [])
+    return _normalizar_extrato_passado_oficial(registros)
+
+
+def _salvar_workbook_operacional(wb, saida_interna: Path, saida_externa: Path) -> None:
+    saida_interna.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(saida_interna)
+
+    try:
+        if saida_externa.parent.exists():
+            wb.save(saida_externa)
+    except Exception as exc:
+        print(f"[AVISO] cópia externa não gerada: {type(exc).__name__}:{exc}")
+
+
+def _gerar_planilha_operacional_oficial(
+    *,
+    contexto,
+    pacote_saida_observavel_oficial,
+    saida_interna: Path,
+    saida_externa: Path,
+) -> Path:
+    wb = Workbook()
+
+    ws_passado = wb.active
+    ws_passado.title = _nome_aba_operacional(contexto, "extrato_passado")
+    headers_passado = _cabecalhos_operacionais(contexto, "extrato_passado")
+    extrato_passado = _linhas_extrato_passado_oficial_observavel(pacote_saida_observavel_oficial)
+    if not extrato_passado:
+        extrato_passado = [_linha_lacuna_oficial(headers_passado, 'extrato_passado_nao_materializado_no_pacote_saida_observavel_oficial')]
+    _apply_table_style(ws_passado, headers_passado, _rows(extrato_passado, headers_passado), freeze=True)
+
+    ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, "extrato_futuro"))
+    headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
+    extrato_futuro = _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial)
+    if not extrato_futuro:
+        extrato_futuro = [_linha_lacuna_oficial(headers_futuro, 'extrato_futuro_nao_materializado_no_pacote_saida_observavel_oficial')]
+    _apply_table_style(ws_futuro, headers_futuro, _rows(extrato_futuro, headers_futuro), freeze=True)
+
+    ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, "switching"))
+    headers_switching = _cabecalhos_operacionais(contexto, "switching")
+    switchings = _switchings_oficiais_xlsx(pacote_saida_observavel_oficial)
+    if not switchings:
+        switchings = [_linha_lacuna_oficial(headers_switching, 'switching_nao_materializado_no_pacote_saida_observavel_oficial')]
+    _apply_table_style(ws_switching, headers_switching, _rows(switchings, headers_switching), freeze=True)
+
+    _adicionar_abas_ranking(wb, contexto, incluir_abas_diagnosticas=False)
+    _adicionar_situacao_atual_oficial(wb, contexto, pacote_saida_observavel_oficial, pacote_saida_observavel_oficial)
+
+    _salvar_workbook_operacional(wb, saida_interna, saida_externa)
+    return saida_interna
+
+
 def main(
     *,
     contexto=None,
@@ -905,15 +971,6 @@ def main(
             instalar_automaticamente=False,
         )
 
-    if saida is None:
-        saida = construir_saida_canonica_com_switching_v17_c7(contexto, versao=VERSAO_BASELINE)
-        matriz = construir_matriz_elegibilidade_fontes_s7b(
-            contexto,
-            data_referencia=saida.data_referencia,
-            saida_canonica_preconstruida=saida,
-        )
-        saida, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida, matriz)
-
     saida_interna, saida_externa = _caminhos_saida_operacional(contexto)
 
     modo_oficial = str(modo_artefato or 'oficial').strip().lower() == 'oficial'
@@ -923,6 +980,19 @@ def main(
         else _usar_abas_diagnosticas(contexto)
     )
     incluir_extras_diagnosticas = (not modo_oficial) and diagnostico_solicitado
+
+    if modo_oficial and pacote_saida_observavel_oficial is not None:
+        return _gerar_planilha_operacional_oficial(
+            contexto=contexto,
+            pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+            saida_interna=saida_interna,
+            saida_externa=saida_externa,
+        )
+
+    if saida is None:
+        raise ValueError(
+            'saida legada ausente: informe pacote_saida_observavel_oficial para o modo oficial ou uma saida preconstruida para modo legado'
+        )
 
     wb = Workbook()
 
@@ -996,14 +1066,7 @@ def main(
         _adicionar_aba_auditoria_fifo(wb, contexto, saida)
         _adicionar_aba_auditoria_fifo_candidatos(wb, contexto, saida)
 
-    saida_interna.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(saida_interna)
-
-    try:
-        if saida_externa.parent.exists():
-            wb.save(saida_externa)
-    except Exception as exc:
-        print(f"[AVISO] cópia externa não gerada: {type(exc).__name__}:{exc}")
+    _salvar_workbook_operacional(wb, saida_interna, saida_externa)
 
     return saida_interna
 
