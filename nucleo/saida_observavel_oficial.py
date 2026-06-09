@@ -1226,9 +1226,11 @@ def construir_pacote_saida_observavel_oficial(
     blocos = _enriquecer_identificacao_operacional_blocos(blocos)
     resumo_operacional = preparar_resumo_operacional_observavel(blocos)
     modelo_pagamentos_historicos = preparar_modelo_pagamentos_historicos_observavel(blocos)
+    modelo_obrigacoes = preparar_modelo_obrigacoes_observaveis(blocos)
+    modelo_switching = preparar_modelo_switching_observavel(blocos)
+
     extrato_passado = preparar_bloco_extrato_passado(modelo_pagamentos_historicos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(modelo_pagamentos_historicos)
-    modelo_obrigacoes = preparar_modelo_obrigacoes_observaveis(blocos)
     pagamentos_data_referencia = preparar_bloco_pagamentos_data_referencia(
         modelo_obrigacoes,
         blocos.get('data_referencia'),
@@ -1240,7 +1242,6 @@ def construir_pacote_saida_observavel_oficial(
     pagamentos_por_fonte = preparar_bloco_pagamentos_por_fonte(modelo_obrigacoes)
     fontes = preparar_bloco_fontes_utilizadas_reservadas(blocos)
     obrigacoes = preparar_bloco_obrigacoes(modelo_obrigacoes)
-    modelo_switching = preparar_modelo_switching_observavel(blocos)
     switchings = preparar_bloco_switchings(modelo_switching)
     saldos = preparar_bloco_saldos(blocos)
     preservados = preservar_avisos_bloqueios_evidencias(blocos)
