@@ -14,15 +14,13 @@ from nucleo.estado_temporal_inicial import construir_estado_temporal_inicial
 from nucleo.motor_temporal_conjunto import construir_resultado_motor_temporal_conjunto
 from nucleo.ledger_temporal_canonico import construir_ledger_temporal_canonico
 from nucleo.gates_validacao_nucleo import validar_gates_nucleo
+from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
 from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_oficial
 from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_oficial
 from nucleo.limpeza_depreciacao_controlada import construir_resultado_limpeza_depreciacao_controlada
 from nucleo.inventario_legado_pipeline import construir_inventario_legado_pipeline
 from nucleo.identidade_baseline import VERSAO_BASELINE
-from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
-from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
-from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 from nucleo.situacao_atual_oficial import construir_situacao_atual_oficial
 
 
@@ -212,14 +210,7 @@ def carregar_contexto_e_saida():
             None,
         )
 
-    saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional_canonico, versao=VERSAO_BASELINE)
-    matriz = construir_matriz_elegibilidade_fontes_s7b(
-        contexto_operacional_canonico,
-        data_referencia=saida_canonica.data_referencia,
-        saida_canonica_preconstruida=saida_canonica,
-    )
-    saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
-
+    saida_canonica = construir_saida_canonica(contexto_operacional_canonico, versao=VERSAO_BASELINE)
     situacao_atual_origem = construir_situacao_atual_oficial(
         contexto_operacional_canonico,
         saida_canonica,
