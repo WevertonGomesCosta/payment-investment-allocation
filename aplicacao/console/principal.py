@@ -392,10 +392,6 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
     fechamento = _lista_dicts(getattr(bloco_console, 'situacao_atual_fechamento', []) or [])
     if fechamento:
         _imprimir_pares(_normalizar_pares(fechamento))
-        fechamento_por_metrica = {chave: valor for chave, valor in _normalizar_pares(fechamento)}
-        leitura = fechamento_por_metrica.get('Leitura auditável') or fechamento_por_metrica.get('leitura auditável')
-        if leitura:
-            print(f'- leitura auditável: {leitura}')
 
     exauridos_id = _lista_dicts(getattr(bloco_console, 'situacao_atual_lotes_exauridos_id', []) or [])
     exauridos_val = _lista_dicts(getattr(bloco_console, 'situacao_atual_lotes_exauridos_valores', []) or [])
