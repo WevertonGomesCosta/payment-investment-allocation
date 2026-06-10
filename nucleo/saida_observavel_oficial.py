@@ -239,10 +239,60 @@ def _enriquecer_obrigacao_identificacao(item: dict[str, Any], nomes_fontes: dict
     return saida
 
 
-def _enriquecer_switching_identificacao(item: dict[str, Any]) -> dict[str, Any]:
+def _normalizar_chave_operacional(valor: Any) -> str:
+    return _texto_material(valor).lower()
+
+
+def _produto_origem_recebido(item: dict[str, Any]) -> str:
+    referencia = item.get('referencia_recebido_temporal') or {}
+    if not isinstance(referencia, dict):
+        referencia = {}
+    return (
+        _texto_material(item.get('produto_origem'))
+        or _texto_material(item.get('investimento_destino'))
+        or _texto_material(item.get('carteira_destino'))
+        or _texto_material(referencia.get('investimento'))
+        or _texto_material(referencia.get('carteira_destino'))
+    )
+
+
+def _indice_produtos_origem_recebidos(destinos_sobras_recebidos: list[dict[str, Any]]) -> dict[str, str]:
+    indice: dict[str, str] = {}
+    for item in destinos_sobras_recebidos:
+        referencia = item.get('referencia_recebido_temporal') or {}
+        if not isinstance(referencia, dict):
+            referencia = {}
+        produto = _produto_origem_recebido(item)
+        if not produto:
+            continue
+        chaves = [
+            referencia.get('origem'),
+            item.get('lote_origem'),
+            item.get('lote_id_operacional'),
+            referencia.get('lote_id_operacional_previsto'),
+            item.get('fonte_id_tecnico'),
+            item.get('fonte_id_tecnico_original'),
+            item.get('recebido_id'),
+        ]
+        for chave in chaves:
+            chave_normalizada = _normalizar_chave_operacional(chave)
+            if chave_normalizada:
+                indice.setdefault(chave_normalizada, produto)
+    return indice
+
+
+def _enriquecer_switching_identificacao(item: dict[str, Any], produtos_origem_recebidos: dict[str, str] | None = None) -> dict[str, Any]:
     saida = dict(item)
     origem = _texto_material(saida.get('lote_origem_id') or saida.get('lote_origem'))
     destino = _texto_material(saida.get('lote_destino_id') or saida.get('lote_destino'))
+    produto_origem = (
+        _texto_material(saida.get('produto_origem'))
+        or _texto_material(saida.get('Produto origem'))
+        or _texto_material(saida.get('produto_origem_switching'))
+        or (produtos_origem_recebidos or {}).get(_normalizar_chave_operacional(origem))
+    )
+    if produto_origem:
+        saida['produto_origem'] = produto_origem
     if origem or destino:
         saida['switching_nome_operacional'] = f"{origem or 'origem n/d'} -> {destino or 'destino n/d'}"
     else:
@@ -271,12 +321,15 @@ def _enriquecer_identificacao_operacional_blocos(blocos: dict[str, Any]) -> dict
         _enriquecer_obrigacao_identificacao(item, nomes_fontes)
         for item in list(saida.get('obrigacoes_bloqueadas') or [])
     ]
+    produtos_origem_recebidos = _indice_produtos_origem_recebidos(
+        list(saida.get('destinos_sobras_recebidos') or [])
+    )
     saida['switchings_escolhidos'] = [
-        _enriquecer_switching_identificacao(item)
+        _enriquecer_switching_identificacao(item, produtos_origem_recebidos)
         for item in list(saida.get('switchings_escolhidos') or [])
     ]
     saida['switchings_realizados_operacionais'] = [
-        _enriquecer_switching_identificacao(item)
+        _enriquecer_switching_identificacao(item, produtos_origem_recebidos)
         for item in list(saida.get('switchings_realizados_operacionais') or [])
     ]
     return saida
@@ -869,7 +922,29 @@ def _linha_modelo_switching_observavel(item: dict[str, Any], origem_modelo: str)
     }
 
 
-def preparar_modelo_switching_observavel(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+def _total_aportes_futuros_materializado(blocos: dict[str, Any]) -> int | None:
+    destinos = list(blocos.get('destinos_sobras_recebidos') or [])
+    if not destinos:
+        return None
+
+    total = 0
+    for item in destinos:
+        referencia = item.get('referencia_recebido_temporal') or {}
+        if not isinstance(referencia, dict):
+            referencia = {}
+        status_materializacao = _texto_material(item.get('status_materializacao'))
+        destino_explicito = _texto_material(item.get('destino_explicito'))
+        materializado = referencia.get('materializado') is True
+        futuro_indisponivel = referencia.get('futuro_indisponivel') is True
+        if (materializado and not futuro_indisponivel) or (
+            destino_explicito == 'aporte'
+            and status_materializacao == 'materializado_etapa5_aporte_ja_representado_ou_nao_futuro'
+        ):
+            total += 1
+    return total
+
+
+def preparar_modelo_switching_observavel(blocos: dict[str, Any]) -> dict[str, Any]:
     escolhidos = [
         _linha_modelo_switching_observavel(item, 'switchings_escolhidos')
         for item in list(blocos.get('switchings_escolhidos') or [])
@@ -883,6 +958,7 @@ def preparar_modelo_switching_observavel(blocos: dict[str, Any]) -> dict[str, li
         'switchings_escolhidos': escolhidos,
         'switchings_realizados_operacionais': realizados,
         'lotes_pos_switching_materializados': lotes_pos,
+        'total_aportes_futuros_materializado': _total_aportes_futuros_materializado(blocos),
     }
 
 
@@ -921,10 +997,13 @@ def _projetar_switching_para_bloco_origem(item: dict[str, Any]) -> dict[str, Any
     return original
 
 
-def preparar_bloco_switchings(modelo_switching: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+def preparar_bloco_switchings(modelo_switching: dict[str, Any]) -> dict[str, Any]:
     switchings_escolhidos_modelo = list(modelo_switching.get('switchings_escolhidos', []))
     switchings_operacionais_modelo = list(modelo_switching.get('switchings_realizados_operacionais', []))
     lotes_pos = list(modelo_switching.get('lotes_pos_switching_materializados', []))
+    total_aportes_futuros = modelo_switching.get('total_aportes_futuros_materializado')
+    if total_aportes_futuros is None:
+        total_aportes_futuros = 'aportes_futuros_nao_materializados_na_rota_oficial'
 
     candidatos_avaliados = (
         len(switchings_escolhidos_modelo)
@@ -942,10 +1021,7 @@ def preparar_bloco_switchings(modelo_switching: dict[str, list[dict[str, Any]]])
     resumo_operacional = [
         {'Métrica': 'Total de switchings promovidos', 'Valor': len(switchings_operacionais_modelo)},
         {'Métrica': 'Total de lotes sintéticos pós-switching', 'Valor': len(lotes_pos)},
-        {
-            'Métrica': 'Total de aportes futuros',
-            'Valor': 'aportes_futuros_nao_materializados_na_rota_oficial',
-        },
+        {'Métrica': 'Total de aportes futuros', 'Valor': total_aportes_futuros},
     ]
 
     return {
