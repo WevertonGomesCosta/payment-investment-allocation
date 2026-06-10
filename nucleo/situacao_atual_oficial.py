@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import asdict, dataclass
 from datetime import date, datetime
+from types import SimpleNamespace
 from typing import Any
+
+from nucleo.pacotes_temporais_agregados_saida import construir_pacotes_temporais_agregados_saida
 
 from nucleo.calendario_financeiro import calcular_dias_lote
 
@@ -27,7 +31,7 @@ COLS_LOTES_ATIVOS_ID_CURTAS = [
     'Dias úteis',
 ]
 
-# Compatibilidade com chamadas antigas. Para novas saídas, usar listas específicas.
+# Cabeçalhos oficiais da Situação Atual.
 COLS_LOTES_ID_CURTAS = COLS_LOTES_EXAURIDOS_ID_CURTAS
 
 COLS_LOTES_VALORES_CURTAS = [
@@ -83,17 +87,17 @@ def para_float(valor: Any) -> float:
         return 0.0
 
 
-def _valores_sacados_por_lote_do_pacote(pacote_saida_observavel_temporal: Any) -> dict[str, dict[str, float]]:
-    pacote = _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
+def _valores_sacados_por_lote_do_pacote(snapshot_situacao_atual: Any) -> dict[str, dict[str, float]]:
+    snapshot = _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
     out: dict[str, dict[str, float]] = {}
-    for lote_id, dados in (getattr(pacote, "valores_sacados_por_lote", {}) or {}).items():
+    for lote_id, dados in (getattr(snapshot, "valores_sacados_por_lote", {}) or {}).items():
         bruto = (dados or {}).get("bruto_sacado")
         liquido = (dados or {}).get("liquido_sacado")
         if bruto is None and liquido is None and "valor_sacado_total" in (dados or {}):
             liquido = (dados or {}).get("valor_sacado_total")
         out[str(lote_id)] = {"bruto_sacado": round(para_float(bruto), 2), "liquido_sacado": round(para_float(liquido), 2)}
 
-    pagamentos = list((getattr(pacote, "pagamentos_replay_por_chave", {}) or {}).values())
+    pagamentos = list((getattr(snapshot, "pagamentos_replay_por_chave", {}) or {}).values())
     somas_pag: dict[str, dict[str, float]] = {}
     for row in pagamentos:
         lote_id = str(row.get("Lote") or row.get("Lotes usados") or "").strip()
@@ -210,9 +214,9 @@ def _registrar_aplicacao(mapa: dict[str, Any], lote_id: Any, data_aplicacao: Any
     mapa.setdefault(lote, data)
 
 
-def _aplicacoes_por_lote_do_pacote(pacote_saida_observavel_temporal: Any) -> dict[str, Any]:
-    pacote = _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
-    return dict(getattr(pacote, "aplicacoes_por_lote", {}) or {})
+def _aplicacoes_por_lote_do_pacote(snapshot_situacao_atual: Any) -> dict[str, Any]:
+    snapshot = _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
+    return dict(getattr(snapshot, "aplicacoes_por_lote", {}) or {})
 
 
 def _produto_preenchido_observavel(valor: Any) -> bool:
@@ -227,9 +231,9 @@ def _registrar_produto_lote(mapa: dict[str, Any], lote_id: Any, produto: Any) ->
     mapa.setdefault(lote, str(produto).strip())
 
 
-def _produtos_por_lote_do_pacote(pacote_saida_observavel_temporal: Any) -> dict[str, Any]:
-    pacote = _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
-    return dict(getattr(pacote, "produtos_por_lote", {}) or {})
+def _produtos_por_lote_do_pacote(snapshot_situacao_atual: Any) -> dict[str, Any]:
+    snapshot = _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
+    return dict(getattr(snapshot, "produtos_por_lote", {}) or {})
 
 
 def _registrar_valor_original_lote(mapa: dict[str, float], lote_id: Any, valor_original: Any) -> None:
@@ -240,17 +244,17 @@ def _registrar_valor_original_lote(mapa: dict[str, float], lote_id: Any, valor_o
     mapa.setdefault(lote, valor)
 
 
-def _valores_originais_por_lote_do_pacote(pacote_saida_observavel_temporal: Any) -> dict[str, float]:
-    pacote = _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
-    return dict(getattr(pacote, "valores_originais_por_lote", {}) or {})
+def _valores_originais_por_lote_do_pacote(snapshot_situacao_atual: Any) -> dict[str, float]:
+    snapshot = _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
+    return dict(getattr(snapshot, "valores_originais_por_lote", {}) or {})
 
 
 
 
-def _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal: Any) -> Any:
-    if pacote_saida_observavel_temporal is None:
-        raise RuntimeError("saida_observavel_requer_pacote_saida_observavel_temporal_na_V4W")
-    return pacote_saida_observavel_temporal
+def _exigir_snapshot_situacao_atual(snapshot_situacao_atual: Any) -> Any:
+    if snapshot_situacao_atual is None:
+        raise RuntimeError("situacao_atual_oficial_requer_snapshot")
+    return snapshot_situacao_atual
 
 def _origens_migradas_auditoria(saida: Any) -> list[dict[str, Any]]:
     auditoria = dict(getattr(saida, "auditoria", {}) or {})
@@ -269,9 +273,9 @@ def _status_ciclo_lote(item: dict[str, Any], *, tipo: str) -> str:
 
 
 
-def _saldos_finais_replay_por_lote_do_pacote(pacote_saida_observavel_temporal: Any) -> dict[str, float]:
-    pacote = _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
-    return dict(getattr(pacote, "saldos_finais_replay_por_lote", {}) or {})
+def _saldos_finais_replay_por_lote_do_pacote(snapshot_situacao_atual: Any) -> dict[str, float]:
+    snapshot = _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
+    return dict(getattr(snapshot, "saldos_finais_replay_por_lote", {}) or {})
 
 
 def _saldos_finais_por_lote_de_linhas(linhas: list[dict[str, Any]]) -> dict[str, float]:
@@ -398,18 +402,18 @@ def _saldos_finais_por_lote_bootstrap(saida: Any) -> dict[str, float]:
     return {k: v[3] for k, v in acc.items()}
 
 
-def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None, modo_bootstrap_pacote: bool = False) -> list[dict[str, Any]]:
+def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_situacao_atual: Any | None = None, modo_bootstrap_snapshot: bool = False) -> list[dict[str, Any]]:
     campo = 'lotes_exauridos' if tipo == 'exauridos' else 'lotes_ativos'
     itens = list(getattr(saida, campo, []) or [])
     lotes_exauridos = list(getattr(saida, 'lotes_exauridos', []) or [])
-    if pacote_saida_observavel_temporal is None:
-        if not modo_bootstrap_pacote:
-            _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
+    if snapshot_situacao_atual is None:
+        if not modo_bootstrap_snapshot:
+            _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
         mapa_saldo_final_replay = _saldos_finais_por_lote_bootstrap(saida)
         somas = _valores_sacados_por_lote_bootstrap(saida)
     else:
-        mapa_saldo_final_replay = _saldos_finais_replay_por_lote_do_pacote(pacote_saida_observavel_temporal)
-        somas = _valores_sacados_por_lote_do_pacote(pacote_saida_observavel_temporal)
+        mapa_saldo_final_replay = _saldos_finais_replay_por_lote_do_pacote(snapshot_situacao_atual)
+        somas = _valores_sacados_por_lote_do_pacote(snapshot_situacao_atual)
     lotes_exauridos_ids = {str(item.get('Lote') or '').strip() for item in lotes_exauridos}
     lotes_ativos_ids = {str(item.get('Lote') or '').strip() for item in list(getattr(saida, 'lotes_ativos', []) or [])}
     mapa_termino = _mapa_ultimo_uso_lotes_saida(saida)
@@ -500,23 +504,23 @@ def construir_linhas_lotes_consolidados(contexto, saida, *, tipo: str, pacote_sa
     return linhas
 
 
-def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
+def _montar_lotes_identificacao_oficial(contexto, saida, *, tipo: str, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     if tipo == 'ativos':
         headers = COLS_LOTES_ATIVOS_ID_CURTAS
-        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+        linhas_base = _montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual)
     elif tipo == 'exauridos':
         headers = COLS_LOTES_EXAURIDOS_ID_CURTAS
         linhas_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
-            construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
+            _montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual),
             saida,
         )
         linhas_base = (
             linhas_consolidadas
-            + construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
+            + construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_situacao_atual=snapshot_situacao_atual, estado_temporal_inicial=estado_temporal_inicial)
         )
     else:
         headers = COLS_LOTES_ID_CURTAS
-        linhas_base = construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+        linhas_base = _montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual)
 
     return [
         {chave: item.get(chave) for chave in headers}
@@ -524,15 +528,15 @@ def construir_linhas_lotes_id_curta(contexto, saida, *, tipo: str, pacote_saida_
     ]
 
 
-def construir_linhas_lotes_valores_curta(contexto, saida, *, tipo: str, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
-    linhas_base = list(construir_linhas_lotes_consolidados(contexto, saida, tipo=tipo, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal))
+def _montar_lotes_valores_oficial(contexto, saida, *, tipo: str, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
+    linhas_base = list(_montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual))
 
     if tipo == 'exauridos':
         # Mantém alinhamento visual entre a tabela de identificação e a tabela de valores.
         # As origens migradas por switching entram apenas como linhas observáveis
-        # e NÃO são usadas por construir_resumo_patrimonio_total_lotes(...).
+        # e NÃO são usadas por _montar_patrimonio_total_lotes_oficial(...).
         linhas_base = _remover_origens_migradas_dos_exauridos_consolidados(linhas_base, saida)
-        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
+        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, snapshot_situacao_atual=snapshot_situacao_atual, estado_temporal_inicial=estado_temporal_inicial)
 
     return [
         {chave: item.get(chave) for chave in COLS_LOTES_VALORES_CURTAS}
@@ -595,9 +599,9 @@ def _mapa_economico_origens_switching(saida: Any) -> dict[str, dict[str, float]]
             slot[k] = round(para_float(slot[k]), 2)
     return mapa
 
-def construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
-    aplicacoes = _aplicacoes_por_lote_do_pacote(pacote_saida_observavel_temporal)
-    produtos = _produtos_por_lote_do_pacote(pacote_saida_observavel_temporal)
+def construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
+    aplicacoes = _aplicacoes_por_lote_do_pacote(snapshot_situacao_atual)
+    produtos = _produtos_por_lote_do_pacote(snapshot_situacao_atual)
     linhas: list[dict[str, Any]] = []
 
     origens = list(_origens_migradas_auditoria(saida))
@@ -635,16 +639,16 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, pacote_said
 
 
 
-def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
+def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     """Valores observáveis das origens migradas por switching.
 
     Essas linhas existem para alinhar a renderização das tabelas:
     - aparecem em "Lotes exauridos — identificação";
     - também aparecem em "Lotes exauridos — valores e patrimônio";
     - não são somadas no resumo patrimonial, pois o resumo continua usando
-      construir_linhas_lotes_consolidados(...).
+      _montar_lotes_consolidados_oficial(...).
     """
-    valores_originais = _valores_originais_por_lote_do_pacote(pacote_saida_observavel_temporal)
+    valores_originais = _valores_originais_por_lote_do_pacote(snapshot_situacao_atual)
     linhas: list[dict[str, Any]] = []
     mapa_economico = _mapa_economico_origens_switching(saida)
 
@@ -681,15 +685,15 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pac
 
 
 
-def construir_linhas_origens_migradas_por_switching(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
-    aplicacoes = _aplicacoes_por_lote_do_pacote(pacote_saida_observavel_temporal)
+def construir_linhas_origens_migradas_por_switching(contexto, saida, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
+    aplicacoes = _aplicacoes_por_lote_do_pacote(snapshot_situacao_atual)
     linhas: list[dict[str, Any]] = []
     valores_encerrados = {
         str(row.get('Lote') or '').strip(): row
         for row in construir_linhas_lotes_valores_encerrados_por_switching(
             contexto,
             saida,
-            pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+            snapshot_situacao_atual=snapshot_situacao_atual,
             estado_temporal_inicial=estado_temporal_inicial,
         )
         if str(row.get('Lote') or '').strip()
@@ -746,46 +750,6 @@ def construir_linhas_origens_migradas_por_switching(contexto, saida, pacote_said
     return linhas
 
 
-def construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal: Any | None = None) -> list[dict[str, Any]]:
-    _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
-    """Switchings enriquecidos para console e planilha.
-
-    Mantém a decisão de switching intacta e apenas preenche campos observáveis
-    ausentes, especialmente Produto origem.
-    """
-    produtos = _produtos_por_lote_do_pacote(pacote_saida_observavel_temporal)
-    linhas: list[dict[str, Any]] = []
-
-    for item in list(getattr(saida, "switchings", []) or []):
-        linha = dict(item)
-        lote = str(
-            linha.get("Lote origem")
-            or linha.get("lote_origem")
-            or linha.get("lote_origem_switching")
-            or linha.get("lote_id")
-            or ""
-        ).strip()
-
-        produto_origem = (
-            linha.get("Produto origem")
-            or linha.get("produto_origem")
-            or linha.get("produto_origem_switching")
-            or _lookup_por_lote_normalizado(produtos, lote, None)
-        )
-
-        if not _produto_preenchido_observavel(produto_origem):
-            produto_origem = "produto_origem_nao_encontrado"
-
-        linha["Produto origem"] = produto_origem
-        linha['Data'] = linha.get('Data') or linha.get('data_switching') or linha.get('data_aplicacao')
-        linha['Lote origem'] = linha.get('Lote origem') or linha.get('lote_origem') or linha.get('lote_origem_switching') or linha.get('lote_id')
-        linha['Lote destino'] = linha.get('Lote destino') or linha.get('lote_destino') or linha.get('Lote (ID) Depois')
-        linha['Produto destino'] = linha.get('Produto destino') or linha.get('Produto destino switching') or linha.get('produto_destino') or linha.get('Destino')
-        linhas.append(linha)
-
-    return linhas
-
-
 def _reconciliacao_origens_migradas(saida) -> dict[str, float]:
     auditoria = dict(getattr(saida, 'auditoria', {}) or {})
     rec = dict(auditoria.get('reconciliacao_patrimonial_origens_migradas') or {})
@@ -808,17 +772,17 @@ def _valor_total_recebidos_brutos(saida) -> float:
     return round(total, 2)
 
 
-def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
-    _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
+def _montar_patrimonio_total_lotes_oficial(contexto, saida, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
+    _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
     linhas_exauridos_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
-        construir_linhas_lotes_consolidados(contexto, saida, tipo='exauridos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal),
+        _montar_lotes_consolidados_oficial(contexto, saida, tipo='exauridos', snapshot_situacao_atual=snapshot_situacao_atual),
         saida,
     )
     linhas_exauridos = (
         linhas_exauridos_consolidadas
-        + construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, pacote_saida_observavel_temporal=pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
+        + construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, snapshot_situacao_atual=snapshot_situacao_atual, estado_temporal_inicial=estado_temporal_inicial)
     )
-    linhas_ativos = construir_linhas_lotes_consolidados(contexto, saida, tipo='ativos', pacote_saida_observavel_temporal=pacote_saida_observavel_temporal)
+    linhas_ativos = _montar_lotes_consolidados_oficial(contexto, saida, tipo='ativos', snapshot_situacao_atual=snapshot_situacao_atual)
     linhas_economicas = linhas_exauridos_consolidadas + linhas_ativos
     linhas = linhas_exauridos + linhas_ativos
 
@@ -903,39 +867,39 @@ def construir_resumo_patrimonio_total_lotes(contexto, saida, pacote_saida_observ
     return bloco_principal + bloco_reconciliacao
 
 
-def construir_blocos_situacao_atual(contexto, saida, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
-    _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
+def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
+    _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
 
-    lotes_exauridos_id = construir_linhas_lotes_id_curta(
+    lotes_exauridos_id = _montar_lotes_identificacao_oficial(
         contexto,
         saida,
         tipo='exauridos',
-        pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+        snapshot_situacao_atual=snapshot_situacao_atual,
         estado_temporal_inicial=estado_temporal_inicial,
     )
-    lotes_exauridos_valores = construir_linhas_lotes_valores_curta(
+    lotes_exauridos_valores = _montar_lotes_valores_oficial(
         contexto,
         saida,
         tipo='exauridos',
-        pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+        snapshot_situacao_atual=snapshot_situacao_atual,
         estado_temporal_inicial=estado_temporal_inicial,
     )
     lotes_ativos_id = _filtrar_lotes_ativos_com_estado_temporal(
-        construir_linhas_lotes_id_curta(
+        _montar_lotes_identificacao_oficial(
             contexto,
             saida,
             tipo='ativos',
-            pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+            snapshot_situacao_atual=snapshot_situacao_atual,
             estado_temporal_inicial=estado_temporal_inicial,
         ),
         estado_temporal_inicial=estado_temporal_inicial,
     )
     lotes_ativos_valores = _filtrar_lotes_ativos_com_estado_temporal(
-        construir_linhas_lotes_valores_curta(
+        _montar_lotes_valores_oficial(
             contexto,
             saida,
             tipo='ativos',
-            pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+            snapshot_situacao_atual=snapshot_situacao_atual,
             estado_temporal_inicial=estado_temporal_inicial,
         ),
         estado_temporal_inicial=estado_temporal_inicial,
@@ -943,13 +907,13 @@ def construir_blocos_situacao_atual(contexto, saida, pacote_saida_observavel_tem
     origens_migradas = construir_linhas_origens_migradas_por_switching(
         contexto,
         saida,
-        pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+        snapshot_situacao_atual=snapshot_situacao_atual,
         estado_temporal_inicial=estado_temporal_inicial,
     )
-    patrimonio_total = construir_resumo_patrimonio_total_lotes(
+    patrimonio_total = _montar_patrimonio_total_lotes_oficial(
         contexto,
         saida,
-        pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
+        snapshot_situacao_atual=snapshot_situacao_atual,
         estado_temporal_inicial=estado_temporal_inicial,
     )
 
@@ -1003,524 +967,264 @@ def construir_blocos_situacao_atual(contexto, saida, pacote_saida_observavel_tem
 
 # ============================================================
 # V225 — Amostras operacionais de pagamentos
-# Fonte única para console.
-# ============================================================
-
-COLS_PAGAMENTOS_REALIZADOS_CONSOLE = [
-    'Data',
-    'Descrição',
-    'Valor',
-    'Lotes usados',
-    'Saldo Antes',
-    'Bruto',
-    'Imposto',
-    'Líquido',
-    'Saldo Remanescente',
-]
-
-COLS_PAGAMENTOS_PROXIMOS_CONSOLE = [
-    'Data',
-    'Conta',
-    'Valor',
-    'Lote',
-    'Pacote',
-    'Switch?',
-    'Reserva',
-    'Saldo ant.',
-    'Bruto',
-    'IR',
-    'Liq.',
-    'Rem.',
-    'Sw. ant.',
-    'Sw. dep.',
-    'Status',
-    'Bloq.',
-]
-
-COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE = [
-    'Data',
-    'Conta',
-    'Valor',
-    'Lote',
-    'Pacote',
-    'Switch?',
-    'Reserva',
-    'Saldo ant.',
-    'Bruto',
-    'IR',
-    'Liq.',
-    'Rem.',
-]
-
-COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS = [
-    'Data',
-    'Conta',
-    'Lote',
-    'Pacote',
-    'Sw. ant.',
-    'Sw. dep.',
-    'Status',
-    'Bloq.',
-]
-
-COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE = [
-    'Data',
-    'Conta',
-    'Valor',
-    'Lote',
-    'Pós-switch',
-    'Destino sw.',
-    'Origem sw.',
-    'Fonte sw.',
-    'Data sw.',
-    'Ganho sw.',
-    'Pacote',
-    'Sw. ant.',
-    'Status',
-    'Saldo temp. ant.',
-    'Consumo temp.',
-    'Saldo temp. dep.',
-]
-
-COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DECISAO = [
-    'Data',
-    'Conta',
-    'Valor',
-    'Lote',
-    'Pós-switch',
-    'Pacote',
-    'Sw. ant.',
-    'Status',
-]
-
-COLS_PAGAMENTOS_FUTUROS_RELEVANTE_AUDITORIA_SW = [
-    'Data',
-    'Conta',
-    'Lote',
-    'Destino sw.',
-    'Origem sw.',
-    'Fonte sw.',
-    'Data sw.',
-    'Ganho sw.',
-]
-
-COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONSUMO = [
-    'Data',
-    'Conta',
-    'Lote',
-    'Saldo ant.',
-    'Consumo',
-    'Saldo dep.',
-]
-
-COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONCILIACAO = [
-    'Data',
-    'Conta',
-    'Lote original',
-    'Destino sw.',
-    'Data janela',
-    'Destino janela',
-    'Conciliação sw.',
-]
-
-COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DIAGNOSTICO_POS_SW = [
-    'Data',
-    'Conta',
-    'Lote original',
-    'Pos sw?',
-    'Fonte pos sw',
-    'Saldo pos sw',
-    'Motivo pos sw',
-    'Origem saldo pos',
-    'Líq. pos',
-    'Data saldo pos',
-    'Motivo saldo pos',
-    'Status',
-]
-
-COLS_RECEBIDOS_FUTUROS_CONSOLE = [
-    'Data',
-    'Lote',
-    'Valor',
-    'Status',
-    'Destino',
-    'Carteira',
-    'Usado',
-    'Saldo',
-]
-
-COLS_LOTES_SINTETICOS_POS_SWITCHING = [
-    'Data',
-    'Lotes origem',
-    'Destino',
-    'Novo lote',
-    'Valor líquido total',
-    'Origem valor',
-]
-
-COLS_ESTADO_POS_SWITCHING_LOTES = [
-    'Data',
-    'Novo lote',
-    'Produto destino',
-    'Valor inicial',
-    'Lotes origem',
-    'Status origem',
-    'Status novo',
-    'Liquidez',
-    'Carência',
-    'Ticket mín.',
-    'Origem valor',
-]
 
 
-
-def _normalizar_chave_pagamento(valor: Any) -> str:
-    txt = str(valor or "").strip().lower()
-    for a, b in [
-        ("á", "a"), ("à", "a"), ("ã", "a"), ("â", "a"),
-        ("é", "e"), ("ê", "e"),
-        ("í", "i"),
-        ("ó", "o"), ("ô", "o"), ("õ", "o"),
-        ("ú", "u"),
-        ("ç", "c"),
-    ]:
-        txt = txt.replace(a, b)
-    return " ".join(txt.split())
+VERSAO_SITUACAO_ATUAL_OFICIAL = "ME-518B-SITUACAO-ATUAL-OFICIAL-01"
 
 
-def _chave_pagamento_replay(row: Any) -> tuple[str, str, str, float]:
-    data = _fmt_data_observavel(row.get("Data"), padrao="")
-    descricao = _normalizar_chave_pagamento(
-        row.get("Conta")
-        or row.get("Descrição")
-        or row.get("Descricao")
-        or ""
-    )
-    lote = str(row.get("Lote") or row.get("Lotes usados") or "").strip()
-    liquido = round(
-        para_float(
-            row.get("Líquido")
-            if "Líquido" in row
-            else row.get("Liquido")
-        ),
-        2,
-    )
-    return data, descricao, lote, liquido
+@dataclass(slots=True)
+class SnapshotSituacaoAtualOficial:
+    versao: str
+    data_referencia: Any
+    saldos_finais_replay_por_lote: dict[str, float]
+    pagamentos_replay_por_chave: dict[str, dict[str, Any]]
+    aplicacoes_por_lote: dict[str, Any]
+    produtos_por_lote: dict[str, str]
+    valores_originais_por_lote: dict[str, float]
+    valores_sacados_por_lote: dict[str, dict[str, float]]
+    lotes_ativos_observaveis: list[dict[str, Any]]
+    lotes_exauridos_observaveis: list[dict[str, Any]]
+    pagamentos_realizados_observaveis: list[dict[str, Any]]
+    auditoria_situacao_atual_oficial: dict[str, Any]
+    validacao_situacao_atual_oficial: dict[str, Any]
+    metadados_origem: dict[str, Any]
+
+    def como_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
-def _chave_pagamento_console(row: dict[str, Any]) -> tuple[str, str, str, float]:
-    data = _fmt_data_observavel(row.get("Data"), padrao="")
-    descricao = _normalizar_chave_pagamento(
-        row.get("Descrição")
-        or row.get("Descricao")
-        or row.get("Conta")
-        or ""
-    )
-    lote = str(row.get("Lotes usados") or row.get("Lote") or "").strip()
-    liquido = round(
-        para_float(
-            row.get("Líquido")
-            if "Líquido" in row
-            else row.get("Liquido") or row.get("Valor")
-        ),
-        2,
-    )
-    return data, descricao, lote, liquido
+def _txt(v: Any) -> str:
+    return str(v or "").strip()
 
 
-def _pagamentos_replay_por_chave_do_pacote(pacote_saida_observavel_temporal: Any) -> dict[tuple[str, str, str, float], dict[str, Any]]:
-    pacote = _exigir_pacote_saida_observavel_temporal(pacote_saida_observavel_temporal)
-    mapa_pacote: dict[tuple[str, str, str, float], dict[str, Any]] = {}
-    for row in (getattr(pacote, "pagamentos_replay_por_chave", {}) or {}).values():
-        chave = _chave_pagamento_replay(row)
-        if chave[0] and chave[1] and chave[2]:
-            mapa_pacote[chave] = {
-                "Saldo Antes": row.get("Saldo Antes"),
-                "Bruto": row.get("Bruto"),
-                "Imposto": row.get("Imposto"),
-                "Líquido": row.get("Líquido") if "Líquido" in row else row.get("Liquido"),
-                "Saldo Remanescente": row.get("Saldo Remanescente"),
-            }
-    return mapa_pacote
+def _lote_norm(v: Any) -> str:
+    return _txt(v).lower().replace(".", "")
 
 
-def corrigir_pagamentos_realizados_console_com_pacote(
+def _f(v: Any) -> float:
+    try:
+        return round(float(v), 2)
+    except Exception:
+        return 0.0
+
+
+def _data_ord(v: Any) -> tuple[int, str]:
+    if isinstance(v, (datetime, date)):
+        return (0, v.isoformat())
+    s = _txt(v)
+    if not s:
+        return (2, "")
+    try:
+        return (0, datetime.fromisoformat(s).isoformat())
+    except Exception:
+        return (1, s)
+
+
+def _iter_rows(obj: Any) -> list[dict[str, Any]]:
+    if obj is None:
+        return []
+    if hasattr(obj, "to_dict"):
+        try:
+            return list(obj.to_dict(orient="records"))
+        except Exception:
+            pass
+    if isinstance(obj, list):
+        return [dict(x) if isinstance(x, dict) else {"valor": x} for x in obj]
+    return []
+
+
+def _valor_primeiro(row: dict[str, Any], nomes: list[str]) -> Any:
+    for n in nomes:
+        if n in row and row.get(n) not in (None, ""):
+            return row.get(n)
+    return None
+
+
+def _num_primeiro(row: dict[str, Any], nomes: list[str]) -> float:
+    return _f(_valor_primeiro(row, nomes))
+
+
+def _txt_primeiro(row: dict[str, Any], nomes: list[str]) -> str:
+    return _txt(_valor_primeiro(row, nomes))
+
+
+def _construir_snapshot_situacao_atual_oficial(
     contexto: Any,
-    linhas: list[dict[str, Any]],
-    pacote_saida_observavel_temporal: Any | None = None,
-) -> list[dict[str, Any]]:
-    """Normaliza a amostra observável de pagamentos realizados usando o replay.
+    saida: Any,
+    *,
+    pacotes_temporais: Any | None = None,
+    lotes_ativos_observaveis: list[dict[str, Any]] | None = None,
+    lotes_exauridos_observaveis: list[dict[str, Any]] | None = None,
+    pagamentos_realizados_observaveis: list[dict[str, Any]] | None = None,
+) -> SnapshotSituacaoAtualOficial:
+    pacotes = pacotes_temporais or construir_pacotes_temporais_agregados_saida(contexto)
+    replay = getattr(pacotes, "pacote_replay_passado", None)
+    log = _iter_rows(getattr(replay, "log_movimentos_passados", []))
 
-    Não altera `saida.extrato_passado`, replay, ledger ou regras econômicas.
-    Apenas corrige a renderização da amostra do console quando a linha observável
-    diverge da linha auditável do replay para o mesmo pagamento/lote.
-    """
-    mapa_replay = _pagamentos_replay_por_chave_do_pacote(pacote_saida_observavel_temporal) if pacote_saida_observavel_temporal is not None else {}
-    if not mapa_replay:
-        return list(linhas)
+    rows_ordenadas = sorted(list(enumerate(log)), key=lambda x: (_data_ord(_valor_primeiro(x[1], ["Data"])), x[0]))
+    saldos_finais: dict[str, float] = {}
+    pagamentos: dict[str, dict[str, Any]] = {}
+    valores_sacados: dict[str, dict[str, float]] = {}
+    colisoes = 0
+    for ordem_original, r in rows_ordenadas:
+        lote = _txt_primeiro(r, ["Lote"])
+        if lote:
+            saldos_finais[lote] = _num_primeiro(r, ["Saldo Remanescente", "Saldo remanescente", "Remanescente"])
 
-    corrigidas: list[dict[str, Any]] = []
-    for linha in linhas:
-        nova = dict(linha)
-        chave = _chave_pagamento_console(nova)
-        ref = mapa_replay.get(chave)
-        if ref:
-            nova["Saldo Antes"] = ref.get("Saldo Antes")
-            nova["Bruto"] = ref.get("Bruto")
-            nova["Imposto"] = ref.get("Imposto")
-            nova["Líquido"] = ref.get("Líquido")
-            nova["Valor"] = ref.get("Líquido")
-            nova["Saldo Remanescente"] = ref.get("Saldo Remanescente")
-        corrigidas.append(nova)
+        data_iso = _data_ord(_valor_primeiro(r, ["Data"]))[1]
+        conta = _txt_primeiro(r, ["Conta", "Descrição", "Descricao", "Histórico", "Historico"]).lower()
+        valor_conta = _num_primeiro(r, ["Valor Conta", "Líquido", "Liquido", "Valor"])
+        despesa_id = _txt_primeiro(r, ["Despesa ID", "despesa_id"])
+        partes = [data_iso, conta, f"{valor_conta:.2f}", _lote_norm(lote)]
+        if despesa_id:
+            partes.append(despesa_id)
+        partes.append(str(ordem_original))
+        chave = "|".join(partes)
 
-    return corrigidas
+        if chave in pagamentos:
+            colisoes += 1
+        pagamentos[chave] = {"ordem_original": ordem_original, **r}
 
-def construir_amostras_pagamentos_operacionais(saida, *, limite: int = 5, contexto: Any | None = None, pacote_saida_observavel_temporal: Any | None = None, estado_temporal_inicial: Any | None = None) -> dict[str, object]:
-    """Constrói as amostras operacionais de pagamentos para o console.
+        if lote:
+            acc = valores_sacados.setdefault(lote, {"valor_sacado_total": 0.0, "qtd_movimentos": 0.0})
+            valor_saque = _num_primeiro(r, ["Líquido", "Liquido", "Valor Líquido", "Valor Liquido", "Valor"])
+            acc["valor_sacado_total"] = round(acc["valor_sacado_total"] + abs(valor_saque), 2)
+            acc["qtd_movimentos"] = round(acc["qtd_movimentos"] + 1.0, 2)
 
-    Fonte dos dados:
-        saida_canonica.pagamentos_realizados_console(...)
-        saida_canonica.pagamentos_proximos_console(...)
+    origem = "snapshot_observavel_consolidado"
+    lotes_ativos = list(lotes_ativos_observaveis or [])
+    lotes_exauridos = list(lotes_exauridos_observaveis or [])
+    pagamentos_realizados = list(pagamentos_realizados_observaveis or _iter_rows(getattr(saida, "extrato_passado", [])))
 
-    Esta função centraliza apenas o contrato observável das amostras.
-    Não altera cálculo, replay ou regra de pagamentos.
-    """
-    return {
-        'titulo': 'PAGAMENTOS — AMOSTRAS OPERACIONAIS',
-        'realizados': {
-            'rotulo': 'últimos 5 pagamentos já realizados',
-            'headers': list(COLS_PAGAMENTOS_REALIZADOS_CONSOLE),
-            'linhas': corrigir_pagamentos_realizados_console_com_pacote(
-                contexto,
-                saida.pagamentos_realizados_console(limite=limite),
-                pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
-            ) if contexto is not None else saida.pagamentos_realizados_console(limite=limite),
-            'limite': limite,
-        },
-        'recebidos_futuros': {
-            'rotulo': 'recebidos/aportes futuros (amostra operacional)',
-            'headers': list(COLS_RECEBIDOS_FUTUROS_CONSOLE),
-            'linhas': saida.recebidos_futuros_console(limite=limite),
-            'limite': limite,
-        },
-        'proximos': {
-            'rotulo': 'próximos 5 pagamentos',
-            'headers': list(COLS_PAGAMENTOS_PROXIMOS_CONSOLE),
-            'linhas': (saida.pagamentos_proximos_console(limite=limite) or _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial, limite)) if estado_temporal_inicial is not None else saida.pagamentos_proximos_console(limite=limite),
-            'limite': limite,
-        },
-        'proximos_valores_fonte': {
-            'rotulo': 'próximos 5 pagamentos — valores/fonte',
-            'headers': list(COLS_PAGAMENTOS_PROXIMOS_VALORES_FONTE),
-            'linhas': (saida.pagamentos_proximos_console(limite=limite) or _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial, limite)) if estado_temporal_inicial is not None else saida.pagamentos_proximos_console(limite=limite),
-            'limite': limite,
-        },
-        'proximos_switching_status': {
-            'rotulo': 'próximos 5 pagamentos — switching/status',
-            'headers': list(COLS_PAGAMENTOS_PROXIMOS_SWITCHING_STATUS),
-            'linhas': (saida.pagamentos_proximos_console(limite=limite) or _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial, limite)) if estado_temporal_inicial is not None else saida.pagamentos_proximos_console(limite=limite),
-            'limite': limite,
-        },
-        'proximos_relevantes_switching_status': construir_amostra_pagamentos_futuros_switching_relevante(saida, limite=limite),
-    }
+    lotes_base = lotes_ativos + lotes_exauridos
+    aplic, prod, orig = {}, {}, {}
+    for r in lotes_base:
+        lote = _txt(r.get("Lote"))
+        if not lote:
+            continue
+        aplic[lote] = _txt_primeiro(r, ["Aplic.", "Aplicação", "Aplicacao", "aplicacao"])
+        prod[lote] = _txt(r.get("Produto") or r.get("Carteira"))
+        orig[lote] = _num_primeiro(r, ["Orig.", "Orig", "Valor Original", "Valor original"])
 
+    ativos_set = {_lote_norm(r.get("Lote")) for r in lotes_ativos}
+    ex_set = {_lote_norm(r.get("Lote")) for r in lotes_exauridos}
+    qtd_aplic_preenchidas = sum(1 for v in aplic.values() if _txt(v) != "")
+    qtd_orig_positivos = sum(1 for v in orig.values() if _f(v) > 0)
+    aplic_sem_vazios = qtd_aplic_preenchidas == len(aplic)
+    orig_validos = qtd_orig_positivos == len(orig)
 
+    erros = []
+    if not saldos_finais:
+        erros.append("saldos_finais_replay_por_lote_vazio")
+    if not pagamentos:
+        erros.append("pagamentos_replay_por_chave_vazio")
+    if not lotes_ativos:
+        erros.append("lotes_ativos_observaveis_vazio")
+    if not lotes_exauridos:
+        erros.append("lotes_exauridos_observaveis_vazio")
+    if ativos_set & ex_set:
+        erros.append("lotes_duplicados_ativos_exauridos")
+    if colisoes != 0:
+        erros.append("colisoes_chave_pagamento_replay")
+    if not aplic_sem_vazios:
+        erros.append("aplicacoes_por_lote_com_vazios")
+    if not orig_validos:
+        erros.append("valores_originais_por_lote_invalidos")
 
-
-def _construir_proximos_pagamentos_por_estado_temporal(estado_temporal_inicial: Any, limite: int) -> list[dict[str, Any]]:
-    pagamentos = list(getattr(estado_temporal_inicial, 'pagamentos_temporais', []) or [])
-    futuros = [p for p in pagamentos if p.get('status_temporal') == 'futuro' or p.get('futuro_na_referencia') is True]
-    futuros.sort(key=lambda p: str(p.get('data') or ''))
-    linhas = []
-    for p in futuros[:limite]:
-        linhas.append({
-            'Data': p.get('data'),
-            'Conta': p.get('descricao') or p.get('pagamento_id') or '',
-            'Valor': p.get('valor'),
-            'Lote': 'pendente_fonte_decisao_etapa5' if p.get('fonte_a_decidir') else (p.get('fonte_resolvida_historica') or 'pendente_decisao_etapa5'),
-            'Pós-switch': 'nao_aplicavel_sem_decisao_switching_etapa5',
-            'Destino sw.': 'nao_aplicavel_sem_decisao_switching_etapa5',
-            'Origem sw.': 'nao_aplicavel_sem_decisao_switching_etapa5',
-            'Fonte sw.': 'nao_aplicavel_sem_decisao_switching_etapa5',
-            'Data sw.': 'nao_aplicavel_sem_decisao_switching_etapa5',
-            'Ganho sw.': 'n/d',
-            'Pacote': 'pendente_decisao_etapa5',
-            'Switch?': 'não',
-            'Reserva': 'n/d',
-            'Saldo ant.': 'n/d',
-            'Bruto': p.get('valor'),
-            'IR': 'n/d',
-            'Liq.': p.get('valor'),
-            'Rem.': 'n/d',
-            'Sw. ant.': 'n/d',
-            'Sw. dep.': 'n/d',
-            'Status': 'pendencia_runtime_obrigacao_futura_sem_decisao_etapa5',
-            'Bloq.': 'limitacao_dados_observaveis_sem_fonte_decidida',
-            'Cobertura': 'não',
-        })
-    return linhas
-def construir_amostra_pagamentos_futuros_switching_relevante(saida, *, limite: int = 5) -> dict[str, object]:
-    if hasattr(saida, 'pagamentos_futuros_console_completo'):
-        linhas_base = list(saida.pagamentos_futuros_console_completo() or [])
-    else:
-        linhas_base = list(getattr(saida, 'pagamentos_proximos_console', lambda **_: [])(limite=limite) or [])
-    relevantes: list[dict[str, object]] = []
-    for item in linhas_base:
-        sw_ant = str(item.get('Sw. ant.') or '').strip().lower()
-        sw_dep = str(item.get('Sw. dep.') or '').strip().lower()
-        status = str(item.get('Status') or '').strip().lower()
-        bloq = str(item.get('Bloq.') or '').strip().lower()
-        pacote = str(item.get('Pacote') or '').strip().lower()
-        switch = str(item.get('Switch?') or '').strip().lower()
-        eh_relevante = (
-            sw_ant == 'sim'
-            or sw_dep == 'sim'
-            or (status not in {'', 'ok', 'n/d'})
-            or (bloq not in {'', 'n/d'})
-            or (pacote not in {'', 'pay_only'})
-            or switch == 'sim'
-        )
-        if eh_relevante:
-            relevantes.append(item)
-    switchings_janela = list(getattr(saida, 'switchings', []) or [])
-
-    def _conciliar(row: dict[str, object]) -> dict[str, object]:
-        lote = str(row.get('Lote original') or row.get('Lote') or '').strip()
-        data_pag = str(row.get('Data') or '').strip()
-        destino_sw = str(row.get('Destino sw.') or '').strip()
-        candidatos = [
-            item for item in switchings_janela
-            if str(item.get('Lote origem') or '').strip() == lote
-            and str(item.get('Data') or '').strip() <= data_pag
-        ]
-        if not candidatos:
-            return {'Data janela': 'n/d', 'Destino janela': 'n/d', 'Conciliação sw.': 'sem_sw_janela'}
-        candidatos = sorted(candidatos, key=lambda x: str(x.get('Data') or ''), reverse=True)
-        escolhido = candidatos[0]
-        data_janela = str(escolhido.get('Data') or 'n/d')
-        destino_janela = str(escolhido.get('Destino') or 'n/d')
-        lote_ja_migrado = True
-        divergente_destino = bool(destino_sw and destino_janela and destino_sw != destino_janela)
-        if lote_ja_migrado and divergente_destino:
-            status = 'lote_ja_migrado_divergente'
-        elif divergente_destino:
-            status = 'divergente_destino'
-        elif lote_ja_migrado:
-            status = 'lote_ja_migrado'
-        else:
-            status = 'alinhado'
-        return {'Data janela': data_janela, 'Destino janela': destino_janela, 'Conciliação sw.': status}
-
-    criticos = {('2026-05-04', 'cartão nu'), ('2026-05-20', 'cartão azul'), ('2026-06-15', 'internet')}
-    linhas_prioritarias: list[dict[str, object]] = []
-    linhas_normais: list[dict[str, object]] = []
-    for row in relevantes:
-        linha = dict(row)
-        linha['Lote original'] = row.get('Lote')
-        chave = (str(linha.get('Data') or '').strip(), str(linha.get('Conta') or '').strip().lower())
-        if chave in criticos:
-            linhas_prioritarias.append(linha)
-        else:
-            linhas_normais.append(linha)
-    linhas_conciliadas = (linhas_prioritarias + linhas_normais)[:limite]
-
-    return {
-        'rotulo': 'pagamentos futuros com switching/status relevante',
-        'headers': list(COLS_PAGAMENTOS_FUTUROS_SWITCHING_RELEVANTE),
-        'linhas': linhas_conciliadas,
-        'limite': limite,
-        'decisao': {
-            'rotulo': 'pagamentos futuros com switching/status relevante — decisão',
-            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DECISAO),
-            'linhas': linhas_conciliadas,
-            'limite': limite,
-        },
-        'auditoria_switching': {
-            'rotulo': 'pagamentos futuros com switching/status relevante — auditoria switching',
-            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_AUDITORIA_SW),
-            'linhas': linhas_conciliadas,
-            'limite': limite,
-        },
-        'consumo_temporal': {
-            'rotulo': 'pagamentos futuros com switching/status relevante — consumo temporal',
-            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONSUMO),
-            'linhas': [
-                {
-                    'Data': row.get('Data'),
-                    'Conta': row.get('Conta'),
-                    'Lote': row.get('Lote'),
-                    'Saldo ant.': row.get('Saldo temp. ant.'),
-                    'Consumo': row.get('Consumo temp.'),
-                    'Saldo dep.': row.get('Saldo temp. dep.'),
-                }
-                for row in linhas_conciliadas
-            ],
-            'limite': limite,
-        },
-        'conciliacao_janela': {
-            'rotulo': 'pagamentos futuros com switching/status relevante — conciliação janela',
-            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_CONCILIACAO),
-            'linhas': [
-                {
-                    'Data': row.get('Data'),
-                    'Conta': row.get('Conta'),
-                    'Lote original': row.get('Lote original'),
-                    'Destino sw.': row.get('Destino sw.'),
-                    **_conciliar(row),
-                }
-                for row in linhas_conciliadas
-            ],
-            'limite': limite,
-        },
-        'diagnostico_pos_switch': {
-            'rotulo': 'pagamentos futuros com switching/status relevante — diagnóstico pos-switch',
-            'headers': list(COLS_PAGAMENTOS_FUTUROS_RELEVANTE_DIAGNOSTICO_POS_SW),
-            'linhas': [
-                {
-                    'Data': row.get('Data'),
-                    'Conta': row.get('Conta'),
-                    'Lote original': row.get('Lote original') or row.get('Lote'),
-                    'Pos sw?': row.get('Pos sw?', 'n/d'),
-                    'Fonte pos sw': row.get('Fonte pos sw', 'n/d'),
-                    'Saldo pos sw': row.get('Saldo pos sw', 'n/d'),
-                    'Motivo pos sw': row.get('Motivo pos sw', 'n/d'),
-                    'Origem saldo pos': row.get('Origem saldo pos', 'n/d'),
-                    'Líq. pos': row.get('Líq. pos', 'n/d'),
-                    'Data saldo pos': row.get('Data saldo pos', 'n/d'),
-                    'Motivo saldo pos': row.get('Motivo saldo pos', 'n/d'),
-                    'Status': row.get('Status', 'n/d'),
-                }
-                for row in linhas_conciliadas
-            ],
-            'limite': limite,
+    validacao = {
+        "ok": len(erros) == 0,
+        "erros_bloqueantes": erros,
+        "avisos": [],
+        "evidencias": {
+            "origem_lotes_ativos_exauridos": origem,
+            "usa_snapshot_canonico_bruto": False,
+            "validacao_generica_snapshot_ok": len(erros) == 0,
         },
     }
-
-
-def construir_amostra_alocacao_recebidos_futuros(saida, *, limite: int = 5) -> dict[str, object]:
-    return {
-        'rotulo': 'aportes futuros / alocação',
-        'headers': list(COLS_RECEBIDOS_FUTUROS_CONSOLE),
-        'linhas': saida.recebidos_futuros_console(limite=limite),
-        'limite': limite,
+    auditoria = {
+        "ok": len(erros) == 0,
+        "versao_microetapa": VERSAO_SITUACAO_ATUAL_OFICIAL,
+        "origem_execucao": "situacao_atual_oficial",
+        "contrato_alvo": "SnapshotSituacaoAtualOficial",
+        "usa_pacotes_temporais_agregados": True,
+        "nao_altera_saida_canonica": True,
+        "nao_altera_replay_efetivo": True,
+        "nao_altera_ledger_efetivo": True,
+        "qtd_saldos_finais_replay_por_lote": len(saldos_finais),
+        "qtd_pagamentos_replay_por_chave": len(pagamentos),
+        "qtd_pagamentos_replay_linhas": len(log),
+        "qtd_pagamentos_replay_chaves_unicas": len(pagamentos),
+        "pagamentos_replay_sem_colisao": colisoes == 0,
+        "qtd_colisoes_chave_pagamento": colisoes,
+        "qtd_aplicacoes_por_lote": len(aplic),
+        "qtd_aplicacoes_por_lote_preenchidas": qtd_aplic_preenchidas,
+        "aplicacoes_por_lote_sem_vazios": aplic_sem_vazios,
+        "qtd_produtos_por_lote": len(prod),
+        "qtd_valores_originais_por_lote": len(orig),
+        "qtd_valores_originais_por_lote_positivos": qtd_orig_positivos,
+        "valores_originais_por_lote_validos": orig_validos,
+        "qtd_valores_sacados_por_lote": len(valores_sacados),
+        "qtd_lotes_ativos_observaveis": len(lotes_ativos),
+        "qtd_lotes_exauridos_observaveis": len(lotes_exauridos),
+        "qtd_pagamentos_realizados_observaveis": len(pagamentos_realizados),
+        "origem_lotes_ativos_exauridos": origem,
     }
 
+    return SnapshotSituacaoAtualOficial(
+        versao=VERSAO_SITUACAO_ATUAL_OFICIAL,
+        data_referencia=getattr(contexto, "data_referencia", None),
+        saldos_finais_replay_por_lote=saldos_finais,
+        pagamentos_replay_por_chave=pagamentos,
+        aplicacoes_por_lote=aplic,
+        produtos_por_lote=prod,
+        valores_originais_por_lote=orig,
+        valores_sacados_por_lote=valores_sacados,
+        lotes_ativos_observaveis=lotes_ativos,
+        lotes_exauridos_observaveis=lotes_exauridos,
+        pagamentos_realizados_observaveis=pagamentos_realizados,
+        auditoria_situacao_atual_oficial=auditoria,
+        validacao_situacao_atual_oficial=validacao,
+        metadados_origem={"origem_lotes_ativos_exauridos": origem},
+    )
 
-def construir_amostra_lotes_sinteticos_pos_switching(saida, *, limite: int = 10) -> dict[str, object]:
-    linhas = saida.lotes_sinteticos_pos_switching_console(limite=limite) if hasattr(saida, 'lotes_sinteticos_pos_switching_console') else []
-    return {
-        'rotulo': 'lotes sintéticos pós-switching',
-        'headers': list(COLS_LOTES_SINTETICOS_POS_SWITCHING),
-        'linhas': linhas,
-        'limite': limite,
-    }
 
-
-def construir_amostra_estado_pos_switching_lotes(saida, *, limite: int = 10) -> dict[str, object]:
-    linhas = saida.estado_pos_switching_lotes_console(limite=limite) if hasattr(saida, 'estado_pos_switching_lotes_console') else []
-    return {
-        'rotulo': 'estado pós-switching dos lotes',
-        'headers': list(COLS_ESTADO_POS_SWITCHING_LOTES),
-        'linhas': linhas,
-        'limite': limite,
-    }
+def construir_situacao_atual_oficial(contexto: Any, saida: Any, estado_temporal_inicial: Any | None = None) -> SimpleNamespace:
+    """Monta a Situação Atual oficial sem o contrato transitório pré-ME-518B."""
+    lotes_ativos = _montar_lotes_consolidados_oficial(
+        contexto,
+        saida,
+        tipo='ativos',
+        modo_bootstrap_snapshot=True,
+    )
+    snapshot_semente = _construir_snapshot_situacao_atual_oficial(
+        contexto,
+        saida,
+        lotes_ativos_observaveis=lotes_ativos,
+    )
+    lotes_exauridos = _montar_lotes_consolidados_oficial(
+        contexto,
+        saida,
+        tipo='exauridos',
+        snapshot_situacao_atual=snapshot_semente,
+    )
+    snapshot_final = _construir_snapshot_situacao_atual_oficial(
+        contexto,
+        saida,
+        lotes_ativos_observaveis=lotes_ativos,
+        lotes_exauridos_observaveis=lotes_exauridos,
+        pagamentos_realizados_observaveis=list(getattr(saida, 'extrato_passado', []) or []),
+    )
+    blocos = _montar_blocos_situacao_atual_oficial(
+        contexto,
+        saida,
+        snapshot_situacao_atual=snapshot_final,
+        estado_temporal_inicial=estado_temporal_inicial,
+    )
+    return SimpleNamespace(
+        fechamento_atual=list(getattr(saida, 'fechamento_atual', []) or []),
+        resumo_recebidos=list(getattr(saida, 'resumo_recebidos', []) or []),
+        recebidos_atuais=list(getattr(saida, 'recebidos_atuais', []) or []),
+        situacao_atual_blocos=blocos,
+        auditoria_situacao_atual_oficial=snapshot_final.auditoria_situacao_atual_oficial,
+        validacao_situacao_atual_oficial=snapshot_final.validacao_situacao_atual_oficial,
+    )

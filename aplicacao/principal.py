@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 RAIZ_REPOSITORIO = Path(__file__).resolve().parents[1]
 if str(RAIZ_REPOSITORIO) not in sys.path:
@@ -24,8 +23,7 @@ from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
 from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
-from nucleo.pacote_saida_observavel_temporal import construir_pacote_saida_observavel_temporal
-from nucleo.saida_observavel import construir_blocos_situacao_atual, construir_linhas_lotes_consolidados
+from nucleo.situacao_atual_oficial import construir_situacao_atual_oficial
 
 
 def _valor(objeto, campo, padrao=None):
@@ -222,41 +220,10 @@ def carregar_contexto_e_saida():
     )
     saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
 
-    lotes_ativos_observaveis = construir_linhas_lotes_consolidados(
+    situacao_atual_origem = construir_situacao_atual_oficial(
         contexto_operacional_canonico,
         saida_canonica,
-        tipo='ativos',
-        modo_bootstrap_pacote=True,
-    )
-    pacote_temporal_semente = construir_pacote_saida_observavel_temporal(
-        contexto_operacional_canonico,
-        saida_canonica,
-        lotes_ativos_observaveis=lotes_ativos_observaveis,
-    )
-    lotes_exauridos_observaveis = construir_linhas_lotes_consolidados(
-        contexto_operacional_canonico,
-        saida_canonica,
-        tipo='exauridos',
-        pacote_saida_observavel_temporal=pacote_temporal_semente,
-    )
-    pacote_temporal_situacao_atual = construir_pacote_saida_observavel_temporal(
-        contexto_operacional_canonico,
-        saida_canonica,
-        lotes_ativos_observaveis=lotes_ativos_observaveis,
-        lotes_exauridos_observaveis=lotes_exauridos_observaveis,
-        pagamentos_realizados_observaveis=list(getattr(saida_canonica, 'extrato_passado', []) or []),
-    )
-    blocos_situacao_atual = construir_blocos_situacao_atual(
-        contexto_operacional_canonico,
-        saida_canonica,
-        pacote_saida_observavel_temporal=pacote_temporal_situacao_atual,
         estado_temporal_inicial=estado_temporal_inicial,
-    )
-    situacao_atual_origem = SimpleNamespace(
-        fechamento_atual=list(getattr(saida_canonica, 'fechamento_atual', []) or []),
-        resumo_recebidos=list(getattr(saida_canonica, 'resumo_recebidos', []) or []),
-        recebidos_atuais=list(getattr(saida_canonica, 'recebidos_atuais', []) or []),
-        situacao_atual_blocos=blocos_situacao_atual,
     )
 
     saida_canonica_oficial = construir_saida_canonica_oficial(
