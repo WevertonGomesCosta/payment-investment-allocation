@@ -260,7 +260,7 @@ def main():
         _render_resumo_gates_bloqueados(resultado_gates_validacao_nucleo)
         return None
 
-    render_console(
+    console_auditavel = render_console(
         contexto_operacional_canonico,
         saida_canonica,
         estado_temporal_inicial=estado_temporal_inicial,
@@ -279,6 +279,7 @@ def main():
     resultado_paridade_renderizacao = validar_paridade_renderizacao_oficial(
         pacote_saida_observavel=pacote_saida_observavel_oficial,
         caminho_xlsx=caminho_saida,
+        console_renderizado=console_auditavel,
     )
     _render_resultado_paridade_renderizacao(resultado_paridade_renderizacao)
 

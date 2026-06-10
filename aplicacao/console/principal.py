@@ -38,6 +38,15 @@ from nucleo.saida_observavel import (
 )
 
 
+
+def construir_representacao_console_auditavel(secoes_observadas: dict | None = None) -> dict:
+    """Constrói o envelope auditável produzido pelo caminho de renderização do console."""
+    return {
+        'origem_representacao': 'render_console',
+        'forma': 'observavel_console_emitido',
+        'secoes': dict(secoes_observadas or {}),
+    }
+
 def _filtrar_lotes_ativos_com_estado_temporal(linhas: list[dict], estado_temporal_inicial=None) -> list[dict]:
     if estado_temporal_inicial is None:
         return linhas
@@ -115,9 +124,9 @@ def _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonic
         print('  [OK] sem alertas na amostra atual')
 
 
-def _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial=None) -> None:
+def _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial=None) -> dict:
     if pacote_saida_observavel_oficial is None:
-        return
+        return {}
 
     _imprimir_titulo('SAÍDA OBSERVÁVEL OFICIAL — ETAPA 9')
     resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None)
@@ -126,25 +135,31 @@ def _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial=None
     lacunas = list(getattr(pacote_saida_observavel_oficial, 'lacunas_renderizacao', []) or [])
     metadados = getattr(pacote_saida_observavel_oficial, 'metadados', {}) or {}
 
-    _imprimir_pares([
-        ('artefato', metadados.get('artefato', type(pacote_saida_observavel_oficial).__name__)),
-        ('saida_origem', getattr(pacote_saida_observavel_oficial, 'saida_origem', None)),
-        ('status', getattr(pacote_saida_observavel_oficial, 'status', None)),
-        ('preparado', getattr(pacote_saida_observavel_oficial, 'preparado', None)),
-        ('ok', getattr(pacote_saida_observavel_oficial, 'ok', None)),
-        ('data de referência', getattr(pacote_saida_observavel_oficial, 'data_referencia', None)),
-        ('origem formal', getattr(pacote_saida_observavel_oficial, 'origem_formal', None)),
-        ('qtd obrigações cobertas', getattr(resumo, 'qtd_obrigacoes_cobertas', None)),
-        ('qtd obrigações bloqueadas', getattr(resumo, 'qtd_obrigacoes_bloqueadas', None)),
-        ('qtd lacunas renderização', getattr(resumo, 'qtd_lacunas_renderizacao', len(lacunas))),
-        ('origem exclusiva auditoria', getattr(auditoria, 'origem_exclusiva', None)),
-    ])
+    saida_observavel_resumo = [
+        {'Métrica': 'artefato', 'Valor': metadados.get('artefato', type(pacote_saida_observavel_oficial).__name__)},
+        {'Métrica': 'saida_origem', 'Valor': getattr(pacote_saida_observavel_oficial, 'saida_origem', None)},
+        {'Métrica': 'status', 'Valor': getattr(pacote_saida_observavel_oficial, 'status', None)},
+        {'Métrica': 'preparado', 'Valor': getattr(pacote_saida_observavel_oficial, 'preparado', None)},
+        {'Métrica': 'ok', 'Valor': getattr(pacote_saida_observavel_oficial, 'ok', None)},
+        {'Métrica': 'data de referência', 'Valor': getattr(pacote_saida_observavel_oficial, 'data_referencia', None)},
+        {'Métrica': 'origem formal', 'Valor': getattr(pacote_saida_observavel_oficial, 'origem_formal', None)},
+        {'Métrica': 'qtd obrigações cobertas', 'Valor': getattr(resumo, 'qtd_obrigacoes_cobertas', None)},
+        {'Métrica': 'qtd obrigações bloqueadas', 'Valor': getattr(resumo, 'qtd_obrigacoes_bloqueadas', None)},
+        {'Métrica': 'qtd lacunas renderização', 'Valor': getattr(resumo, 'qtd_lacunas_renderizacao', len(lacunas))},
+        {'Métrica': 'origem exclusiva auditoria', 'Valor': getattr(auditoria, 'origem_exclusiva', None)},
+    ]
+    _imprimir_pares([(item['Métrica'], item['Valor']) for item in saida_observavel_resumo])
 
+    secoes = {'saida_observavel_resumo': saida_observavel_resumo}
     resumo_operacional = getattr(bloco_console, 'resumo_operacional', {}) or {}
     if resumo_operacional:
         print('\n- resumo operacional oficial:')
         _imprimir_pares(list(resumo_operacional.items()))
-
+        secoes['resumo_operacional'] = [
+            {'Métrica': chave, 'Valor': valor}
+            for chave, valor in resumo_operacional.items()
+        ]
+    return secoes
 
 
 def _valor_oficial(item, campo, padrao=None):
@@ -236,15 +251,15 @@ def _linha_pagamento_fonte_oficial(item):
         'Status': _valor_oficial(item, 'Status') or 'coberta_oficial',
     }
 
-def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial) -> None:
+def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial) -> dict:
     bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
     if bloco_console is None:
-        return
+        return {}
 
     _imprimir_titulo('PAGAMENTOS — AMOSTRAS OPERACIONAIS')
-    data_ref = getattr(pacote_saida_observavel_oficial, 'data_referencia', None)
     cobertas = list(getattr(bloco_console, 'obrigacoes_cobertas', []) or [])
     bloqueadas = list(getattr(bloco_console, 'obrigacoes_bloqueadas', []) or [])
+    secoes: dict[str, list[dict]] = {}
 
     ultimas_cobertas = list(getattr(bloco_console, 'ultimos_pagamentos', []) or [])
     print('- últimos 5 pagamentos realizados:')
@@ -254,8 +269,10 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
             {k: linha[k] for k in colunas_ultimos}
             for linha in (_linha_pagamento_oficial(item, bloqueada=False) for item in ultimas_cobertas)
         ]
+        secoes['pagamentos_ultimos'] = linhas_ultimos[:5]
         _imprimir_tabela(colunas_ultimos, linhas_ultimos, limite=5)
     else:
+        secoes['pagamentos_ultimos'] = []
         print('  sem_pagamentos_realizados_ate_data_referencia')
 
     pagamentos_data_referencia = list(getattr(bloco_console, 'pagamentos_data_referencia', []) or [])
@@ -269,8 +286,10 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
                 for item in pagamentos_data_referencia
             )
         ]
+        secoes['pagamentos_data_referencia'] = linhas_data_ref[:5]
         _imprimir_tabela(colunas_data_ref, linhas_data_ref, limite=5)
     else:
+        secoes['pagamentos_data_referencia'] = []
         print('  sem_pagamentos_na_data_referencia')
 
     proximas_ordenadas = list(getattr(bloco_console, 'proximos_pagamentos', []) or [])
@@ -283,6 +302,7 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
             for item in proximas_ordenadas[:5]
         )
     ]
+    secoes['pagamentos_proximos'] = linhas_proximos[:5]
     print('\n- próximos 5 pagamentos:')
     if linhas_proximos:
         _imprimir_tabela(colunas_proximos, linhas_proximos, limite=5)
@@ -295,6 +315,7 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
             {k: linha[k] for k in ['Data', 'Conta', 'Pacote', 'Status', 'Bloq.']}
             for linha in (_linha_pagamento_oficial(item, bloqueada=True) for item in bloqueadas[:5])
         ]
+        secoes['obrigacoes_bloqueadas_oficiais'] = linhas_bloqueadas[:5]
         _imprimir_tabela(['Data', 'Conta', 'Pacote', 'Status', 'Bloq.'], linhas_bloqueadas, limite=5)
 
     print('\n- alertas operacionais:')
@@ -308,9 +329,12 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
             }
             for item in bloqueadas[:5]
         ]
+        secoes['alertas_operacionais'] = linhas_alerta[:5]
         _imprimir_tabela(['Data', 'Conta', 'problema', 'motivo'], linhas_alerta, limite=5)
     else:
+        secoes['alertas_operacionais'] = [{'status': '[OK] sem alertas na amostra atual'}]
         print('  [OK] sem alertas na amostra atual')
+    return secoes
 
 def _render_secao_ranking_oficial(contexto_operacional, saida_canonica=None) -> None:
     ranking = getattr(contexto_operacional, 'ranking_carteira', None)
@@ -416,33 +440,35 @@ def _amostra_ranking_pacote(pacote_saida_observavel_oficial) -> list[dict]:
     return [dict(item) for item in list(getattr(bloco_console, 'ranking_amostra', []) or [])]
 
 
-def _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> None:
+def _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> dict:
     metricas_oficiais = _metricas_ranking_pacote(pacote_saida_observavel_oficial)
     amostra_oficial = _amostra_ranking_pacote(pacote_saida_observavel_oficial)
 
     _imprimir_titulo('RANQUEAMENTO OFICIAL DA CARTEIRA')
     if metricas_oficiais and amostra_oficial:
         metricas_por_nome = {item.get('Métrica'): item.get('Valor') for item in metricas_oficiais}
-        _imprimir_pares([
-            ('produtos totais', metricas_por_nome.get('produtos totais')),
-            ('produtos ativos ranqueados', metricas_por_nome.get('produtos ativos ranqueados')),
-            ('destinos elegíveis de switching', metricas_por_nome.get('destinos elegíveis de switching')),
-            ('destino top 1', metricas_por_nome.get('destino top 1')),
-            ('método', metricas_por_nome.get('método')),
-            ('origem da amostra', getattr(pacote_saida_observavel_oficial, 'saida_origem', 'PacoteSaidaObservavelOficial')),
-        ])
+        linhas_metricas = [
+            {'Métrica': 'produtos totais', 'Valor': metricas_por_nome.get('produtos totais')},
+            {'Métrica': 'produtos ativos ranqueados', 'Valor': metricas_por_nome.get('produtos ativos ranqueados')},
+            {'Métrica': 'destinos elegíveis de switching', 'Valor': metricas_por_nome.get('destinos elegíveis de switching')},
+            {'Métrica': 'destino top 1', 'Valor': metricas_por_nome.get('destino top 1')},
+            {'Métrica': 'método', 'Valor': metricas_por_nome.get('método')},
+            {'Métrica': 'origem da amostra', 'Valor': getattr(pacote_saida_observavel_oficial, 'saida_origem', 'PacoteSaidaObservavelOficial')},
+        ]
+        _imprimir_pares([(item['Métrica'], item['Valor']) for item in linhas_metricas])
         print('- amostra do ranking relevante do dia:')
+        amostra_emitida = amostra_oficial[:10]
         _imprimir_tabela(
             ['Rank', 'Produto', 'Score', 'Proxy terminal', 'Liquidez', 'Carência', 'Ticket mín.'],
             amostra_oficial,
             limite=10,
         )
-        return
+        return {'ranking_metricas': linhas_metricas, 'ranking_amostra': amostra_emitida}
 
     ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     if ranking is None:
         print('- status: ranking_nao_materializado_na_rota_oficial')
-        return
+        return {'ranking_status': [{'status': 'ranking_nao_materializado_na_rota_oficial'}]}
 
     _imprimir_pares([
         ('produtos totais', ranking.resumo.get('produtos_total')),
@@ -463,9 +489,10 @@ def _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_obse
         )
     else:
         print('  ranking_amostra_nao_materializada_na_rota_oficial')
+    return {'ranking_amostra': linhas[:10]}
 
 
-def _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> None:
+def _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> dict:
     ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     destino_top1 = ranking.auditoria.get('destino_top1') if ranking is not None else None
     qtd_destinos = (
@@ -509,6 +536,11 @@ def _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_
         _imprimir_tabela(['Métrica', 'Valor'], resumo_curto, limite=None)
     else:
         print('  resumo_switching_nao_materializado_no_pacote_saida_observavel_oficial')
+    return {
+        'switching_metricas': linhas_metricas,
+        'switching_amostra': amostra[:10],
+        'switching_resumo_operacional': resumo_curto,
+    }
 
 
 def _linha_lote_temporal_console(lote: dict) -> dict:
@@ -541,7 +573,7 @@ def _render_situacao_atual_oficial_minima(
     contexto_operacional,
     estado_temporal_inicial=None,
     pacote_saida_observavel_oficial=None,
-) -> None:
+) -> dict:
     _ = contexto_operacional
     _ = estado_temporal_inicial
     _imprimir_titulo('SITUAÇÃO ATUAL')
@@ -552,14 +584,15 @@ def _render_situacao_atual_oficial_minima(
         for item in list(getattr(bloco_console, 'situacao_atual_fechamento', []) or [])
         if isinstance(item, dict)
     }
-    _imprimir_pares([
-        ('data de referência', resumo_fechamento.get('Data de referência') or getattr(pacote_saida_observavel_oficial, 'data_referencia', None)),
-        ('status do fechamento econômico', resumo_fechamento.get('Status do fechamento econômico')),
-        ('fonte do fechamento', resumo_fechamento.get('Fonte do fechamento')),
-        ('fechamentos com fallback CDI', resumo_fechamento.get('Fechamentos com fallback CDI', 0)),
-        ('último fator explícito CDI', resumo_fechamento.get('Último fator explícito CDI')),
-        ('data confirmada da série', resumo_fechamento.get('Data confirmada da série')),
-    ])
+    situacao_atual_fechamento = [
+        {'Métrica': 'data de referência', 'Valor': resumo_fechamento.get('Data de referência') or getattr(pacote_saida_observavel_oficial, 'data_referencia', None)},
+        {'Métrica': 'status do fechamento econômico', 'Valor': resumo_fechamento.get('Status do fechamento econômico')},
+        {'Métrica': 'fonte do fechamento', 'Valor': resumo_fechamento.get('Fonte do fechamento')},
+        {'Métrica': 'fechamentos com fallback CDI', 'Valor': resumo_fechamento.get('Fechamentos com fallback CDI', 0)},
+        {'Métrica': 'último fator explícito CDI', 'Valor': resumo_fechamento.get('Último fator explícito CDI')},
+        {'Métrica': 'data confirmada da série', 'Valor': resumo_fechamento.get('Data confirmada da série')},
+    ]
+    _imprimir_pares([(item['Métrica'], item['Valor']) for item in situacao_atual_fechamento])
     if resumo_fechamento.get('Leitura auditável'):
         print(f"- leitura auditável: {resumo_fechamento.get('Leitura auditável')}")
 
@@ -597,9 +630,22 @@ def _render_situacao_atual_oficial_minima(
         for item in list(getattr(bloco_console, 'situacao_atual_resumo_recebidos', []) or [])
         if isinstance(item, dict)
     }
+    situacao_atual_resumo_recebidos = [
+        {'Métrica': chave, 'Valor': valor}
+        for chave, valor in resumo_recebidos.items()
+    ]
     if resumo_recebidos:
         print('\n- resumo de recebidos:')
         _imprimir_pares(list(resumo_recebidos.items()))
+    return {
+        'situacao_atual_fechamento': situacao_atual_fechamento,
+        'situacao_atual_lotes_exauridos_id': exauridos_id,
+        'situacao_atual_lotes_exauridos_valores': exauridos_val,
+        'situacao_atual_lotes_ativos_id': ativos_id,
+        'situacao_atual_lotes_ativos_valores': ativos_val,
+        'situacao_atual_patrimonio_total': list(getattr(bloco_console, 'situacao_atual_patrimonio_total', []) or []),
+        'situacao_atual_resumo_recebidos': situacao_atual_resumo_recebidos,
+    }
 
 def _render_operacional_pos_pagamentos_oficial(
     contexto_operacional,
@@ -670,7 +716,7 @@ def _render_situacao_atual_operacional(contexto_operacional, saida_canonica, res
         print('\n- resumo de recebidos:')
         _imprimir_pares(list(resumo_recebidos.items()))
 
-def render_console(contexto_operacional, saida_canonica=None, estado_temporal_inicial=None, pacote_saida_observavel_oficial=None) -> None:
+def render_console(contexto_operacional, saida_canonica=None, estado_temporal_inicial=None, pacote_saida_observavel_oficial=None) -> dict:
     """Renderiza o console usando contexto e saída canônica já construídos.
 
     Esta função não carrega planilha, não baixa dados e não reconstrói cache.
@@ -760,20 +806,21 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
         abas_auxiliares=abas_auxiliares,
     )
 
-    _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial)
+    secoes_console_observadas = {}
+    secoes_console_observadas.update(_render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial))
 
     pacote_oficial_preparado = pacote_saida_observavel_oficial is not None and getattr(pacote_saida_observavel_oficial, 'preparado', False)
     if pacote_oficial_preparado:
-        _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial)
+        secoes_console_observadas.update(_render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial))
     else:
         _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
 
     if pacote_oficial_preparado:
-        _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_observavel_oficial)
+        secoes_console_observadas.update(_render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_observavel_oficial))
     else:
         _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
     if pacote_oficial_preparado:
-        _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial)
+        secoes_console_observadas.update(_render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial))
     else:
         _render_secao_switchings_oficiais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal)
 
@@ -808,11 +855,11 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
     }
 
     if pacote_oficial_preparado and _situacao_atual_oficial_completa(pacote_saida_observavel_oficial):
-        _render_situacao_atual_oficial_minima(
+        secoes_console_observadas.update(_render_situacao_atual_oficial_minima(
             contexto_operacional,
             estado_temporal_inicial=estado_temporal_inicial,
             pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
-        )
+        ))
     else:
         _render_situacao_atual_operacional(
             contexto_operacional,
@@ -822,6 +869,8 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
             pacote_saida_observavel_temporal,
             estado_temporal_inicial=estado_temporal_inicial,
         )
+
+    return construir_representacao_console_auditavel(secoes_console_observadas)
 
 
 def main() -> None:
