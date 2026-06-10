@@ -521,65 +521,85 @@ def _linha_lote_temporal_console(lote: dict) -> dict:
     }
 
 
+def _situacao_atual_oficial_completa(pacote_saida_observavel_oficial) -> bool:
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    if bloco_console is None:
+        return False
+    campos = (
+        'situacao_atual_fechamento',
+        'situacao_atual_lotes_exauridos_id',
+        'situacao_atual_lotes_exauridos_valores',
+        'situacao_atual_lotes_ativos_id',
+        'situacao_atual_lotes_ativos_valores',
+        'situacao_atual_patrimonio_total',
+        'situacao_atual_resumo_recebidos',
+    )
+    return all(bool(getattr(bloco_console, campo, None)) for campo in campos)
+
+
 def _render_situacao_atual_oficial_minima(
     contexto_operacional,
     estado_temporal_inicial=None,
     pacote_saida_observavel_oficial=None,
 ) -> None:
+    _ = contexto_operacional
+    _ = estado_temporal_inicial
     _imprimir_titulo('SITUAÇÃO ATUAL')
-    resumo = getattr(pacote_saida_observavel_oficial, 'resumo', None)
     bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
-    data_referencia = getattr(pacote_saida_observavel_oficial, 'data_referencia', None)
 
+    resumo_fechamento = {
+        item.get('Métrica'): item.get('Valor')
+        for item in list(getattr(bloco_console, 'situacao_atual_fechamento', []) or [])
+        if isinstance(item, dict)
+    }
     _imprimir_pares([
-        ('data de referência', data_referencia),
-        ('status do fechamento econômico', getattr(pacote_saida_observavel_oficial, 'status', 'status_oficial_indisponivel')),
-        ('fonte do fechamento', getattr(pacote_saida_observavel_oficial, 'origem_formal', 'PacoteSaidaObservavelOficial')),
-        ('fechamentos com fallback CDI', 'nao_aplicavel_rota_oficial'),
-        ('último fator explícito CDI', 'nao_materializado_na_rota_oficial'),
-        ('data confirmada da série', data_referencia),
+        ('data de referência', resumo_fechamento.get('Data de referência') or getattr(pacote_saida_observavel_oficial, 'data_referencia', None)),
+        ('status do fechamento econômico', resumo_fechamento.get('Status do fechamento econômico')),
+        ('fonte do fechamento', resumo_fechamento.get('Fonte do fechamento')),
+        ('fechamentos com fallback CDI', resumo_fechamento.get('Fechamentos com fallback CDI', 0)),
+        ('último fator explícito CDI', resumo_fechamento.get('Último fator explícito CDI')),
+        ('data confirmada da série', resumo_fechamento.get('Data confirmada da série')),
     ])
-
-    lotes_pos_switching = list(getattr(bloco_console, 'lotes_pos_switching_materializados', []) or [])
-    lotes_futuros = list(getattr(bloco_console, 'lotes_futuros_materializados', []) or [])
-
-    print('\n- patrimônio:')
-    _imprimir_pares([
-        ('qtd lotes pós-switching materializados', len(lotes_pos_switching)),
-        ('qtd lotes futuros materializados', len(lotes_futuros)),
-        ('valor original total', 'patrimonio_total_nao_materializado_na_rota_oficial'),
-        ('status valores patrimoniais', 'situacao_atual_valores_nao_materializados_na_rota_oficial'),
-    ])
+    if resumo_fechamento.get('Leitura auditável'):
+        print(f"- leitura auditável: {resumo_fechamento.get('Leitura auditável')}")
 
     print('\n- lotes exauridos:')
-    print('  lotes_exauridos_nao_materializados_no_pacote_saida_observavel_oficial')
-
-    print('\n- lotes ativos/pós-switching:')
-    lotes_ativos = lotes_pos_switching + lotes_futuros
-    if lotes_ativos:
-        linhas = [_linha_lote_temporal_console(lote) for lote in lotes_ativos]
-        _imprimir_tabela(['Lote', 'Data receb.', 'Data aplic.', 'Status', 'Valor original'], linhas, limite=None)
-        print('  valores patrimoniais: nao_materializado_na_rota_oficial')
+    exauridos_id = list(getattr(bloco_console, 'situacao_atual_lotes_exauridos_id', []) or [])
+    exauridos_val = list(getattr(bloco_console, 'situacao_atual_lotes_exauridos_valores', []) or [])
+    if exauridos_id:
+        print('  identificação:')
+        _imprimir_tabela(COLS_LOTES_EXAURIDOS_ID_CURTAS, exauridos_id, limite=None)
+        print('\n  valores e patrimônio:')
+        _imprimir_tabela(COLS_LOTES_VALORES_CURTAS, exauridos_val, limite=None)
     else:
-        print('  lotes_ativos_nao_materializados_no_pacote_saida_observavel_oficial')
+        print('  [OK] sem lotes exauridos nesta execução')
+
+    print('\n- lotes ativos:')
+    ativos_id = list(getattr(bloco_console, 'situacao_atual_lotes_ativos_id', []) or [])
+    ativos_val = list(getattr(bloco_console, 'situacao_atual_lotes_ativos_valores', []) or [])
+    if ativos_id:
+        print('  identificação:')
+        _imprimir_tabela(COLS_LOTES_ATIVOS_ID_CURTAS, ativos_id, limite=None)
+        print('\n  valores e patrimônio:')
+        _imprimir_tabela(COLS_LOTES_VALORES_CURTAS, ativos_val, limite=None)
+    else:
+        print('  [OK] sem lotes ativos acima do limiar nesta execução')
 
     print('\n- patrimônio total dos lotes:')
     _imprimir_tabela(
         ['Métrica', 'Valor'],
-        [
-            {'Métrica': 'qtd_lotes_observaveis_oficiais', 'Valor': len(lotes_ativos)},
-            {'Métrica': 'patrimonio_bruto_observavel', 'Valor': 'patrimonio_total_nao_materializado_na_rota_oficial'},
-            {'Métrica': 'patrimonio_liquido_observavel', 'Valor': 'patrimonio_total_nao_materializado_na_rota_oficial'},
-        ],
+        list(getattr(bloco_console, 'situacao_atual_patrimonio_total', []) or []),
         limite=None,
     )
 
-    print('\n- resumo de recebidos:')
-    _imprimir_pares([
-        ('qtd_destinos_sobras_recebidos', getattr(resumo, 'qtd_destinos_sobras_recebidos', 'nao_aplicavel')),
-        ('resumo_valores_recebidos', 'resumo_recebidos_nao_materializado_na_rota_oficial'),
-    ])
-
+    resumo_recebidos = {
+        item.get('Métrica'): item.get('Valor')
+        for item in list(getattr(bloco_console, 'situacao_atual_resumo_recebidos', []) or [])
+        if isinstance(item, dict)
+    }
+    if resumo_recebidos:
+        print('\n- resumo de recebidos:')
+        _imprimir_pares(list(resumo_recebidos.items()))
 
 def _render_operacional_pos_pagamentos_oficial(
     contexto_operacional,
@@ -787,14 +807,21 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
         for item in saida_canonica.resumo_recebidos
     }
 
-    _render_situacao_atual_operacional(
-        contexto_operacional,
-        saida_canonica,
-        resumo_fechamento_situacao_atual,
-        resumo_recebidos_saida,
-        pacote_saida_observavel_temporal,
-        estado_temporal_inicial=estado_temporal_inicial,
-    )
+    if pacote_oficial_preparado and _situacao_atual_oficial_completa(pacote_saida_observavel_oficial):
+        _render_situacao_atual_oficial_minima(
+            contexto_operacional,
+            estado_temporal_inicial=estado_temporal_inicial,
+            pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+        )
+    else:
+        _render_situacao_atual_operacional(
+            contexto_operacional,
+            saida_canonica,
+            resumo_fechamento_situacao_atual,
+            resumo_recebidos_saida,
+            pacote_saida_observavel_temporal,
+            estado_temporal_inicial=estado_temporal_inicial,
+        )
 
 
 def main() -> None:

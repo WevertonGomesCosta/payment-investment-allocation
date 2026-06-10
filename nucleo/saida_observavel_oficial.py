@@ -63,6 +63,16 @@ class BlocoConsoleSaidaObservavel:
     saldos_referenciais: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
     lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_fechamento: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_lotes_exauridos_id: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_lotes_exauridos_valores: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_lotes_ativos_id: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_lotes_ativos_valores: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_origens_migradas: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_patrimonio_total: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_recebidos_auditaveis: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_resumo_recebidos: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_blocos: list[dict[str, Any]] = field(default_factory=list)
     avisos: list[Any] = field(default_factory=list)
     bloqueios: list[dict[str, Any]] = field(default_factory=list)
     lacunas_renderizacao: list[dict[str, Any]] = field(default_factory=list)
@@ -71,6 +81,7 @@ class BlocoConsoleSaidaObservavel:
 @dataclass(slots=True)
 class BlocoXLSXSaidaObservavel:
     abas: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    situacao_atual_blocos: list[dict[str, Any]] = field(default_factory=list)
     metadados_abas: dict[str, Any] = field(default_factory=dict)
 
 
@@ -396,6 +407,16 @@ def extrair_blocos_saida_canonica(saida: SaidaCanonicaOficial) -> dict[str, Any]
         'saldos_referenciais': _snapshot_saldos(saida.saldos_referenciais_por_data),
         'destinos_sobras_recebidos': _snapshot_lista(getattr(saida, 'destinos_sobras_recebidos', [])),
         'lotes_futuros_materializados': _snapshot_lista(getattr(saida, 'lotes_futuros_materializados', [])),
+        'situacao_atual_fechamento': _snapshot_lista(getattr(saida, 'situacao_atual_fechamento', [])),
+        'situacao_atual_lotes_exauridos_id': _snapshot_lista(getattr(saida, 'situacao_atual_lotes_exauridos_id', [])),
+        'situacao_atual_lotes_exauridos_valores': _snapshot_lista(getattr(saida, 'situacao_atual_lotes_exauridos_valores', [])),
+        'situacao_atual_lotes_ativos_id': _snapshot_lista(getattr(saida, 'situacao_atual_lotes_ativos_id', [])),
+        'situacao_atual_lotes_ativos_valores': _snapshot_lista(getattr(saida, 'situacao_atual_lotes_ativos_valores', [])),
+        'situacao_atual_origens_migradas': _snapshot_lista(getattr(saida, 'situacao_atual_origens_migradas', [])),
+        'situacao_atual_patrimonio_total': _snapshot_lista(getattr(saida, 'situacao_atual_patrimonio_total', [])),
+        'situacao_atual_recebidos_auditaveis': _snapshot_lista(getattr(saida, 'situacao_atual_recebidos_auditaveis', [])),
+        'situacao_atual_resumo_recebidos': _snapshot_lista(getattr(saida, 'situacao_atual_resumo_recebidos', [])),
+        'situacao_atual_blocos': _snapshot_lista(getattr(saida, 'situacao_atual_blocos', [])),
         'ranking_metricas': _snapshot_lista(getattr(saida, 'ranking_metricas', [])),
         'ranking_amostra': _snapshot_lista(getattr(saida, 'ranking_amostra', [])),
         'ranking_carteira': _snapshot_lista(getattr(saida, 'ranking_carteira', [])),
@@ -1072,6 +1093,58 @@ def preservar_avisos_bloqueios_evidencias(blocos: dict[str, Any]) -> dict[str, A
     }
 
 
+
+
+def _bloco_situacao_atual(titulo: str, headers: list[str], linhas: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        'titulo': titulo,
+        'headers': list(headers),
+        'linhas': [dict(item) for item in list(linhas or [])],
+    }
+
+
+def preparar_modelo_situacao_atual_observavel(blocos: dict[str, Any]) -> dict[str, Any]:
+    blocos_xlsx = list(blocos.get('situacao_atual_blocos') or [])
+    if not blocos_xlsx:
+        blocos_xlsx = [
+            _bloco_situacao_atual('Lotes exauridos — identificação', ['Lote', 'Status ciclo', 'Carteira', 'Aplic.', 'Base fiscal', 'Data término', 'Dias corr.', 'Dias úteis'], blocos.get('situacao_atual_lotes_exauridos_id', [])),
+            _bloco_situacao_atual('Lotes exauridos — valores e patrimônio', ['Lote', 'Orig.', 'Bruto sac.', 'Líq. sac.', 'Bruto atual', 'Líq. atual', 'Patr. líq.', 'Rend. líq.'], blocos.get('situacao_atual_lotes_exauridos_valores', [])),
+            _bloco_situacao_atual('Lotes ativos — identificação', ['Lote', 'Status ciclo', 'Carteira', 'Aplic.', 'Base fiscal', 'Dias corr.', 'Dias úteis'], blocos.get('situacao_atual_lotes_ativos_id', [])),
+            _bloco_situacao_atual('Lotes ativos — valores e patrimônio', ['Lote', 'Orig.', 'Bruto sac.', 'Líq. sac.', 'Bruto atual', 'Líq. atual', 'Patr. líq.', 'Rend. líq.'], blocos.get('situacao_atual_lotes_ativos_valores', [])),
+            _bloco_situacao_atual('Origens migradas por switching — reconciliação patrimonial', ['Lote origem', 'Status', 'Status ciclo', 'Data término', 'Dias corr.', 'Dias úteis', 'Valor migrado', 'Bruto sac. hist.', 'Líq. sac. hist.', 'Linhas extrato', 'Destinos', 'Não ativo', 'Não fonte'], blocos.get('situacao_atual_origens_migradas', [])),
+            _bloco_situacao_atual('Patrimônio total dos lotes', ['Métrica', 'Valor'], blocos.get('situacao_atual_patrimonio_total', [])),
+            _bloco_situacao_atual('Recebidos auditáveis', ['Recebido', 'Lote origem', 'Recebimento', 'Aplicação', 'Valor bruto', 'Valor líquido', 'Status', 'Destino', 'Pagamentos vinculados', 'Valor vinculado', 'Residual aplicação', 'Disponível ref', 'Observação'], blocos.get('situacao_atual_recebidos_auditaveis', [])),
+            _bloco_situacao_atual('Fechamento econômico', ['Métrica', 'Valor'], blocos.get('situacao_atual_fechamento', [])),
+            _bloco_situacao_atual('Resumo de recebidos', ['Métrica', 'Valor'], blocos.get('situacao_atual_resumo_recebidos', [])),
+        ]
+
+    return {
+        'situacao_atual_fechamento': list(blocos.get('situacao_atual_fechamento') or []),
+        'situacao_atual_lotes_exauridos_id': list(blocos.get('situacao_atual_lotes_exauridos_id') or []),
+        'situacao_atual_lotes_exauridos_valores': list(blocos.get('situacao_atual_lotes_exauridos_valores') or []),
+        'situacao_atual_lotes_ativos_id': list(blocos.get('situacao_atual_lotes_ativos_id') or []),
+        'situacao_atual_lotes_ativos_valores': list(blocos.get('situacao_atual_lotes_ativos_valores') or []),
+        'situacao_atual_origens_migradas': list(blocos.get('situacao_atual_origens_migradas') or []),
+        'situacao_atual_patrimonio_total': list(blocos.get('situacao_atual_patrimonio_total') or []),
+        'situacao_atual_recebidos_auditaveis': list(blocos.get('situacao_atual_recebidos_auditaveis') or []),
+        'situacao_atual_resumo_recebidos': list(blocos.get('situacao_atual_resumo_recebidos') or []),
+        'situacao_atual_blocos': blocos_xlsx,
+    }
+
+
+def situacao_atual_oficial_completa(modelo: dict[str, Any]) -> bool:
+    obrigatorios = (
+        'situacao_atual_fechamento',
+        'situacao_atual_lotes_exauridos_id',
+        'situacao_atual_lotes_exauridos_valores',
+        'situacao_atual_lotes_ativos_id',
+        'situacao_atual_lotes_ativos_valores',
+        'situacao_atual_patrimonio_total',
+        'situacao_atual_resumo_recebidos',
+        'situacao_atual_blocos',
+    )
+    return all(bool(modelo.get(campo)) for campo in obrigatorios)
+
 def registrar_lacunas_renderizacao(
     saida: SaidaCanonicaOficial,
     blocos: dict[str, Any],
@@ -1094,16 +1167,7 @@ def registrar_lacunas_renderizacao(
         )
 
     resumo = blocos.get('resumo_saida_canonica') or {}
-    campos_prioridade2 = {
-        'patrimonio_total_lotes': 'patrimônio total dos lotes',
-        'bruto_sacado': 'bruto sacado',
-        'liquido_sacado': 'líquido sacado',
-        'bruto_atual': 'bruto atual',
-        'liquido_atual': 'líquido atual',
-        'patrimonio_liquido': 'patrimônio líquido',
-        'rendimento_liquido': 'rendimento líquido',
-        'resumo_recebidos_valores': 'resumo de recebidos em valores',
-    }
+    campos_prioridade2: dict[str, str] = {}
     for campo, rotulo in campos_prioridade2.items():
         if campo in blocos or campo in resumo:
             continue
@@ -1129,6 +1193,7 @@ def preparar_blocos_console(
     ranking: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
     preservados: dict[str, Any],
+    situacao_atual: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
 ) -> BlocoConsoleSaidaObservavel:
     return BlocoConsoleSaidaObservavel(
@@ -1151,6 +1216,16 @@ def preparar_blocos_console(
         saldos_referenciais=saldos,
         destinos_sobras_recebidos=preservados.get('destinos_sobras_recebidos', []),
         lotes_futuros_materializados=preservados.get('lotes_futuros_materializados', []),
+        situacao_atual_fechamento=situacao_atual.get('situacao_atual_fechamento', []),
+        situacao_atual_lotes_exauridos_id=situacao_atual.get('situacao_atual_lotes_exauridos_id', []),
+        situacao_atual_lotes_exauridos_valores=situacao_atual.get('situacao_atual_lotes_exauridos_valores', []),
+        situacao_atual_lotes_ativos_id=situacao_atual.get('situacao_atual_lotes_ativos_id', []),
+        situacao_atual_lotes_ativos_valores=situacao_atual.get('situacao_atual_lotes_ativos_valores', []),
+        situacao_atual_origens_migradas=situacao_atual.get('situacao_atual_origens_migradas', []),
+        situacao_atual_patrimonio_total=situacao_atual.get('situacao_atual_patrimonio_total', []),
+        situacao_atual_recebidos_auditaveis=situacao_atual.get('situacao_atual_recebidos_auditaveis', []),
+        situacao_atual_resumo_recebidos=situacao_atual.get('situacao_atual_resumo_recebidos', []),
+        situacao_atual_blocos=situacao_atual.get('situacao_atual_blocos', []),
         avisos=preservados['avisos'],
         bloqueios=preservados['bloqueios'],
         lacunas_renderizacao=[asdict(lacuna) for lacuna in lacunas],
@@ -1170,6 +1245,7 @@ def preparar_blocos_xlsx(
     ranking: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
     preservados: dict[str, Any],
+    situacao_atual: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
 ) -> BlocoXLSXSaidaObservavel:
     abas = {
@@ -1191,6 +1267,9 @@ def preparar_blocos_xlsx(
         'Lotes Pos Switching Materializados': preservados.get('lotes_pos_switching_materializados', []),
         'Destinos Sobras Recebidos': preservados.get('destinos_sobras_recebidos', []),
         'Lotes Futuros Materializados': preservados.get('lotes_futuros_materializados', []),
+        'Situacao Atual Fechamento': situacao_atual.get('situacao_atual_fechamento', []),
+        'Situacao Atual Patrimonio Total': situacao_atual.get('situacao_atual_patrimonio_total', []),
+        'Situacao Atual Resumo Recebidos': situacao_atual.get('situacao_atual_resumo_recebidos', []),
         'Avisos': [{'aviso': aviso} if not isinstance(aviso, dict) else aviso for aviso in preservados['avisos']],
         'Bloqueios': preservados['bloqueios'],
         'Lacunas Renderizacao': [asdict(lacuna) for lacuna in lacunas],
@@ -1199,6 +1278,7 @@ def preparar_blocos_xlsx(
         abas[f'Saldos {data_ref}'] = registros
     return BlocoXLSXSaidaObservavel(
         abas=abas,
+        situacao_atual_blocos=situacao_atual.get('situacao_atual_blocos', []),
         metadados_abas={
             'qtd_abas': len(abas),
             'abas': list(abas),
@@ -1323,6 +1403,7 @@ def construir_pacote_saida_observavel_oficial(
     modelo_obrigacoes = preparar_modelo_obrigacoes_observaveis(blocos)
     modelo_switching = preparar_modelo_switching_observavel(blocos)
     ranking = preparar_bloco_ranking_carteira_observavel(blocos)
+    situacao_atual = preparar_modelo_situacao_atual_observavel(blocos)
 
     extrato_passado = preparar_bloco_extrato_passado(modelo_pagamentos_historicos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(modelo_pagamentos_historicos)
@@ -1357,6 +1438,7 @@ def construir_pacote_saida_observavel_oficial(
         ranking,
         saldos,
         preservados,
+        situacao_atual,
         lacunas,
     )
     bloco_xlsx = preparar_blocos_xlsx(
@@ -1372,6 +1454,7 @@ def construir_pacote_saida_observavel_oficial(
         ranking,
         saldos,
         preservados,
+        situacao_atual,
         lacunas,
     )
     auditoria = auditar_pacote_saida_observavel(
