@@ -171,6 +171,7 @@ def carregar_contexto_e_saida():
     saida_canonica_oficial = construir_saida_canonica_oficial(
         ledger=ledger_temporal_canonico,
         gates=resultado_gates_validacao_nucleo,
+        ranking_carteira=getattr(contexto_operacional_canonico, 'ranking_carteira', None),
     )
     pacote_saida_observavel_oficial = construir_pacote_saida_observavel_oficial(saida_canonica_oficial)
     saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional_canonico, versao=VERSAO_BASELINE)

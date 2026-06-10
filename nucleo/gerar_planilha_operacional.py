@@ -489,50 +489,59 @@ def _adicionar_abas_saida_operacional_pagamentos_u7(wb) -> dict[str, Any]:
     }
 
 
-def _adicionar_abas_ranking(wb, contexto, *, incluir_abas_diagnosticas: bool = False) -> None:
+def _adicionar_abas_ranking(wb, contexto, *, pacote_saida_observavel_oficial=None, incluir_abas_diagnosticas: bool = False) -> None:
+    carteira_oficial = _linhas_aba_xlsx_oficial(pacote_saida_observavel_oficial, 'Carteira')
+    if carteira_oficial:
+        ws_carteira = wb.create_sheet(_nome_aba_operacional(contexto, 'carteira'))
+        headers_carteira = list(carteira_oficial[0].keys())
+        _apply_table_style(ws_carteira, headers_carteira, _rows(carteira_oficial, headers_carteira), freeze=True)
+        if not incluir_abas_diagnosticas:
+            return
+
     ranking = getattr(contexto, 'ranking_carteira', None)
     if ranking is None:
         return
 
-    ws_carteira = wb.create_sheet(_nome_aba_operacional(contexto, 'carteira'))
-    quadro_carteira = ranking.quadro_destinos_switch.copy()
+    if not carteira_oficial:
+        ws_carteira = wb.create_sheet(_nome_aba_operacional(contexto, 'carteira'))
+        quadro_carteira = ranking.quadro_destinos_switch.copy()
 
-    cols_carteira = [
-        'rank_destino',
-        'nome',
-        'score_final',
-        'proxy_terminal_destino',
-        'retorno_anual_proxy',
-        'liquidez_dias',
-        'carencia_dias',
-        'aplicacao_minima',
-        'aplicacao_maxima',
-        'tipo_produto',
-        'somente_combo',
-        'Status_Confirmação',
-        'Campos_Pendentes',
-    ]
-    cols_carteira = [c for c in cols_carteira if c in quadro_carteira.columns]
-    quadro_carteira = quadro_carteira[cols_carteira].copy()
+        cols_carteira = [
+            'rank_destino',
+            'nome',
+            'score_final',
+            'proxy_terminal_destino',
+            'retorno_anual_proxy',
+            'liquidez_dias',
+            'carencia_dias',
+            'aplicacao_minima',
+            'aplicacao_maxima',
+            'tipo_produto',
+            'somente_combo',
+            'Status_Confirmação',
+            'Campos_Pendentes',
+        ]
+        cols_carteira = [c for c in cols_carteira if c in quadro_carteira.columns]
+        quadro_carteira = quadro_carteira[cols_carteira].copy()
 
-    headers_carteira = [
-        'Rank',
-        'Produto',
-        'Score Final',
-        'Proxy Terminal',
-        'Retorno Proxy aa',
-        'Liquidez Dias',
-        'Carência Dias',
-        'Aplicação Mínima',
-        'Aplicação Máxima',
-        'Tipo Produto',
-        'Somente Combo',
-        'Status Confirmação',
-        'Campos Pendentes',
-    ][:len(cols_carteira)]
+        headers_carteira = [
+            'Rank',
+            'Produto',
+            'Score Final',
+            'Proxy Terminal',
+            'Retorno Proxy aa',
+            'Liquidez Dias',
+            'Carência Dias',
+            'Aplicação Mínima',
+            'Aplicação Máxima',
+            'Tipo Produto',
+            'Somente Combo',
+            'Status Confirmação',
+            'Campos Pendentes',
+        ][:len(cols_carteira)]
 
-    rows_carteira = quadro_carteira.astype(object).where(quadro_carteira.notna(), '').values.tolist()
-    _apply_table_style(ws_carteira, headers_carteira, rows_carteira, freeze=True)
+        rows_carteira = quadro_carteira.astype(object).where(quadro_carteira.notna(), '').values.tolist()
+        _apply_table_style(ws_carteira, headers_carteira, rows_carteira, freeze=True)
 
     if incluir_abas_diagnosticas:
         ws_top30 = wb.create_sheet(_nome_aba_operacional(contexto, 'top30'))
@@ -1050,6 +1059,7 @@ def main(
     _adicionar_abas_ranking(
         wb,
         contexto,
+        pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
         incluir_abas_diagnosticas=incluir_extras_diagnosticas,
     )
     _adicionar_situacao_atual(

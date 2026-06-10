@@ -57,6 +57,8 @@ class BlocoConsoleSaidaObservavel:
     switchings_metricas: list[dict[str, Any]] = field(default_factory=list)
     switchings_amostra: list[dict[str, Any]] = field(default_factory=list)
     switchings_resumo_operacional: list[dict[str, Any]] = field(default_factory=list)
+    ranking_metricas: list[dict[str, Any]] = field(default_factory=list)
+    ranking_amostra: list[dict[str, Any]] = field(default_factory=list)
     lotes_pos_switching_materializados: list[dict[str, Any]] = field(default_factory=list)
     saldos_referenciais: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
@@ -147,6 +149,14 @@ def _texto_material(valor: Any) -> str:
         return ''
     return texto
 
+
+
+def preparar_bloco_ranking_carteira_observavel(blocos: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    return {
+        'ranking_metricas': [dict(item) for item in list(blocos.get('ranking_metricas') or [])],
+        'ranking_amostra': [dict(item) for item in list(blocos.get('ranking_amostra') or [])],
+        'carteira_xlsx': [dict(item) for item in list(blocos.get('ranking_carteira') or [])],
+    }
 
 def _fonte_operacional_renderizavel(item: dict[str, Any]) -> str:
     return (
@@ -386,6 +396,9 @@ def extrair_blocos_saida_canonica(saida: SaidaCanonicaOficial) -> dict[str, Any]
         'saldos_referenciais': _snapshot_saldos(saida.saldos_referenciais_por_data),
         'destinos_sobras_recebidos': _snapshot_lista(getattr(saida, 'destinos_sobras_recebidos', [])),
         'lotes_futuros_materializados': _snapshot_lista(getattr(saida, 'lotes_futuros_materializados', [])),
+        'ranking_metricas': _snapshot_lista(getattr(saida, 'ranking_metricas', [])),
+        'ranking_amostra': _snapshot_lista(getattr(saida, 'ranking_amostra', [])),
+        'ranking_carteira': _snapshot_lista(getattr(saida, 'ranking_carteira', [])),
         'bloqueios_ledger': _snapshot_lista(saida.bloqueios_ledger),
         'bloqueios_gates': _snapshot_lista(saida.bloqueios_gates),
         'bloqueios_preparacao': _snapshot_lista(saida.bloqueios_preparacao),
@@ -1113,6 +1126,7 @@ def preparar_blocos_console(
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
     switchings: dict[str, list[dict[str, Any]]],
+    ranking: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
     preservados: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
@@ -1131,6 +1145,8 @@ def preparar_blocos_console(
         switchings_metricas=switchings.get('switchings_metricas', []),
         switchings_amostra=switchings.get('switchings_amostra', []),
         switchings_resumo_operacional=switchings.get('switchings_resumo_operacional', []),
+        ranking_metricas=ranking.get('ranking_metricas', []),
+        ranking_amostra=ranking.get('ranking_amostra', []),
         lotes_pos_switching_materializados=preservados.get('lotes_pos_switching_materializados', []),
         saldos_referenciais=saldos,
         destinos_sobras_recebidos=preservados.get('destinos_sobras_recebidos', []),
@@ -1151,6 +1167,7 @@ def preparar_blocos_xlsx(
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
     switchings: dict[str, list[dict[str, Any]]],
+    ranking: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
     preservados: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
@@ -1160,6 +1177,7 @@ def preparar_blocos_xlsx(
         'Extrato Passado': extrato_passado,
         'Extrato Futuro': obrigacoes.get('extrato_futuro', []),
         'Switching': switchings.get('switching_xlsx', []),
+        'Carteira': ranking.get('carteira_xlsx', []),
         'Ultimos Pagamentos': ultimos_pagamentos,
         'Pagamentos Data Referencia': pagamentos_data_referencia,
         'Proximos Pagamentos': proximos_pagamentos,
@@ -1304,6 +1322,7 @@ def construir_pacote_saida_observavel_oficial(
     modelo_pagamentos_historicos = preparar_modelo_pagamentos_historicos_observavel(blocos)
     modelo_obrigacoes = preparar_modelo_obrigacoes_observaveis(blocos)
     modelo_switching = preparar_modelo_switching_observavel(blocos)
+    ranking = preparar_bloco_ranking_carteira_observavel(blocos)
 
     extrato_passado = preparar_bloco_extrato_passado(modelo_pagamentos_historicos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(modelo_pagamentos_historicos)
@@ -1335,6 +1354,7 @@ def construir_pacote_saida_observavel_oficial(
         fontes,
         obrigacoes,
         switchings,
+        ranking,
         saldos,
         preservados,
         lacunas,
@@ -1349,6 +1369,7 @@ def construir_pacote_saida_observavel_oficial(
         fontes,
         obrigacoes,
         switchings,
+        ranking,
         saldos,
         preservados,
         lacunas,
