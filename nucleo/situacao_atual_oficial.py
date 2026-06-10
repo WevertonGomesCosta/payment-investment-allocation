@@ -176,17 +176,8 @@ def _calcular_dias_observavel(contexto: Any, data_inicio: Any, data_fim: Any) ->
             _serie_cdi_contexto(contexto),
             data_fechamento_referencia=fim,
         )
-    except Exception:
-        # Fallback apenas observável para não quebrar a renderização;
-        # a validação exige que o cálculo canônico funcione nos casos críticos.
-        dias_corridos = max((fim - inicio).days, 0)
-        dias_uteis = 0
-        cursor = inicio
-        while cursor < fim:
-            cursor = cursor.fromordinal(cursor.toordinal() + 1)
-            if cursor.weekday() < 5:
-                dias_uteis += 1
-        return {"dias_corridos": dias_corridos, "dias_uteis": dias_uteis}
+    except Exception as exc:
+        raise RuntimeError("situacao_atual_oficial_falha_calculo_dias") from exc
 
 
 def _split_lotes_observavel(valor: Any) -> list[str]:
