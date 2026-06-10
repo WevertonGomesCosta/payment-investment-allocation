@@ -52,6 +52,54 @@ BLOCOS_SITUACAO_ATUAL_OBRIGATORIOS: tuple[str, ...] = (
     'Fechamento econômico',
     'Resumo de recebidos',
 )
+
+SECOES_CONSOLE_PARIDADE_FORTE: tuple[str, ...] = (
+    'resumo_operacional',
+    'ultimos_pagamentos',
+    'pagamentos_data_referencia',
+    'proximos_pagamentos',
+    'pagamentos_por_fonte',
+    'ranking_metricas',
+    'ranking_amostra',
+    'switchings_metricas',
+    'switchings_amostra',
+    'switchings_resumo_operacional',
+    'switchings_realizados_operacionais',
+    'situacao_atual_fechamento',
+    'situacao_atual_lotes_exauridos_id',
+    'situacao_atual_lotes_exauridos_valores',
+    'situacao_atual_lotes_ativos_id',
+    'situacao_atual_lotes_ativos_valores',
+    'situacao_atual_origens_migradas',
+    'situacao_atual_patrimonio_total',
+    'situacao_atual_recebidos_auditaveis',
+    'situacao_atual_resumo_recebidos',
+    'situacao_atual_blocos',
+)
+
+ROTULOS_SECOES_CONSOLE_PARIDADE_FORTE: dict[str, str] = {
+    'resumo_operacional': 'Saída Observável Oficial / resumo operacional',
+    'ultimos_pagamentos': 'Pagamentos — últimos pagamentos realizados',
+    'pagamentos_data_referencia': 'Pagamentos — data de referência',
+    'proximos_pagamentos': 'Pagamentos — próximos pagamentos',
+    'pagamentos_por_fonte': 'Pagamentos — valores por fonte',
+    'ranking_metricas': 'Ranking/Carteira — métricas',
+    'ranking_amostra': 'Ranking/Carteira — amostra',
+    'switchings_metricas': 'Switching — métricas',
+    'switchings_amostra': 'Switching — amostra',
+    'switchings_resumo_operacional': 'Switching — resumo operacional',
+    'switchings_realizados_operacionais': 'Switching — realizados operacionais',
+    'situacao_atual_fechamento': 'Situação Atual — fechamento',
+    'situacao_atual_lotes_exauridos_id': 'Situação Atual — lotes exauridos identificação',
+    'situacao_atual_lotes_exauridos_valores': 'Situação Atual — lotes exauridos valores',
+    'situacao_atual_lotes_ativos_id': 'Situação Atual — lotes ativos identificação',
+    'situacao_atual_lotes_ativos_valores': 'Situação Atual — lotes ativos valores',
+    'situacao_atual_origens_migradas': 'Situação Atual — origens migradas',
+    'situacao_atual_patrimonio_total': 'Situação Atual — patrimônio total',
+    'situacao_atual_recebidos_auditaveis': 'Situação Atual — recebidos auditáveis',
+    'situacao_atual_resumo_recebidos': 'Situação Atual — resumo de recebidos',
+    'situacao_atual_blocos': 'Situação Atual — blocos observáveis',
+}
 CATEGORIAS_DIVERGENCIA = (
     'PARIDADE_OK',
     'ARTEFATO_RENDERIZADO_AUSENTE',
@@ -734,6 +782,65 @@ def _rotulo_console_presente(texto_normalizado: str, campo: Any) -> bool:
     return rotulo in texto_normalizado
 
 
+def _comparar_secao_console_estruturada(
+    secao: str,
+    esperado: Any,
+    observado: Any,
+) -> list[DivergenciaParidadeRenderizacao]:
+    rotulo = ROTULOS_SECOES_CONSOLE_PARIDADE_FORTE.get(secao, secao)
+    if not _valores_equivalentes(esperado, observado):
+        return [
+            _nova_divergencia(
+                _categoria_conteudo(esperado, observado),
+                'console',
+                f'Bloco material do console diverge do PacoteSaidaObservavelOficial: {rotulo}.',
+                material=True,
+                coluna=secao,
+                esperado=normalizar_valores_para_paridade(esperado),
+                observado=normalizar_valores_para_paridade(observado),
+                referencias={
+                    'secao_presente': True,
+                    'campo_presente': True,
+                    'valor_equivalente': False,
+                    'rotulo': rotulo,
+                },
+            )
+        ]
+    return []
+
+
+def _auditar_console_estruturado_forte(
+    bloco_console: Any,
+    estrutura: Mapping[str, Any],
+) -> tuple[list[str], list[DivergenciaParidadeRenderizacao]]:
+    bloco_esperado = _objeto_para_mapping(bloco_console)
+    secoes_observadas = [secao for secao in SECOES_CONSOLE_PARIDADE_FORTE if secao in estrutura]
+    divergencias: list[DivergenciaParidadeRenderizacao] = []
+    for secao in SECOES_CONSOLE_PARIDADE_FORTE:
+        rotulo = ROTULOS_SECOES_CONSOLE_PARIDADE_FORTE.get(secao, secao)
+        esperado = bloco_esperado.get(secao)
+        if secao not in estrutura:
+            divergencias.append(
+                _nova_divergencia(
+                    'DIVERGENCIA_ESTRUTURAL',
+                    'console',
+                    f'Seção material não localizada na representação estruturada de console: {rotulo}.',
+                    material=True,
+                    coluna=secao,
+                    esperado=normalizar_valores_para_paridade(esperado),
+                    referencias={
+                        'secao_presente': False,
+                        'campo_presente': False,
+                        'valor_equivalente': False,
+                        'rotulo': rotulo,
+                    },
+                )
+            )
+            continue
+        divergencias.extend(_comparar_secao_console_estruturada(secao, esperado, estrutura.get(secao)))
+    return secoes_observadas, divergencias
+
+
 def auditar_paridade_console(
     blocos_esperados: Mapping[str, Any],
     console_renderizado: object | None = None,
@@ -785,54 +892,16 @@ def auditar_paridade_console(
                     )
                 )
     else:
-        secoes_observadas = [secao for secao in secoes_esperadas if secao in estrutura]
-        for secao in secoes_esperadas:
-            if secao not in estrutura:
-                divergencias.append(
-                    _nova_divergencia(
-                        'CONSOLE_AUDITADO_COM_RESSALVA',
-                        'console',
-                        f'Seção esperada não localizada na captura estruturada de console: {secao}.',
-                        material=False,
-                        coluna=secao,
-                        referencias={
-                            'secao_presente': False,
-                            'campo_presente': False,
-                            'valor_equivalente': False,
-                        },
-                    )
-                )
-        resumo_esperado = dict(_objeto_para_mapping(bloco_console).get('resumo_operacional', {}) or {})
-        resumo_observado = _objeto_para_mapping(estrutura.get('resumo_operacional')) if 'resumo_operacional' in estrutura else {}
-        secao_presente = 'resumo_operacional' in estrutura
-        for campo, valor_esperado in resumo_esperado.items():
-            campo_presente = campo in resumo_observado
-            valor_observado = resumo_observado.get(campo) if campo_presente else None
-            valor_equivalente = campo_presente and _valores_equivalentes(valor_esperado, valor_observado)
-            if not secao_presente or not campo_presente or not valor_equivalente:
-                divergencias.append(
-                    _nova_divergencia(
-                        'CONSOLE_AUDITADO_COM_RESSALVA',
-                        'console',
-                        f'Campo mínimo de resumo operacional divergente na captura estruturada: {campo}.',
-                        material=False,
-                        coluna=str(campo),
-                        esperado=valor_esperado,
-                        observado=valor_observado,
-                        referencias={
-                            'secao_presente': secao_presente,
-                            'campo_presente': campo_presente,
-                            'valor_equivalente': valor_equivalente,
-                        },
-                    )
-                )
+        secoes_observadas, divergencias_fortes = _auditar_console_estruturado_forte(bloco_console, estrutura)
+        divergencias.extend(divergencias_fortes)
     divergencias = classificar_divergencias(divergencias)
     ok = not divergencias
+    possui_material = any(div.material for div in divergencias)
     return AuditoriaParidadeConsole(
         auditado=True,
         fornecido=True,
         ok=ok,
-        status='aprovado' if ok else 'aprovado_com_ressalva',
+        status='aprovado' if ok else ('reprovado' if possui_material else 'aprovado_com_ressalva'),
         secoes_esperadas=secoes_esperadas,
         secoes_observadas=secoes_observadas,
         ressalvas=[div.mensagem for div in divergencias if not div.material],

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
+from typing import Any
 import pandas as pd
 
 RAIZ_REPOSITORIO = Path(__file__).resolve().parents[2]
@@ -37,6 +39,31 @@ from nucleo.saida_observavel import (
     construir_switchings_observaveis,
 )
 
+
+
+def _valor_auditavel_console(valor: Any) -> Any:
+    if is_dataclass(valor):
+        return asdict(valor)
+    if isinstance(valor, dict):
+        return {chave: _valor_auditavel_console(item) for chave, item in valor.items()}
+    if isinstance(valor, (list, tuple)):
+        return [_valor_auditavel_console(item) for item in valor]
+    return valor
+
+
+def construir_representacao_console_auditavel(pacote_saida_observavel_oficial=None) -> dict[str, Any] | None:
+    """Materializa a representação estruturada auditável dos blocos oficiais usados pelo console.
+
+    A função não recalcula decisões econômicas nem altera a saída textual; ela apenas
+    expõe os mesmos blocos de ``PacoteSaidaObservavelOficial.bloco_console`` que as
+    seções oficiais do console consomem quando a Etapa 9 está preparada.
+    """
+    if pacote_saida_observavel_oficial is None:
+        return None
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    if bloco_console is None:
+        return None
+    return _valor_auditavel_console(bloco_console)
 
 def _filtrar_lotes_ativos_com_estado_temporal(linhas: list[dict], estado_temporal_inicial=None) -> list[dict]:
     if estado_temporal_inicial is None:
