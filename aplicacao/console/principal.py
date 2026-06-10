@@ -711,13 +711,17 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
 
     _render_pacote_saida_observavel_oficial(pacote_saida_observavel_oficial)
 
-    if pacote_saida_observavel_oficial is not None and getattr(pacote_saida_observavel_oficial, 'preparado', False):
+    pacote_oficial_preparado = pacote_saida_observavel_oficial is not None and getattr(pacote_saida_observavel_oficial, 'preparado', False)
+    if pacote_oficial_preparado:
         _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_oficial)
     else:
         _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
 
     _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
-    _render_secao_switchings_oficiais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal)
+    if pacote_oficial_preparado:
+        _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial)
+    else:
+        _render_secao_switchings_oficiais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal)
 
     resumo_fechamento_bruto = {
         item.get("Métrica"): item.get("Valor")
