@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 from dataclasses import asdict, is_dataclass
 from typing import Any, Iterable, Mapping
 import sys
@@ -147,6 +148,26 @@ def _valor(item: dict[str, Any], chave: str) -> Any:
 
 def _rows(itens: Iterable[dict[str, Any]], headers: list[str]) -> list[list[Any]]:
     return [[_valor(item, header) for header in headers] for item in itens]
+
+
+def _preservar_strings_vazias_xlsx(caminho: Path) -> None:
+    if not caminho.exists():
+        return
+    substituicoes = (
+        (' t="inlineStr" />', ' t="inlineStr"><is><t></t></is></c>'),
+        (" t='inlineStr' />", " t='inlineStr'><is><t></t></is></c>"),
+    )
+    with ZipFile(caminho, 'r') as origem:
+        entradas = [(info, origem.read(info.filename)) for info in origem.infolist()]
+
+    with ZipFile(caminho, 'w', ZIP_DEFLATED) as destino:
+        for info, conteudo in entradas:
+            if info.filename.startswith('xl/worksheets/') and info.filename.endswith('.xml'):
+                texto = conteudo.decode('utf-8')
+                for antigo, novo in substituicoes:
+                    texto = texto.replace(antigo, novo)
+                conteudo = texto.encode('utf-8')
+            destino.writestr(info, conteudo)
 
 
 def _apply_table_style(
@@ -797,6 +818,39 @@ def _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial: A
 
     return linhas
 
+
+def _abas_xlsx_oficiais(pacote_saida_observavel_oficial: Any) -> dict[str, list[dict[str, Any]]]:
+    bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
+    abas = getattr(bloco_xlsx, 'abas', None)
+    return dict(abas) if isinstance(abas, Mapping) else {}
+
+
+def _valor_celula_aba_xlsx_oficial(valor: Any) -> Any:
+    if hasattr(valor, 'isoformat') and not isinstance(valor, str):
+        try:
+            return valor.isoformat()
+        except Exception:
+            return str(valor)
+    return valor
+
+
+def _linhas_aba_xlsx_oficial(
+    pacote_saida_observavel_oficial: Any,
+    nome_aba: str,
+) -> list[dict[str, Any]]:
+    linhas = list(_abas_xlsx_oficiais(pacote_saida_observavel_oficial).get(nome_aba) or [])
+    normalizadas: list[dict[str, Any]] = []
+    for item in linhas:
+        if is_dataclass(item):
+            item = asdict(item)
+        if isinstance(item, Mapping):
+            normalizadas.append({
+                chave: _valor_celula_aba_xlsx_oficial(valor)
+                for chave, valor in dict(item).items()
+            })
+    return normalizadas
+
+
 def _adicionar_saida_observavel_oficial(wb, pacote_saida_observavel_oficial) -> None:
     if pacote_saida_observavel_oficial is None:
         return
@@ -929,11 +983,19 @@ def main(
     ws_passado = wb.active
     ws_passado.title = _nome_aba_operacional(contexto, "extrato_passado")
     headers_passado = _cabecalhos_operacionais(contexto, "extrato_passado")
-    _apply_table_style(ws_passado, headers_passado, _rows(saida.extrato_passado, headers_passado), freeze=True)
+    extrato_passado_oficial = _linhas_aba_xlsx_oficial(
+        pacote_saida_observavel_oficial,
+        'Extrato Passado',
+    )
+    extrato_passado = extrato_passado_oficial or list(getattr(saida, 'extrato_passado', []) or [])
+    _apply_table_style(ws_passado, headers_passado, _rows(extrato_passado, headers_passado), freeze=True)
 
     ws_futuro = wb.create_sheet(_nome_aba_operacional(contexto, "extrato_futuro"))
     headers_futuro = _cabecalhos_operacionais(contexto, "extrato_futuro")
-    extrato_futuro_oficial = _linhas_extrato_futuro_oficial_observavel(pacote_saida_observavel_oficial)
+    extrato_futuro_oficial = _linhas_aba_xlsx_oficial(
+        pacote_saida_observavel_oficial,
+        'Extrato Futuro',
+    )
     extrato_futuro = extrato_futuro_oficial or list(getattr(saida, 'extrato_futuro', []) or [])
     _apply_table_style(ws_futuro, headers_futuro, _rows(extrato_futuro, headers_futuro), freeze=True)
 
@@ -950,7 +1012,18 @@ def main(
 
     ws_switching = wb.create_sheet(_nome_aba_operacional(contexto, "switching"))
     headers_switching = _cabecalhos_operacionais(contexto, "switching")
-    switchings_observaveis = construir_switchings_observaveis(contexto, saida, pacote_saida_observavel_temporal=pacote_consolidado)
+    switchings_oficiais = _linhas_aba_xlsx_oficial(
+        pacote_saida_observavel_oficial,
+        'Switching',
+    )
+    switchings_observaveis = (
+        switchings_oficiais
+        or construir_switchings_observaveis(
+            contexto,
+            saida,
+            pacote_saida_observavel_temporal=pacote_consolidado,
+        )
+    )
     _apply_table_style(ws_switching, headers_switching, _rows(switchings_observaveis, headers_switching), freeze=True)
 
     if incluir_extras_diagnosticas:
@@ -998,10 +1071,12 @@ def main(
 
     saida_interna.parent.mkdir(parents=True, exist_ok=True)
     wb.save(saida_interna)
+    _preservar_strings_vazias_xlsx(saida_interna)
 
     try:
         if saida_externa.parent.exists():
             wb.save(saida_externa)
+            _preservar_strings_vazias_xlsx(saida_externa)
     except Exception as exc:
         print(f"[AVISO] cópia externa não gerada: {type(exc).__name__}:{exc}")
 
