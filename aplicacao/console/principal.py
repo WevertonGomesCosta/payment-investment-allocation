@@ -390,6 +390,15 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
     _imprimir_titulo('SITUAÇÃO ATUAL')
 
     fechamento = _lista_dicts(getattr(bloco_console, 'situacao_atual_fechamento', []) or [])
+    fechamento_por_metrica = {chave: valor for chave, valor in _normalizar_pares(fechamento)}
+    fechamento_emitido = [
+        {'Métrica': 'data de referência', 'Valor': fechamento_por_metrica.get('Data de referência')},
+        {'Métrica': 'status do fechamento econômico', 'Valor': fechamento_por_metrica.get('Status do fechamento econômico')},
+        {'Métrica': 'fonte do fechamento', 'Valor': fechamento_por_metrica.get('Fonte do fechamento')},
+        {'Métrica': 'fechamentos com fallback CDI', 'Valor': fechamento_por_metrica.get('Fechamentos com fallback CDI', 0)},
+        {'Métrica': 'último fator explícito CDI', 'Valor': fechamento_por_metrica.get('Último fator explícito CDI')},
+        {'Métrica': 'data confirmada da série', 'Valor': fechamento_por_metrica.get('Data confirmada da série')},
+    ]
     if fechamento:
         _imprimir_pares(_normalizar_pares(fechamento))
 
@@ -414,7 +423,7 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
         _imprimir_pares(_normalizar_pares(resumo_recebidos))
 
     return {
-        'situacao_atual_fechamento': fechamento,
+        'situacao_atual_fechamento': fechamento_emitido,
         'situacao_atual_lotes_exauridos_id': exauridos_id,
         'situacao_atual_lotes_exauridos_valores': exauridos_val,
         'situacao_atual_lotes_ativos_id': ativos_id,
