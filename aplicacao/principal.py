@@ -8,7 +8,7 @@ RAIZ_REPOSITORIO = Path(__file__).resolve().parents[1]
 if str(RAIZ_REPOSITORIO) not in sys.path:
     sys.path.insert(0, str(RAIZ_REPOSITORIO))
 
-from aplicacao.console.principal import construir_representacao_console_auditavel, render_console
+from aplicacao.console.principal import render_console
 from nucleo.contexto_operacional_canonico import carregar_contexto_operacional_canonico
 from nucleo.gerar_planilha_operacional import main as gerar_planilha_operacional
 from nucleo.estado_temporal_inicial import construir_estado_temporal_inicial
@@ -260,7 +260,7 @@ def main():
         _render_resumo_gates_bloqueados(resultado_gates_validacao_nucleo)
         return None
 
-    render_console(
+    console_auditavel = render_console(
         contexto_operacional_canonico,
         saida_canonica,
         estado_temporal_inicial=estado_temporal_inicial,
@@ -276,7 +276,6 @@ def main():
 
     print(f"Saída operacional gerada em: {caminho_saida}")
 
-    console_auditavel = construir_representacao_console_auditavel(pacote_saida_observavel_oficial)
     resultado_paridade_renderizacao = validar_paridade_renderizacao_oficial(
         pacote_saida_observavel=pacote_saida_observavel_oficial,
         caminho_xlsx=caminho_saida,

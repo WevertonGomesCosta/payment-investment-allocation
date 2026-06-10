@@ -54,51 +54,47 @@ BLOCOS_SITUACAO_ATUAL_OBRIGATORIOS: tuple[str, ...] = (
 )
 
 SECOES_CONSOLE_PARIDADE_FORTE: tuple[str, ...] = (
+    'saida_observavel_resumo',
     'resumo_operacional',
-    'ultimos_pagamentos',
+    'pagamentos_ultimos',
     'pagamentos_data_referencia',
-    'proximos_pagamentos',
-    'pagamentos_por_fonte',
+    'pagamentos_proximos',
+    'obrigacoes_bloqueadas_oficiais',
+    'alertas_operacionais',
     'ranking_metricas',
     'ranking_amostra',
-    'switchings_metricas',
-    'switchings_amostra',
-    'switchings_resumo_operacional',
-    'switchings_realizados_operacionais',
+    'switching_metricas',
+    'switching_amostra',
+    'switching_resumo_operacional',
     'situacao_atual_fechamento',
     'situacao_atual_lotes_exauridos_id',
     'situacao_atual_lotes_exauridos_valores',
     'situacao_atual_lotes_ativos_id',
     'situacao_atual_lotes_ativos_valores',
-    'situacao_atual_origens_migradas',
     'situacao_atual_patrimonio_total',
-    'situacao_atual_recebidos_auditaveis',
     'situacao_atual_resumo_recebidos',
-    'situacao_atual_blocos',
 )
 
 ROTULOS_SECOES_CONSOLE_PARIDADE_FORTE: dict[str, str] = {
+    'saida_observavel_resumo': 'Saída Observável Oficial — Etapa 9',
     'resumo_operacional': 'Saída Observável Oficial / resumo operacional',
-    'ultimos_pagamentos': 'Pagamentos — últimos pagamentos realizados',
+    'pagamentos_ultimos': 'Pagamentos — últimos pagamentos realizados',
     'pagamentos_data_referencia': 'Pagamentos — data de referência',
-    'proximos_pagamentos': 'Pagamentos — próximos pagamentos',
-    'pagamentos_por_fonte': 'Pagamentos — valores por fonte',
-    'ranking_metricas': 'Ranking/Carteira — métricas',
-    'ranking_amostra': 'Ranking/Carteira — amostra',
-    'switchings_metricas': 'Switching — métricas',
-    'switchings_amostra': 'Switching — amostra',
-    'switchings_resumo_operacional': 'Switching — resumo operacional',
-    'switchings_realizados_operacionais': 'Switching — realizados operacionais',
+    'pagamentos_proximos': 'Pagamentos — próximos pagamentos',
+    'obrigacoes_bloqueadas_oficiais': 'Pagamentos — obrigações bloqueadas oficiais',
+    'alertas_operacionais': 'Pagamentos — alertas operacionais',
+    'ranking_metricas': 'Ranking/Carteira — métricas emitidas',
+    'ranking_amostra': 'Ranking/Carteira — amostra emitida',
+    'switching_metricas': 'Switching — métricas emitidas',
+    'switching_amostra': 'Switching — amostra emitida',
+    'switching_resumo_operacional': 'Switching — resumo operacional emitido',
     'situacao_atual_fechamento': 'Situação Atual — fechamento',
     'situacao_atual_lotes_exauridos_id': 'Situação Atual — lotes exauridos identificação',
     'situacao_atual_lotes_exauridos_valores': 'Situação Atual — lotes exauridos valores',
     'situacao_atual_lotes_ativos_id': 'Situação Atual — lotes ativos identificação',
     'situacao_atual_lotes_ativos_valores': 'Situação Atual — lotes ativos valores',
-    'situacao_atual_origens_migradas': 'Situação Atual — origens migradas',
     'situacao_atual_patrimonio_total': 'Situação Atual — patrimônio total',
-    'situacao_atual_recebidos_auditaveis': 'Situação Atual — recebidos auditáveis',
     'situacao_atual_resumo_recebidos': 'Situação Atual — resumo de recebidos',
-    'situacao_atual_blocos': 'Situação Atual — blocos observáveis',
 }
 CATEGORIAS_DIVERGENCIA = (
     'PARIDADE_OK',
@@ -782,13 +778,191 @@ def _rotulo_console_presente(texto_normalizado: str, campo: Any) -> bool:
     return rotulo in texto_normalizado
 
 
+def _linha_pagamento_console_esperada(item: Any, *, bloqueada: bool = False) -> dict[str, Any]:
+    item_map = _objeto_para_mapping(item)
+    referencia = _objeto_para_mapping(item_map.get('referencia_original'))
+    data = item_map.get('data') or referencia.get('data')
+    conta = referencia.get('descricao') or referencia.get('conta') or item_map.get('obrigacao_id') or ''
+    fontes_operacionais = list(item_map.get('fontes_referenciadas_operacionais') or [])
+    fontes_referenciadas = list(item_map.get('fontes_referenciadas') or [])
+    fontes = fontes_operacionais or fontes_referenciadas
+    lote = ' + '.join(str(fonte) for fonte in fontes if fonte) or 'n/d'
+    pacote = item_map.get('pacote_nome_operacional') or item_map.get('pacote_id') or 'n/d'
+    motivo = item_map.get('motivo') or 'n/d'
+    status = item_map.get('status_observavel') or ('bloqueada_oficial' if bloqueada else 'coberta_oficial')
+
+    def valor_economico(campo: str, status_campo: str | None = None) -> Any:
+        valor = item_map.get(campo)
+        if valor is None and status_campo:
+            status_valor = item_map.get(status_campo)
+            if status_valor:
+                return status_valor
+        if valor is None:
+            return 'nao_materializado'
+        if isinstance(valor, (int, float)):
+            return f'{float(valor):.2f}'
+        texto = str(valor).strip()
+        return texto if texto else 'nao_materializado'
+
+    return {
+        'Data': data,
+        'Conta': conta,
+        'Lote': lote if not bloqueada else 'n/d',
+        'Pacote': pacote,
+        'Sw. ant.': 'não',
+        'Sw. dep.': 'não',
+        'Status': status,
+        'Bloq.': motivo if bloqueada else 'n/d',
+        'Saldo ant.': valor_economico('saldo_antes_fonte', 'status_saldo_antes_fonte') if not bloqueada else 'nao_aplicavel',
+        'Bruto': valor_economico('valor_bruto_resgate', 'status_valor_bruto_resgate') if not bloqueada else 'nao_aplicavel',
+        'IR': valor_economico('imposto_resgate', 'status_imposto_resgate') if not bloqueada else 'nao_aplicavel',
+        'Liq.': valor_economico('valor_liquido_resgate', 'status_valor_liquido_resgate') if not bloqueada else 'nao_aplicavel',
+        'Rem.': valor_economico('saldo_remanescente_fonte', 'status_saldo_remanescente_fonte') if not bloqueada else 'nao_aplicavel',
+    }
+
+
+def _linhas_metricas_console(mapping_ou_lista: Any, pares: list[tuple[str, Any]]) -> list[dict[str, Any]]:
+    return [{'Métrica': rotulo, 'Valor': valor} for rotulo, valor in pares]
+
+
+def _resumo_operacional_console_esperado(bloco_esperado: Mapping[str, Any]) -> list[dict[str, Any]]:
+    resumo = _objeto_para_mapping(bloco_esperado.get('resumo_operacional'))
+    return [{'Métrica': chave, 'Valor': valor} for chave, valor in resumo.items()]
+
+
+def _esperado_console_observavel(secao: str, bloco_esperado: Mapping[str, Any]) -> Any:
+    if secao == 'resumo_operacional':
+        return _resumo_operacional_console_esperado(bloco_esperado)
+    if secao == 'pagamentos_ultimos':
+        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
+        return [
+            {k: linha[k] for k in colunas}
+            for linha in (_linha_pagamento_console_esperada(item, bloqueada=False) for item in list(bloco_esperado.get('ultimos_pagamentos') or [])[:5])
+        ]
+    if secao == 'pagamentos_data_referencia':
+        colunas = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status', 'Bloq.']
+        linhas = []
+        for item in list(bloco_esperado.get('pagamentos_data_referencia') or [])[:5]:
+            item_map = _objeto_para_mapping(item)
+            bloqueada = str(item_map.get('status_observavel') or '').startswith('bloqueada') or str(item_map.get('tipo') or '').endswith('bloqueada_referencialmente')
+            linha = _linha_pagamento_console_esperada(item, bloqueada=bloqueada)
+            linhas.append({k: linha[k] for k in colunas})
+        return linhas
+    if secao == 'pagamentos_proximos':
+        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
+        linhas = []
+        for item in list(bloco_esperado.get('proximos_pagamentos') or [])[:5]:
+            item_map = _objeto_para_mapping(item)
+            bloqueada = str(item_map.get('status_observavel') or '').startswith('bloqueada') or str(item_map.get('tipo') or '').endswith('bloqueada_referencialmente')
+            linha = _linha_pagamento_console_esperada(item, bloqueada=bloqueada)
+            linhas.append({k: linha[k] for k in colunas})
+        return linhas
+    if secao == 'obrigacoes_bloqueadas_oficiais':
+        bloqueadas = list(bloco_esperado.get('obrigacoes_bloqueadas') or [])
+        if not bloqueadas:
+            return None
+        colunas = ['Data', 'Conta', 'Pacote', 'Status', 'Bloq.']
+        return [
+            {k: linha[k] for k in colunas}
+            for linha in (_linha_pagamento_console_esperada(item, bloqueada=True) for item in bloqueadas[:5])
+        ]
+    if secao == 'alertas_operacionais':
+        bloqueadas = list(bloco_esperado.get('obrigacoes_bloqueadas') or [])
+        if not bloqueadas:
+            return [{'status': '[OK] sem alertas na amostra atual'}]
+        return [
+            {
+                'Data': _linha_pagamento_console_esperada(item, bloqueada=True).get('Data'),
+                'Conta': _linha_pagamento_console_esperada(item, bloqueada=True).get('Conta'),
+                'problema': 'obrigacao_bloqueada_oficial',
+                'motivo': _objeto_para_mapping(item).get('motivo') or 'n/d',
+            }
+            for item in bloqueadas[:5]
+        ]
+    if secao == 'ranking_metricas':
+        metricas = {item.get('Métrica'): item.get('Valor') for item in list(bloco_esperado.get('ranking_metricas') or []) if isinstance(item, Mapping)}
+        return _linhas_metricas_console(metricas, [
+            ('produtos totais', metricas.get('produtos totais')),
+            ('produtos ativos ranqueados', metricas.get('produtos ativos ranqueados')),
+            ('destinos elegíveis de switching', metricas.get('destinos elegíveis de switching')),
+            ('destino top 1', metricas.get('destino top 1')),
+            ('método', metricas.get('método')),
+        ])
+    if secao == 'ranking_amostra':
+        return list(bloco_esperado.get('ranking_amostra') or [])[:10]
+    if secao == 'switching_metricas':
+        metricas = {item.get('Métrica'): item.get('Valor') for item in list(bloco_esperado.get('switchings_metricas') or []) if isinstance(item, Mapping)}
+        return _linhas_metricas_console(metricas, [
+            ('Lotes avaliados para switching', metricas.get('Lotes avaliados para switching')),
+            ('Candidatos avaliados para switching', metricas.get('Candidatos avaliados para switching')),
+            ('Switchings promovidos/executados', metricas.get('Switchings promovidos/executados')),
+        ])
+    if secao == 'switching_amostra':
+        return list(bloco_esperado.get('switchings_amostra') or [])[:10]
+    if secao == 'switching_resumo_operacional':
+        return list(bloco_esperado.get('switchings_resumo_operacional') or [])
+    if secao == 'situacao_atual_fechamento':
+        resumo = {item.get('Métrica'): item.get('Valor') for item in list(bloco_esperado.get('situacao_atual_fechamento') or []) if isinstance(item, Mapping)}
+        return _linhas_metricas_console(resumo, [
+            ('data de referência', resumo.get('Data de referência')),
+            ('status do fechamento econômico', resumo.get('Status do fechamento econômico')),
+            ('fonte do fechamento', resumo.get('Fonte do fechamento')),
+            ('fechamentos com fallback CDI', resumo.get('Fechamentos com fallback CDI', 0)),
+            ('último fator explícito CDI', resumo.get('Último fator explícito CDI')),
+            ('data confirmada da série', resumo.get('Data confirmada da série')),
+        ])
+    if secao == 'situacao_atual_resumo_recebidos':
+        return [
+            {'Métrica': item.get('Métrica'), 'Valor': item.get('Valor')}
+            for item in list(bloco_esperado.get('situacao_atual_resumo_recebidos') or [])
+            if isinstance(item, Mapping)
+        ]
+    if secao == 'saida_observavel_resumo':
+        return None
+    return bloco_esperado.get(secao)
+
+
+def _secao_console_deve_ser_auditada(secao: str, esperado: Any) -> bool:
+    if secao == 'saida_observavel_resumo':
+        return False
+    if secao == 'obrigacoes_bloqueadas_oficiais':
+        return esperado is not None
+    return True
+
+
+def _lista_metricas_por_nome(valores: Any) -> dict[str, Any] | None:
+    if not isinstance(valores, list):
+        return None
+    metricas: dict[str, Any] = {}
+    for item in valores:
+        if not isinstance(item, Mapping) or 'Métrica' not in item:
+            return None
+        metricas[str(item.get('Métrica'))] = item.get('Valor')
+    return metricas
+
+
+def _valores_console_equivalentes(esperado: Any, observado: Any) -> bool:
+    metricas_esperadas = _lista_metricas_por_nome(esperado)
+    metricas_observadas = _lista_metricas_por_nome(observado)
+    if metricas_esperadas is not None and metricas_observadas is not None:
+        for metrica, valor_esperado in metricas_esperadas.items():
+            if valor_esperado is None:
+                continue
+            if metrica not in metricas_observadas:
+                return False
+            if not _valores_equivalentes(valor_esperado, metricas_observadas.get(metrica)):
+                return False
+        return True
+    return _valores_equivalentes(esperado, observado)
+
+
 def _comparar_secao_console_estruturada(
     secao: str,
     esperado: Any,
     observado: Any,
 ) -> list[DivergenciaParidadeRenderizacao]:
     rotulo = ROTULOS_SECOES_CONSOLE_PARIDADE_FORTE.get(secao, secao)
-    if not _valores_equivalentes(esperado, observado):
+    if not _valores_console_equivalentes(esperado, observado):
         return [
             _nova_divergencia(
                 _categoria_conteudo(esperado, observado),
@@ -814,17 +988,20 @@ def _auditar_console_estruturado_forte(
     estrutura: Mapping[str, Any],
 ) -> tuple[list[str], list[DivergenciaParidadeRenderizacao]]:
     bloco_esperado = _objeto_para_mapping(bloco_console)
-    secoes_observadas = [secao for secao in SECOES_CONSOLE_PARIDADE_FORTE if secao in estrutura]
+    secoes_emitidas = _objeto_para_mapping(estrutura.get('secoes')) if 'secoes' in estrutura else dict(estrutura)
+    secoes_observadas = [secao for secao in SECOES_CONSOLE_PARIDADE_FORTE if secao in secoes_emitidas]
     divergencias: list[DivergenciaParidadeRenderizacao] = []
     for secao in SECOES_CONSOLE_PARIDADE_FORTE:
+        esperado = _esperado_console_observavel(secao, bloco_esperado)
+        if not _secao_console_deve_ser_auditada(secao, esperado):
+            continue
         rotulo = ROTULOS_SECOES_CONSOLE_PARIDADE_FORTE.get(secao, secao)
-        esperado = bloco_esperado.get(secao)
-        if secao not in estrutura:
+        if secao not in secoes_emitidas:
             divergencias.append(
                 _nova_divergencia(
                     'DIVERGENCIA_ESTRUTURAL',
                     'console',
-                    f'Seção material não localizada na representação estruturada de console: {rotulo}.',
+                    f'Seção material não localizada na representação estruturada emitida pelo console: {rotulo}.',
                     material=True,
                     coluna=secao,
                     esperado=normalizar_valores_para_paridade(esperado),
@@ -833,11 +1010,13 @@ def _auditar_console_estruturado_forte(
                         'campo_presente': False,
                         'valor_equivalente': False,
                         'rotulo': rotulo,
+                        'origem_representacao': estrutura.get('origem_representacao'),
+                        'forma': estrutura.get('forma'),
                     },
                 )
             )
             continue
-        divergencias.extend(_comparar_secao_console_estruturada(secao, esperado, estrutura.get(secao)))
+        divergencias.extend(_comparar_secao_console_estruturada(secao, esperado, secoes_emitidas.get(secao)))
     return secoes_observadas, divergencias
 
 
@@ -846,7 +1025,7 @@ def auditar_paridade_console(
     console_renderizado: object | None = None,
 ) -> AuditoriaParidadeConsole:
     bloco_console = blocos_esperados.get('bloco_console')
-    secoes_esperadas = _secoes_console_esperadas(bloco_console)
+    secoes_esperadas = list(SECOES_CONSOLE_PARIDADE_FORTE)
     lido = ler_renderizacao_console(console_renderizado)
     if not lido['auditavel']:
         divergencia = _nova_divergencia(
