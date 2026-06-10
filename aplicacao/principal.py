@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any
 
 RAIZ_REPOSITORIO = Path(__file__).resolve().parents[1]
 if str(RAIZ_REPOSITORIO) not in sys.path:
@@ -21,6 +19,10 @@ from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_of
 from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_oficial
 from nucleo.limpeza_depreciacao_controlada import construir_resultado_limpeza_depreciacao_controlada
 from nucleo.inventario_legado_pipeline import construir_inventario_legado_pipeline
+from nucleo.identidade_baseline import VERSAO_BASELINE
+from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
+from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
+from nucleo.integracao_matriz_elegibilidade_pagamentos_s7c import aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c
 from nucleo.situacao_atual_oficial import construir_situacao_atual_oficial
 
 
@@ -28,293 +30,6 @@ def _valor(objeto, campo, padrao=None):
     if isinstance(objeto, dict):
         return objeto.get(campo, padrao)
     return getattr(objeto, campo, padrao)
-
-
-def _como_dict(objeto: Any) -> dict[str, Any]:
-    if objeto is None:
-        return {}
-    if isinstance(objeto, dict):
-        return dict(objeto)
-    try:
-        from dataclasses import asdict, is_dataclass
-
-        if is_dataclass(objeto):
-            return asdict(objeto)
-    except Exception:
-        pass
-    return {
-        chave: getattr(objeto, chave)
-        for chave in dir(objeto)
-        if not chave.startswith('_') and not callable(getattr(objeto, chave, None))
-    }
-
-
-def _fontes_consulta(item: dict[str, Any]) -> list[dict[str, Any]]:
-    fontes = [item]
-    for chave in ('referencia_original', 'referencia_recebido_temporal', 'referencia_switching_temporal', 'metadados'):
-        valor = item.get(chave)
-        if isinstance(valor, dict):
-            fontes.append(valor)
-    return fontes
-
-
-def _primeiro(item: dict[str, Any], *campos: str, padrao: Any = None) -> Any:
-    for fonte in _fontes_consulta(item):
-        for campo in campos:
-            valor = fonte.get(campo)
-            if valor not in (None, ''):
-                return valor
-    return padrao
-
-
-def _float(valor: Any, padrao: float = 0.0) -> float:
-    try:
-        if valor in (None, ''):
-            return padrao
-        return float(valor)
-    except Exception:
-        return padrao
-
-
-def _fmt_lote(valor: Any) -> str:
-    return str(valor or '').strip()
-
-
-def _materializar_extrato_passado_oficial(saida_canonica_oficial: Any) -> list[dict[str, Any]]:
-    linhas: list[dict[str, Any]] = []
-    for item_bruto in list(getattr(saida_canonica_oficial, 'pagamentos_historicos_realizados', []) or []):
-        item = _como_dict(item_bruto)
-        lote = _primeiro(
-            item,
-            'Lote',
-            'Lotes usados',
-            'lote',
-            'lote_usado',
-            'lote_id_operacional',
-            'fonte_resolvida_historica',
-            padrao='',
-        )
-        linhas.append(
-            {
-                'Data': _primeiro(item, 'Data', 'data', 'data_pagamento'),
-                'Conta': _primeiro(item, 'Conta', 'Descrição', 'Descricao', 'conta', 'fonte_informada', padrao=''),
-                'Despesa ID': _primeiro(item, 'Despesa ID', 'despesa_id', 'pagamento_id', 'obrigacao_id', 'id', padrao=''),
-                'Lote': lote,
-                'Lotes usados': lote,
-                'Saldo Antes': _primeiro(item, 'Saldo Antes', 'saldo_antes', 'saldo_antes_fonte', padrao=''),
-                'Bruto': _primeiro(item, 'Bruto', 'valor_bruto_resgate', 'valor_bruto', 'valor', padrao=0.0),
-                'Imposto': _primeiro(item, 'Imposto', 'imposto_resgate', 'imposto', padrao=0.0),
-                'Líquido': _primeiro(item, 'Líquido', 'Liquido', 'valor_liquido_resgate', 'valor_liquido', 'valor', padrao=0.0),
-                'Saldo Remanescente': _primeiro(
-                    item,
-                    'Saldo Remanescente',
-                    'Saldo remanescente',
-                    'saldo_remanescente',
-                    'saldo_remanescente_fonte',
-                    padrao=0.0,
-                ),
-            }
-        )
-    return linhas
-
-
-def _linha_lote_ativo_de_saldo(saldo_bruto: Any, data_referencia: Any) -> dict[str, Any] | None:
-    saldo = _como_dict(saldo_bruto)
-    lote = _fmt_lote(
-        _primeiro(
-            saldo,
-            'lote_id_operacional',
-            'lote_id',
-            'Lote',
-            'fonte_id',
-            'fonte_id_tecnico',
-            padrao='',
-        )
-    )
-    if not lote:
-        return None
-    liquido = _float(_primeiro(saldo, 'valor_disponivel_referencial', 'valor_liquido_atual', 'Líquido', 'Liquido', padrao=0.0))
-    if round(liquido, 2) <= 0.20:
-        return None
-    valor_original = _float(
-        _primeiro(
-            saldo,
-            'valor_original',
-            'Valor original',
-            'valor_bruto_original',
-            'valor_aplicado',
-            padrao=liquido,
-        ),
-        padrao=liquido,
-    )
-    return {
-        'Lote': lote,
-        'Produto': _primeiro(saldo, 'produto', 'Produto', 'carteira', 'Carteira', 'investimento', padrao=lote),
-        'Aplicação': _primeiro(saldo, 'data_aplicacao', 'Aplicação', 'Aplicacao', 'data_recebimento', padrao=data_referencia),
-        'Base fiscal': _primeiro(saldo, 'data_base_fiscal', 'Base fiscal', 'data_aplicacao', padrao=data_referencia),
-        'Valor original': round(valor_original, 2),
-        'Bruto': round(_float(_primeiro(saldo, 'valor_bruto_atual', 'Bruto', padrao=liquido)), 2),
-        'Líquido': round(liquido, 2),
-        'Status ciclo': _primeiro(saldo, 'status_temporal', 'status', padrao='ativo'),
-    }
-
-
-def _materializar_lotes_ativos_oficiais(saida_canonica_oficial: Any) -> list[dict[str, Any]]:
-    data_referencia = getattr(saida_canonica_oficial, 'data_referencia', None)
-    saldos_por_data = dict(getattr(saida_canonica_oficial, 'saldos_referenciais_por_data', {}) or {})
-    saldos_referencia = []
-    if saldos_por_data:
-        data_saldo = data_referencia if data_referencia in saldos_por_data else max(saldos_por_data)
-        saldos_referencia = list(saldos_por_data.get(data_saldo, []) or [])
-
-    linhas: list[dict[str, Any]] = []
-    vistos: set[str] = set()
-    for saldo in saldos_referencia:
-        linha = _linha_lote_ativo_de_saldo(saldo, data_referencia)
-        if not linha:
-            continue
-        lote = _fmt_lote(linha.get('Lote'))
-        if lote in vistos:
-            continue
-        vistos.add(lote)
-        linhas.append(linha)
-
-    for item_bruto in list(getattr(saida_canonica_oficial, 'lotes_pos_switching_materializados', []) or []):
-        item = _como_dict(item_bruto)
-        lote = _fmt_lote(_primeiro(item, 'lote_id_operacional', 'lote_id', 'lote_destino', 'Lote', padrao=''))
-        if not lote or lote in vistos:
-            continue
-        valor = _float(_primeiro(item, 'valor_liquido_migrado', 'valor_liquido_migrado_referencial', 'valor', padrao=0.0))
-        if round(valor, 2) <= 0.20:
-            continue
-        vistos.add(lote)
-        linhas.append(
-            {
-                'Lote': lote,
-                'Produto': _primeiro(item, 'produto_destino', 'produto', 'Produto', padrao=lote),
-                'Aplicação': _primeiro(item, 'data_aplicacao', 'data_switching', padrao=data_referencia),
-                'Base fiscal': _primeiro(item, 'data_aplicacao', 'data_switching', padrao=data_referencia),
-                'Valor original': round(valor, 2),
-                'Bruto': round(valor, 2),
-                'Líquido': round(valor, 2),
-                'Status ciclo': 'ativo_pos_switching',
-            }
-        )
-    return linhas
-
-
-def _materializar_lotes_exauridos_oficiais(extrato_passado: list[dict[str, Any]], lotes_ativos: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    ativos = {_fmt_lote(item.get('Lote')) for item in lotes_ativos}
-    acumulado: dict[str, dict[str, Any]] = {}
-    for linha in extrato_passado:
-        lote = _fmt_lote(linha.get('Lotes usados') or linha.get('Lote'))
-        if not lote or lote in ativos:
-            continue
-        atual = acumulado.setdefault(
-            lote,
-            {
-                'Lote': lote,
-                'Produto': lote,
-                'Aplicação': linha.get('Data'),
-                'Base fiscal': linha.get('Data'),
-                'Valor original': 0.0,
-                'Bruto': 0.0,
-                'Líquido': 0.0,
-                'Saldo Remanescente': 0.0,
-                'Status ciclo': 'exaurido_por_saque',
-            },
-        )
-        atual['Valor original'] = round(_float(atual.get('Valor original')) + abs(_float(linha.get('Bruto'))), 2)
-        atual['Bruto'] = 0.0
-        atual['Líquido'] = 0.0
-        atual['Saldo Remanescente'] = linha.get('Saldo Remanescente')
-    return [item for item in acumulado.values() if round(_float(item.get('Saldo Remanescente')), 2) <= 0.20]
-
-
-def _materializar_switchings_oficiais(saida_canonica_oficial: Any) -> list[dict[str, Any]]:
-    linhas: list[dict[str, Any]] = []
-    for item_bruto in list(getattr(saida_canonica_oficial, 'switchings_realizados_operacionais', []) or []):
-        item = _como_dict(item_bruto)
-        linhas.append(
-            {
-                'Data': _primeiro(item, 'data', 'data_switching', 'data_aplicacao'),
-                'Lote origem': _primeiro(item, 'lote_origem_id', 'lote_origem', padrao=''),
-                'Lote destino': _primeiro(item, 'lote_destino_id', 'lote_destino', padrao=''),
-                'Produto origem': _primeiro(item, 'produto_origem', 'Produto origem', padrao=''),
-                'Produto destino': _primeiro(item, 'produto_destino', 'Produto destino', padrao=''),
-                'Valor líquido origem': _primeiro(item, 'valor_liquido_migrado_referencial', 'valor_liquido_migrado', padrao=0.0),
-                'Status': _primeiro(item, 'status', 'status_observavel', padrao='switching_operacional_preservado'),
-            }
-        )
-    return linhas
-
-
-def _materializar_recebidos_oficiais(saida_canonica_oficial: Any) -> list[dict[str, Any]]:
-    recebidos: list[dict[str, Any]] = []
-    for item_bruto in list(getattr(saida_canonica_oficial, 'destinos_sobras_recebidos', []) or []):
-        item = _como_dict(item_bruto)
-        valor_bruto = _float(_primeiro(item, 'valor_bruto', 'valor_recebido', 'Valor bruto', 'valor', padrao=0.0))
-        valor_liquido = _float(_primeiro(item, 'valor_liquido', 'Valor líquido', 'valor_liquido_aplicado', padrao=valor_bruto))
-        recebidos.append(
-            {
-                'Recebido': _primeiro(item, 'recebido_id', 'Recebido', 'lote_origem', 'lote_id_operacional', padrao='recebido_sem_id'),
-                'Lote origem': _primeiro(item, 'lote_origem', 'lote_id_operacional', 'fonte_id_tecnico', padrao=''),
-                'Recebimento': _primeiro(item, 'data_recebimento', 'Recebimento', 'data', padrao=''),
-                'Aplicação': _primeiro(item, 'data_aplicacao', 'Aplicação', padrao=''),
-                'Valor bruto': round(valor_bruto, 2),
-                'Valor líquido': round(valor_liquido, 2),
-                'Status': _primeiro(item, 'status_materializacao', 'status', padrao='materializado_oficial'),
-                'Destino': _primeiro(item, 'destino_explicito', 'investimento_destino', 'carteira_destino', 'Destino', padrao=''),
-                'Pagamentos vinculados': len(list(_primeiro(item, 'pagamentos_vinculados', padrao=[]) or [])),
-                'Valor vinculado': _primeiro(item, 'valor_vinculado', 'Valor vinculado', padrao=0.0),
-                'Residual aplicação': _primeiro(item, 'valor_residual_aplicacao', 'Residual aplicação', padrao=0.0),
-                'Disponível ref': _primeiro(item, 'valor_disponivel_referencial', 'Disponível ref', padrao=valor_liquido),
-                'Observação': _primeiro(item, 'origem', 'observacao', padrao='SaidaCanonicaOficial'),
-            }
-        )
-    return recebidos
-
-
-def _resumo_recebidos_oficiais(recebidos: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        {'Métrica': 'Total de recebidos', 'Valor': len(recebidos)},
-        {'Métrica': 'Valor bruto total dos recebidos', 'Valor': round(sum(_float(item.get('Valor bruto')) for item in recebidos), 2)},
-        {'Métrica': 'Valor líquido total dos recebidos', 'Valor': round(sum(_float(item.get('Valor líquido')) for item in recebidos), 2)},
-        {'Métrica': 'Origem', 'Valor': 'SaidaCanonicaOficial'},
-    ]
-
-
-def _fonte_situacao_atual_da_saida_oficial(saida_canonica_oficial: Any) -> SimpleNamespace:
-    extrato_passado = _materializar_extrato_passado_oficial(saida_canonica_oficial)
-    lotes_ativos = _materializar_lotes_ativos_oficiais(saida_canonica_oficial)
-    lotes_exauridos = _materializar_lotes_exauridos_oficiais(extrato_passado, lotes_ativos)
-    recebidos_atuais = _materializar_recebidos_oficiais(saida_canonica_oficial)
-    switchings = _materializar_switchings_oficiais(saida_canonica_oficial)
-    return SimpleNamespace(
-        data_referencia=getattr(saida_canonica_oficial, 'data_referencia', None),
-        extrato_passado=extrato_passado,
-        lotes_ativos=lotes_ativos,
-        lotes_exauridos=lotes_exauridos,
-        switchings=switchings,
-        recebidos_atuais=recebidos_atuais,
-        fechamento_atual=[
-            {'Métrica': 'Data de referência', 'Valor': getattr(saida_canonica_oficial, 'data_referencia', None)},
-            {'Métrica': 'Status do fechamento econômico', 'Valor': getattr(saida_canonica_oficial, 'status', None)},
-            {'Métrica': 'Fonte do fechamento', 'Valor': 'SaidaCanonicaOficial'},
-            {'Métrica': 'Fechamentos com fallback CDI', 'Valor': 0},
-        ],
-        resumo_recebidos=_resumo_recebidos_oficiais(recebidos_atuais),
-        auditoria={
-            'origem_formal': 'SaidaCanonicaOficial',
-            'adaptacao_observavel_situacao_atual': True,
-            'sem_consumo_saida_canonica_transitoria': True,
-            'sem_consumo_matriz_elegibilidade_transitoria': True,
-            'qtd_lotes_ativos': len(lotes_ativos),
-            'qtd_lotes_exauridos': len(lotes_exauridos),
-            'qtd_switchings': len(switchings),
-            'qtd_recebidos': len(recebidos_atuais),
-        },
-    )
 
 
 def _formatar_item_gate(item, indice):
@@ -497,15 +212,17 @@ def carregar_contexto_e_saida():
             None,
         )
 
-    saida_canonica_oficial_preliminar = construir_saida_canonica_oficial(
-        ledger=ledger_temporal_canonico,
-        gates=resultado_gates_validacao_nucleo,
-        ranking_carteira=getattr(contexto_operacional_canonico, 'ranking_carteira', None),
+    saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional_canonico, versao=VERSAO_BASELINE)
+    matriz = construir_matriz_elegibilidade_fontes_s7b(
+        contexto_operacional_canonico,
+        data_referencia=saida_canonica.data_referencia,
+        saida_canonica_preconstruida=saida_canonica,
     )
-    fonte_situacao_atual = _fonte_situacao_atual_da_saida_oficial(saida_canonica_oficial_preliminar)
+    saida_canonica, _ = aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c(saida_canonica, matriz)
+
     situacao_atual_origem = construir_situacao_atual_oficial(
         contexto_operacional_canonico,
-        fonte_situacao_atual,
+        saida_canonica,
         estado_temporal_inicial=estado_temporal_inicial,
     )
 
@@ -522,7 +239,7 @@ def carregar_contexto_e_saida():
         resultado_motor_temporal_conjunto,
         ledger_temporal_canonico,
         resultado_gates_validacao_nucleo,
-        saida_canonica_oficial,
+        saida_canonica,
         saida_canonica_oficial,
         pacote_saida_observavel_oficial,
     )
