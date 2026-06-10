@@ -19,6 +19,7 @@ from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
 from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_oficial
 from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_oficial
 from nucleo.limpeza_depreciacao_controlada import construir_resultado_limpeza_depreciacao_controlada
+from nucleo.inventario_legado_pipeline import construir_inventario_legado_pipeline
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.construir_saida_canonica_v17_c7 import construir_saida_canonica_com_switching_v17_c7
 from nucleo.matriz_elegibilidade_fontes_s7b import construir_matriz_elegibilidade_fontes_s7b
@@ -119,26 +120,67 @@ def _render_resultado_paridade_renderizacao(resultado_paridade) -> None:
             print(f"  - ... {len(divergencias) - 5} divergência(s)/ressalva(s) adicional(is) omitida(s).")
 
 
+def _itens_limpeza_por_classificacao(resultado_limpeza, *classificacoes: str):
+    return [
+        item
+        for item in list(getattr(resultado_limpeza, 'artefatos_avaliados', []) or [])
+        if getattr(item, 'classificacao', None) in classificacoes
+    ]
+
+
+def _render_itens_limpeza(titulo: str, itens: list, limite: int = 6) -> None:
+    print(f"- {titulo}: {len(itens)}")
+    for item in itens[:limite]:
+        referencias = getattr(item, 'referencias', {}) or {}
+        arquivo = referencias.get('arquivo') or 'arquivo_nao_informado'
+        simbolo = referencias.get('simbolo_funcao_classe') or referencias.get('simbolo') or 'simbolo_nao_informado'
+        decisao = referencias.get('decisao_recomendada') or getattr(item, 'motivo', '')
+        print(f"  - {getattr(item, 'identificador', None)} | {arquivo} | {simbolo} | {decisao}")
+    if len(itens) > limite:
+        print(f"  - ... {len(itens) - limite} item(ns) adicional(is) omitido(s).")
+
+
 def _render_resultado_limpeza_depreciacao(resultado_limpeza) -> None:
     if resultado_limpeza is None:
         return
 
     resumo = getattr(resultado_limpeza, 'resumo', None)
     auditoria = getattr(resultado_limpeza, 'auditoria', None)
+    oficiais = _itens_limpeza_por_classificacao(resultado_limpeza, 'rota_oficial_preservada')
+    candidatos = _itens_limpeza_por_classificacao(resultado_limpeza, 'legado_candidato_depreciacao')
+    bloqueados = list(getattr(resultado_limpeza, 'rotas_legadas_bloqueadas_remocao', []) or [])
+    historicos_diagnosticos = _itens_limpeza_por_classificacao(
+        resultado_limpeza,
+        'historico_preservado',
+        'diagnostico_preservado_fora_pipeline',
+    )
+    fallbacks = _itens_limpeza_por_classificacao(resultado_limpeza, 'fallback_temporario_bloqueado_para_remocao')
+
     print("\n=== LIMPEZA E DEPRECIAÇÃO CONTROLADA — ETAPA 11 ===")
     print(f"- artefato: {getattr(resultado_limpeza, 'artefato', None)}")
     print(f"- entrada formal: {getattr(resultado_limpeza, 'entrada_formal', None)}")
     print(f"- origem formal: {getattr(resultado_limpeza, 'origem_formal', None)}")
     print(f"- status: {getattr(resultado_limpeza, 'status', None)}")
     print(f"- ok: {getattr(resultado_limpeza, 'ok', None)}")
+    print(f"- inventario_auxiliar_fornecido: {getattr(auditoria, 'inventario_auxiliar_fornecido', None)}")
     print(f"- artefatos avaliados: {getattr(resumo, 'qtd_artefatos_avaliados', None)}")
+    print(f"- rotas oficiais preservadas: {getattr(resumo, 'qtd_rotas_oficiais_preservadas', len(oficiais))}")
     print(f"- legados candidatos à depreciação: {getattr(resumo, 'qtd_rotas_legadas_candidatas_depreciacao', None)}")
     print(f"- legados bloqueados para remoção: {getattr(resumo, 'qtd_rotas_legadas_bloqueadas', None)}")
+    print(f"- históricos/diagnósticos preservados: {getattr(resumo, 'qtd_historicos_diagnosticos_preservados', len(historicos_diagnosticos))}")
+    print(f"- fallbacks temporários bloqueados para remoção: {getattr(resumo, 'qtd_fallbacks_temporarios_bloqueados', len(fallbacks))}")
     print(f"- remoção automática autorizada: {getattr(resumo, 'remocao_automatica_autorizada', None)}")
     print(
         "- classificação limitada por ausência de inventário: "
         f"{getattr(auditoria, 'classificacao_limitada_por_ausencia_inventario', None)}"
     )
+
+    print("- classificação explícita do inventário:")
+    _render_itens_limpeza('rotas oficiais preservadas', oficiais)
+    _render_itens_limpeza('legados candidatos à depreciação', candidatos)
+    _render_itens_limpeza('legados bloqueados por dependência ativa', bloqueados)
+    _render_itens_limpeza('históricos/diagnósticos preservados', historicos_diagnosticos)
+    _render_itens_limpeza('fallbacks temporários bloqueados para remoção nesta etapa', fallbacks)
 
     bloqueios = list(getattr(resultado_limpeza, 'bloqueios_limpeza', []) or [])
     if bloqueios:
@@ -147,6 +189,7 @@ def _render_resultado_limpeza_depreciacao(resultado_limpeza) -> None:
             print(f"  - {bloqueio}")
         if len(bloqueios) > 5:
             print(f"  - ... {len(bloqueios) - 5} bloqueio(s)/ressalva(s) adicional(is) omitido(s).")
+
 
 def carregar_contexto_e_saida():
     """Carrega as Etapas 1-8 e só prepara saídas posteriores quando os gates aprovam."""
@@ -283,8 +326,10 @@ def main():
     )
     _render_resultado_paridade_renderizacao(resultado_paridade_renderizacao)
 
+    inventario_legado_pipeline = construir_inventario_legado_pipeline()
     resultado_limpeza_depreciacao = construir_resultado_limpeza_depreciacao_controlada(
-        resultado_paridade_renderizacao
+        resultado_paridade_renderizacao,
+        evidencias_auxiliares=inventario_legado_pipeline,
     )
     _render_resultado_limpeza_depreciacao(resultado_limpeza_depreciacao)
 
