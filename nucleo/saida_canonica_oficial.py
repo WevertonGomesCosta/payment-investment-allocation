@@ -67,6 +67,9 @@ class SaidaCanonicaOficial:
     saldos_referenciais_por_data: dict[date, list[dict[str, Any]]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
     lotes_futuros_materializados: list[dict[str, Any]] = field(default_factory=list)
+    ranking_metricas: list[dict[str, Any]] = field(default_factory=list)
+    ranking_amostra: list[dict[str, Any]] = field(default_factory=list)
+    ranking_carteira: list[dict[str, Any]] = field(default_factory=list)
     bloqueios_ledger: list[dict[str, Any]] = field(default_factory=list)
     avisos_ledger: list[str] = field(default_factory=list)
     bloqueios_gates: list[dict[str, Any]] = field(default_factory=list)
@@ -104,6 +107,129 @@ def _snapshot_saldos(saldos_por_data: dict[date, list[Any]] | None) -> dict[date
         for data_ref, saldos in (saldos_por_data or {}).items()
     }
 
+
+_COLUNAS_CARTEIRA_RANKING = [
+    'rank_destino',
+    'nome',
+    'score_final',
+    'proxy_terminal_destino',
+    'retorno_anual_proxy',
+    'liquidez_dias',
+    'carencia_dias',
+    'aplicacao_minima',
+    'aplicacao_maxima',
+    'tipo_produto',
+    'somente_combo',
+    'Status_Confirmação',
+    'Campos_Pendentes',
+]
+
+_CABECALHOS_CARTEIRA_RANKING = [
+    'Rank',
+    'Produto',
+    'Score Final',
+    'Proxy Terminal',
+    'Retorno Proxy aa',
+    'Liquidez Dias',
+    'Carência Dias',
+    'Aplicação Mínima',
+    'Aplicação Máxima',
+    'Tipo Produto',
+    'Somente Combo',
+    'Status Confirmação',
+    'Campos Pendentes',
+]
+
+
+def _valor_nan_para_vazio(valor: Any) -> Any:
+    try:
+        if valor != valor:
+            return ''
+    except Exception:
+        return valor
+    return valor
+
+
+def _registros_tabela(valor: Any) -> list[dict[str, Any]]:
+    if valor is None:
+        return []
+    to_dict = getattr(valor, 'to_dict', None)
+    if callable(to_dict):
+        try:
+            return [dict(item) for item in to_dict('records')]
+        except TypeError:
+            pass
+    if isinstance(valor, list):
+        return [_snapshot_item(item) for item in valor]
+    return []
+
+
+def _normalizar_linha_ranking(item: dict[str, Any]) -> dict[str, Any]:
+    aliases = {
+        'rank_destino': ['rank_destino', 'Rank_Consolidado_Prazo_Ativos', 'Rank'],
+        'nome': ['nome', 'Nome', 'Produto'],
+        'score_final': ['score_final', 'Score Final Prazo', 'Score Final', 'Score'],
+        'proxy_terminal_destino': ['proxy_terminal_destino', 'Proxy terminal', 'Proxy Terminal'],
+        'retorno_anual_proxy': ['retorno_anual_proxy', 'Retorno Proxy aa'],
+        'liquidez_dias': ['liquidez_dias', 'Liquidez'],
+        'carencia_dias': ['carencia_dias', 'Carência'],
+        'aplicacao_minima': ['aplicacao_minima', 'Ticket mín.'],
+        'aplicacao_maxima': ['aplicacao_maxima'],
+        'tipo_produto': ['tipo_produto'],
+        'somente_combo': ['somente_combo'],
+        'Status_Confirmação': ['Status_Confirmação'],
+        'Campos_Pendentes': ['Campos_Pendentes'],
+    }
+    linha: dict[str, Any] = {}
+    for coluna, nomes in aliases.items():
+        valor = None
+        for nome in nomes:
+            if nome in item:
+                valor = item.get(nome)
+                break
+        linha[coluna] = _valor_nan_para_vazio(valor)
+    return linha
+
+
+def _linha_carteira_ranking(item: dict[str, Any]) -> dict[str, Any]:
+    normalizada = _normalizar_linha_ranking(item)
+    return {
+        cabecalho: normalizada.get(coluna)
+        for coluna, cabecalho in zip(_COLUNAS_CARTEIRA_RANKING, _CABECALHOS_CARTEIRA_RANKING, strict=False)
+    }
+
+
+def _linha_amostra_ranking(item: dict[str, Any]) -> dict[str, Any]:
+    normalizada = _normalizar_linha_ranking(item)
+    return {
+        'Rank': normalizada.get('rank_destino'),
+        'Produto': normalizada.get('nome'),
+        'Score': normalizada.get('score_final'),
+        'Proxy terminal': normalizada.get('proxy_terminal_destino'),
+        'Liquidez': normalizada.get('liquidez_dias'),
+        'Carência': normalizada.get('carencia_dias'),
+        'Ticket mín.': normalizada.get('aplicacao_minima'),
+    }
+
+
+def _materializar_ranking_carteira(ranking_carteira: Any | None) -> dict[str, list[dict[str, Any]]]:
+    if ranking_carteira is None:
+        return {'metricas': [], 'amostra': [], 'carteira': []}
+
+    resumo = dict(getattr(ranking_carteira, 'resumo', {}) or {})
+    auditoria = dict(getattr(ranking_carteira, 'auditoria', {}) or {})
+    quadro = _registros_tabela(getattr(ranking_carteira, 'quadro_destinos_switch', None))
+    return {
+        'metricas': [
+            {'Métrica': 'produtos totais', 'Valor': resumo.get('produtos_total')},
+            {'Métrica': 'produtos ativos ranqueados', 'Valor': resumo.get('produtos_ativos_ranqueados')},
+            {'Métrica': 'destinos elegíveis de switching', 'Valor': auditoria.get('qtd_destinos_switch')},
+            {'Métrica': 'destino top 1', 'Valor': auditoria.get('destino_top1')},
+            {'Métrica': 'método', 'Valor': auditoria.get('metodo')},
+        ],
+        'amostra': [_linha_amostra_ranking(item) for item in quadro[:10]],
+        'carteira': [_linha_carteira_ranking(item) for item in quadro],
+    }
 
 def _novo_bloqueio(codigo: str, mensagem: str, referencias: dict[str, Any] | None = None) -> BloqueioPreparacaoSaidaCanonicaOficial:
     return BloqueioPreparacaoSaidaCanonicaOficial(
@@ -199,8 +325,10 @@ def _montar_saida(
     bloqueios_preparacao: list[BloqueioPreparacaoSaidaCanonicaOficial],
     preparada: bool,
     status: str,
+    ranking_carteira: Any | None = None,
 ) -> SaidaCanonicaOficial:
     incluir_operacional = preparada and ledger is not None
+    ranking_materializado = _materializar_ranking_carteira(ranking_carteira) if incluir_operacional else {'metricas': [], 'amostra': [], 'carteira': []}
     return SaidaCanonicaOficial(
         ok=preparada and not bloqueios_preparacao,
         preparada=preparada,
@@ -222,6 +350,9 @@ def _montar_saida(
         saldos_referenciais_por_data=_snapshot_saldos(_valor(ledger, 'saldos_referenciais_por_data', {})) if incluir_operacional else {},
         destinos_sobras_recebidos=_snapshot_lista(_valor(ledger, 'destinos_sobras_recebidos', [])) if incluir_operacional else [],
         lotes_futuros_materializados=_snapshot_lista(_valor(ledger, 'lotes_futuros_materializados', [])) if incluir_operacional else [],
+        ranking_metricas=ranking_materializado['metricas'],
+        ranking_amostra=ranking_materializado['amostra'],
+        ranking_carteira=ranking_materializado['carteira'],
         bloqueios_ledger=_snapshot_lista(_valor(ledger, 'bloqueios', [])),
         avisos_ledger=[str(aviso) for aviso in (_valor(ledger, 'avisos', []) or [])],
         bloqueios_gates=_snapshot_lista(_valor(gates, 'bloqueios', [])),
@@ -235,6 +366,8 @@ def _montar_saida(
 def construir_saida_canonica_oficial(
     ledger: LedgerTemporalCanonico,
     gates: ResultadoGatesValidacaoNucleo,
+    *,
+    ranking_carteira: Any | None = None,
 ) -> SaidaCanonicaOficial:
     bloqueios_preparacao: list[BloqueioPreparacaoSaidaCanonicaOficial] = []
 
@@ -317,6 +450,7 @@ def construir_saida_canonica_oficial(
         bloqueios_preparacao,
         preparada=True,
         status='preparada_para_consumo_posterior',
+        ranking_carteira=ranking_carteira,
     )
 
 
