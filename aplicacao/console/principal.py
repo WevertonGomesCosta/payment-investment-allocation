@@ -406,9 +406,40 @@ def _abas_xlsx_oficiais(pacote_saida_observavel_oficial) -> dict:
     return dict(abas) if isinstance(abas, dict) else {}
 
 
+def _metricas_ranking_pacote(pacote_saida_observavel_oficial) -> list[dict]:
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    return [dict(item) for item in list(getattr(bloco_console, 'ranking_metricas', []) or [])]
+
+
+def _amostra_ranking_pacote(pacote_saida_observavel_oficial) -> list[dict]:
+    bloco_console = getattr(pacote_saida_observavel_oficial, 'bloco_console', None)
+    return [dict(item) for item in list(getattr(bloco_console, 'ranking_amostra', []) or [])]
+
+
 def _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_observavel_oficial=None) -> None:
-    ranking = getattr(contexto_operacional, 'ranking_carteira', None)
+    metricas_oficiais = _metricas_ranking_pacote(pacote_saida_observavel_oficial)
+    amostra_oficial = _amostra_ranking_pacote(pacote_saida_observavel_oficial)
+
     _imprimir_titulo('RANQUEAMENTO OFICIAL DA CARTEIRA')
+    if metricas_oficiais and amostra_oficial:
+        metricas_por_nome = {item.get('Métrica'): item.get('Valor') for item in metricas_oficiais}
+        _imprimir_pares([
+            ('produtos totais', metricas_por_nome.get('produtos totais')),
+            ('produtos ativos ranqueados', metricas_por_nome.get('produtos ativos ranqueados')),
+            ('destinos elegíveis de switching', metricas_por_nome.get('destinos elegíveis de switching')),
+            ('destino top 1', metricas_por_nome.get('destino top 1')),
+            ('método', metricas_por_nome.get('método')),
+            ('origem da amostra', getattr(pacote_saida_observavel_oficial, 'saida_origem', 'PacoteSaidaObservavelOficial')),
+        ])
+        print('- amostra do ranking relevante do dia:')
+        _imprimir_tabela(
+            ['Rank', 'Produto', 'Score', 'Proxy terminal', 'Liquidez', 'Carência', 'Ticket mín.'],
+            amostra_oficial,
+            limite=10,
+        )
+        return
+
+    ranking = getattr(contexto_operacional, 'ranking_carteira', None)
     if ranking is None:
         print('- status: ranking_nao_materializado_na_rota_oficial')
         return
@@ -717,7 +748,10 @@ def render_console(contexto_operacional, saida_canonica=None, estado_temporal_in
     else:
         _render_amostras_pagamentos_operacionais(contexto_operacional, saida_canonica, pacote_saida_observavel_temporal, estado_temporal_inicial=estado_temporal_inicial)
 
-    _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
+    if pacote_oficial_preparado:
+        _render_secao_ranking_oficial_minimo(contexto_operacional, pacote_saida_observavel_oficial)
+    else:
+        _render_secao_ranking_oficial(contexto_operacional, saida_canonica)
     if pacote_oficial_preparado:
         _render_secao_switchings_oficiais_minimo(contexto_operacional, pacote_saida_observavel_oficial)
     else:

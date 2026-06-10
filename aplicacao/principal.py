@@ -172,7 +172,10 @@ def carregar_contexto_e_saida():
         ledger=ledger_temporal_canonico,
         gates=resultado_gates_validacao_nucleo,
     )
-    pacote_saida_observavel_oficial = construir_pacote_saida_observavel_oficial(saida_canonica_oficial)
+    pacote_saida_observavel_oficial = construir_pacote_saida_observavel_oficial(
+        saida_canonica_oficial,
+        ranking_carteira_oficial=getattr(contexto_operacional_canonico, 'ranking_carteira', None),
+    )
     saida_canonica = construir_saida_canonica_com_switching_v17_c7(contexto_operacional_canonico, versao=VERSAO_BASELINE)
     matriz = construir_matriz_elegibilidade_fontes_s7b(
         contexto_operacional_canonico,

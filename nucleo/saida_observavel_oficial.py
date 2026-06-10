@@ -57,6 +57,8 @@ class BlocoConsoleSaidaObservavel:
     switchings_metricas: list[dict[str, Any]] = field(default_factory=list)
     switchings_amostra: list[dict[str, Any]] = field(default_factory=list)
     switchings_resumo_operacional: list[dict[str, Any]] = field(default_factory=list)
+    ranking_metricas: list[dict[str, Any]] = field(default_factory=list)
+    ranking_amostra: list[dict[str, Any]] = field(default_factory=list)
     lotes_pos_switching_materializados: list[dict[str, Any]] = field(default_factory=list)
     saldos_referenciais: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     destinos_sobras_recebidos: list[dict[str, Any]] = field(default_factory=list)
@@ -147,6 +149,134 @@ def _texto_material(valor: Any) -> str:
         return ''
     return texto
 
+
+
+_COLUNAS_CARTEIRA_OFICIAL = [
+    'rank_destino',
+    'nome',
+    'score_final',
+    'proxy_terminal_destino',
+    'retorno_anual_proxy',
+    'liquidez_dias',
+    'carencia_dias',
+    'aplicacao_minima',
+    'aplicacao_maxima',
+    'tipo_produto',
+    'somente_combo',
+    'Status_Confirmação',
+    'Campos_Pendentes',
+]
+
+_CABECALHOS_CARTEIRA_OFICIAL = [
+    'Rank',
+    'Produto',
+    'Score Final',
+    'Proxy Terminal',
+    'Retorno Proxy aa',
+    'Liquidez Dias',
+    'Carência Dias',
+    'Aplicação Mínima',
+    'Aplicação Máxima',
+    'Tipo Produto',
+    'Somente Combo',
+    'Status Confirmação',
+    'Campos Pendentes',
+]
+
+
+def _valor_nan_para_vazio(valor: Any) -> Any:
+    try:
+        if valor != valor:  # NaN sem depender de pandas.
+            return ''
+    except Exception:
+        return valor
+    return valor
+
+
+def _iterar_registros_tabela(valor: Any) -> list[dict[str, Any]]:
+    if valor is None:
+        return []
+    to_dict = getattr(valor, 'to_dict', None)
+    if callable(to_dict):
+        try:
+            return [dict(item) for item in to_dict('records')]
+        except TypeError:
+            pass
+    if isinstance(valor, list):
+        return [_snapshot_item(item) for item in valor]
+    return []
+
+
+def _normalizar_linha_carteira(item: dict[str, Any]) -> dict[str, Any]:
+    aliases = {
+        'rank_destino': ['rank_destino', 'Rank_Consolidado_Prazo_Ativos', 'Rank'],
+        'nome': ['nome', 'Nome', 'Produto'],
+        'score_final': ['score_final', 'Score Final Prazo', 'Score Final', 'Score'],
+        'proxy_terminal_destino': ['proxy_terminal_destino', 'Proxy terminal', 'Proxy Terminal'],
+        'retorno_anual_proxy': ['retorno_anual_proxy', 'Retorno Proxy aa'],
+        'liquidez_dias': ['liquidez_dias', 'Liquidez'],
+        'carencia_dias': ['carencia_dias', 'Carência'],
+        'aplicacao_minima': ['aplicacao_minima', 'Ticket mín.'],
+        'aplicacao_maxima': ['aplicacao_maxima'],
+        'tipo_produto': ['tipo_produto'],
+        'somente_combo': ['somente_combo'],
+        'Status_Confirmação': ['Status_Confirmação'],
+        'Campos_Pendentes': ['Campos_Pendentes'],
+    }
+    linha: dict[str, Any] = {}
+    for coluna, nomes in aliases.items():
+        valor = None
+        for nome in nomes:
+            if nome in item:
+                valor = item.get(nome)
+                break
+        linha[coluna] = _valor_nan_para_vazio(valor)
+    return linha
+
+
+def _projetar_linha_carteira_xlsx(item: dict[str, Any]) -> dict[str, Any]:
+    normalizada = _normalizar_linha_carteira(item)
+    return {
+        cabecalho: normalizada.get(coluna)
+        for coluna, cabecalho in zip(_COLUNAS_CARTEIRA_OFICIAL, _CABECALHOS_CARTEIRA_OFICIAL, strict=False)
+    }
+
+
+def _projetar_linha_ranking_console(item: dict[str, Any]) -> dict[str, Any]:
+    normalizada = _normalizar_linha_carteira(item)
+    return {
+        'Rank': normalizada.get('rank_destino'),
+        'Produto': normalizada.get('nome'),
+        'Score': normalizada.get('score_final'),
+        'Proxy terminal': normalizada.get('proxy_terminal_destino'),
+        'Liquidez': normalizada.get('liquidez_dias'),
+        'Carência': normalizada.get('carencia_dias'),
+        'Ticket mín.': normalizada.get('aplicacao_minima'),
+    }
+
+
+def preparar_bloco_ranking_carteira_observavel(ranking_carteira: Any | None) -> dict[str, list[dict[str, Any]]]:
+    if ranking_carteira is None:
+        return {'ranking_metricas': [], 'ranking_amostra': [], 'carteira_xlsx': []}
+
+    resumo = dict(getattr(ranking_carteira, 'resumo', {}) or {})
+    auditoria = dict(getattr(ranking_carteira, 'auditoria', {}) or {})
+    quadro = _iterar_registros_tabela(getattr(ranking_carteira, 'quadro_destinos_switch', None))
+    carteira_xlsx = [_projetar_linha_carteira_xlsx(item) for item in quadro]
+    ranking_amostra = [_projetar_linha_ranking_console(item) for item in quadro[:10]]
+
+    metricas = [
+        {'Métrica': 'produtos totais', 'Valor': resumo.get('produtos_total')},
+        {'Métrica': 'produtos ativos ranqueados', 'Valor': resumo.get('produtos_ativos_ranqueados')},
+        {'Métrica': 'destinos elegíveis de switching', 'Valor': auditoria.get('qtd_destinos_switch')},
+        {'Métrica': 'destino top 1', 'Valor': auditoria.get('destino_top1')},
+        {'Métrica': 'método', 'Valor': auditoria.get('metodo')},
+    ]
+    return {
+        'ranking_metricas': metricas,
+        'ranking_amostra': ranking_amostra,
+        'carteira_xlsx': carteira_xlsx,
+    }
 
 def _fonte_operacional_renderizavel(item: dict[str, Any]) -> str:
     return (
@@ -1113,6 +1243,7 @@ def preparar_blocos_console(
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
     switchings: dict[str, list[dict[str, Any]]],
+    ranking: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
     preservados: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
@@ -1131,6 +1262,8 @@ def preparar_blocos_console(
         switchings_metricas=switchings.get('switchings_metricas', []),
         switchings_amostra=switchings.get('switchings_amostra', []),
         switchings_resumo_operacional=switchings.get('switchings_resumo_operacional', []),
+        ranking_metricas=ranking.get('ranking_metricas', []),
+        ranking_amostra=ranking.get('ranking_amostra', []),
         lotes_pos_switching_materializados=preservados.get('lotes_pos_switching_materializados', []),
         saldos_referenciais=saldos,
         destinos_sobras_recebidos=preservados.get('destinos_sobras_recebidos', []),
@@ -1151,6 +1284,7 @@ def preparar_blocos_xlsx(
     fontes: dict[str, list[dict[str, Any]]],
     obrigacoes: dict[str, list[dict[str, Any]]],
     switchings: dict[str, list[dict[str, Any]]],
+    ranking: dict[str, list[dict[str, Any]]],
     saldos: dict[str, list[dict[str, Any]]],
     preservados: dict[str, Any],
     lacunas: list[LacunaRenderizacaoSaidaObservavel],
@@ -1160,6 +1294,7 @@ def preparar_blocos_xlsx(
         'Extrato Passado': extrato_passado,
         'Extrato Futuro': obrigacoes.get('extrato_futuro', []),
         'Switching': switchings.get('switching_xlsx', []),
+        'Carteira': ranking.get('carteira_xlsx', []),
         'Ultimos Pagamentos': ultimos_pagamentos,
         'Pagamentos Data Referencia': pagamentos_data_referencia,
         'Proximos Pagamentos': proximos_pagamentos,
@@ -1293,6 +1428,8 @@ def _pacote_bloqueado_por_entrada_invalida(
 
 def construir_pacote_saida_observavel_oficial(
     saida: SaidaCanonicaOficial,
+    *,
+    ranking_carteira_oficial: Any | None = None,
 ) -> PacoteSaidaObservavelOficial:
     lacunas = validar_entrada_saida_observavel(saida)
     if lacunas:
@@ -1304,6 +1441,7 @@ def construir_pacote_saida_observavel_oficial(
     modelo_pagamentos_historicos = preparar_modelo_pagamentos_historicos_observavel(blocos)
     modelo_obrigacoes = preparar_modelo_obrigacoes_observaveis(blocos)
     modelo_switching = preparar_modelo_switching_observavel(blocos)
+    ranking = preparar_bloco_ranking_carteira_observavel(ranking_carteira_oficial)
 
     extrato_passado = preparar_bloco_extrato_passado(modelo_pagamentos_historicos)
     ultimos_pagamentos = preparar_bloco_ultimos_pagamentos(modelo_pagamentos_historicos)
@@ -1335,6 +1473,7 @@ def construir_pacote_saida_observavel_oficial(
         fontes,
         obrigacoes,
         switchings,
+        ranking,
         saldos,
         preservados,
         lacunas,
@@ -1349,6 +1488,7 @@ def construir_pacote_saida_observavel_oficial(
         fontes,
         obrigacoes,
         switchings,
+        ranking,
         saldos,
         preservados,
         lacunas,
