@@ -562,6 +562,21 @@ def _adicionar_abas_ranking(wb, contexto, *, pacote_saida_observavel_oficial=Non
 
 
 
+
+def _situacao_atual_blocos_oficiais(pacote_saida_observavel_oficial: Any) -> list[dict[str, Any]]:
+    bloco_xlsx = getattr(pacote_saida_observavel_oficial, 'bloco_xlsx', None)
+    blocos = list(getattr(bloco_xlsx, 'situacao_atual_blocos', []) or [])
+    completos = []
+    for bloco in blocos:
+        if not isinstance(bloco, dict):
+            continue
+        headers = list(bloco.get('headers') or [])
+        linhas = list(bloco.get('linhas') or [])
+        titulo = str(bloco.get('titulo') or '').strip()
+        if titulo and headers:
+            completos.append({'titulo': titulo, 'headers': headers, 'linhas': linhas})
+    return completos
+
 def _adicionar_situacao_atual_oficial(wb, contexto, saida, pacote_saida_observavel_oficial) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
     resumo = getattr(saida, 'resumo', None)
@@ -585,17 +600,21 @@ def _adicionar_situacao_atual_oficial(wb, contexto, saida, pacote_saida_observav
     _apply_table_style(ws, ['Métrica', 'Valor'], _rows(linhas, ['Métrica', 'Valor']), freeze=True)
 
 
-def _adicionar_situacao_atual(wb, contexto, saida, pacote_saida_observavel_temporal, estado_temporal_inicial=None) -> None:
+def _adicionar_situacao_atual(wb, contexto, saida, pacote_saida_observavel_temporal, estado_temporal_inicial=None, pacote_saida_observavel_oficial=None) -> None:
     ws = wb.create_sheet(_nome_aba_operacional(contexto, 'situacao_atual'))
     r = 1
 
-    for idx, bloco in enumerate(
-        construir_blocos_situacao_atual(
+    blocos = _situacao_atual_blocos_oficiais(pacote_saida_observavel_oficial)
+    if not blocos:
+        blocos = construir_blocos_situacao_atual(
             contexto,
             saida,
             pacote_saida_observavel_temporal=pacote_saida_observavel_temporal,
             estado_temporal_inicial=estado_temporal_inicial,
         )
+
+    for idx, bloco in enumerate(
+        blocos
     ):
         r = _apply_table_style(
             ws,
@@ -1068,6 +1087,7 @@ def main(
         saida,
         pacote_consolidado,
         estado_temporal_inicial=estado_temporal_inicial,
+        pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
     )
 
     if incluir_extras_diagnosticas:

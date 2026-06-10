@@ -70,6 +70,16 @@ class SaidaCanonicaOficial:
     ranking_metricas: list[dict[str, Any]] = field(default_factory=list)
     ranking_amostra: list[dict[str, Any]] = field(default_factory=list)
     ranking_carteira: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_fechamento: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_lotes_exauridos_id: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_lotes_exauridos_valores: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_lotes_ativos_id: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_lotes_ativos_valores: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_origens_migradas: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_patrimonio_total: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_recebidos_auditaveis: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_resumo_recebidos: list[dict[str, Any]] = field(default_factory=list)
+    situacao_atual_blocos: list[dict[str, Any]] = field(default_factory=list)
     bloqueios_ledger: list[dict[str, Any]] = field(default_factory=list)
     avisos_ledger: list[str] = field(default_factory=list)
     bloqueios_gates: list[dict[str, Any]] = field(default_factory=list)
@@ -231,6 +241,46 @@ def _materializar_ranking_carteira(ranking_carteira: Any | None) -> dict[str, li
         'carteira': [_linha_carteira_ranking(item) for item in quadro],
     }
 
+
+
+def _materializar_situacao_atual_origem(origem: Any | None) -> dict[str, Any]:
+    if origem is None:
+        return {
+            'fechamento': [],
+            'lotes_exauridos_id': [],
+            'lotes_exauridos_valores': [],
+            'lotes_ativos_id': [],
+            'lotes_ativos_valores': [],
+            'origens_migradas': [],
+            'patrimonio_total': [],
+            'recebidos_auditaveis': [],
+            'resumo_recebidos': [],
+            'blocos': [],
+        }
+
+    blocos = list(_valor(origem, 'situacao_atual_blocos', []) or [])
+
+    def _linhas_bloco(titulo: str) -> list[dict[str, Any]]:
+        for bloco in blocos:
+            if not isinstance(bloco, dict):
+                continue
+            if str(bloco.get('titulo') or '').strip() == titulo:
+                return _snapshot_lista(bloco.get('linhas') or [])
+        return []
+
+    return {
+        'fechamento': _snapshot_lista(_valor(origem, 'fechamento_atual', [])) or _linhas_bloco('Fechamento econômico'),
+        'lotes_exauridos_id': _snapshot_lista(_valor(origem, 'situacao_atual_lotes_exauridos_id', [])) or _linhas_bloco('Lotes exauridos — identificação'),
+        'lotes_exauridos_valores': _snapshot_lista(_valor(origem, 'situacao_atual_lotes_exauridos_valores', [])) or _linhas_bloco('Lotes exauridos — valores e patrimônio'),
+        'lotes_ativos_id': _snapshot_lista(_valor(origem, 'situacao_atual_lotes_ativos_id', [])) or _linhas_bloco('Lotes ativos — identificação'),
+        'lotes_ativos_valores': _snapshot_lista(_valor(origem, 'situacao_atual_lotes_ativos_valores', [])) or _linhas_bloco('Lotes ativos — valores e patrimônio'),
+        'origens_migradas': _snapshot_lista(_valor(origem, 'situacao_atual_origens_migradas', [])) or _linhas_bloco('Origens migradas por switching — reconciliação patrimonial'),
+        'patrimonio_total': _snapshot_lista(_valor(origem, 'situacao_atual_patrimonio_total', [])) or _linhas_bloco('Patrimônio total dos lotes'),
+        'recebidos_auditaveis': _snapshot_lista(_valor(origem, 'recebidos_atuais', [])) or _linhas_bloco('Recebidos auditáveis'),
+        'resumo_recebidos': _snapshot_lista(_valor(origem, 'resumo_recebidos', [])) or _linhas_bloco('Resumo de recebidos'),
+        'blocos': _snapshot_lista(blocos),
+    }
+
 def _novo_bloqueio(codigo: str, mensagem: str, referencias: dict[str, Any] | None = None) -> BloqueioPreparacaoSaidaCanonicaOficial:
     return BloqueioPreparacaoSaidaCanonicaOficial(
         codigo=codigo,
@@ -326,9 +376,11 @@ def _montar_saida(
     preparada: bool,
     status: str,
     ranking_carteira: Any | None = None,
+    situacao_atual_origem: Any | None = None,
 ) -> SaidaCanonicaOficial:
     incluir_operacional = preparada and ledger is not None
     ranking_materializado = _materializar_ranking_carteira(ranking_carteira) if incluir_operacional else {'metricas': [], 'amostra': [], 'carteira': []}
+    situacao_atual = _materializar_situacao_atual_origem(situacao_atual_origem) if incluir_operacional else _materializar_situacao_atual_origem(None)
     return SaidaCanonicaOficial(
         ok=preparada and not bloqueios_preparacao,
         preparada=preparada,
@@ -353,6 +405,16 @@ def _montar_saida(
         ranking_metricas=ranking_materializado['metricas'],
         ranking_amostra=ranking_materializado['amostra'],
         ranking_carteira=ranking_materializado['carteira'],
+        situacao_atual_fechamento=situacao_atual['fechamento'],
+        situacao_atual_lotes_exauridos_id=situacao_atual['lotes_exauridos_id'],
+        situacao_atual_lotes_exauridos_valores=situacao_atual['lotes_exauridos_valores'],
+        situacao_atual_lotes_ativos_id=situacao_atual['lotes_ativos_id'],
+        situacao_atual_lotes_ativos_valores=situacao_atual['lotes_ativos_valores'],
+        situacao_atual_origens_migradas=situacao_atual['origens_migradas'],
+        situacao_atual_patrimonio_total=situacao_atual['patrimonio_total'],
+        situacao_atual_recebidos_auditaveis=situacao_atual['recebidos_auditaveis'],
+        situacao_atual_resumo_recebidos=situacao_atual['resumo_recebidos'],
+        situacao_atual_blocos=situacao_atual['blocos'],
         bloqueios_ledger=_snapshot_lista(_valor(ledger, 'bloqueios', [])),
         avisos_ledger=[str(aviso) for aviso in (_valor(ledger, 'avisos', []) or [])],
         bloqueios_gates=_snapshot_lista(_valor(gates, 'bloqueios', [])),
@@ -368,6 +430,7 @@ def construir_saida_canonica_oficial(
     gates: ResultadoGatesValidacaoNucleo,
     *,
     ranking_carteira: Any | None = None,
+    situacao_atual_origem: Any | None = None,
 ) -> SaidaCanonicaOficial:
     bloqueios_preparacao: list[BloqueioPreparacaoSaidaCanonicaOficial] = []
 
@@ -451,6 +514,7 @@ def construir_saida_canonica_oficial(
         preparada=True,
         status='preparada_para_consumo_posterior',
         ranking_carteira=ranking_carteira,
+        situacao_atual_origem=situacao_atual_origem,
     )
 
 
