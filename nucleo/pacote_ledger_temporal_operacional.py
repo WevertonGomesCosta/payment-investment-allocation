@@ -1,7 +1,7 @@
 """PacoteLedgerTemporalOperacional temporal.
 
 V17-F0-V.4E normaliza o PacoteLedgerTemporal temporal existente para o
-contrato operacional mínimo da Etapa 4, sem substituir o ledger efetivo e sem
+contrato operacional mínimo da Etapa 4, sem acionar o ledger legado removido e sem
 alterar saída canônica/observável.
 """
 
@@ -18,7 +18,7 @@ VERSAO_PACOTE_LEDGER_TEMPORAL_OPERACIONAL = "V17-F0-V.4E-temporal"
 class PacoteLedgerTemporalOperacional:
     """Contrato operacional temporal do ledger temporal.
 
-    Este pacote é derivado do retorno legado do ledger e do
+    Este pacote é derivado do contrato oficial do ledger temporal e do
     PacoteLedgerTemporal temporal. Não executa decisão econômica nova.
     """
 
@@ -206,13 +206,13 @@ def _montar_auditoria(
         "qtd_fontes_elegiveis_por_pagamento": len(fontes_elegiveis_por_pagamento),
         "qtd_saldos_por_lote": len(saldos_por_lote),
         "fonte_primaria_switching_ledger": "switching_canonico",
-        "fallback_legado_switching_auditavel": True,
+        "fallback_legado_switching_auditavel": False,
         "usa_contexto_amplo": True,
         "usa_planilha_bruta_como_fonte_primaria": False,
         "usa_planilha_bruta_apenas_fallback": True,
         "usa_switching_canonico_como_fonte_primaria": False,
         "usa_switching_canonico_como_fonte_primaria": True,
-        "retorno_dict_legado_usado_como_origem": True,
+        "retorno_dict_legado_usado_como_origem": False,
         "pacote_ledger_temporal_usado_como_origem": True,
         "campos_vazios_auditados": list(campos_vazios_auditados),
         "nao_altera_ledger_efetivo": True,
@@ -236,7 +236,7 @@ def _montar_validacao(
         erros.append("fifo_candidatos_avaliados_ausente")
     for campo in campos_vazios_auditados:
         avisos.append(f"campo_temporal_operacional_vazio:{campo}")
-    avisos.append("retorno_dict_legado_ainda_usado_como_origem")
+    avisos.append("contrato_vazio_oficial_usado_como_origem_ledger_temporal")
     return {
         "ok": len(erros) == 0,
         "erros_bloqueantes": erros,
@@ -304,7 +304,7 @@ def construir_pacote_ledger_temporal_operacional(
         "modo_operacional_temporal": True,
         "adaptador": "construir_pacote_ledger_temporal_operacional",
         "origem_pacote_temporal": type(pacote_temporal).__name__,
-        "origem_retorno_legado": "construir_ledger_temporal_conjunto",
+        "origem_retorno_legado": "contrato_vazio_oficial_me521b",
         "nao_altera_ledger_efetivo": True,
         "nao_altera_saida_canonica": True,
     }

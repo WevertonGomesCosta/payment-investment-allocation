@@ -1,9 +1,9 @@
 """Envelope temporal para o ledger temporal.
 
 V17-F0-V.3.7K cria apenas um adaptador compatível em modo temporal.
-Este módulo não substitui o ledger legado, não altera a saída canônica e não
-remove nenhuma ponte histórica. Ele apenas embrulha o retorno atual de
-``construir_ledger_temporal_conjunto(...)`` em um contrato explícito.
+Este módulo não aciona o ledger legado removido, não altera a saída canônica e
+não remove nenhuma ponte histórica. Ele apenas materializa o contrato oficial
+vazio/fornecido do ledger temporal em um envelope explícito.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ class PacoteLedgerTemporal:
     """Pacote contratual mínimo do ledger temporal em modo temporal.
 
     Os campos seguem o contrato documental V3.7J. Nesta primeira versão, os
-    campos que ainda não existem no retorno legado são preenchidos com listas
+    campos que ainda não existem no contrato recebido são preenchidos com listas
     vazias e registrados em auditoria, sem inferência econômica nova.
     """
 
@@ -176,7 +176,7 @@ def _montar_auditoria(
         "ok": True,
         "modo_operacional_temporal": True,
         "origem_execucao": "construir_pacote_ledger_temporal",
-        "origem_retorno_legado": "construir_ledger_temporal_conjunto",
+        "origem_retorno_legado": "contrato_vazio_oficial_me521b",
         "qtd_eventos_temporais": len(eventos_temporais),
         "qtd_pagamentos_futuros_processados": len(pagamentos_futuros_processados),
         "qtd_fifo_candidatos_avaliados": len(fifo_candidatos_avaliados),
@@ -187,7 +187,7 @@ def _montar_auditoria(
         "usa_planilha_bruta": True,
         "usa_switching_canonico": True,
         "usa_pos_injetado": True,
-        "compatibilidade_retorno_legado": True,
+        "compatibilidade_contrato_ledger_temporal": True,
         "retorno_legado_chaves_total": len(list(retorno_legado.keys())),
         "retorno_legado_chaves": sorted(str(k) for k in retorno_legado.keys()),
     }
@@ -216,8 +216,8 @@ def _montar_validacao(
 
     avisos.extend(f"campo_minimo_temporal_operacional_vazio:{campo}" for campo in campos_ausentes)
     avisos.append("uso_transitorio_de_contexto_amplo")
-    avisos.append("uso_transitorio_de_planilha_bruta_pelo_ledger_legado")
-    avisos.append("uso_transitorio_de_switching_canonico_pelo_ledger_legado")
+    avisos.append("contrato_ledger_temporal_vazio_oficial_sem_planilha_bruta_legada")
+    avisos.append("switching_canonico_preservado_sem_ledger_legado")
 
     return {
         "ok": len(erros) == 0,
@@ -291,7 +291,7 @@ def construir_pacote_ledger_temporal(
         "versao_microetapa": "V17-F0-V.3.7K",
         "modo_operacional_temporal": bool(modo_operacional_temporal),
         "adaptador": "construir_pacote_ledger_temporal",
-        "construtor_legado": "construir_ledger_temporal_conjunto",
+        "origem_contrato_ledger_temporal": "contrato_vazio_oficial_me521b",
         "nao_altera_saida_canonica": True,
         "nao_remove_ponte_legacy": True,
         "retorno_legado_chaves": sorted(str(k) for k in retorno.keys()),
