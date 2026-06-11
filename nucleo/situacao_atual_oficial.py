@@ -345,20 +345,17 @@ def calcular_rendimento_liquido_observavel(
     valor_original: float,
     patrimonio_liquido: float,
 ) -> float:
-    """Calcula rendimento líquido apenas para renderização observável.
+    """Calcula rendimento líquido observável sem clamp por status.
 
-    Para lotes ativos pós-switching, rendimento líquido negativo pode surgir
-    como artefato de base sintética pós-migração combinada com saque parcial.
+    A função não corrige sinal nem mascara rendimento negativo. Se um lote
+    ativo, exaurido ou pós-switching apresentar rendimento negativo, a saída
+    deve expor o valor calculado para auditoria patrimonial posterior.
 
-    A correção é restrita à camada observável: não altera patrimônio líquido,
-    valores sacados, valor atual, motor, ledger, replay, switching ou decisão econômica.
+    Switching é tratado como transferência interna em bloco próprio, não como
+    perda automática de patrimônio de origem.
     """
-    rendimento = round(patrimonio_liquido - valor_original, 2)
-
-    if str(status_ciclo or "").strip() == "ativo_pos_switching" and rendimento < 0:
-        return 0.0
-
-    return rendimento
+    _ = status_ciclo
+    return round(patrimonio_liquido - valor_original, 2)
 
 
 
@@ -501,13 +498,11 @@ def _montar_lotes_identificacao_oficial(contexto, saida, *, tipo: str, snapshot_
         linhas_base = _montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual)
     elif tipo == 'exauridos':
         headers = COLS_LOTES_EXAURIDOS_ID_CURTAS
-        linhas_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
+        # ME-519: origens migradas por switching não são lotes exauridos por saque.
+        # Elas permanecem apenas no bloco próprio de reconciliação patrimonial.
+        linhas_base = _remover_origens_migradas_dos_exauridos_consolidados(
             _montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual),
             saida,
-        )
-        linhas_base = (
-            linhas_consolidadas
-            + construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_situacao_atual=snapshot_situacao_atual, estado_temporal_inicial=estado_temporal_inicial)
         )
     else:
         headers = COLS_LOTES_ID_CURTAS
@@ -523,11 +518,10 @@ def _montar_lotes_valores_oficial(contexto, saida, *, tipo: str, snapshot_situac
     linhas_base = list(_montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual))
 
     if tipo == 'exauridos':
-        # Mantém alinhamento visual entre a tabela de identificação e a tabela de valores.
-        # As origens migradas por switching entram apenas como linhas observáveis
-        # e NÃO são usadas por _montar_patrimonio_total_lotes_oficial(...).
+        # ME-519: a tabela de valores dos exauridos contém apenas lotes
+        # encerrados por saque. Origens migradas por switching são transferência
+        # interna e ficam no bloco "Origens migradas por switching".
         linhas_base = _remover_origens_migradas_dos_exauridos_consolidados(linhas_base, saida)
-        linhas_base += construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, snapshot_situacao_atual=snapshot_situacao_atual, estado_temporal_inicial=estado_temporal_inicial)
 
     return [
         {chave: item.get(chave) for chave in COLS_LOTES_VALORES_CURTAS}
@@ -631,13 +625,12 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_si
 
 
 def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
-    """Valores observáveis das origens migradas por switching.
+    """Valores auxiliares das origens migradas por switching.
 
-    Essas linhas existem para alinhar a renderização das tabelas:
-    - aparecem em "Lotes exauridos — identificação";
-    - também aparecem em "Lotes exauridos — valores e patrimônio";
-    - não são somadas no resumo patrimonial, pois o resumo continua usando
-      _montar_lotes_consolidados_oficial(...).
+    ME-519: origens migradas por switching representam transferência interna,
+    não lote exaurido por saque. Estas linhas abastecem apenas o bloco próprio
+    de reconciliação patrimonial e não entram nas tabelas de lotes exauridos
+    nem na base somável do patrimônio total.
     """
     valores_originais = _valores_originais_por_lote_do_pacote(snapshot_situacao_atual)
     linhas: list[dict[str, Any]] = []
@@ -769,13 +762,11 @@ def _montar_patrimonio_total_lotes_oficial(contexto, saida, snapshot_situacao_at
         _montar_lotes_consolidados_oficial(contexto, saida, tipo='exauridos', snapshot_situacao_atual=snapshot_situacao_atual),
         saida,
     )
-    linhas_exauridos = (
-        linhas_exauridos_consolidadas
-        + construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, snapshot_situacao_atual=snapshot_situacao_atual, estado_temporal_inicial=estado_temporal_inicial)
-    )
+    # ME-519: a base somável do patrimônio total é composta somente por
+    # lotes exauridos por saque e lotes ativos. Origens migradas por switching
+    # são transferência interna e ficam fora da base somável.
     linhas_ativos = _montar_lotes_consolidados_oficial(contexto, saida, tipo='ativos', snapshot_situacao_atual=snapshot_situacao_atual)
     linhas_economicas = linhas_exauridos_consolidadas + linhas_ativos
-    linhas = linhas_exauridos + linhas_ativos
 
     valor_original_total = round(sum(para_float(item.get('Orig.')) for item in linhas_economicas), 2)
     valor_total_investido_em_carteira = round(sum(para_float(item.get('Orig.')) for item in linhas_ativos), 2)
@@ -812,10 +803,9 @@ def _montar_patrimonio_total_lotes_oficial(contexto, saida, snapshot_situacao_at
             valor_bruto_sacado_origens_migradas = total_migrado
             valor_liquido_sacado_origens_migradas = total_migrado
     origens_migradas = _lotes_origens_migradas_set(saida)
-    origens_migradas_incluidas_no_resumo = any(
-        str(item.get('Lote') or '').strip() in origens_migradas
-        for item in linhas_exauridos
-    )
+    # ME-519: origens migradas por switching são transferência interna.
+    # Elas não integram a base somável do resumo patrimonial.
+    origens_migradas_incluidas_no_resumo = False
 
     patrimonio_liquido_reconciliado = round(patrimonio_liquido_atual, 2)
 
