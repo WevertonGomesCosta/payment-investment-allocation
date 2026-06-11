@@ -15,12 +15,24 @@ import pandas as pd
 
 from nucleo.calendario_financeiro import calcular_dias_lote, proximo_dia_util_bancario_em_ou_apos
 from nucleo.contexto_operacional_canonico import obter_limiar_residuo_resolvido
-from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
 from nucleo.rotulagem_fechamento import resumir_fechamento_situacao_atual
 from nucleo.nucleo_financeiro_minimo import criar_lote_de_aporte
 from nucleo.utilitarios_neutros import normalizar_texto, normalizar_valores_situacao_atual_exaurida
 
 
+
+
+def _retorno_ledger_temporal_vazio_oficial(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Contrato vazio oficial para ledger temporal não materializado no runtime atual.
+
+    ME-521B: substitui a dependência runtime do ledger legado após prova de
+    equivalência por neutralização controlada. Não escolhe fontes, não altera
+    Situação Atual e não materializa eventos temporais.
+    """
+    return {
+        "eventos": [],
+        "fifo_candidatos_avaliados": [],
+    }
 
 _PRE_INVARIANTE_EXTRATO_FUTURO = {}
 _SOMBRA_DIVERGENCIAS_LEDGER = {}
@@ -1244,7 +1256,7 @@ def _construir_extrato_futuro(contexto: Any) -> list[dict[str, Any]]:
 
     mapa_fontes_elegiveis_auditaveis = _mapa_fontes_elegiveis_auditaveis_por_pagamento(contexto)
     mapa_central = _mapa_pagamentos_central(contexto)
-    ledger_result = construir_ledger_temporal_conjunto(quadro, mapa_central, contexto) or {}
+    ledger_result = _retorno_ledger_temporal_vazio_oficial(quadro, mapa_central, contexto) or {}
     eventos_ledger = list(ledger_result.get('eventos', []))
     fifo_candidatos_avaliados = list(ledger_result.get('fifo_candidatos_avaliados', []))
     ledger_por_pagamento = {str(e.get("pagamento_id") or "").strip(): e for e in eventos_ledger}
@@ -2501,7 +2513,7 @@ def construir_saida_canonica(
     ranking_amostra = _construir_ranking_amostra(contexto)
     quadro_futuro = _quadro_futuro_preferencial(contexto)
     mapa_central = _mapa_pagamentos_central(contexto)
-    ledger_result = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto) or {}
+    ledger_result = _retorno_ledger_temporal_vazio_oficial(quadro_futuro, mapa_central, contexto) or {}
     destinos_pos_switching_passivos = list(ledger_result.get('destinos_pos_switching_materializados_passivos', []))
     pos_canonico_ativo = _pos_canonico_ativo(contexto)
     destinos_pos_switching_passivos_para_situacao = (
