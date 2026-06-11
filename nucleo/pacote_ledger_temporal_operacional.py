@@ -112,7 +112,7 @@ def _normalizar_evento_temporal(ev: Mapping[str, Any], idx: int) -> dict[str, An
         "motivo_bloqueio": _primeiro(ev, "motivo_bloqueio"),
         "fonte_temporal": _primeiro(ev, "fonte_temporal", "origem_fonte_candidata"),
         "origem_dado": _primeiro(ev, "origem_dado", "origem_mapa_migracao"),
-        "evento_origem": dict(ev),
+        "evento_legado": dict(ev),
     }
 
 
