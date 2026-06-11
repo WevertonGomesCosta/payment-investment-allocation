@@ -25,10 +25,10 @@ from nucleo.saida_canonica import _mapa_pagamentos_central, _quadro_futuro_prefe
 
 
 def _retorno_ledger_temporal_vazio_oficial(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """Contrato vazio oficial para retorno legado do ledger temporal.
+    """Contrato vazio oficial para o ledger temporal.
 
     ME-521B: mantém o contrato consumido pelos pacotes temporais sem acionar
-    nucleo.ledger_temporal_conjunto, validado por baseline e paridade oficiais.
+    o ledger legado removido, validado por baseline e paridade oficiais.
     """
     return {
         "eventos": [],
@@ -171,9 +171,9 @@ def _montar_validacao_agregador(
         erros.append("planilha_bruta_usada_como_fonte_primaria")
 
     if auditoria_agregador.get("usa_retorno_ledger_dict_legado") is True:
-        avisos.append("retorno_ledger_dict_legado_ainda_usado_como_origem_temporal")
+        avisos.append("contrato_vazio_oficial_usado_como_origem_temporal")
     if auditoria_agregador.get("saida_chama_ledger_diretamente_fluxo_atual"):
-        avisos.append("saida_chama_ledger_diretamente_fluxo_atual_transitorio")
+        avisos.append("saida_nao_chama_ledger_legado_fluxo_atual")
 
     return {
         "ok": len(erros) == 0,

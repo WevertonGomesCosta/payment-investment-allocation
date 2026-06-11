@@ -150,8 +150,8 @@ def _auditoria_residuos(pacote_ledger_operacional: Any, pacote_estado_temporal: 
         "usa_quadros_brutos": "n/d_temporal",
         "usa_planilha_bruta_como_fonte_primaria": auditoria_ledger.get("usa_planilha_bruta_como_fonte_primaria"),
         "usa_planilha_bruta_apenas_fallback": auditoria_ledger.get("usa_planilha_bruta_apenas_fallback"),
-        "usa_retorno_ledger_dict_legado": auditoria_ledger.get("retorno_dict_legado_usado_como_origem"),
-        "saida_chama_ledger_diretamente": "sim_fluxo_atual_ainda_transitorio",
+        "usa_retorno_ledger_dict_legado": auditoria_ledger.get("retorno_dict_legado_usado_como_origem", False),
+        "saida_chama_ledger_diretamente": False,
         "campos_vazios_auditados": campos_vazios,
     }
 
@@ -186,7 +186,7 @@ def _montar_validacao_global(
     if auditoria_replay.get("modo_operacional_temporal") is True:
         avisos.append("auditoria_replay_origem_temporal_operacional")
     if auditoria_ledger.get("retorno_dict_legado_usado_como_origem") is True:
-        avisos.append("retorno_dict_legado_ainda_usado_como_origem")
+        avisos.append("contrato_vazio_oficial_usado_como_origem_ledger_temporal")
 
     return {
         "ok": len(erros) == 0,
