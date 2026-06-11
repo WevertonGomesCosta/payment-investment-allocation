@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-VERSAO_INVENTARIO_LEGADO_PIPELINE = 'ME-520B5b'
+VERSAO_INVENTARIO_LEGADO_PIPELINE = 'ME-520B6b'
 ARTEFATO_INVENTARIO_LEGADO_PIPELINE = 'InventarioLegadoPipeline'
 FONTE_INVENTARIO = 'inventario_estatico_declarativo_versionado'
 REMOCAO_AUTOMATICA_AUTORIZADA = False
@@ -331,6 +331,22 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'ME-520B5 concluida',
         'git grep e AST focados encontraram apenas definições internas no próprio arquivo; nenhum import ou uso externo foi identificado em aplicacao/ ou nucleo/.',
         'Arquivo órfão removido sem alterar motor econômico, Situação Atual, saída canônica, ledger, console ou XLSX.',
+        'legado_removido',
+    ),
+    _item(
+        'TRIAGEM-MOTOR-V1-ORFA-01',
+        'nucleo/triagem_motor.py',
+        'PacoteTriagemMotor; carregar_triagem_motor; selecionado_motor_v1',
+        'nucleo/triagem_proxy_nao_operacional',
+        'triagem_motor_v1_orfa_removida_controladamente',
+        'Removida controladamente na ME-520B6a após prova de ausência de importador, consumidor ou chamada operacional em aplicacao/ e nucleo/.',
+        False,
+        'ranking_carteira_estabilizado e rotas oficiais atuais de Carteira/saída canônica',
+        'baixo_apos_remocao_controlada; medio_se_reintroduzida_sem_consumidor',
+        'preservar_remocao_controlada_e_nao_reintroduzir_triagem_proxy_orfa',
+        'ME-520B6a concluida',
+        'Varredura AST geral indicou importadores internos = 0; grep e AST focados encontraram PacoteTriagemMotor/carregar_triagem_motor apenas no próprio arquivo.',
+        'Módulo proxy preliminar sem uso operacional removido sem alterar motor econômico, Situação Atual, saída canônica, ledger, console ou XLSX.',
         'legado_removido',
     ),
     _item(
