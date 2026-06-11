@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-VERSAO_INVENTARIO_LEGADO_PIPELINE = 'ME-520B3'
+VERSAO_INVENTARIO_LEGADO_PIPELINE = 'ME-520B5b'
 ARTEFATO_INVENTARIO_LEGADO_PIPELINE = 'InventarioLegadoPipeline'
 FONTE_INVENTARIO = 'inventario_estatico_declarativo_versionado'
 REMOCAO_AUTOMATICA_AUTORIZADA = False
@@ -315,6 +315,22 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'ME-520B2 concluida',
         'git grep não encontrou import executável ativo em aplicacao/ ou nucleo/; py_compile, console, XLSX, Etapa 10 e baseline patrimonial permaneceram aprovados após remoção.',
         'Removida em micro-etapa controlada, sem alteração de decisão econômica e sem regressão da saída observável oficial.',
+        'legado_removido',
+    ),
+    _item(
+        'PONTE-RENDERIZACAO-SWITCHING-V17-C6-01',
+        'nucleo/ponte_renderizacao_switching_v17_c6.py',
+        'PonteRenderizacaoSwitchingV17C6; renderizar_switchings_compativeis_saida',
+        'nucleo/renderizacao_switching_legada',
+        'ponte_renderizacao_switching_removida_controladamente',
+        'Removida controladamente na ME-520B5 após prova de ausência de importador, consumidor ou chamada externa.',
+        False,
+        'PacoteSaidaObservavelOficial e blocos oficiais de switching/renderização',
+        'baixo_apos_remocao_controlada; alto_se_reintroduzida',
+        'preservar_remocao_controlada_e_nao_reintroduzir_ponte_v17_c6',
+        'ME-520B5 concluida',
+        'git grep e AST focados encontraram apenas definições internas no próprio arquivo; nenhum import ou uso externo foi identificado em aplicacao/ ou nucleo/.',
+        'Arquivo órfão removido sem alterar motor econômico, Situação Atual, saída canônica, ledger, console ou XLSX.',
         'legado_removido',
     ),
     _item(
