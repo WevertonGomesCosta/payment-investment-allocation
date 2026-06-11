@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-VERSAO_INVENTARIO_LEGADO_PIPELINE = 'ME-520B6b'
+VERSAO_INVENTARIO_LEGADO_PIPELINE = 'ME-521D'
 ARTEFATO_INVENTARIO_LEGADO_PIPELINE = 'InventarioLegadoPipeline'
 FONTE_INVENTARIO = 'inventario_estatico_declarativo_versionado'
 REMOCAO_AUTOMATICA_AUTORIZADA = False
@@ -347,6 +347,22 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'ME-520B6a concluida',
         'Varredura AST geral indicou importadores internos = 0; grep e AST focados encontraram PacoteTriagemMotor/carregar_triagem_motor apenas no próprio arquivo.',
         'Módulo proxy preliminar sem uso operacional removido sem alterar motor econômico, Situação Atual, saída canônica, ledger, console ou XLSX.',
+        'legado_removido',
+    ),
+    _item(
+        'LEDGER-TEMPORAL-CONJUNTO-CADEIA-LEGADA-01',
+        'nucleo/ledger_temporal_conjunto.py; nucleo/ledger_switching_estado_temporal_v17_f0_o2.py; nucleo/pacote_orquestrado_pre_saida.py',
+        'construir_ledger_temporal_conjunto; materializar_eventos_switching_ledger_estado_temporal_v17_f0_o2; montar_pacote_orquestrado_pre_saida',
+        'nucleo/ledger_temporal_legado',
+        'cadeia_ledger_temporal_legada_removida_controladamente',
+        'Removida controladamente na ME-521D após substituição da dependência runtime por contrato vazio oficial e remoção do fallback condicional remanescente.',
+        False,
+        'contrato vazio oficial em nucleo/saida_canonica.py, nucleo/pacotes_temporais_agregados_saida.py e nucleo/pacote_ledger_temporal.py',
+        'baixo_apos_remocao_controlada; alto_se_reintroduzida_sem_prova_de_equivalencia',
+        'preservar_remocao_controlada_e_nao_reintroduzir_cadeia_ledger_legada',
+        'ME-521D concluida',
+        'ME-521B substituiu chamadas runtime por contrato vazio oficial; ME-521C removeu fallback condicional; varredura AST indicou apenas dependências internas entre os três arquivos; py_compile, console, XLSX, Etapa 10 e baseline patrimonial permaneceram aprovados após remoção.',
+        'A cadeia não possuía consumidor operacional externo remanescente em aplicacao/ ou nucleo/ fora de inventário/gate; sua remoção não altera decisão econômica, Situação Atual, console ou XLSX.',
         'legado_removido',
     ),
     _item(
