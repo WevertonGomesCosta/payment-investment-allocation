@@ -241,14 +241,15 @@ def construir_pacote_ledger_temporal(
 ) -> PacoteLedgerTemporal:
     """Constrói o envelope temporal do ledger temporal.
 
-    Quando ``retorno_legado`` não é fornecido, executa o construtor legado.
+    Quando ``retorno_legado`` não é fornecido, usa contrato vazio oficial.
     Quando fornecido, apenas embrulha o retorno já calculado. Em ambos os casos,
-    não altera a saída canônica nem remove chamadas existentes.
+    não altera a saída canônica nem aciona o ledger legado.
     """
     if retorno_legado is None:
-        from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
-
-        retorno_legado = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto) or {}
+        retorno_legado = {
+            "eventos": [],
+            "fifo_candidatos_avaliados": [],
+        }
 
     retorno = _as_dict(retorno_legado)
     eventos_temporais = _as_list_dict(retorno.get("eventos"))

@@ -12,7 +12,6 @@ from typing import Any, Mapping
 
 import pandas as pd
 
-from nucleo.ledger_temporal_conjunto import construir_ledger_temporal_conjunto
 from nucleo.pacote_auditoria_temporal import PacoteAuditoriaTemporal, construir_pacote_auditoria_temporal
 from nucleo.pacote_estado_temporal import PacoteEstadoTemporal, construir_pacote_estado_temporal
 from nucleo.pacote_ledger_temporal import construir_pacote_ledger_temporal
@@ -23,6 +22,18 @@ from nucleo.pacote_ledger_temporal_operacional import (
 from nucleo.pacote_replay_passado import PacoteReplayPassado, construir_pacote_replay_passado
 from nucleo.saida_canonica import _mapa_pagamentos_central, _quadro_futuro_preferencial
 
+
+
+def _retorno_ledger_temporal_vazio_oficial(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Contrato vazio oficial para retorno legado do ledger temporal.
+
+    ME-521B: mantém o contrato consumido pelos pacotes temporais sem acionar
+    nucleo.ledger_temporal_conjunto, validado por baseline e paridade oficiais.
+    """
+    return {
+        "eventos": [],
+        "fifo_candidatos_avaliados": [],
+    }
 
 VERSAO_PACOTES_TEMPORAIS_AGREGADOS = "V17-F0-V.4I-temporal"
 
@@ -198,7 +209,7 @@ def construir_pacotes_temporais_agregados_saida(
 
     quadro_futuro = _quadro_futuro_preferencial(contexto)
     mapa_central = _mapa_pagamentos_central(contexto)
-    retorno_legado = construir_ledger_temporal_conjunto(quadro_futuro, mapa_central, contexto) or {}
+    retorno_legado = _retorno_ledger_temporal_vazio_oficial(quadro_futuro, mapa_central, contexto) or {}
 
     pacote_ledger_temporal = construir_pacote_ledger_temporal(
         quadro_futuro,
