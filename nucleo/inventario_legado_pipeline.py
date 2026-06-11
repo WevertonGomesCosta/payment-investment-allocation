@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-VERSAO_INVENTARIO_LEGADO_PIPELINE = 'ME-518C'
+VERSAO_INVENTARIO_LEGADO_PIPELINE = 'ME-520B2b'
 ARTEFATO_INVENTARIO_LEGADO_PIPELINE = 'InventarioLegadoPipeline'
 FONTE_INVENTARIO = 'inventario_estatico_declarativo_versionado'
 REMOCAO_AUTOMATICA_AUTORIZADA = False
@@ -287,35 +287,35 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
     ),
     _item(
         'SAIDA-CANONICA-V17-C7-01',
-        'nucleo/construir_saida_canonica_v17_c7.py',
-        'construir_saida_canonica_com_switching_v17_c7',
+        'nucleo/construir_saida_canonica_v17_c7.py; nucleo/saida_canonica_switching_v17_c7.py',
+        'construir_saida_canonica_com_switching_v17_c7; integrar_switchings_materializados_saida_canonica_v17_f0_p1',
         'nucleo/saida_canonica_legada',
-        'wrapper_legado_sem_consumidor_operacional',
-        'Sem consumidor operacional na rota integrada; aplicacao/principal.py constrói SaidaCanonicaOficial a partir de ledger/gates/ranking e não chama este wrapper.',
+        'wrapper_legado_removido_controladamente',
+        'Removido controladamente na ME-520B2 após prova de ausência de consumidor operacional na rota integrada.',
         False,
         'nucleo.saida_canonica_oficial.construir_saida_canonica_oficial',
-        'baixo_enquanto_nao_importado_pela_rota_integrada; alto_se_reintroduzido',
-        'preservar_codigo_legado_sem_consumidor_operacional_e_nao_remover_automaticamente',
-        'ME-518C concluida',
-        'aplicacao/principal.py não importa nem chama o wrapper V17/C7; a Situação Atual recebe fonte observável derivada da SaidaCanonicaOficial preliminar.',
-        'Substituído na rota integrada pela cadeia ResultadoMotorTemporalConjunto -> LedgerTemporalCanonico -> ResultadoGatesValidacaoNucleo -> SaidaCanonicaOficial -> PacoteSaidaObservavelOficial.',
-        'legado_candidato_depreciacao',
+        'baixo_apos_remocao_controlada; alto_se_reintroduzido',
+        'preservar_remocao_controlada_e_nao_reintroduzir_wrapper_v17_c7',
+        'ME-520B2 concluida',
+        'git grep não encontrou import executável ativo em aplicacao/ ou nucleo/; py_compile, console, XLSX, Etapa 10 e baseline patrimonial permaneceram aprovados após remoção.',
+        'Removido em micro-etapa controlada, sem alteração de decisão econômica e sem regressão da saída observável oficial.',
+        'legado_removido',
     ),
     _item(
         'MATRIZ-S7B-S7C-01',
         'nucleo/matriz_elegibilidade_fontes_s7b.py; nucleo/integracao_matriz_elegibilidade_pagamentos_s7c.py',
         'construir_matriz_elegibilidade_fontes_s7b; aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c',
         'nucleo/elegibilidade_legada_transitoria',
-        'matriz_integracao_transitoria_sem_consumidor_operacional',
-        'Sem consumidor operacional na rota integrada; aplicacao/principal.py não constrói matriz S7B nem aplica integração S7C ao fluxo de pagamentos.',
+        'matriz_integracao_transitoria_removida_controladamente',
+        'Removida controladamente na ME-520B2 após prova de ausência de consumidor operacional na rota integrada.',
         False,
         'cadeia oficial motor/ledger/gates e obrigações cobertas no PacoteSaidaObservavelOficial',
-        'baixo_enquanto_nao_importadas_pela_rota_integrada; alto_se_reintroduzidas',
-        'preservar_codigo_legado_sem_consumidor_operacional_e_nao_remover_automaticamente',
-        'ME-518C concluida',
-        'aplicacao/principal.py não importa nem chama construir_matriz_elegibilidade_fontes_s7b ou aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c.',
-        'A elegibilidade operacional consumida por console/XLSX passa pela cadeia oficial já validada; a matriz transitória permanece apenas como resíduo inventariado.',
-        'legado_candidato_depreciacao',
+        'baixo_apos_remocao_controlada; alto_se_reintroduzida',
+        'preservar_remocao_controlada_e_nao_reintroduzir_s7b_s7c',
+        'ME-520B2 concluida',
+        'git grep não encontrou import executável ativo em aplicacao/ ou nucleo/; py_compile, console, XLSX, Etapa 10 e baseline patrimonial permaneceram aprovados após remoção.',
+        'Removida em micro-etapa controlada, sem alteração de decisão econômica e sem regressão da saída observável oficial.',
+        'legado_removido',
     ),
     _item(
         'CODE-OTIMIZACAO-GASTOS-01',
