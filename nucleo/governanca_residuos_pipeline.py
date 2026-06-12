@@ -8,26 +8,26 @@ import unicodedata
 from nucleo.paridade_renderizacao_oficial import ResultadoParidadeRenderizacaoOficial
 
 
-ARTEFATO_LIMPEZA = 'ResultadoLimpezaDepreciacaoControlada'
-ETAPA_LIMPEZA = 11
+ARTEFATO_GOVERNANCA_RESIDUOS = 'ResultadoGovernancaResiduosPipeline'
+ETAPA_GOVERNANCA_RESIDUOS = 11
 ENTRADA_FORMAL = 'ResultadoParidadeRenderizacaoOficial'
-MODULO_LIMPEZA = 'nucleo/limpeza_depreciacao_controlada.py'
+MODULO_GOVERNANCA_RESIDUOS = 'nucleo/governanca_residuos_pipeline.py'
 
 _CLASSIFICACAO_OFICIAL = 'rota_oficial_preservada'
-_CLASSIFICACAO_LEGADO = 'legado_candidato_depreciacao'
-_CLASSIFICACAO_REMOVIDO = 'legado_removido'
-_CLASSIFICACAO_HISTORICO = 'historico_preservado'
+_CLASSIFICACAO_RESIDUO = 'residuo_candidato_tratamento'
+_CLASSIFICACAO_RESIDUO_REMOVIDO = 'residuo_removido'
+_CLASSIFICACAO_HISTORICO = 'referencia_historica_preservada'
 _CLASSIFICACAO_DIAGNOSTICO = 'diagnostico_preservado_fora_pipeline'
-_CLASSIFICACAO_BLOQUEADO = 'bloqueado_dependencia_ativa'
-_CLASSIFICACAO_FALLBACK = 'fallback_temporario_bloqueado_para_remocao'
+_CLASSIFICACAO_BLOQUEADO = 'residuo_bloqueado_dependencia_ativa'
+_CLASSIFICACAO_FALLBACK = 'rota_alternativa_temporaria_bloqueada_tratamento'
 _CLASSIFICACAO_LIMITADA = 'classificacao_limitada_por_ausencia_inventario'
-_CLASSIFICACAO_INVENTARIO_AUSENTE = 'inventario_auxiliar_ausente'
-_CLASSIFICACAO_AVALIACAO_FUTURA = 'avaliacao_remocao_futura'
+_CLASSIFICACAO_INVENTARIO_AUSENTE = 'inventario_residuos_auxiliar_ausente'
+_CLASSIFICACAO_AVALIACAO_FUTURA = 'avaliacao_tratamento_futuro'
 
 _CLASSIFICACOES_PADRONIZADAS = {
     _CLASSIFICACAO_OFICIAL,
-    _CLASSIFICACAO_LEGADO,
-    _CLASSIFICACAO_REMOVIDO,
+    _CLASSIFICACAO_RESIDUO,
+    _CLASSIFICACAO_RESIDUO_REMOVIDO,
     _CLASSIFICACAO_BLOQUEADO,
     _CLASSIFICACAO_HISTORICO,
     _CLASSIFICACAO_DIAGNOSTICO,
@@ -35,9 +35,9 @@ _CLASSIFICACOES_PADRONIZADAS = {
     _CLASSIFICACAO_AVALIACAO_FUTURA,
 }
 
-_CLASSIFICACOES_LEGADO_IDENTIFICADO = {
-    _CLASSIFICACAO_LEGADO,
-    _CLASSIFICACAO_REMOVIDO,
+_CLASSIFICACOES_RESIDUO_IDENTIFICADO = {
+    _CLASSIFICACAO_RESIDUO,
+    _CLASSIFICACAO_RESIDUO_REMOVIDO,
     _CLASSIFICACAO_BLOQUEADO,
     _CLASSIFICACAO_FALLBACK,
     _CLASSIFICACAO_AVALIACAO_FUTURA,
@@ -45,38 +45,38 @@ _CLASSIFICACOES_LEGADO_IDENTIFICADO = {
 
 
 @dataclass(slots=True)
-class ItemLimpezaDepreciacaoControlada:
+class ItemGovernancaResiduoPipeline:
     identificador: str
     classificacao: str
     origem: str
     motivo: str
-    remocao_automatica_autorizada: bool = False
+    acao_automatica_autorizada: bool = False
     evidencia_dependencia_ativa: bool = False
     referencias: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
-class ResumoLimpezaDepreciacaoControlada:
+class ResumoGovernancaResiduosPipeline:
     status: str
     ok: bool
     qtd_artefatos_avaliados: int
     qtd_rotas_oficiais_preservadas: int
-    qtd_rotas_legadas_identificadas: int
-    qtd_rotas_legadas_bloqueadas: int
-    qtd_rotas_legadas_candidatas_depreciacao: int
+    qtd_residuos_identificados: int
+    qtd_residuos_bloqueados: int
+    qtd_residuos_candidatos_tratamento: int
     qtd_pendencias_nao_materiais: int
-    qtd_bloqueios_limpeza: int
+    qtd_bloqueios_governanca: int
     classificacao_limitada_por_ausencia_inventario: bool
-    remocao_automatica_autorizada: bool = False
+    acao_automatica_autorizada: bool = False
     qtd_historicos_diagnosticos_preservados: int = 0
     qtd_fallbacks_temporarios_bloqueados: int = 0
 
 
 @dataclass(slots=True)
-class AuditoriaLimpezaDepreciacaoControlada:
+class AuditoriaGovernancaResiduosPipeline:
     paridade_status: str | None
     paridade_ok: bool | None
-    inventario_auxiliar_fornecido: bool
+    inventario_residuos_auxiliar_fornecido: bool
     classificacao_limitada_por_ausencia_inventario: bool
     divergencias_materiais_paridade: list[str] = field(default_factory=list)
     ressalvas_paridade: list[str] = field(default_factory=list)
@@ -84,11 +84,11 @@ class AuditoriaLimpezaDepreciacaoControlada:
 
 
 @dataclass(slots=True)
-class MetadadosLimpezaDepreciacaoControlada:
-    artefato: str = ARTEFATO_LIMPEZA
-    etapa: int = ETAPA_LIMPEZA
+class MetadadosGovernancaResiduosPipeline:
+    artefato: str = ARTEFATO_GOVERNANCA_RESIDUOS
+    etapa: int = ETAPA_GOVERNANCA_RESIDUOS
     entrada_formal: str = ENTRADA_FORMAL
-    modulo: str = MODULO_LIMPEZA
+    modulo: str = MODULO_GOVERNANCA_RESIDUOS
     data_referencia: str | None = None
     evidencias_auxiliares_nao_decisorias: bool = True
     sem_reotimizacao: bool = True
@@ -100,11 +100,11 @@ class MetadadosLimpezaDepreciacaoControlada:
     sem_alteracao_etapa9: bool = True
     sem_alteracao_etapa10: bool = True
     sem_alteracao_dados_financeiros: bool = True
-    remocao_automatica_autorizada: bool = False
+    acao_automatica_autorizada: bool = False
 
 
 @dataclass(slots=True)
-class ResultadoLimpezaDepreciacaoControlada:
+class ResultadoGovernancaResiduosPipeline:
     artefato: str
     etapa: int
     status: str
@@ -112,20 +112,20 @@ class ResultadoLimpezaDepreciacaoControlada:
     entrada_formal: str
     origem_formal: str
     data_referencia: str | None
-    artefatos_avaliados: list[ItemLimpezaDepreciacaoControlada]
-    rotas_oficiais_preservadas: list[ItemLimpezaDepreciacaoControlada]
-    rotas_legadas_identificadas: list[ItemLimpezaDepreciacaoControlada]
-    rotas_legadas_bloqueadas_remocao: list[ItemLimpezaDepreciacaoControlada]
-    rotas_legadas_candidatas_depreciacao: list[ItemLimpezaDepreciacaoControlada]
-    classes_candidatas_avaliacao_remocao_futura: list[ItemLimpezaDepreciacaoControlada]
-    classes_preservadas_historico: list[ItemLimpezaDepreciacaoControlada]
+    artefatos_avaliados: list[ItemGovernancaResiduoPipeline]
+    rotas_oficiais_preservadas: list[ItemGovernancaResiduoPipeline]
+    residuos_identificados: list[ItemGovernancaResiduoPipeline]
+    residuos_bloqueados_tratamento: list[ItemGovernancaResiduoPipeline]
+    residuos_candidatos_tratamento: list[ItemGovernancaResiduoPipeline]
+    classes_candidatas_avaliacao_tratamento_futuro: list[ItemGovernancaResiduoPipeline]
+    classes_preservadas_historico: list[ItemGovernancaResiduoPipeline]
     pendencias_nao_materiais_release: list[str]
-    bloqueios_limpeza: list[str]
-    recomendacoes_depreciacao_controlada: list[str]
+    bloqueios_governanca: list[str]
+    recomendacoes_governanca_residuos: list[str]
     plano_retorno_etapa1: list[str]
-    resumo: ResumoLimpezaDepreciacaoControlada
-    auditoria: AuditoriaLimpezaDepreciacaoControlada
-    metadados: MetadadosLimpezaDepreciacaoControlada
+    resumo: ResumoGovernancaResiduosPipeline
+    auditoria: AuditoriaGovernancaResiduosPipeline
+    metadados: MetadadosGovernancaResiduosPipeline
 
 
 def _sem_acentos(texto: str) -> str:
@@ -183,7 +183,7 @@ def _indica_dependencia_ativa(chave: Any, valor: Any) -> bool:
     tokens_valor = _tokenizar(valor)
     texto_completo = f'{texto_chave} {texto_valor}'
 
-    if 'sem uso' in texto_completo or 'deprecated' in texto_completo or 'depreciad' in texto_completo:
+    if 'sem uso' in texto_completo or 'fora_do_pipeline' in texto_completo or 'depreciad' in texto_completo:
         return False
     if texto_valor in {'bloqueado', 'dependencia ativa', 'dependencia_ativa', 'ativa'}:
         return True
@@ -192,10 +192,10 @@ def _indica_dependencia_ativa(chave: Any, valor: Any) -> bool:
     return bool({'bloqueado'} & tokens_valor) or _contem_frase(texto_completo, 'dependencia ativa')
 
 
-def _indica_legado(chave: Any, valor: Any) -> bool:
+def _indica_residuo(chave: Any, valor: Any) -> bool:
     tokens = _tokenizar(chave) | _tokenizar(valor)
     texto = f'{_normalizar_texto(chave)} {_normalizar_texto(valor)}'
-    return bool({'legacy', 'legado', 'deprecated', 'depreciado', 'depreciacao'} & tokens) or 'deprecated' in texto
+    return bool({'historica', 'residual', 'fora_do_pipeline', 'fora_do_pipeline', 'tratamento'} & tokens) or 'fora_do_pipeline' in texto
 
 
 def _indica_oficial(chave: Any, valor: Any) -> bool:
@@ -293,12 +293,12 @@ def _normalizar_classificacao_inventario(item: Mapping[str, Any]) -> str:
         return _CLASSIFICACAO_DIAGNOSTICO
     if _indica_historico('classificacao', tipo):
         return _CLASSIFICACAO_HISTORICO
-    if _indica_legado('classificacao', tipo):
-        return _CLASSIFICACAO_LEGADO
+    if _indica_residuo('classificacao', tipo):
+        return _CLASSIFICACAO_RESIDUO
     return _CLASSIFICACAO_AVALIACAO_FUTURA
 
 
-def _converter_item_inventario(item: Mapping[str, Any]) -> ItemLimpezaDepreciacaoControlada:
+def _converter_item_inventario(item: Mapping[str, Any]) -> ItemGovernancaResiduoPipeline:
     classificacao = _normalizar_classificacao_inventario(item)
     dependencia_ativa = _valor_bool(item.get('dependencia_ativa')) or classificacao in {
         _CLASSIFICACAO_BLOQUEADO,
@@ -310,18 +310,18 @@ def _converter_item_inventario(item: Mapping[str, Any]) -> ItemLimpezaDepreciaca
         or item.get('evidencia')
         or 'Item de inventário formal classificado como evidência auxiliar não decisória.'
     )
-    return ItemLimpezaDepreciacaoControlada(
+    return ItemGovernancaResiduoPipeline(
         identificador=str(item.get('identificador')),
         classificacao=classificacao,
-        origem='inventario_legado_pipeline_estatico',
+        origem='inventario_residuos_pipeline_estatico',
         motivo=motivo,
-        remocao_automatica_autorizada=False,
+        acao_automatica_autorizada=False,
         evidencia_dependencia_ativa=dependencia_ativa,
         referencias=dict(item),
     )
 
 
-def validar_entrada_limpeza_depreciacao(resultado_paridade_renderizacao: Any) -> list[str]:
+def validar_entrada_governanca_residuos(resultado_paridade_renderizacao: Any) -> list[str]:
     if not isinstance(resultado_paridade_renderizacao, ResultadoParidadeRenderizacaoOficial):
         return [
             'Entrada da Etapa 11 deve ser ResultadoParidadeRenderizacaoOficial; '
@@ -338,10 +338,10 @@ def _extrair_data_referencia(resultado_paridade_renderizacao: ResultadoParidadeR
     return date.today().isoformat()
 
 
-def _classificar_evidencias(evidencias_auxiliares: Any) -> tuple[list[ItemLimpezaDepreciacaoControlada], bool]:
+def _classificar_evidencias(evidencias_auxiliares: Any) -> tuple[list[ItemGovernancaResiduoPipeline], bool]:
     if evidencias_auxiliares in (None, {}, []):
-        item = ItemLimpezaDepreciacaoControlada(
-            identificador='inventario_auxiliar',
+        item = ItemGovernancaResiduoPipeline(
+            identificador='inventario_residuos_auxiliar',
             classificacao=_CLASSIFICACAO_INVENTARIO_AUSENTE,
             origem='evidencia_auxiliar_nao_decisoria',
             motivo='Inventário auxiliar não fornecido; classificação de limpeza fica limitada.',
@@ -353,7 +353,7 @@ def _classificar_evidencias(evidencias_auxiliares: Any) -> tuple[list[ItemLimpez
     if itens_formais:
         return [_converter_item_inventario(item) for item in itens_formais], False
 
-    itens: list[ItemLimpezaDepreciacaoControlada] = []
+    itens: list[ItemGovernancaResiduoPipeline] = []
     vistos: set[str] = set()
     for identificador, chave, valor in _iterar_evidencias(evidencias_auxiliares):
         if identificador in vistos:
@@ -363,9 +363,9 @@ def _classificar_evidencias(evidencias_auxiliares: Any) -> tuple[list[ItemLimpez
             classificacao = _CLASSIFICACAO_BLOQUEADO
             motivo = 'Evidência auxiliar indica bloqueio por dependência ativa; remoção futura deve permanecer bloqueada.'
             dependencia_ativa = True
-        elif _indica_legado(chave, valor):
-            classificacao = _CLASSIFICACAO_LEGADO
-            motivo = 'Evidência auxiliar indica rota/artefato legado candidato à depreciação controlada.'
+        elif _indica_residuo(chave, valor):
+            classificacao = _CLASSIFICACAO_RESIDUO
+            motivo = 'Evidência auxiliar indica rota/artefato residual candidato à tratamento controlada.'
             dependencia_ativa = False
         elif _indica_oficial(chave, valor):
             classificacao = _CLASSIFICACAO_OFICIAL
@@ -380,12 +380,12 @@ def _classificar_evidencias(evidencias_auxiliares: Any) -> tuple[list[ItemLimpez
             motivo = 'Evidência auxiliar não decisória requer avaliação futura em frente específica.'
             dependencia_ativa = False
         itens.append(
-            ItemLimpezaDepreciacaoControlada(
+            ItemGovernancaResiduoPipeline(
                 identificador=identificador,
                 classificacao=classificacao,
                 origem='evidencia_auxiliar_nao_decisoria',
                 motivo=motivo,
-                remocao_automatica_autorizada=False,
+                acao_automatica_autorizada=False,
                 evidencia_dependencia_ativa=dependencia_ativa,
                 referencias={'chave': chave, 'valor': valor},
             )
@@ -404,17 +404,17 @@ def _mensagens_divergencias(resultado_paridade_renderizacao: ResultadoParidadeRe
     return mensagens
 
 
-def montar_metadados_limpeza_depreciacao(
+def montar_metadados_governanca_residuos(
     resultado_paridade_renderizacao: ResultadoParidadeRenderizacaoOficial,
-) -> MetadadosLimpezaDepreciacaoControlada:
-    return MetadadosLimpezaDepreciacaoControlada(data_referencia=_extrair_data_referencia(resultado_paridade_renderizacao))
+) -> MetadadosGovernancaResiduosPipeline:
+    return MetadadosGovernancaResiduosPipeline(data_referencia=_extrair_data_referencia(resultado_paridade_renderizacao))
 
 
-def consolidar_resultado_limpeza_depreciacao(
+def consolidar_resultado_governanca_residuos(
     resultado_paridade_renderizacao: ResultadoParidadeRenderizacaoOficial,
-    itens: list[ItemLimpezaDepreciacaoControlada],
+    itens: list[ItemGovernancaResiduoPipeline],
     classificacao_limitada_por_ausencia_inventario: bool,
-) -> ResultadoLimpezaDepreciacaoControlada:
+) -> ResultadoGovernancaResiduosPipeline:
     materiais = _mensagens_divergencias(resultado_paridade_renderizacao, materiais=True)
     ressalvas = _mensagens_divergencias(resultado_paridade_renderizacao, materiais=False)
     bloqueados = [
@@ -424,8 +424,8 @@ def consolidar_resultado_limpeza_depreciacao(
         or item.classificacao == _CLASSIFICACAO_FALLBACK
         or item.evidencia_dependencia_ativa
     ]
-    legados = [item for item in itens if item.classificacao in _CLASSIFICACOES_LEGADO_IDENTIFICADO]
-    candidatos = [item for item in itens if item.classificacao == _CLASSIFICACAO_LEGADO]
+    resíduos = [item for item in itens if item.classificacao in _CLASSIFICACOES_RESIDUO_IDENTIFICADO]
+    candidatos = [item for item in itens if item.classificacao == _CLASSIFICACAO_RESIDUO]
     oficiais = [item for item in itens if item.classificacao == _CLASSIFICACAO_OFICIAL]
     historicos = [
         item
@@ -436,15 +436,15 @@ def consolidar_resultado_limpeza_depreciacao(
     fallbacks = [item for item in itens if item.classificacao == _CLASSIFICACAO_FALLBACK]
     inventario_ausente = [item for item in itens if item.classificacao == _CLASSIFICACAO_INVENTARIO_AUSENTE]
 
-    bloqueios_limpeza = []
+    bloqueios_governanca = []
     if materiais or getattr(resultado_paridade_renderizacao, 'status', None) in {'bloqueado', 'reprovado'}:
-        bloqueios_limpeza.append('paridade_renderizacao_sem_aprovacao_material')
+        bloqueios_governanca.append('paridade_renderizacao_sem_aprovacao_material')
     if bloqueados:
-        bloqueios_limpeza.append('bloqueado_dependencia_ativa')
+        bloqueios_governanca.append('residuo_bloqueado_dependencia_ativa')
     if fallbacks:
-        bloqueios_limpeza.append('fallback_temporario_bloqueado_para_remocao')
+        bloqueios_governanca.append('rota_alternativa_temporaria_bloqueada_tratamento')
     if inventario_ausente:
-        bloqueios_limpeza.append('inventario_auxiliar_ausente')
+        bloqueios_governanca.append('inventario_residuos_auxiliar_ausente')
 
     if materiais or getattr(resultado_paridade_renderizacao, 'status', None) in {'bloqueado', 'reprovado'}:
         status = 'bloqueado'
@@ -456,14 +456,14 @@ def consolidar_resultado_limpeza_depreciacao(
 
     pendencias = list(ressalvas)
     if classificacao_limitada_por_ausencia_inventario:
-        pendencias.append('inventario_auxiliar_ausente')
+        pendencias.append('inventario_residuos_auxiliar_ausente')
 
     recomendacoes = [
         'Preservar rotas oficiais e artefatos históricos.',
-        'Executar depreciação ou remoção apenas em frente posterior específica, sem remoção automática nesta etapa.',
+        'Executar tratamento ou remoção apenas em frente posterior específica, sem remoção automática nesta etapa.',
     ]
     if candidatos:
-        recomendacoes.append('Priorizar candidatos legados sem dependência ativa em plano controlado de depreciação.')
+        recomendacoes.append('Priorizar resíduos candidatos sem dependência ativa em plano controlado de tratamento.')
     if bloqueados:
         recomendacoes.append('Manter bloqueio de remoção para itens com dependência ativa até evidência posterior de desuso.')
     if fallbacks:
@@ -476,34 +476,34 @@ def consolidar_resultado_limpeza_depreciacao(
         'Preservar cadeia oficial validada pela Etapa 10 no novo ciclo operacional.',
     ]
 
-    resumo = ResumoLimpezaDepreciacaoControlada(
+    resumo = ResumoGovernancaResiduosPipeline(
         status=status,
         ok=ok,
         qtd_artefatos_avaliados=len(itens),
         qtd_rotas_oficiais_preservadas=len(oficiais),
-        qtd_rotas_legadas_identificadas=len(legados),
-        qtd_rotas_legadas_bloqueadas=len(bloqueados),
-        qtd_rotas_legadas_candidatas_depreciacao=len(candidatos),
+        qtd_residuos_identificados=len(resíduos),
+        qtd_residuos_bloqueados=len(bloqueados),
+        qtd_residuos_candidatos_tratamento=len(candidatos),
         qtd_pendencias_nao_materiais=len(pendencias),
-        qtd_bloqueios_limpeza=len(bloqueios_limpeza),
+        qtd_bloqueios_governanca=len(bloqueios_governanca),
         classificacao_limitada_por_ausencia_inventario=classificacao_limitada_por_ausencia_inventario,
-        remocao_automatica_autorizada=False,
+        acao_automatica_autorizada=False,
         qtd_historicos_diagnosticos_preservados=len(historicos),
         qtd_fallbacks_temporarios_bloqueados=len(fallbacks),
     )
-    auditoria = AuditoriaLimpezaDepreciacaoControlada(
+    auditoria = AuditoriaGovernancaResiduosPipeline(
         paridade_status=getattr(resultado_paridade_renderizacao, 'status', None),
         paridade_ok=getattr(resultado_paridade_renderizacao, 'ok', None),
-        inventario_auxiliar_fornecido=not classificacao_limitada_por_ausencia_inventario,
+        inventario_residuos_auxiliar_fornecido=not classificacao_limitada_por_ausencia_inventario,
         classificacao_limitada_por_ausencia_inventario=classificacao_limitada_por_ausencia_inventario,
         divergencias_materiais_paridade=materiais,
         ressalvas_paridade=ressalvas,
-        avisos=list(bloqueios_limpeza),
+        avisos=list(bloqueios_governanca),
     )
-    metadados = montar_metadados_limpeza_depreciacao(resultado_paridade_renderizacao)
-    return ResultadoLimpezaDepreciacaoControlada(
-        artefato=ARTEFATO_LIMPEZA,
-        etapa=ETAPA_LIMPEZA,
+    metadados = montar_metadados_governanca_residuos(resultado_paridade_renderizacao)
+    return ResultadoGovernancaResiduosPipeline(
+        artefato=ARTEFATO_GOVERNANCA_RESIDUOS,
+        etapa=ETAPA_GOVERNANCA_RESIDUOS,
         status=status,
         ok=ok,
         entrada_formal=ENTRADA_FORMAL,
@@ -511,14 +511,14 @@ def consolidar_resultado_limpeza_depreciacao(
         data_referencia=metadados.data_referencia,
         artefatos_avaliados=itens,
         rotas_oficiais_preservadas=oficiais,
-        rotas_legadas_identificadas=legados,
-        rotas_legadas_bloqueadas_remocao=bloqueados,
-        rotas_legadas_candidatas_depreciacao=candidatos,
-        classes_candidatas_avaliacao_remocao_futura=avaliacao_futura,
+        residuos_identificados=resíduos,
+        residuos_bloqueados_tratamento=bloqueados,
+        residuos_candidatos_tratamento=candidatos,
+        classes_candidatas_avaliacao_tratamento_futuro=avaliacao_futura,
         classes_preservadas_historico=historicos,
         pendencias_nao_materiais_release=pendencias,
-        bloqueios_limpeza=bloqueios_limpeza,
-        recomendacoes_depreciacao_controlada=recomendacoes,
+        bloqueios_governanca=bloqueios_governanca,
+        recomendacoes_governanca_residuos=recomendacoes,
         plano_retorno_etapa1=plano_retorno,
         resumo=resumo,
         auditoria=auditoria,
@@ -526,12 +526,12 @@ def consolidar_resultado_limpeza_depreciacao(
     )
 
 
-def construir_resultado_limpeza_depreciacao_controlada(
+def construir_resultado_governanca_residuos_pipeline(
     resultado_paridade_renderizacao: ResultadoParidadeRenderizacaoOficial,
     evidencias_auxiliares: Any = None,
-) -> ResultadoLimpezaDepreciacaoControlada:
-    bloqueios_entrada = validar_entrada_limpeza_depreciacao(resultado_paridade_renderizacao)
+) -> ResultadoGovernancaResiduosPipeline:
+    bloqueios_entrada = validar_entrada_governanca_residuos(resultado_paridade_renderizacao)
     if bloqueios_entrada:
         raise TypeError(bloqueios_entrada[0])
     itens, classificacao_limitada = _classificar_evidencias(evidencias_auxiliares)
-    return consolidar_resultado_limpeza_depreciacao(resultado_paridade_renderizacao, itens, classificacao_limitada)
+    return consolidar_resultado_governanca_residuos(resultado_paridade_renderizacao, itens, classificacao_limitada)

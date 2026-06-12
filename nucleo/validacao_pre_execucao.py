@@ -845,7 +845,7 @@ def validar_pre_execucao_pacote_entrada_resolvida(
         "etapa": "2",
         "tipo": "gate_puro_pre_execucao_pacote_entrada_resolvida",
         "modo_paralelo": True,
-        "nao_substitui_validacao_legada": True,
+        "nao_substitui_validacao_residual": True,
         "nao_reconstroi_aliases": True,
         "nao_cria_dados_canonicos": True,
         "nao_altera_motor": True,

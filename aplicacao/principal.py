@@ -18,8 +18,8 @@ from nucleo.saida_canonica import construir_saida_canonica
 from nucleo.saida_canonica_oficial import construir_saida_canonica_oficial
 from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_oficial
 from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_oficial
-from nucleo.limpeza_depreciacao_controlada import construir_resultado_limpeza_depreciacao_controlada
-from nucleo.inventario_legado_pipeline import construir_inventario_legado_pipeline
+from nucleo.governanca_residuos_pipeline import construir_resultado_governanca_residuos_pipeline
+from nucleo.inventario_residuos_pipeline import construir_inventario_residuos_pipeline
 from nucleo.identidade_baseline import VERSAO_BASELINE
 from nucleo.situacao_atual_oficial import construir_situacao_atual_oficial
 
@@ -136,36 +136,36 @@ def _render_itens_limpeza(titulo: str, itens: list, limite: int = 6) -> None:
         print(f"  - ... {len(itens) - limite} item(ns) adicional(is) omitido(s).")
 
 
-def _render_resultado_limpeza_depreciacao(resultado_limpeza) -> None:
+def _render_resultado_governanca_residuos(resultado_limpeza) -> None:
     if resultado_limpeza is None:
         return
 
     resumo = getattr(resultado_limpeza, 'resumo', None)
     auditoria = getattr(resultado_limpeza, 'auditoria', None)
     oficiais = _itens_limpeza_por_classificacao(resultado_limpeza, 'rota_oficial_preservada')
-    candidatos = _itens_limpeza_por_classificacao(resultado_limpeza, 'legado_candidato_depreciacao')
-    bloqueados = list(getattr(resultado_limpeza, 'rotas_legadas_bloqueadas_remocao', []) or [])
+    candidatos = _itens_limpeza_por_classificacao(resultado_limpeza, 'residuo_candidato_tratamento')
+    bloqueados = list(getattr(resultado_limpeza, 'residuos_bloqueados_tratamento', []) or [])
     historicos_diagnosticos = _itens_limpeza_por_classificacao(
         resultado_limpeza,
-        'historico_preservado',
+        'referencia_historica_preservada',
         'diagnostico_preservado_fora_pipeline',
     )
-    fallbacks = _itens_limpeza_por_classificacao(resultado_limpeza, 'fallback_temporario_bloqueado_para_remocao')
+    fallbacks = _itens_limpeza_por_classificacao(resultado_limpeza, 'rota_alternativa_temporaria_bloqueada_tratamento')
 
-    print("\n=== LIMPEZA E DEPRECIAÇÃO CONTROLADA — ETAPA 11 ===")
+    print("\n=== GOVERNANÇA DE RESÍDUOS DO PIPELINE — ETAPA 11 ===")
     print(f"- artefato: {getattr(resultado_limpeza, 'artefato', None)}")
     print(f"- entrada formal: {getattr(resultado_limpeza, 'entrada_formal', None)}")
     print(f"- origem formal: {getattr(resultado_limpeza, 'origem_formal', None)}")
     print(f"- status: {getattr(resultado_limpeza, 'status', None)}")
     print(f"- ok: {getattr(resultado_limpeza, 'ok', None)}")
-    print(f"- inventario_auxiliar_fornecido: {getattr(auditoria, 'inventario_auxiliar_fornecido', None)}")
+    print(f"- inventario_residuos_auxiliar_fornecido: {getattr(auditoria, 'inventario_residuos_auxiliar_fornecido', None)}")
     print(f"- artefatos avaliados: {getattr(resumo, 'qtd_artefatos_avaliados', None)}")
     print(f"- rotas oficiais preservadas: {getattr(resumo, 'qtd_rotas_oficiais_preservadas', len(oficiais))}")
-    print(f"- rotas candidatas à depreciação: {getattr(resumo, 'qtd_rotas_legadas_candidatas_depreciacao', None)}")
-    print(f"- rotas bloqueadas para remoção: {getattr(resumo, 'qtd_rotas_legadas_bloqueadas', None)}")
+    print(f"- resíduos candidatos a tratamento: {getattr(resumo, 'qtd_residuos_candidatos_tratamento', None)}")
+    print(f"- resíduos bloqueados para tratamento: {getattr(resumo, 'qtd_residuos_bloqueados', None)}")
     print(f"- históricos/diagnósticos preservados: {getattr(resumo, 'qtd_historicos_diagnosticos_preservados', len(historicos_diagnosticos))}")
-    print(f"- fallbacks temporários bloqueados para remoção: {getattr(resumo, 'qtd_fallbacks_temporarios_bloqueados', len(fallbacks))}")
-    print(f"- remoção automática autorizada: {getattr(resumo, 'remocao_automatica_autorizada', None)}")
+    print(f"- rotas alternativas temporárias bloqueadas para tratamento: {getattr(resumo, 'qtd_fallbacks_temporarios_bloqueados', len(fallbacks))}")
+    print(f"- remoção automática autorizada: {getattr(resumo, 'acao_automatica_autorizada', None)}")
     print(
         "- classificação limitada por ausência de inventário: "
         f"{getattr(auditoria, 'classificacao_limitada_por_ausencia_inventario', None)}"
@@ -173,12 +173,12 @@ def _render_resultado_limpeza_depreciacao(resultado_limpeza) -> None:
 
     print("- classificação explícita do inventário:")
     _render_itens_limpeza('rotas oficiais preservadas', oficiais)
-    _render_itens_limpeza('rotas candidatas à depreciação', candidatos)
-    _render_itens_limpeza('rotas bloqueadas por dependência ativa', bloqueados)
+    _render_itens_limpeza('resíduos candidatos a tratamento', candidatos)
+    _render_itens_limpeza('resíduos bloqueados por dependência ativa', bloqueados)
     _render_itens_limpeza('históricos/diagnósticos preservados', historicos_diagnosticos)
-    _render_itens_limpeza('fallbacks temporários bloqueados para remoção nesta etapa', fallbacks)
+    _render_itens_limpeza('rotas alternativas temporárias bloqueadas para tratamento nesta etapa', fallbacks)
 
-    bloqueios = list(getattr(resultado_limpeza, 'bloqueios_limpeza', []) or [])
+    bloqueios = list(getattr(resultado_limpeza, 'bloqueios_governanca', []) or [])
     if bloqueios:
         print("- bloqueios/ressalvas de limpeza:")
         for bloqueio in bloqueios[:5]:
@@ -284,12 +284,12 @@ def main():
     )
     _render_resultado_paridade_renderizacao(resultado_paridade_renderizacao)
 
-    inventario_legado_pipeline = construir_inventario_legado_pipeline()
-    resultado_limpeza_depreciacao = construir_resultado_limpeza_depreciacao_controlada(
+    inventario_residuos_pipeline = construir_inventario_residuos_pipeline()
+    resultado_governanca_residuos = construir_resultado_governanca_residuos_pipeline(
         resultado_paridade_renderizacao,
-        evidencias_auxiliares=inventario_legado_pipeline,
+        evidencias_auxiliares=inventario_residuos_pipeline,
     )
-    _render_resultado_limpeza_depreciacao(resultado_limpeza_depreciacao)
+    _render_resultado_governanca_residuos(resultado_governanca_residuos)
 
     return caminho_saida
 

@@ -364,7 +364,7 @@ def _metadados(preparada: bool, status: str) -> dict[str, Any]:
         'sem_geracao_console': True,
         'sem_geracao_xlsx': True,
         'sem_integracao_runtime': True,
-        'funcoes_legadas_runtime_nao_consumidas': True,
+        'funcoes_residuais_runtime_nao_consumidas': True,
         'gerado_em': datetime.now(timezone.utc).isoformat(timespec='seconds'),
     }
 
