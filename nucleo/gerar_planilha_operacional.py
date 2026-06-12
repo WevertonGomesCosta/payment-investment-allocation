@@ -187,6 +187,7 @@ def _aba_situacao(wb: Workbook, contexto: Any, pacote: Any) -> None:
     row = 1
     for idx, bloco in enumerate(blocos):
         row = _estilo(ws, bloco['headers'], bloco['linhas'], start_row=row if idx == 0 else row + 3, title=bloco['titulo'])
+    ws.freeze_panes = 'A2'
 
 
 def main(*, contexto: Any = None, saida: Any = None, pacote_saida_observavel_oficial: Any = None, estado_temporal_inicial: Any = None, incluir_abas_diagnosticas: bool | None = None, modo_artefato: str = 'oficial') -> Path:
