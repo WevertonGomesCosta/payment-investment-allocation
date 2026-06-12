@@ -27,7 +27,7 @@ class PacoteAuditoriaTemporal:
     auditoria_fontes_elegiveis: dict[str, Any] = field(default_factory=dict)
     auditoria_switching_temporal: dict[str, Any] = field(default_factory=dict)
     auditoria_invariantes: dict[str, Any] = field(default_factory=dict)
-    auditoria_residuos_legados: dict[str, Any] = field(default_factory=dict)
+    auditoria_residuos_temporais: dict[str, Any] = field(default_factory=dict)
     validacao_temporal_global: dict[str, Any] = field(default_factory=dict)
     metadados_origem: dict[str, Any] = field(default_factory=dict)
 
@@ -94,7 +94,7 @@ def _auditoria_switching(pacote_ledger_operacional: Any, pacote_estado_temporal:
     return {
         "ok": auditoria_ledger.get("fonte_primaria_switching_ledger") == "switching_canonico",
         "fonte_primaria_switching_ledger": auditoria_ledger.get("fonte_primaria_switching_ledger"),
-        "fallback_legado_switching_auditavel": auditoria_ledger.get("fallback_legado_switching_auditavel"),
+        "fallback_switching_auditavel": auditoria_ledger.get("fallback_switching_auditavel"),
         "usa_planilha_bruta_como_fonte_primaria": auditoria_ledger.get("usa_planilha_bruta_como_fonte_primaria"),
         "usa_planilha_bruta_apenas_fallback": auditoria_ledger.get("usa_planilha_bruta_apenas_fallback"),
         "usa_switching_canonico_como_fonte_primaria": auditoria_ledger.get("usa_switching_canonico_como_fonte_primaria"),
@@ -150,7 +150,7 @@ def _auditoria_residuos(pacote_ledger_operacional: Any, pacote_estado_temporal: 
         "usa_quadros_brutos": "n/d_temporal",
         "usa_planilha_bruta_como_fonte_primaria": auditoria_ledger.get("usa_planilha_bruta_como_fonte_primaria"),
         "usa_planilha_bruta_apenas_fallback": auditoria_ledger.get("usa_planilha_bruta_apenas_fallback"),
-        "usa_retorno_ledger_dict_legado": auditoria_ledger.get("retorno_dict_legado_usado_como_origem", False),
+        "usa_contrato_ledger_dict": auditoria_ledger.get("contrato_ledger_dict_usado_como_origem", False),
         "saida_chama_ledger_diretamente": False,
         "campos_vazios_auditados": campos_vazios,
     }
@@ -185,7 +185,7 @@ def _montar_validacao_global(
         avisos.append("migracoes_por_data_vazio_auditado")
     if auditoria_replay.get("modo_operacional_temporal") is True:
         avisos.append("auditoria_replay_origem_temporal_operacional")
-    if auditoria_ledger.get("retorno_dict_legado_usado_como_origem") is True:
+    if auditoria_ledger.get("contrato_ledger_dict_usado_como_origem") is True:
         avisos.append("contrato_vazio_oficial_usado_como_origem_ledger_temporal")
 
     return {
@@ -262,7 +262,7 @@ def construir_pacote_auditoria_temporal(
         auditoria_fontes_elegiveis=auditoria_fontes,
         auditoria_switching_temporal=auditoria_switching,
         auditoria_invariantes=auditoria_invariantes,
-        auditoria_residuos_legados=auditoria_residuos,
+        auditoria_residuos_temporais=auditoria_residuos,
         validacao_temporal_global=validacao,
         metadados_origem=metadados,
     )

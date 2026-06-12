@@ -1,7 +1,7 @@
 """PacoteLedgerTemporalOperacional temporal.
 
 V17-F0-V.4E normaliza o PacoteLedgerTemporal temporal existente para o
-contrato operacional mínimo da Etapa 4, sem acionar o ledger legado removido e sem
+contrato operacional mínimo da Etapa 4, sem acionar o ledger removido na ME-521D e sem
 alterar saída canônica/observável.
 """
 
@@ -112,7 +112,7 @@ def _normalizar_evento_temporal(ev: Mapping[str, Any], idx: int) -> dict[str, An
         "motivo_bloqueio": _primeiro(ev, "motivo_bloqueio"),
         "fonte_temporal": _primeiro(ev, "fonte_temporal", "origem_fonte_candidata"),
         "origem_dado": _primeiro(ev, "origem_dado", "origem_mapa_migracao"),
-        "evento_legado": dict(ev),
+        "evento_origem": dict(ev),
     }
 
 
@@ -183,7 +183,7 @@ def _saldos_por_data(saldos_por_lote: list[dict[str, Any]]) -> list[dict[str, An
 
 def _montar_auditoria(
     *,
-    retorno_legado: Mapping[str, Any],
+    contrato_ledger: Mapping[str, Any],
     pacote_temporal: Any,
     eventos_temporais: list[dict[str, Any]],
     fifo_candidatos_avaliados: list[dict[str, Any]],
@@ -206,18 +206,18 @@ def _montar_auditoria(
         "qtd_fontes_elegiveis_por_pagamento": len(fontes_elegiveis_por_pagamento),
         "qtd_saldos_por_lote": len(saldos_por_lote),
         "fonte_primaria_switching_ledger": "switching_canonico",
-        "fallback_legado_switching_auditavel": False,
+        "fallback_switching_auditavel": False,
         "usa_contexto_amplo": True,
         "usa_planilha_bruta_como_fonte_primaria": False,
         "usa_planilha_bruta_apenas_fallback": True,
         "usa_switching_canonico_como_fonte_primaria": False,
         "usa_switching_canonico_como_fonte_primaria": True,
-        "retorno_dict_legado_usado_como_origem": False,
+        "contrato_ledger_dict_usado_como_origem": False,
         "pacote_ledger_temporal_usado_como_origem": True,
         "campos_vazios_auditados": list(campos_vazios_auditados),
         "nao_altera_ledger_efetivo": True,
         "nao_altera_saida_canonica": True,
-        "retorno_legado_chaves": sorted(str(k) for k in retorno_legado.keys()),
+        "contrato_ledger_chaves": sorted(str(k) for k in contrato_ledger.keys()),
     })
     return auditoria
 
@@ -250,14 +250,14 @@ def _montar_validacao(
 
 
 def construir_pacote_ledger_temporal_operacional(
-    retorno_legado: Mapping[str, Any],
+    contrato_ledger: Mapping[str, Any],
     pacote_temporal: Any,
     *,
     contexto: Any = None,
     modo_execucao: str = "operacional_temporal",
 ) -> PacoteLedgerTemporalOperacional:
     """Normaliza o ledger temporal atual para o contrato operacional V4B/V4E."""
-    retorno = _as_dict(retorno_legado)
+    retorno = _as_dict(contrato_ledger)
     eventos_originais = _as_list_dict(getattr(pacote_temporal, "eventos_temporais", []))
     fifo = _as_list_dict(getattr(pacote_temporal, "fifo_candidatos_avaliados", []))
     saldos_originais = _as_list_dict(getattr(pacote_temporal, "saldos_por_lote", []))
@@ -283,7 +283,7 @@ def construir_pacote_ledger_temporal_operacional(
             campos_vazios.append(nome)
 
     auditoria = _montar_auditoria(
-        retorno_legado=retorno,
+        contrato_ledger=retorno,
         pacote_temporal=pacote_temporal,
         eventos_temporais=eventos_temporais,
         fifo_candidatos_avaliados=fifo,
@@ -304,7 +304,7 @@ def construir_pacote_ledger_temporal_operacional(
         "modo_operacional_temporal": True,
         "adaptador": "construir_pacote_ledger_temporal_operacional",
         "origem_pacote_temporal": type(pacote_temporal).__name__,
-        "origem_retorno_legado": "contrato_vazio_oficial_me521b",
+        "origem_contrato_ledger": "contrato_vazio_oficial_me521b",
         "nao_altera_ledger_efetivo": True,
         "nao_altera_saida_canonica": True,
     }

@@ -161,8 +161,8 @@ def _render_resultado_limpeza_depreciacao(resultado_limpeza) -> None:
     print(f"- inventario_auxiliar_fornecido: {getattr(auditoria, 'inventario_auxiliar_fornecido', None)}")
     print(f"- artefatos avaliados: {getattr(resumo, 'qtd_artefatos_avaliados', None)}")
     print(f"- rotas oficiais preservadas: {getattr(resumo, 'qtd_rotas_oficiais_preservadas', len(oficiais))}")
-    print(f"- legados candidatos à depreciação: {getattr(resumo, 'qtd_rotas_legadas_candidatas_depreciacao', None)}")
-    print(f"- legados bloqueados para remoção: {getattr(resumo, 'qtd_rotas_legadas_bloqueadas', None)}")
+    print(f"- rotas candidatas à depreciação: {getattr(resumo, 'qtd_rotas_legadas_candidatas_depreciacao', None)}")
+    print(f"- rotas bloqueadas para remoção: {getattr(resumo, 'qtd_rotas_legadas_bloqueadas', None)}")
     print(f"- históricos/diagnósticos preservados: {getattr(resumo, 'qtd_historicos_diagnosticos_preservados', len(historicos_diagnosticos))}")
     print(f"- fallbacks temporários bloqueados para remoção: {getattr(resumo, 'qtd_fallbacks_temporarios_bloqueados', len(fallbacks))}")
     print(f"- remoção automática autorizada: {getattr(resumo, 'remocao_automatica_autorizada', None)}")
@@ -173,8 +173,8 @@ def _render_resultado_limpeza_depreciacao(resultado_limpeza) -> None:
 
     print("- classificação explícita do inventário:")
     _render_itens_limpeza('rotas oficiais preservadas', oficiais)
-    _render_itens_limpeza('legados candidatos à depreciação', candidatos)
-    _render_itens_limpeza('legados bloqueados por dependência ativa', bloqueados)
+    _render_itens_limpeza('rotas candidatas à depreciação', candidatos)
+    _render_itens_limpeza('rotas bloqueadas por dependência ativa', bloqueados)
     _render_itens_limpeza('históricos/diagnósticos preservados', historicos_diagnosticos)
     _render_itens_limpeza('fallbacks temporários bloqueados para remoção nesta etapa', fallbacks)
 

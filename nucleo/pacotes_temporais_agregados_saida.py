@@ -28,7 +28,7 @@ def _retorno_ledger_temporal_vazio_oficial(*args: Any, **kwargs: Any) -> dict[st
     """Contrato vazio oficial para o ledger temporal.
 
     ME-521B: mantém o contrato consumido pelos pacotes temporais sem acionar
-    o ledger legado removido, validado por baseline e paridade oficiais.
+    o ledger removido na ME-521D, validado por baseline e paridade oficiais.
     """
     return {
         "eventos": [],
@@ -99,13 +99,13 @@ def _montar_auditoria_agregador(
     pacote_ledger_operacional: PacoteLedgerTemporalOperacional,
     pacote_estado: PacoteEstadoTemporal,
     pacote_auditoria: PacoteAuditoriaTemporal,
-    retorno_legado: Mapping[str, Any],
+    contrato_ledger: Mapping[str, Any],
     quadro_futuro: Any,
     mapa_central: Mapping[str, Any],
 ) -> dict[str, Any]:
     auditoria_ledger = _as_dict(getattr(pacote_ledger_operacional, "auditoria_ledger_temporal", {}))
     auditoria_estado = _as_dict(getattr(pacote_estado, "auditoria_estado_temporal", {}))
-    auditoria_temporal = _as_dict(getattr(pacote_auditoria, "auditoria_residuos_legados", {}))
+    auditoria_temporal = _as_dict(getattr(pacote_auditoria, "auditoria_residuos_temporais", {}))
 
     return {
         "ok": True,
@@ -115,8 +115,8 @@ def _montar_auditoria_agregador(
         "contrato_alvo": "PacotesTemporaisAgregadosSaida",
         "qtd_quadro_futuro": _qtd(quadro_futuro),
         "qtd_mapa_central": len(dict(mapa_central or {})),
-        "qtd_eventos_retorno_legado": _qtd(retorno_legado.get("eventos", [])),
-        "qtd_fifo_retorno_legado": _qtd(retorno_legado.get("fifo_candidatos_avaliados", [])),
+        "qtd_eventos_contrato_ledger": _qtd(contrato_ledger.get("eventos", [])),
+        "qtd_fifo_contrato_ledger": _qtd(contrato_ledger.get("fifo_candidatos_avaliados", [])),
         "qtd_lotes_replay": _qtd(getattr(pacote_replay, "lotes_apos_replay", [])),
         "qtd_log_movimentos_passados": _qtd(getattr(pacote_replay, "log_movimentos_passados", [])),
         "qtd_eventos_ledger_operacional": _qtd(getattr(pacote_ledger_operacional, "eventos_temporais", [])),
@@ -126,7 +126,7 @@ def _montar_auditoria_agregador(
         "auditoria_temporal_global_ok": bool(getattr(pacote_auditoria, "validacao_temporal_global", {}).get("ok")),
         "fonte_primaria_switching_ledger": auditoria_ledger.get("fonte_primaria_switching_ledger"),
         "usa_planilha_bruta_como_fonte_primaria": auditoria_ledger.get("usa_planilha_bruta_como_fonte_primaria"),
-        "usa_retorno_ledger_dict_legado": auditoria_temporal.get("usa_retorno_ledger_dict_legado"),
+        "usa_contrato_ledger_dict": auditoria_temporal.get("usa_contrato_ledger_dict"),
         "saida_chama_ledger_diretamente_fluxo_atual": auditoria_temporal.get("saida_chama_ledger_diretamente"),
         "campos_vazios_ledger_auditados": auditoria_ledger.get("campos_vazios_auditados"),
         "campos_vazios_estado_auditados": auditoria_estado.get("campos_vazios_auditados"),
@@ -157,10 +157,10 @@ def _montar_validacao_agregador(
     if not bool(getattr(pacote_auditoria, "validacao_temporal_global", {}).get("ok")):
         erros.append("validacao_temporal_global_nao_ok")
 
-    if int(auditoria_agregador.get("qtd_eventos_retorno_legado") or 0) != int(auditoria_agregador.get("qtd_eventos_ledger_operacional") or 0):
-        erros.append("qtd_eventos_ledger_operacional_diverge_retorno_legado")
-    if int(auditoria_agregador.get("qtd_fifo_retorno_legado") or 0) != int(auditoria_agregador.get("qtd_fifo_ledger_operacional") or 0):
-        erros.append("qtd_fifo_ledger_operacional_diverge_retorno_legado")
+    if int(auditoria_agregador.get("qtd_eventos_contrato_ledger") or 0) != int(auditoria_agregador.get("qtd_eventos_ledger_operacional") or 0):
+        erros.append("qtd_eventos_ledger_operacional_diverge_contrato_ledger")
+    if int(auditoria_agregador.get("qtd_fifo_contrato_ledger") or 0) != int(auditoria_agregador.get("qtd_fifo_ledger_operacional") or 0):
+        erros.append("qtd_fifo_ledger_operacional_diverge_contrato_ledger")
     if int(auditoria_agregador.get("qtd_estado_lotes_por_data") or 0) <= 0:
         erros.append("estado_lotes_por_data_nao_materializado")
     if int(auditoria_agregador.get("qtd_estado_lotes_final") or 0) <= 0:
@@ -170,19 +170,19 @@ def _montar_validacao_agregador(
     if auditoria_agregador.get("usa_planilha_bruta_como_fonte_primaria") is not False:
         erros.append("planilha_bruta_usada_como_fonte_primaria")
 
-    if auditoria_agregador.get("usa_retorno_ledger_dict_legado") is True:
+    if auditoria_agregador.get("usa_contrato_ledger_dict") is True:
         avisos.append("contrato_vazio_oficial_usado_como_origem_temporal")
     if auditoria_agregador.get("saida_chama_ledger_diretamente_fluxo_atual"):
-        avisos.append("saida_nao_chama_ledger_legado_fluxo_atual")
+        avisos.append("saida_nao_chama_ledger_removido_fluxo_atual")
 
     return {
         "ok": len(erros) == 0,
         "erros_bloqueantes": erros,
         "avisos": avisos,
         "evidencias": {
-            "qtd_eventos_retorno_legado": auditoria_agregador.get("qtd_eventos_retorno_legado"),
+            "qtd_eventos_contrato_ledger": auditoria_agregador.get("qtd_eventos_contrato_ledger"),
             "qtd_eventos_ledger_operacional": auditoria_agregador.get("qtd_eventos_ledger_operacional"),
-            "qtd_fifo_retorno_legado": auditoria_agregador.get("qtd_fifo_retorno_legado"),
+            "qtd_fifo_contrato_ledger": auditoria_agregador.get("qtd_fifo_contrato_ledger"),
             "qtd_fifo_ledger_operacional": auditoria_agregador.get("qtd_fifo_ledger_operacional"),
             "qtd_estado_lotes_por_data": auditoria_agregador.get("qtd_estado_lotes_por_data"),
             "qtd_estado_lotes_final": auditoria_agregador.get("qtd_estado_lotes_final"),
@@ -209,16 +209,16 @@ def construir_pacotes_temporais_agregados_saida(
 
     quadro_futuro = _quadro_futuro_preferencial(contexto)
     mapa_central = _mapa_pagamentos_central(contexto)
-    retorno_legado = _retorno_ledger_temporal_vazio_oficial(quadro_futuro, mapa_central, contexto) or {}
+    contrato_ledger = _retorno_ledger_temporal_vazio_oficial(quadro_futuro, mapa_central, contexto) or {}
 
     pacote_ledger_temporal = construir_pacote_ledger_temporal(
         quadro_futuro,
         mapa_central,
         contexto,
-        retorno_legado=retorno_legado,
+        contrato_ledger=contrato_ledger,
     )
     pacote_ledger_operacional = construir_pacote_ledger_temporal_operacional(
-        retorno_legado,
+        contrato_ledger,
         pacote_ledger_temporal,
         contexto=contexto,
     )
@@ -239,7 +239,7 @@ def construir_pacotes_temporais_agregados_saida(
         pacote_ledger_operacional=pacote_ledger_operacional,
         pacote_estado=pacote_estado,
         pacote_auditoria=pacote_auditoria,
-        retorno_legado=retorno_legado,
+        contrato_ledger=contrato_ledger,
         quadro_futuro=quadro_futuro,
         mapa_central=mapa_central,
     )

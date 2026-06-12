@@ -148,7 +148,7 @@ def materializar_quadros_estruturais_resolvidos(
 ) -> dict[str, pd.DataFrame]:
     """Materializa o nome normativo dos quadros estruturais resolvidos.
 
-    No código legado, esses quadros ainda são chamados de ``quadros_canonicos``.
+    Em versões anteriores, esses quadros ainda eram chamados de ``quadros_canonicos``.
     Na arquitetura da Etapa 1, o nome normativo é
     ``quadros_estruturais_resolvidos``. Esta função não altera DataFrames, não
     copia dados internamente e não muda consumidores existentes.
