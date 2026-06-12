@@ -22,7 +22,7 @@ ARQUIVOS_CONFIG_PADRAO: tuple[str, ...] = (
     CONFIG_CANONICO_PADRAO,
 )
 
-ARQUIVOS_CONFIG_LEGADOS_NAO_AUTO: tuple[str, ...] = (
+ARQUIVOS_CONFIG_RESIDUAIS_NAO_AUTO: tuple[str, ...] = (
     "config_atualizado_revisado_v7_populacao_inicial.json",
     "config_atualizado_revisado_v6_avaliacao.json",
     "config_atualizado_revisado_v5_otimizacao_bounds.json",

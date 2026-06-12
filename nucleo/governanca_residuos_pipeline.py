@@ -183,7 +183,7 @@ def _indica_dependencia_ativa(chave: Any, valor: Any) -> bool:
     tokens_valor = _tokenizar(valor)
     texto_completo = f'{texto_chave} {texto_valor}'
 
-    if 'sem uso' in texto_completo or 'fora_do_pipeline' in texto_completo or 'depreciad' in texto_completo:
+    if 'sem uso' in texto_completo or 'fora_do_pipeline' in texto_completo or 'fora_de_execucao' in texto_completo:
         return False
     if texto_valor in {'bloqueado', 'dependencia ativa', 'dependencia_ativa', 'ativa'}:
         return True
@@ -344,7 +344,7 @@ def _classificar_evidencias(evidencias_auxiliares: Any) -> tuple[list[ItemGovern
             identificador='inventario_residuos_auxiliar',
             classificacao=_CLASSIFICACAO_INVENTARIO_AUSENTE,
             origem='evidencia_auxiliar_nao_decisoria',
-            motivo='Inventário auxiliar não fornecido; classificação de limpeza fica limitada.',
+            motivo='Inventário auxiliar não fornecido; classificação de governança fica limitada.',
             referencias={'classificacao_limitada_por_ausencia_inventario': True},
         )
         return [item], True
@@ -467,12 +467,12 @@ def consolidar_resultado_governanca_residuos(
     if bloqueados:
         recomendacoes.append('Manter bloqueio de remoção para itens com dependência ativa até evidência posterior de desuso.')
     if fallbacks:
-        recomendacoes.append('Manter fallback temporário bloqueado para remoção nesta etapa; migrar apenas em frente posterior específica.')
+        recomendacoes.append('Manter rota alternativa temporária bloqueada para tratamento nesta etapa; migrar apenas em frente posterior específica.')
     if classificacao_limitada_por_ausencia_inventario:
         recomendacoes.append('Fornecer inventário auxiliar estático em frente posterior para ampliar a classificação não decisória.')
 
     plano_retorno = [
-        'Retornar à Etapa 1 somente após frente posterior específica aplicar limpezas autorizadas fora da Etapa 11.',
+        'Retornar à Etapa 1 somente após frente posterior específica aplicar tratamentos autorizados fora da Etapa 11.',
         'Preservar cadeia oficial validada pela Etapa 10 no novo ciclo operacional.',
     ]
 
