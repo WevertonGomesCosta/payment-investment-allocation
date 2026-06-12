@@ -690,14 +690,14 @@ def carregar_switching_canonico(
     for idx, row in df.iterrows():
         data_recebimento = para_data(row.get(col_data_recebimento)) if col_data_recebimento else None
         data_aplicacao = para_data(row.get(col_data_aplicacao)) if col_data_aplicacao else None
-        data_switching_legacy = para_data(row.get(col_data_switching)) if col_data_switching else None
+        data_switching_historica = para_data(row.get(col_data_switching)) if col_data_switching else None
 
         if data_aplicacao is None:
-            data_aplicacao = data_switching_legacy
+            data_aplicacao = data_switching_historica
         if data_recebimento is None:
-            data_recebimento = data_switching_legacy or data_aplicacao
+            data_recebimento = data_switching_historica or data_aplicacao
 
-        data_switching = data_aplicacao or data_switching_legacy or data_recebimento
+        data_switching = data_aplicacao or data_switching_historica or data_recebimento
 
         lote_origem = normalizar_identificador(row.get(col_lote_origem)) if col_lote_origem else ""
         lote_destino = normalizar_identificador(row.get(col_lote_destino)) if col_lote_destino else ""

@@ -3,25 +3,25 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-VERSAO_INVENTARIO_LEGADO_PIPELINE = 'ME-521D'
-ARTEFATO_INVENTARIO_LEGADO_PIPELINE = 'InventarioLegadoPipeline'
+VERSAO_INVENTARIO_RESIDUOS_PIPELINE = 'ME-521D'
+ARTEFATO_INVENTARIO_RESIDUOS_PIPELINE = 'InventarioResiduosPipeline'
 FONTE_INVENTARIO = 'inventario_estatico_declarativo_versionado'
 REMOCAO_AUTOMATICA_AUTORIZADA = False
 
 CLASSIFICACOES_PADRONIZADAS = (
     'rota_oficial_preservada',
-    'legado_candidato_depreciacao',
-    'legado_removido',
-    'bloqueado_dependencia_ativa',
-    'historico_preservado',
+    'residuo_candidato_tratamento',
+    'residuo_removido',
+    'residuo_bloqueado_dependencia_ativa',
+    'referencia_historica_preservada',
     'diagnostico_preservado_fora_pipeline',
-    'fallback_temporario_bloqueado_para_remocao',
-    'avaliacao_remocao_futura',
+    'rota_alternativa_temporaria_bloqueada_tratamento',
+    'avaliacao_tratamento_futuro',
 )
 
 
 @dataclass(frozen=True, slots=True)
-class ItemInventarioLegadoPipeline:
+class ItemInventarioResiduosPipeline:
     identificador: str
     arquivo: str
     simbolo_funcao_classe: str
@@ -36,7 +36,7 @@ class ItemInventarioLegadoPipeline:
     evidencia: str
     justificativa_de_classificacao: str
     classificacao: str
-    remocao_automatica_autorizada: bool = REMOCAO_AUTOMATICA_AUTORIZADA
+    acao_automatica_autorizada: bool = REMOCAO_AUTOMATICA_AUTORIZADA
 
     def como_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -57,8 +57,8 @@ def _item(
     evidencia: str,
     justificativa: str,
     classificacao: str,
-) -> ItemInventarioLegadoPipeline:
-    return ItemInventarioLegadoPipeline(
+) -> ItemInventarioResiduosPipeline:
+    return ItemInventarioResiduosPipeline(
         identificador=identificador,
         arquivo=arquivo,
         simbolo_funcao_classe=simbolo,
@@ -76,7 +76,7 @@ def _item(
     )
 
 
-ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
+ITENS_INVENTARIO_RESIDUOS_PIPELINE: tuple[ItemInventarioResiduosPipeline, ...] = (
     _item(
         'OFICIAL-PRINCIPAL-01',
         'aplicacao/principal.py',
@@ -90,7 +90,7 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'preservar_integralmente',
         'Etapa 11 - preservacao',
         'A rota integrada entrega PacoteSaidaObservavelOficial para console e XLSX oficiais a partir de ResultadoMotorTemporalConjunto, LedgerTemporalCanonico e ResultadoGatesValidacaoNucleo.',
-        'Rota oficial não é resíduo; deve ser separada de legado executável.',
+        'Rota oficial não é resíduo; deve ser separada de resíduo executável.',
         'rota_oficial_preservada',
     ),
     _item(
@@ -102,7 +102,7 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'Materializa PacoteSaidaObservavelOficial consumido por console, XLSX e Etapa 10.',
         False,
         'nao_aplicavel_rota_oficial',
-        'alto_se_confundido_com_pacote_temporal_legado',
+        'alto_se_confundido_com_pacote_temporal_residual',
         'preservar_como_substituto_oficial_dos_helpers_observaveis_antigos',
         'Etapa 9 - preservacao',
         'Pacote oficial é entrada da paridade forte da Etapa 10.',
@@ -143,8 +143,8 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
     ),
     _item(
         'OFICIAL-ETAPA11-01',
-        'nucleo/limpeza_depreciacao_controlada.py',
-        'construir_resultado_limpeza_depreciacao_controlada',
+        'nucleo/governanca_residuos_pipeline.py',
+        'construir_resultado_governanca_residuos_pipeline',
         'nucleo/governanca',
         'etapa_governanca_nao_decisoria',
         'Classifica evidências auxiliares sem reabrir motor, ledger, gates, Etapa 9 ou Etapa 10.',
@@ -171,29 +171,29 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'ME-518B concluida',
         'aplicacao/principal.py não importa nem chama o pacote temporal transitório.',
         'Arquivo removido por ausência de consumidor operacional restante; code/ permanece histórico preservado.',
-        'legado_removido',
+        'residuo_removido',
     ),
     _item(
         'SAIDA-OBS-CONSOLIDA-LOTES-01',
         'nucleo/saida_observavel.py',
         'construir_linhas_lotes_consolidados',
-        'nucleo/renderizacao_observavel_legada',
+        'nucleo/renderizacao_observavel_residual',
         'helper_observavel_removido',
         'Removido da rota operacional; a consolidação necessária foi reimplementada com contrato oficial em nucleo/situacao_atual_oficial.py.',
         False,
         'nucleo.situacao_atual_oficial.construir_situacao_atual_oficial',
         'baixo_apos_ME518B; alto_se_reintroduzido_como_dependencia_da_rota_integrada',
-        'preservar_remocao_e_nao_promover_helper_legado_a_canonico',
+        'preservar_remocao_e_nao_promover_helper_residual_a_canonico',
         'ME-518B concluida',
-        'aplicacao/principal.py deixou de chamar helper legado de consolidação de lotes.',
-        'Arquivo legado removido por ausência de consumidor operacional restante.',
-        'legado_removido',
+        'aplicacao/principal.py deixou de chamar helper residual de consolidação de lotes.',
+        'Arquivo residual removido por ausência de consumidor operacional restante.',
+        'residuo_removido',
     ),
     _item(
         'SAIDA-OBS-AMOSTRAS-PAGAMENTOS-01',
         'nucleo/saida_observavel.py',
         'construir_amostras_pagamentos_operacionais',
-        'nucleo/renderizacao_observavel_legada',
+        'nucleo/renderizacao_observavel_residual',
         'helper_console_fallback_removido',
         'Removido junto com nucleo/saida_observavel.py; amostras oficiais vêm de bloco_console do PacoteSaidaObservavelOficial.',
         False,
@@ -202,24 +202,24 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'preservar_remocao_e_nao_reintroduzir_fallback_de_console',
         'ME-518B concluida',
         'Sem consumidor operacional restante em aplicacao/ ou nucleo/.',
-        'Arquivo legado removido; code/ permanece histórico preservado.',
-        'legado_removido',
+        'Arquivo residual removido; code/ permanece histórico preservado.',
+        'residuo_removido',
     ),
     _item(
         'SAIDA-OBS-SITUACAO-ATUAL-HELPERS-01',
         'nucleo/saida_observavel.py',
         'construir_linhas_lotes_id_curta; construir_linhas_lotes_valores_curta; construir_resumo_patrimonio_total_lotes; construir_blocos_situacao_atual',
-        'nucleo/renderizacao_observavel_legada',
+        'nucleo/renderizacao_observavel_residual',
         'helpers_situacao_atual_removidos',
         'Removidos da rota operacional; os blocos tabulares necessários foram reimplementados no contrato oficial de Situação Atual.',
         False,
         'nucleo.situacao_atual_oficial.construir_situacao_atual_oficial',
         'baixo_apos_ME518B; alto_se_reintroduzidos_como_dependencia_da_rota_integrada',
-        'preservar_remocao_e_nao_promover_saida_observavel_legada_a_canonica',
+        'preservar_remocao_e_nao_promover_saida_observavel_residual_a_canonica',
         'ME-518B concluida',
-        'aplicacao/principal.py deixou de importar/chamar helpers legados da Situação Atual.',
-        'Arquivo legado removido por ausência de consumidor operacional restante.',
-        'legado_removido',
+        'aplicacao/principal.py deixou de importar/chamar helpers residuais da Situação Atual.',
+        'Arquivo residual removido por ausência de consumidor operacional restante.',
+        'residuo_removido',
     ),
     _item(
         'CONSOLE-STANDALONE-V17-S7-01',
@@ -231,11 +231,11 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         False,
         'aplicacao/principal.py com PacoteSaidaObservavelOficial preparado',
         'baixo_apos_remocao; alto_se_reintroduzido',
-        'preservar_remocao_e_manter_falha_explicita_sem_reconstrucao_legada',
+        'preservar_remocao_e_manter_falha_explicita_sem_reconstrucao_residual',
         'ME-518A concluida; ME-520B3 reclassificacao',
         'git grep mostra ausência de reconstrução V17/C7, S7B/S7C ou pacote temporal no console; permanece apenas exceção contratual para pacote oficial ausente.',
-        'Não há código executável legado a remover; item reclassificado como legado removido.',
-        'legado_removido',
+        'Não há código executável residual a remover; item reclassificado como residual removido.',
+        'residuo_removido',
     ),
     _item(
         'CONSOLE-SITUACAO-ANTIGA-01',
@@ -250,8 +250,8 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'preservar_rota_oficial_sem_fallback',
         'ME-518A concluida; ME-520B3 reclassificacao',
         'git grep mostra uso exclusivo de bloco_console.situacao_atual_* e ausência de helpers antigos de nucleo/saida_observavel.py.',
-        'Não há reconstrução local de Situação Atual no console; item reclassificado como legado removido.',
-        'legado_removido',
+        'Não há reconstrução local de Situação Atual no console; item reclassificado como residual removido.',
+        'residuo_removido',
     ),
     _item(
         'CONSOLE-AMOSTRAS-FALLBACK-01',
@@ -266,8 +266,8 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'preservar_rota_oficial_sem_fallback',
         'ME-518A concluida; ME-520B3 reclassificacao',
         'git grep mostra uso de ultimos_pagamentos, pagamentos_data_referencia e proximos_pagamentos vindos de bloco_console.',
-        'Não há helper legado de amostras sendo chamado; item reclassificado como legado removido.',
-        'legado_removido',
+        'Não há helper residual de amostras sendo chamado; item reclassificado como residual removido.',
+        'residuo_removido',
     ),
     _item(
         'XLSX-FALLBACK-BLOQUEADO-01',
@@ -281,16 +281,16 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'baixo_apos_remocao; alto_se_reintroduzido',
         'preservar_rota_xlsx_oficial_sem_fallback',
         'ME-518A concluida; ME-520B3 reclassificacao',
-        'git grep mostra validação de PacoteSaidaObservavelOficial, bloco_xlsx e Situação Atual oficial; não há reconstrução alternativa via pacote temporal ou saida_observavel legada.',
-        'Não há rota XLSX alternativa executável a remover; item reclassificado como legado removido.',
-        'legado_removido',
+        'git grep mostra validação de PacoteSaidaObservavelOficial, bloco_xlsx e Situação Atual oficial; não há reconstrução alternativa via pacote temporal ou saida_observavel residual.',
+        'Não há rota XLSX alternativa executável a remover; item reclassificado como residual removido.',
+        'residuo_removido',
     ),
     _item(
         'SAIDA-CANONICA-V17-C7-01',
         'nucleo/construir_saida_canonica_v17_c7.py; nucleo/saida_canonica_switching_v17_c7.py',
         'construir_saida_canonica_com_switching_v17_c7; integrar_switchings_materializados_saida_canonica_v17_f0_p1',
-        'nucleo/saida_canonica_legada',
-        'wrapper_legado_removido_controladamente',
+        'nucleo/saida_canonica_residual',
+        'wrapper_residuo_removido_controladamente',
         'Removido controladamente na ME-520B2 após prova de ausência de consumidor operacional na rota integrada.',
         False,
         'nucleo.saida_canonica_oficial.construir_saida_canonica_oficial',
@@ -299,13 +299,13 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'ME-520B2 concluida',
         'git grep não encontrou import executável ativo em aplicacao/ ou nucleo/; py_compile, console, XLSX, Etapa 10 e baseline patrimonial permaneceram aprovados após remoção.',
         'Removido em micro-etapa controlada, sem alteração de decisão econômica e sem regressão da saída observável oficial.',
-        'legado_removido',
+        'residuo_removido',
     ),
     _item(
         'MATRIZ-S7B-S7C-01',
         'nucleo/matriz_elegibilidade_fontes_s7b.py; nucleo/integracao_matriz_elegibilidade_pagamentos_s7c.py',
         'construir_matriz_elegibilidade_fontes_s7b; aplicar_matriz_elegibilidade_ao_fluxo_pagamentos_s7c',
-        'nucleo/elegibilidade_legada_transitoria',
+        'nucleo/elegibilidade_residual_transitoria',
         'matriz_integracao_transitoria_removida_controladamente',
         'Removida controladamente na ME-520B2 após prova de ausência de consumidor operacional na rota integrada.',
         False,
@@ -315,13 +315,13 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'ME-520B2 concluida',
         'git grep não encontrou import executável ativo em aplicacao/ ou nucleo/; py_compile, console, XLSX, Etapa 10 e baseline patrimonial permaneceram aprovados após remoção.',
         'Removida em micro-etapa controlada, sem alteração de decisão econômica e sem regressão da saída observável oficial.',
-        'legado_removido',
+        'residuo_removido',
     ),
     _item(
         'PONTE-RENDERIZACAO-SWITCHING-V17-C6-01',
         'nucleo/ponte_renderizacao_switching_v17_c6.py',
         'PonteRenderizacaoSwitchingV17C6; renderizar_switchings_compativeis_saida',
-        'nucleo/renderizacao_switching_legada',
+        'nucleo/renderizacao_switching_residual',
         'ponte_renderizacao_switching_removida_controladamente',
         'Removida controladamente na ME-520B5 após prova de ausência de importador, consumidor ou chamada externa.',
         False,
@@ -331,7 +331,7 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'ME-520B5 concluida',
         'git grep e AST focados encontraram apenas definições internas no próprio arquivo; nenhum import ou uso externo foi identificado em aplicacao/ ou nucleo/.',
         'Arquivo órfão removido sem alterar motor econômico, Situação Atual, saída canônica, ledger, console ou XLSX.',
-        'legado_removido',
+        'residuo_removido',
     ),
     _item(
         'TRIAGEM-MOTOR-V1-ORFA-01',
@@ -347,23 +347,23 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'ME-520B6a concluida',
         'Varredura AST geral indicou importadores internos = 0; grep e AST focados encontraram PacoteTriagemMotor/carregar_triagem_motor apenas no próprio arquivo.',
         'Módulo proxy preliminar sem uso operacional removido sem alterar motor econômico, Situação Atual, saída canônica, ledger, console ou XLSX.',
-        'legado_removido',
+        'residuo_removido',
     ),
     _item(
-        'LEDGER-TEMPORAL-CONJUNTO-CADEIA-LEGADA-01',
+        'LEDGER-TEMPORAL-CONJUNTO-CADEIA-RESIDUAL-01',
         'nucleo/ledger_temporal_conjunto.py; nucleo/ledger_switching_estado_temporal_v17_f0_o2.py; nucleo/pacote_orquestrado_pre_saida.py',
         'construir_ledger_temporal_conjunto; materializar_eventos_switching_ledger_estado_temporal_v17_f0_o2; montar_pacote_orquestrado_pre_saida',
-        'nucleo/ledger_temporal_legado',
-        'cadeia_ledger_temporal_legada_removida_controladamente',
+        'nucleo/ledger_temporal_residual',
+        'cadeia_ledger_temporal_residual_removida_controladamente',
         'Removida controladamente na ME-521D após substituição da dependência runtime por contrato vazio oficial e remoção do fallback condicional remanescente.',
         False,
         'contrato vazio oficial em nucleo/saida_canonica.py, nucleo/pacotes_temporais_agregados_saida.py e nucleo/pacote_ledger_temporal.py',
         'baixo_apos_remocao_controlada; alto_se_reintroduzida_sem_prova_de_equivalencia',
-        'preservar_remocao_controlada_e_nao_reintroduzir_cadeia_ledger_legada',
+        'preservar_remocao_controlada_e_nao_reintroduzir_cadeia_ledger_residual',
         'ME-521D concluida',
         'ME-521B substituiu chamadas runtime por contrato vazio oficial; ME-521C removeu fallback condicional; varredura AST indicou apenas dependências internas entre os três arquivos; py_compile, console, XLSX, Etapa 10 e baseline patrimonial permaneceram aprovados após remoção.',
         'A cadeia não possuía consumidor operacional externo remanescente em aplicacao/ ou nucleo/ fora de inventário/gate; sua remoção não altera decisão econômica, Situação Atual, console ou XLSX.',
-        'legado_removido',
+        'residuo_removido',
     ),
     _item(
         'CODE-OTIMIZACAO-GASTOS-01',
@@ -379,7 +379,7 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'fora_do_pipeline_runtime_preservacao_historica',
         'ME-517 reclassificou code/ como referência histórica fora do pipeline.',
         'code/ permanece integralmente preservado e fora do escopo da ME-518C.',
-        'historico_preservado',
+        'referencia_historica_preservada',
     ),
     _item(
         'CODE-OTIMIZACAO-SWTICHING-01',
@@ -395,26 +395,26 @@ ITENS_INVENTARIO_LEGADO_PIPELINE: tuple[ItemInventarioLegadoPipeline, ...] = (
         'fora_do_pipeline_runtime_preservacao_historica',
         'ME-517 reclassificou code/ como referência histórica fora do pipeline.',
         'code/ permanece integralmente preservado e fora do escopo da ME-518C.',
-        'historico_preservado',
+        'referencia_historica_preservada',
     ),
 )
 
 
-def listar_itens_inventario_legado_pipeline() -> list[dict[str, Any]]:
-    return [item.como_dict() for item in ITENS_INVENTARIO_LEGADO_PIPELINE]
+def listar_itens_inventario_residuos_pipeline() -> list[dict[str, Any]]:
+    return [item.como_dict() for item in ITENS_INVENTARIO_RESIDUOS_PIPELINE]
 
 
-def construir_inventario_legado_pipeline() -> dict[str, Any]:
+def construir_inventario_residuos_pipeline() -> dict[str, Any]:
     return {
-        'artefato': ARTEFATO_INVENTARIO_LEGADO_PIPELINE,
-        'versao': VERSAO_INVENTARIO_LEGADO_PIPELINE,
+        'artefato': ARTEFATO_INVENTARIO_RESIDUOS_PIPELINE,
+        'versao': VERSAO_INVENTARIO_RESIDUOS_PIPELINE,
         'fonte': FONTE_INVENTARIO,
         'natureza': 'evidencia_auxiliar_nao_decisoria',
         'estatico_declarativo_versionado': True,
         'usa_varredura_dinamica_filesystem': False,
         'entrada_formal_etapa11': 'ResultadoParidadeRenderizacaoOficial',
         'substitui_resultado_paridade_renderizacao_oficial': False,
-        'remocao_automatica_autorizada': REMOCAO_AUTOMATICA_AUTORIZADA,
+        'acao_automatica_autorizada': REMOCAO_AUTOMATICA_AUTORIZADA,
         'classificacoes_padronizadas': list(CLASSIFICACOES_PADRONIZADAS),
         'regras_contratuais': {
             'inventario_nao_decisorio': True,
@@ -431,5 +431,5 @@ def construir_inventario_legado_pipeline() -> dict[str, Any]:
             'me518c_remocao_rota_integrada_v17_s7': True,
             'code_preservado_integralmente': True,
         },
-        'itens': listar_itens_inventario_legado_pipeline(),
+        'itens': listar_itens_inventario_residuos_pipeline(),
     }

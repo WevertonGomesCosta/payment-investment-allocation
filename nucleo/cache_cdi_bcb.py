@@ -238,7 +238,7 @@ def carregar_cache_cdi_diario(
         origem_janela_consulta = 'janela_consulta_cdi'
     else:
         data_ini, data_fim = _datas_relevantes(dados_operacionais, data_referencia)
-        origem_janela_consulta = 'dados_operacionais_legado'
+        origem_janela_consulta = 'dados_operacionais_residual'
 
     caminho_cache = raiz_repositorio / str(_cfg_get(config, 'arquivos', 'cache_bcb', padrao='cache_bcb.json'))
     convencao = int(_cfg_get(config, 'execucao', 'convencao_dias_ano', 'cdi', padrao=252) or 252)
