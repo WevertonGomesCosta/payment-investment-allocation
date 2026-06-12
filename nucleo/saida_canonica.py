@@ -25,7 +25,7 @@ from nucleo.utilitarios_neutros import normalizar_texto, normalizar_valores_situ
 def _retorno_ledger_temporal_vazio_oficial(*args: Any, **kwargs: Any) -> dict[str, Any]:
     """Contrato vazio oficial para ledger temporal não materializado no runtime atual.
 
-    ME-521B: substitui a dependência runtime do ledger legado após prova de
+    ME-521B: substitui a dependência runtime do ledger removido na ME-521D após prova de
     equivalência por neutralização controlada. Não escolhe fontes, não altera
     Situação Atual e não materializa eventos temporais.
     """

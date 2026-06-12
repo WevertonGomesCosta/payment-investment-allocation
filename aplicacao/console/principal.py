@@ -121,7 +121,7 @@ def _validar_pacote_saida_observavel_oficial_completo(pacote_saida_observavel_of
     if pacote_saida_observavel_oficial is None:
         raise PacoteSaidaObservavelOficialAusente(
             'Console oficial exige PacoteSaidaObservavelOficial; '
-            'fallback legado de console/XLSX foi desativado pela ME-518A.'
+            'rota alternativa de console/XLSX foi desativada pela ME-518A.'
         )
 
     if not getattr(pacote_saida_observavel_oficial, 'preparado', False):

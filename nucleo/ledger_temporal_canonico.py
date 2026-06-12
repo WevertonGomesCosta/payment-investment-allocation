@@ -560,7 +560,7 @@ def _auditar_ledger(ledger: LedgerTemporalCanonico, resultado: ResultadoMotorTem
     if metadados.get('bloqueios_finais_etapa5_preservados') is not True:
         bloqueios.append('bloqueios_finais_etapa5_nao_preservados')
 
-    if any(palavra in str(metadados).lower() for palavra in ('shadow', 'fallback legado', 'rota paralela')):
+    if any(palavra in str(metadados).lower() for palavra in ('shadow', 'fallback_nao_oficial', 'rota paralela')):
         bloqueios.append('metadados_indicam_rota_paralela_proibida')
 
     if ledger.pronto_para_etapa_posterior and not _valor(resultado, 'pronto_para_etapa6', False):

@@ -1,7 +1,7 @@
 """Envelope temporal para o ledger temporal.
 
 V17-F0-V.3.7K cria apenas um adaptador compatível em modo temporal.
-Este módulo não aciona o ledger legado removido, não altera a saída canônica e
+Este módulo não aciona o ledger removido na ME-521D, não altera a saída canônica e
 não remove nenhuma ponte histórica. Ele apenas materializa o contrato oficial
 vazio/fornecido do ledger temporal em um envelope explícito.
 """
@@ -145,9 +145,9 @@ def _extrair_saldos_por_lote(eventos: list[dict[str, Any]]) -> list[dict[str, An
     return list(saldos.values())
 
 
-def _extrair_alertas_temporais(retorno_legado: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _extrair_alertas_temporais(contrato_ledger: Mapping[str, Any]) -> list[dict[str, Any]]:
     alertas: list[dict[str, Any]] = []
-    for chave, valor in retorno_legado.items():
+    for chave, valor in contrato_ledger.items():
         chave_txt = str(chave)
         if "alerta" not in chave_txt and "bloqueio" not in chave_txt:
             continue
@@ -163,7 +163,7 @@ def _extrair_alertas_temporais(retorno_legado: Mapping[str, Any]) -> list[dict[s
 
 def _montar_auditoria(
     *,
-    retorno_legado: Mapping[str, Any],
+    contrato_ledger: Mapping[str, Any],
     eventos_temporais: list[dict[str, Any]],
     fifo_candidatos_avaliados: list[dict[str, Any]],
     pagamentos_futuros_processados: list[dict[str, Any]],
@@ -176,7 +176,7 @@ def _montar_auditoria(
         "ok": True,
         "modo_operacional_temporal": True,
         "origem_execucao": "construir_pacote_ledger_temporal",
-        "origem_retorno_legado": "contrato_vazio_oficial_me521b",
+        "origem_contrato_ledger": "contrato_vazio_oficial_me521b",
         "qtd_eventos_temporais": len(eventos_temporais),
         "qtd_pagamentos_futuros_processados": len(pagamentos_futuros_processados),
         "qtd_fifo_candidatos_avaliados": len(fifo_candidatos_avaliados),
@@ -188,14 +188,14 @@ def _montar_auditoria(
         "usa_switching_canonico": True,
         "usa_pos_injetado": True,
         "compatibilidade_contrato_ledger_temporal": True,
-        "retorno_legado_chaves_total": len(list(retorno_legado.keys())),
-        "retorno_legado_chaves": sorted(str(k) for k in retorno_legado.keys()),
+        "contrato_ledger_chaves_total": len(list(contrato_ledger.keys())),
+        "contrato_ledger_chaves": sorted(str(k) for k in contrato_ledger.keys()),
     }
 
 
 def _montar_validacao(
     *,
-    retorno_legado: Mapping[str, Any],
+    contrato_ledger: Mapping[str, Any],
     eventos_temporais: list[dict[str, Any]],
     fifo_candidatos_avaliados: list[dict[str, Any]],
     campos_ausentes: list[str],
@@ -203,12 +203,12 @@ def _montar_validacao(
     erros: list[str] = []
     avisos: list[str] = []
 
-    if not isinstance(retorno_legado, Mapping):
-        erros.append("retorno_legado_nao_mapeavel")
-    if "eventos" not in retorno_legado:
-        avisos.append("retorno_legado_sem_chave_eventos")
-    if "fifo_candidatos_avaliados" not in retorno_legado:
-        avisos.append("retorno_legado_sem_chave_fifo_candidatos_avaliados")
+    if not isinstance(contrato_ledger, Mapping):
+        erros.append("contrato_ledger_nao_mapeavel")
+    if "eventos" not in contrato_ledger:
+        avisos.append("contrato_ledger_sem_chave_eventos")
+    if "fifo_candidatos_avaliados" not in contrato_ledger:
+        avisos.append("contrato_ledger_sem_chave_fifo_candidatos_avaliados")
     if not eventos_temporais:
         avisos.append("eventos_temporais_vazio_no_temporal")
     if not fifo_candidatos_avaliados:
@@ -216,8 +216,8 @@ def _montar_validacao(
 
     avisos.extend(f"campo_minimo_temporal_operacional_vazio:{campo}" for campo in campos_ausentes)
     avisos.append("uso_transitorio_de_contexto_amplo")
-    avisos.append("contrato_ledger_temporal_vazio_oficial_sem_planilha_bruta_legada")
-    avisos.append("switching_canonico_preservado_sem_ledger_legado")
+    avisos.append("contrato_ledger_temporal_vazio_oficial_sem_planilha_bruta_nao_primaria")
+    avisos.append("switching_canonico_preservado_sem_ledger_removido")
 
     return {
         "ok": len(erros) == 0,
@@ -226,7 +226,7 @@ def _montar_validacao(
         "evidencias": {
             "qtd_eventos_temporais": len(eventos_temporais),
             "qtd_fifo_candidatos_avaliados": len(fifo_candidatos_avaliados),
-            "qtd_chaves_retorno_legado": len(list(retorno_legado.keys())) if isinstance(retorno_legado, Mapping) else 0,
+            "qtd_chaves_contrato_ledger": len(list(contrato_ledger.keys())) if isinstance(contrato_ledger, Mapping) else 0,
         },
     }
 
@@ -237,21 +237,21 @@ def construir_pacote_ledger_temporal(
     contexto: Any,
     *,
     modo_operacional_temporal: bool = True,
-    retorno_legado: Mapping[str, Any] | None = None,
+    contrato_ledger: Mapping[str, Any] | None = None,
 ) -> PacoteLedgerTemporal:
     """Constrói o envelope temporal do ledger temporal.
 
-    Quando ``retorno_legado`` não é fornecido, usa contrato vazio oficial.
+    Quando ``contrato_ledger`` não é fornecido, usa contrato vazio oficial.
     Quando fornecido, apenas embrulha o retorno já calculado. Em ambos os casos,
-    não altera a saída canônica nem aciona o ledger legado.
+    não altera a saída canônica nem aciona o ledger removido.
     """
-    if retorno_legado is None:
-        retorno_legado = {
+    if contrato_ledger is None:
+        contrato_ledger = {
             "eventos": [],
             "fifo_candidatos_avaliados": [],
         }
 
-    retorno = _as_dict(retorno_legado)
+    retorno = _as_dict(contrato_ledger)
     eventos_temporais = _as_list_dict(retorno.get("eventos"))
     fifo_candidatos_avaliados = _as_list_dict(retorno.get("fifo_candidatos_avaliados"))
     pagamentos_futuros_processados = _extrair_pagamentos_futuros_processados(eventos_temporais)
@@ -270,7 +270,7 @@ def construir_pacote_ledger_temporal(
     ]
 
     auditoria = _montar_auditoria(
-        retorno_legado=retorno,
+        contrato_ledger=retorno,
         eventos_temporais=eventos_temporais,
         fifo_candidatos_avaliados=fifo_candidatos_avaliados,
         pagamentos_futuros_processados=pagamentos_futuros_processados,
@@ -280,7 +280,7 @@ def construir_pacote_ledger_temporal(
         campos_ausentes=campos_ausentes,
     )
     validacao = _montar_validacao(
-        retorno_legado=retorno,
+        contrato_ledger=retorno,
         eventos_temporais=eventos_temporais,
         fifo_candidatos_avaliados=fifo_candidatos_avaliados,
         campos_ausentes=campos_ausentes,
@@ -293,8 +293,8 @@ def construir_pacote_ledger_temporal(
         "adaptador": "construir_pacote_ledger_temporal",
         "origem_contrato_ledger_temporal": "contrato_vazio_oficial_me521b",
         "nao_altera_saida_canonica": True,
-        "nao_remove_ponte_legacy": True,
-        "retorno_legado_chaves": sorted(str(k) for k in retorno.keys()),
+        "nao_remove_ponte_historica": True,
+        "contrato_ledger_chaves": sorted(str(k) for k in retorno.keys()),
     }
 
     return PacoteLedgerTemporal(
