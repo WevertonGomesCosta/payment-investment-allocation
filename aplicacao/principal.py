@@ -20,7 +20,7 @@ from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_of
 from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_oficial
 from nucleo.governanca_residuos_pipeline import construir_resultado_governanca_residuos_pipeline
 from nucleo.inventario_residuos_pipeline import construir_inventario_residuos_pipeline
-from nucleo.identidade_baseline import VERSAO_BASELINE
+from nucleo.identidade_baseline import VERSAO_BASELINE, metadados_versao_operacional
 from nucleo.situacao_atual_oficial import construir_situacao_atual_oficial
 
 
@@ -28,6 +28,22 @@ def _valor(objeto, campo, padrao=None):
     if isinstance(objeto, dict):
         return objeto.get(campo, padrao)
     return getattr(objeto, campo, padrao)
+
+
+def _registrar_metadados_versao_operacional(pacote_saida_observavel_oficial, saida_canonica_oficial) -> None:
+    if pacote_saida_observavel_oficial is None:
+        return
+    data_referencia = getattr(
+        saida_canonica_oficial,
+        'data_referencia',
+        getattr(pacote_saida_observavel_oficial, 'data_referencia', None),
+    )
+    pacote_saida_observavel_oficial.metadados.update(
+        metadados_versao_operacional(
+            RAIZ_REPOSITORIO,
+            data_referencia=data_referencia,
+        )
+    )
 
 
 def _formatar_item_gate(item, indice):
@@ -224,6 +240,10 @@ def carregar_contexto_e_saida():
         situacao_atual_origem=situacao_atual_origem,
     )
     pacote_saida_observavel_oficial = construir_pacote_saida_observavel_oficial(saida_canonica_oficial)
+    _registrar_metadados_versao_operacional(
+        pacote_saida_observavel_oficial,
+        saida_canonica_oficial,
+    )
     return (
         contexto_operacional_canonico,
         estado_temporal_inicial,
