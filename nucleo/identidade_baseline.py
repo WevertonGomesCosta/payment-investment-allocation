@@ -11,10 +11,8 @@ VERSAO_SLUG = VERSAO_BASELINE.lower()
 PR_BASE_INTEGRADO = 531
 MARCO_BASE_INTEGRADO = "ME-525A"
 
-# Identidade operacional provisória pré-PR da ME-526.
-# Após abertura do PR, atualizar em commit pequeno para PR-<número> / ME-526.
-PR_OPERACIONAL = 531
-MARCO_OPERACIONAL = "ME-525A"
+PR_OPERACIONAL = 532
+MARCO_OPERACIONAL = "ME-526"
 
 
 def _slug_marco(marco: str) -> str:
