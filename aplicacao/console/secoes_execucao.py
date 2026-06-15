@@ -1,15 +1,41 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from aplicacao.console.common import imprimir_itens_severidade, imprimir_linha_status, imprimir_pares, imprimir_titulo
+from nucleo.identidade_baseline import metadados_versao_operacional
+
+RAIZ_REPOSITORIO = Path(__file__).resolve().parents[2]
 
 
 def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, severidade_dependencias, auditoria_cache_cdi, data_ultimo_fator_cdi, resumo_por_aba, abas_primarias_reais, abas_auxiliares):
+    metadados_versao = metadados_versao_operacional(
+        RAIZ_REPOSITORIO,
+        data_referencia=getattr(contexto, 'data_referencia', None),
+    )
+
     imprimir_titulo('BASELINE')
     imprimir_pares([
         ('versão', versao),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
+    ])
+
+    imprimir_titulo('VERSÃO OPERACIONAL')
+    imprimir_pares([
+        ('versão baseline', metadados_versao.get('versao_baseline')),
+        ('versão operacional', metadados_versao.get('versao_operacional')),
+        ('PR base integrado', metadados_versao.get('pr_base_integrado')),
+        ('marco base integrado', metadados_versao.get('marco_base_integrado')),
+        ('PR operacional', metadados_versao.get('pr_operacional')),
+        ('marco operacional', metadados_versao.get('marco_operacional')),
+        ('commit', metadados_versao.get('commit_curto') or metadados_versao.get('commit')),
+        ('branch', metadados_versao.get('branch')),
+        ('fonte do commit', metadados_versao.get('fonte_commit')),
+        ('fonte da branch', metadados_versao.get('fonte_branch')),
+        ('arquivo operacional oficial', metadados_versao.get('arquivo_operacional_oficial')),
+        ('arquivo legado compatível', metadados_versao.get('arquivo_legado_compativel')),
     ])
 
     imprimir_titulo('EXECUÇÃO')
