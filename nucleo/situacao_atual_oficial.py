@@ -45,6 +45,11 @@ COLS_LOTES_VALORES_CURTAS = [
     'Rend. líq.',
 ]
 
+COLS_LOTES_VALORES_AUDITORIA_CURTAS = COLS_LOTES_VALORES_CURTAS + [
+    'Rend. líq. motor',
+    'Dif. rend.',
+]
+
 COLS_ORIGENS_MIGRADAS_SWITCHING = [
     'Lote origem',
     'Status',
@@ -300,6 +305,55 @@ def _mapa_switching_por_origem(estado_temporal_inicial: Any | None) -> dict[str,
     return mapa
 
 
+def _mapa_valores_switching_por_origem(estado_temporal_inicial: Any | None) -> dict[str, dict[str, float]]:
+    """Agrega valores materializados de switching por lote de origem.
+
+    A origem pode alimentar mais de um destino no mesmo ciclo. Por isso, esta
+    função soma eventos materializados em vez de manter apenas um evento por
+    origem.
+    """
+    mapa: dict[str, dict[str, float]] = {}
+    if estado_temporal_inicial is None:
+        return mapa
+
+    for ev in list(getattr(estado_temporal_inicial, 'switching_temporal_realizado', []) or []):
+        origem = str(ev.get('lote_origem') or '').strip()
+        if not origem:
+            continue
+
+        slot = mapa.setdefault(
+            origem,
+            {
+                'valor_liquido_migrado_total': 0.0,
+                'valor_bruto_migrado_total': 0.0,
+                'qtd_switchings': 0.0,
+            },
+        )
+
+        valor_liquido = para_float(
+            ev.get('valor_liquido_migrado')
+            or ev.get('valor_liquido_migrado_total')
+            or ev.get('valor_liquido_origem')
+            or ev.get('Valor líquido origem')
+            or ev.get('Valor Líquido Migrado')
+        )
+        valor_bruto = para_float(
+            ev.get('valor_bruto_migrado')
+            or ev.get('valor_bruto_migrado_total')
+            or ev.get('valor_bruto_origem')
+            or ev.get('Valor bruto origem')
+        )
+
+        if valor_bruto <= 0.0:
+            valor_bruto = valor_liquido
+
+        slot['valor_liquido_migrado_total'] = round(slot['valor_liquido_migrado_total'] + valor_liquido, 2)
+        slot['valor_bruto_migrado_total'] = round(slot['valor_bruto_migrado_total'] + valor_bruto, 2)
+        slot['qtd_switchings'] = round(slot['qtd_switchings'] + 1.0, 2)
+
+    return mapa
+
+
 def _filtrar_lotes_ativos_com_estado_temporal(
     linhas: list[dict[str, Any]],
     estado_temporal_inicial: Any | None = None,
@@ -390,6 +444,67 @@ def calcular_rendimento_liquido_observavel(
     """
     _ = status_ciclo
     return round(patrimonio_liquido - valor_original, 2)
+
+
+def _mapa_lotes_motor_contexto(contexto: Any) -> dict[str, Any]:
+    """Indexa lotes do núcleo financeiro para auditoria visual de rendimento."""
+    mapa: dict[str, Any] = {}
+
+    nucleo = getattr(contexto, "nucleo_financeiro", None)
+    for lote in list(getattr(nucleo, "lotes_financeiros", []) or []):
+        chave = _norm_lote_chave(getattr(lote, "id", ""))
+        if chave:
+            mapa.setdefault(chave, lote)
+
+    replay = getattr(contexto, "replay_passado", None)
+    for lote in list(getattr(replay, "lotes_apos_replay", []) or []):
+        chave = _norm_lote_chave(getattr(lote, "id", ""))
+        if chave:
+            mapa.setdefault(chave, lote)
+
+    return mapa
+
+
+def _rendimento_liquido_motor_lote(
+    contexto: Any,
+    lote_id: Any,
+    data_alvo: Any,
+) -> float | str:
+    """Calcula rendimento líquido do motor para um lote e data-alvo.
+
+    Não usa a saída observável como fallback. Quando o lote ou a data não são
+    calculáveis pelo motor, retorna n/d para evitar comparação tautológica.
+    """
+    data = _coagir_data_observavel(data_alvo)
+    if data is None:
+        return "n/d"
+
+    lote = _lookup_por_lote_normalizado(
+        _mapa_lotes_motor_contexto(contexto),
+        lote_id,
+        None,
+    )
+    if lote is None:
+        return "n/d"
+
+    try:
+        valor_liquido = lote.valor_liquido_em_data(
+            data,
+            contexto.calendario_financeiro,
+            tabela_iof=getattr(contexto, "tabela_iof", None),
+            faixas_ir=getattr(contexto, "faixas_ir", None),
+            serie_cdi=_serie_cdi_contexto(contexto),
+            data_base_referencia=getattr(lote, "data_aplicacao", data),
+        )
+        return round(float(valor_liquido) - float(getattr(lote, "valor_inicial", 0.0)), 2)
+    except Exception:
+        return "n/d"
+
+
+def _diferenca_rendimento_motor(rendimento_observavel: float, rendimento_motor: Any) -> float | str:
+    if isinstance(rendimento_motor, (int, float)):
+        return round(float(rendimento_observavel) - float(rendimento_motor), 2)
+    return "n/d"
 
 
 
@@ -504,6 +619,15 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             valor_original=valor_original,
             patrimonio_liquido=patrimonio_liquido,
         )
+        rendimento_liquido_motor = _rendimento_liquido_motor_lote(
+            contexto,
+            lote_id,
+            data_referencia_dias,
+        )
+        diferenca_rendimento_motor = _diferenca_rendimento_motor(
+            rendimento_liquido,
+            rendimento_liquido_motor,
+        )
 
         linhas.append({
             'Lote': item.get('Lote'),
@@ -521,6 +645,8 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             'Líq. atual': liquido_atual,
             'Patr. líq.': patrimonio_liquido,
             'Rend. líq.': rendimento_liquido,
+            'Rend. líq. motor': rendimento_liquido_motor,
+            'Dif. rend.': diferenca_rendimento_motor,
         })
 
     return linhas
@@ -572,8 +698,9 @@ def _montar_lotes_valores_oficial(contexto, saida, *, tipo: str, snapshot_situac
             linhas_encerrados_por_switching,
         )
 
+    headers = COLS_LOTES_VALORES_AUDITORIA_CURTAS
     return [
-        {chave: item.get(chave) for chave in COLS_LOTES_VALORES_CURTAS}
+        {chave: item.get(chave) for chave in headers}
         for item in linhas_base
     ]
 
@@ -683,6 +810,8 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
     valores_originais = _valores_originais_por_lote_do_pacote(snapshot_situacao_atual)
     linhas: list[dict[str, Any]] = []
     mapa_economico = _mapa_economico_origens_switching(saida)
+    mapa_switching_valores = _mapa_valores_switching_por_origem(estado_temporal_inicial)
+    mapa_switching_eventos = _mapa_switching_por_origem(estado_temporal_inicial)
 
     origens = list(_origens_migradas_auditoria(saida))
     if estado_temporal_inicial is not None:
@@ -692,15 +821,58 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
     for item in origens:
         lote = str(item.get('lote_origem') or '').strip()
         valor_original = round(para_float(item.get('valor_original_origem')) or para_float(_lookup_por_lote_normalizado(valores_originais, lote, 0.0)) or para_float(item.get('valor_liquido_migrado_total')),2)
-        valor_migrado = round(para_float(item.get('valor_liquido_migrado_total') or item.get('valor_liquido_migrado')), 2)
+        valor_migrado_item = round(para_float(item.get('valor_liquido_migrado_total') or item.get('valor_liquido_migrado')), 2)
         bruto_sacado_historico = round(para_float(item.get('valor_bruto_sacado_historico')), 2)
         liquido_sacado_historico = round(para_float(item.get('valor_liquido_sacado_historico')), 2)
-        econ = mapa_economico.get(lote, {})
-        bruto_sacado_total = round(max(bruto_sacado_historico + max(0.0, para_float(econ.get('bruto_migrado'))), para_float(econ.get('bruto_pagamentos')) + para_float(econ.get('bruto_migrado'))), 2)
-        liquido_sacado_total = round(max(liquido_sacado_historico + max(0.0, para_float(econ.get('liquido_migrado'))), para_float(econ.get('liquido_pagamentos')) + para_float(econ.get('liquido_migrado')), valor_migrado), 2)
+
+        econ = _lookup_por_lote_normalizado(mapa_economico, lote, {})
+        sw_valores = _lookup_por_lote_normalizado(mapa_switching_valores, lote, {})
+
+        valor_migrado = round(max(
+            valor_migrado_item,
+            para_float(econ.get('liquido_migrado')),
+            para_float(sw_valores.get('valor_liquido_migrado_total')),
+        ), 2)
+
+        bruto_migrado = round(max(
+            para_float(econ.get('bruto_migrado')),
+            para_float(sw_valores.get('valor_bruto_migrado_total')),
+            valor_migrado,
+        ), 2)
+
+        bruto_sacado_total = round(max(
+            bruto_sacado_historico + bruto_migrado,
+            para_float(econ.get('bruto_pagamentos')) + bruto_migrado,
+            bruto_migrado,
+        ), 2)
+
+        liquido_sacado_total = round(max(
+            liquido_sacado_historico + valor_migrado,
+            para_float(econ.get('liquido_pagamentos')) + valor_migrado,
+            valor_migrado,
+        ), 2)
 
         patrimonio_liquido_observavel = round(liquido_sacado_total, 2)
         rendimento_liquido_observavel = round(patrimonio_liquido_observavel - valor_original, 2)
+
+        ev_switching = _lookup_por_lote_normalizado(mapa_switching_eventos, lote, {})
+        data_switching_motor = (
+            item.get('data_switching')
+            or item.get('data_aplicacao_switching')
+            or item.get('data_recebimento_switching')
+            or ev_switching.get('data_switching')
+            or ev_switching.get('data_aplicacao')
+            or ev_switching.get('data_recebimento')
+        )
+        rendimento_liquido_motor = _rendimento_liquido_motor_lote(
+            contexto,
+            lote,
+            data_switching_motor,
+        )
+        diferenca_rendimento_motor = _diferenca_rendimento_motor(
+            rendimento_liquido_observavel,
+            rendimento_liquido_motor,
+        )
 
         linhas.append({
             'Lote': lote,
@@ -711,6 +883,8 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             'Líq. atual': 0.0,
             'Patr. líq.': patrimonio_liquido_observavel,
             'Rend. líq.': rendimento_liquido_observavel,
+            'Rend. líq. motor': rendimento_liquido_motor,
+            'Dif. rend.': diferenca_rendimento_motor,
         })
 
     return linhas
@@ -954,7 +1128,7 @@ def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atu
         },
         {
             'titulo': 'Lotes exauridos — valores e patrimônio',
-            'headers': COLS_LOTES_VALORES_CURTAS,
+            'headers': COLS_LOTES_VALORES_AUDITORIA_CURTAS,
             'linhas': lotes_exauridos_valores,
         },
         {
@@ -964,7 +1138,7 @@ def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atu
         },
         {
             'titulo': 'Lotes ativos — valores e patrimônio',
-            'headers': COLS_LOTES_VALORES_CURTAS,
+            'headers': COLS_LOTES_VALORES_AUDITORIA_CURTAS,
             'linhas': lotes_ativos_valores,
         },
         {
