@@ -1,14 +1,141 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
+from typing import Any
 
 VERSAO_BASELINE = "V225"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
+PR_BASE_INTEGRADO = 531
+MARCO_BASE_INTEGRADO = "ME-525A"
+
+# Identidade operacional provisória pré-PR da ME-526.
+# Após abertura do PR, atualizar em commit pequeno para PR-<número> / ME-526.
+PR_OPERACIONAL = 531
+MARCO_OPERACIONAL = "ME-525A"
+
+
+def _slug_marco(marco: str) -> str:
+    texto = re.sub(r"[^a-zA-Z0-9]+", "", str(marco).strip().lower())
+    return texto or "marco"
+
+
+VERSAO_OPERACIONAL = f"PR-{PR_OPERACIONAL} / {MARCO_OPERACIONAL}"
+VERSAO_OPERACIONAL_SLUG = f"pr{PR_OPERACIONAL}_{_slug_marco(MARCO_OPERACIONAL)}"
+
+
+_COMMIT_INDISPONIVEL = "indisponivel"
+_BRANCH_INDISPONIVEL = "nao_detectado"
+_FONTE_GIT_INDISPONIVEL = "git_indisponivel"
+
+
+_ROTULOS_METADADOS_VERSAO = [
+    ("versão baseline", "versao_baseline"),
+    ("versão operacional", "versao_operacional"),
+    ("PR base integrado", "pr_base_integrado"),
+    ("marco base integrado", "marco_base_integrado"),
+    ("PR operacional", "pr_operacional"),
+    ("marco operacional", "marco_operacional"),
+    ("commit", "commit"),
+    ("commit curto", "commit_curto"),
+    ("branch", "branch"),
+    ("data de referência", "data_referencia"),
+    ("arquivo operacional oficial", "arquivo_operacional_oficial"),
+    ("arquivo legado compatível", "arquivo_legado_compativel"),
+    ("fonte do commit", "fonte_commit"),
+    ("fonte da branch", "fonte_branch"),
+]
+
+
+def _executar_git(raiz: Path | str | None, *args: str) -> str | None:
+    raiz_git = Path(raiz).resolve() if raiz is not None else Path.cwd()
+    try:
+        resultado = subprocess.run(
+            ["git", "-C", str(raiz_git), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except Exception:
+        return None
+    texto = (resultado.stdout or "").strip()
+    return texto or None
+
+
+def _identidade_git(raiz: Path | str | None = None) -> dict[str, str]:
+    commit = _executar_git(raiz, "rev-parse", "HEAD")
+    branch = _executar_git(raiz, "rev-parse", "--abbrev-ref", "HEAD")
+
+    if commit:
+        commit_curto = commit[:12]
+        fonte_commit = "git"
+    else:
+        commit = _COMMIT_INDISPONIVEL
+        commit_curto = _COMMIT_INDISPONIVEL
+        fonte_commit = _FONTE_GIT_INDISPONIVEL
+
+    if branch:
+        fonte_branch = "git"
+    else:
+        branch = _BRANCH_INDISPONIVEL
+        fonte_branch = _FONTE_GIT_INDISPONIVEL
+
+    return {
+        "commit": commit,
+        "commit_curto": commit_curto,
+        "branch": branch,
+        "fonte_commit": fonte_commit,
+        "fonte_branch": fonte_branch,
+    }
+
+
+def _serializar_data_referencia(data_referencia: Any) -> str:
+    if data_referencia is None:
+        return ""
+    if hasattr(data_referencia, "isoformat") and not isinstance(data_referencia, str):
+        try:
+            return data_referencia.isoformat()
+        except Exception:
+            return str(data_referencia)
+    return str(data_referencia)
+
 
 def nome_relatorio_operacional() -> str:
+    return f"relatorio_operacional_{VERSAO_OPERACIONAL_SLUG}.xlsx"
+
+
+def nome_relatorio_operacional_legado() -> str:
     return f"relatorio_operacional_{VERSAO_SLUG}.xlsx"
+
+
+def metadados_versao_operacional(
+    raiz: Path | str | None = None,
+    *,
+    data_referencia: Any = None,
+) -> dict[str, Any]:
+    metadados = {
+        "versao_baseline": VERSAO_BASELINE,
+        "versao_operacional": VERSAO_OPERACIONAL,
+        "pr_base_integrado": PR_BASE_INTEGRADO,
+        "marco_base_integrado": MARCO_BASE_INTEGRADO,
+        "pr_operacional": PR_OPERACIONAL,
+        "marco_operacional": MARCO_OPERACIONAL,
+        "data_referencia": _serializar_data_referencia(data_referencia),
+        "arquivo_operacional_oficial": nome_relatorio_operacional(),
+        "arquivo_legado_compativel": nome_relatorio_operacional_legado(),
+    }
+    metadados.update(_identidade_git(raiz))
+    return metadados
+
+
+def linhas_metadados_versao_operacional(metadados: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {"Campo": rotulo, "Valor": metadados.get(chave)}
+        for rotulo, chave in _ROTULOS_METADADOS_VERSAO
+    ]
 
 
 def slug_lote(lote_id: str) -> str:
