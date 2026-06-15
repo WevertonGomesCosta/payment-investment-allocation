@@ -328,7 +328,7 @@ def _remover_origens_migradas_dos_exauridos_consolidados(
     linhas: list[dict[str, Any]],
     saida: Any,
 ) -> list[dict[str, Any]]:
-    """Evita duplicidade observável entre exaurido_por_saque e migrado_por_switching."""
+    """Remove origens migradas quando a base precisa conter apenas saques."""
     origens_migradas = _lotes_origens_migradas_set(saida)
     if not origens_migradas:
         return linhas
@@ -337,6 +337,40 @@ def _remover_origens_migradas_dos_exauridos_consolidados(
         for linha in linhas
         if str(linha.get("Lote") or "").strip() not in origens_migradas
     ]
+
+
+def _mesclar_lotes_exauridos_com_origens_switching(
+    linhas_exauridos_por_saque: list[dict[str, Any]],
+    linhas_encerrados_por_switching: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Monta tabela observável de exauridos sem duplicar origens migradas.
+
+    Origens migradas por switching devem aparecer como ciclo encerrado, mas
+    permanecem semanticamente diferentes de exauridos por saque. A exclusão da
+    base somável principal continua sendo feita no resumo patrimonial.
+    """
+    chaves_switching = {
+        _norm_lote_chave(linha.get("Lote"))
+        for linha in linhas_encerrados_por_switching
+        if _norm_lote_chave(linha.get("Lote"))
+    }
+
+    base_sem_origens_switching = [
+        linha
+        for linha in linhas_exauridos_por_saque
+        if _norm_lote_chave(linha.get("Lote")) not in chaves_switching
+    ]
+
+    saida: list[dict[str, Any]] = []
+    vistos: set[str] = set()
+    for linha in list(base_sem_origens_switching) + list(linhas_encerrados_por_switching):
+        chave = _norm_lote_chave(linha.get("Lote"))
+        if chave:
+            if chave in vistos:
+                continue
+            vistos.add(chave)
+        saida.append(linha)
+    return saida
 
 
 def calcular_rendimento_liquido_observavel(
@@ -498,11 +532,19 @@ def _montar_lotes_identificacao_oficial(contexto, saida, *, tipo: str, snapshot_
         linhas_base = _montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual)
     elif tipo == 'exauridos':
         headers = COLS_LOTES_EXAURIDOS_ID_CURTAS
-        # ME-519: origens migradas por switching não são lotes exauridos por saque.
-        # Elas permanecem apenas no bloco próprio de reconciliação patrimonial.
-        linhas_base = _remover_origens_migradas_dos_exauridos_consolidados(
+        linhas_exauridos_por_saque = _remover_origens_migradas_dos_exauridos_consolidados(
             _montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual),
             saida,
+        )
+        linhas_encerrados_por_switching = construir_linhas_lotes_encerrados_por_switching(
+            contexto,
+            saida,
+            snapshot_situacao_atual=snapshot_situacao_atual,
+            estado_temporal_inicial=estado_temporal_inicial,
+        )
+        linhas_base = _mesclar_lotes_exauridos_com_origens_switching(
+            linhas_exauridos_por_saque,
+            linhas_encerrados_por_switching,
         )
     else:
         headers = COLS_LOTES_ID_CURTAS
@@ -518,10 +560,17 @@ def _montar_lotes_valores_oficial(contexto, saida, *, tipo: str, snapshot_situac
     linhas_base = list(_montar_lotes_consolidados_oficial(contexto, saida, tipo=tipo, snapshot_situacao_atual=snapshot_situacao_atual))
 
     if tipo == 'exauridos':
-        # ME-519: a tabela de valores dos exauridos contém apenas lotes
-        # encerrados por saque. Origens migradas por switching são transferência
-        # interna e ficam no bloco "Origens migradas por switching".
-        linhas_base = _remover_origens_migradas_dos_exauridos_consolidados(linhas_base, saida)
+        linhas_exauridos_por_saque = _remover_origens_migradas_dos_exauridos_consolidados(linhas_base, saida)
+        linhas_encerrados_por_switching = construir_linhas_lotes_valores_encerrados_por_switching(
+            contexto,
+            saida,
+            snapshot_situacao_atual=snapshot_situacao_atual,
+            estado_temporal_inicial=estado_temporal_inicial,
+        )
+        linhas_base = _mesclar_lotes_exauridos_com_origens_switching(
+            linhas_exauridos_por_saque,
+            linhas_encerrados_por_switching,
+        )
 
     return [
         {chave: item.get(chave) for chave in COLS_LOTES_VALORES_CURTAS}
@@ -625,12 +674,11 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_si
 
 
 def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
-    """Valores auxiliares das origens migradas por switching.
+    """Valores observáveis das origens migradas por switching.
 
-    ME-519: origens migradas por switching representam transferência interna,
-    não lote exaurido por saque. Estas linhas abastecem apenas o bloco próprio
-    de reconciliação patrimonial e não entram nas tabelas de lotes exauridos
-    nem na base somável do patrimônio total.
+    ME-525A: origens migradas por switching aparecem também nas tabelas de
+    lotes exauridos com status de migração. Elas continuam fora da base somável
+    do patrimônio principal para evitar dupla contagem com os destinos.
     """
     valores_originais = _valores_originais_por_lote_do_pacote(snapshot_situacao_atual)
     linhas: list[dict[str, Any]] = []
@@ -950,7 +998,7 @@ def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atu
 # V225 — Amostras operacionais de pagamentos
 
 
-VERSAO_SITUACAO_ATUAL_OFICIAL = "ME-518B-SITUACAO-ATUAL-OFICIAL-01"
+VERSAO_SITUACAO_ATUAL_OFICIAL = "ME-525A-SITUACAO-ATUAL-SWITCHING-EXAURIDOS-01"
 
 
 @dataclass(slots=True)
