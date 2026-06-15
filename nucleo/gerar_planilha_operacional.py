@@ -14,7 +14,14 @@ if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
 from nucleo.contexto_operacional_canonico import carregar_contexto_operacional_canonico
-from nucleo.identidade_baseline import VERSAO_BASELINE, VERSAO_SLUG, caminho_artifact, caminho_saida_operacional, nome_relatorio_operacional
+from nucleo.identidade_baseline import (
+    caminho_artifact,
+    caminho_saida_operacional,
+    linhas_metadados_versao_operacional,
+    metadados_versao_operacional,
+    nome_relatorio_operacional,
+    nome_relatorio_operacional_legado,
+)
 
 
 class PacoteSaidaObservavelOficialAusente(RuntimeError):
@@ -50,19 +57,64 @@ def _nome_aba(contexto: Any, chave: str) -> str:
     return ABAS[chave]
 
 
-def _nome_arquivo(contexto: Any) -> str:
-    cfg = _cfg(contexto)
-    nome = str(cfg.get('arquivo') or cfg.get('nome_arquivo') or nome_relatorio_operacional()).strip()
+def _data_referencia_contexto_ou_pacote(contexto: Any, pacote: Any) -> Any:
+    data_pacote = getattr(pacote, 'data_referencia', None)
+    if data_pacote is not None:
+        return data_pacote
+    return getattr(getattr(contexto, 'execucao', None), 'data_referencia', None)
+
+
+def _metadados_execucao(contexto: Any, pacote: Any) -> dict[str, Any]:
+    existentes = dict(getattr(pacote, 'metadados', {}) or {})
+    base = metadados_versao_operacional(
+        RAIZ,
+        data_referencia=_data_referencia_contexto_ou_pacote(contexto, pacote),
+    )
+    atualizados = dict(existentes)
+    for chave, valor in base.items():
+        atualizados.setdefault(chave, valor)
     try:
-        nome = nome.format(versao=VERSAO_BASELINE, versao_slug=VERSAO_SLUG)
+        pacote.metadados.update(atualizados)
     except Exception:
         pass
+    return atualizados
+
+
+def _nome_arquivo(contexto: Any, pacote: Any | None = None) -> str:
+    if pacote is not None:
+        metadados = _metadados_execucao(contexto, pacote)
+        nome = str(metadados.get('arquivo_operacional_oficial') or '').strip()
+        if nome:
+            return nome if nome.lower().endswith('.xlsx') else f'{nome}.xlsx'
+
+    cfg = _cfg(contexto)
+    nome = str(
+        cfg.get('arquivo_operacional')
+        or cfg.get('arquivo_oficial')
+        or nome_relatorio_operacional()
+    ).strip()
     return nome if nome.lower().endswith('.xlsx') else f'{nome}.xlsx'
 
 
-def _caminhos(contexto: Any) -> tuple[Path, Path]:
-    nome = _nome_arquivo(contexto)
-    return caminho_saida_operacional(RAIZ, nome), caminho_artifact(nome)
+def _nomes_arquivos(contexto: Any, pacote: Any) -> tuple[str, str]:
+    metadados = _metadados_execucao(contexto, pacote)
+    oficial = str(metadados.get('arquivo_operacional_oficial') or _nome_arquivo(contexto, pacote)).strip()
+    legado = str(metadados.get('arquivo_legado_compativel') or nome_relatorio_operacional_legado()).strip()
+    if not oficial.lower().endswith('.xlsx'):
+        oficial = f'{oficial}.xlsx'
+    if not legado.lower().endswith('.xlsx'):
+        legado = f'{legado}.xlsx'
+    return oficial, legado
+
+
+def _caminhos(contexto: Any, pacote: Any) -> tuple[Path, Path, Path, Path]:
+    nome_oficial, nome_legado = _nomes_arquivos(contexto, pacote)
+    return (
+        caminho_saida_operacional(RAIZ, nome_oficial),
+        caminho_artifact(nome_oficial),
+        caminho_saida_operacional(RAIZ, nome_legado),
+        caminho_artifact(nome_legado),
+    )
 
 
 def _serializar(valor: Any) -> Any:
@@ -180,14 +232,29 @@ def _aba(wb: Workbook, nome: str, headers: list[str], linhas: list[dict[str, Any
 
 def _aba_situacao(wb: Workbook, contexto: Any, pacote: Any) -> None:
     ws = wb.create_sheet(_nome_aba(contexto, 'situacao_atual'))
+    row = _estilo(
+        ws,
+        ['Campo', 'Valor'],
+        linhas_metadados_versao_operacional(_metadados_execucao(contexto, pacote)),
+        start_row=1,
+        title='Metadados da execução',
+        congelar_painel=False,
+    )
     blocos = _situacao_blocos(pacote)
     if not blocos:
         linhas = _abas_oficiais(pacote).get('Situação Atual', [])
-        _estilo(ws, _headers(linhas), linhas, congelar_painel=False)
+        _estilo(ws, _headers(linhas), linhas, start_row=row + 3, congelar_painel=False)
         return
-    row = 1
-    for idx, bloco in enumerate(blocos):
-        row = _estilo(ws, bloco['headers'], bloco['linhas'], start_row=row if idx == 0 else row + 3, title=bloco['titulo'], congelar_painel=False)
+    for bloco in blocos:
+        row = _estilo(ws, bloco['headers'], bloco['linhas'], start_row=row + 3, title=bloco['titulo'], congelar_painel=False)
+
+
+def _salvar_copia(wb: Workbook, caminho: Path, *, rotulo: str) -> None:
+    try:
+        if caminho.parent.exists():
+            wb.save(caminho)
+    except Exception as exc:
+        print(f'[AVISO] copia {rotulo} nao gerada: {type(exc).__name__}:{exc}')
 
 
 def main(*, contexto: Any = None, saida: Any = None, pacote_saida_observavel_oficial: Any = None, estado_temporal_inicial: Any = None, incluir_abas_diagnosticas: bool | None = None, modo_artefato: str = 'oficial') -> Path:
@@ -195,7 +262,7 @@ def main(*, contexto: Any = None, saida: Any = None, pacote_saida_observavel_ofi
     _validar_pacote(pacote_saida_observavel_oficial)
     if contexto is None:
         contexto = carregar_contexto_operacional_canonico(raiz_repositorio=RAIZ, instalar_automaticamente=False)
-    saida_interna, saida_externa = _caminhos(contexto)
+    saida_interna, saida_externa, saida_legado, saida_legado_externa = _caminhos(contexto, pacote_saida_observavel_oficial)
     abas = _abas_oficiais(pacote_saida_observavel_oficial)
     wb = Workbook()
     _aba(wb, _nome_aba(contexto, 'extrato_passado'), HEADERS['extrato_passado'], abas['Extrato Passado'])
@@ -206,11 +273,9 @@ def main(*, contexto: Any = None, saida: Any = None, pacote_saida_observavel_ofi
     _aba_situacao(wb, contexto, pacote_saida_observavel_oficial)
     saida_interna.parent.mkdir(parents=True, exist_ok=True)
     wb.save(saida_interna)
-    try:
-        if saida_externa.parent.exists():
-            wb.save(saida_externa)
-    except Exception as exc:
-        print(f'[AVISO] copia externa nao gerada: {type(exc).__name__}:{exc}')
+    wb.save(saida_legado)
+    _salvar_copia(wb, saida_externa, rotulo='externa oficial')
+    _salvar_copia(wb, saida_legado_externa, rotulo='externa legado')
     return saida_interna
 
 
