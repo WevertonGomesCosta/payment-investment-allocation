@@ -138,7 +138,7 @@ def _validar_pacote(pacote: Any) -> None:
         raise PacoteSaidaObservavelOficialAusente('Situacao Atual oficial ausente.')
 
 
-def _estilo(ws, headers: list[str], linhas: list[dict[str, Any]], *, start_row: int = 1, title: str | None = None) -> int:
+def _estilo(ws, headers: list[str], linhas: list[dict[str, Any]], *, start_row: int = 1, title: str | None = None, congelar_painel: bool = True) -> int:
     ws.sheet_view.showGridLines = False
     fill = PatternFill('solid', fgColor='D9EAF7')
     font = Font(color='1F1F1F', bold=True)
@@ -163,7 +163,8 @@ def _estilo(ws, headers: list[str], linhas: list[dict[str, Any]], *, start_row: 
             cell.border = Border(bottom=thin)
     if headers:
         ws.auto_filter.ref = f'A{header_row}:{get_column_letter(len(headers))}{max(header_row + len(linhas), header_row)}'
-    ws.freeze_panes = f'A{header_row + 1}'
+    if congelar_painel:
+        ws.freeze_panes = f'A{header_row + 1}'
     for col, header in enumerate(headers, 1):
         letter = get_column_letter(col)
         largura = max([len(str(header))] + [len(str(linha.get(header))) for linha in linhas if linha.get(header) is not None])
@@ -182,12 +183,11 @@ def _aba_situacao(wb: Workbook, contexto: Any, pacote: Any) -> None:
     blocos = _situacao_blocos(pacote)
     if not blocos:
         linhas = _abas_oficiais(pacote).get('Situação Atual', [])
-        _estilo(ws, _headers(linhas), linhas)
+        _estilo(ws, _headers(linhas), linhas, congelar_painel=False)
         return
     row = 1
     for idx, bloco in enumerate(blocos):
-        row = _estilo(ws, bloco['headers'], bloco['linhas'], start_row=row if idx == 0 else row + 3, title=bloco['titulo'])
-    ws.freeze_panes = 'A2'
+        row = _estilo(ws, bloco['headers'], bloco['linhas'], start_row=row if idx == 0 else row + 3, title=bloco['titulo'], congelar_painel=False)
 
 
 def main(*, contexto: Any = None, saida: Any = None, pacote_saida_observavel_oficial: Any = None, estado_temporal_inicial: Any = None, incluir_abas_diagnosticas: bool | None = None, modo_artefato: str = 'oficial') -> Path:
