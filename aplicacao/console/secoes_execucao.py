@@ -1,12 +1,33 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from aplicacao.console.common import imprimir_itens_severidade, imprimir_linha_status, imprimir_pares, imprimir_titulo
+from nucleo.identidade_baseline import metadados_versao_operacional
+
+RAIZ_REPOSITORIO = Path(__file__).resolve().parents[2]
 
 
 def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, severidade_dependencias, auditoria_cache_cdi, data_ultimo_fator_cdi, resumo_por_aba, abas_primarias_reais, abas_auxiliares):
-    imprimir_titulo('BASELINE')
+    metadados_versao = metadados_versao_operacional(
+        RAIZ_REPOSITORIO,
+        data_referencia=getattr(contexto, 'data_referencia', None),
+    )
+
+    imprimir_titulo('VERSÃO OPERACIONAL')
     imprimir_pares([
-        ('versão', versao),
+        ('versão atual', metadados_versao.get('versao_atual')),
+        ('PR da versão atual', metadados_versao.get('pr_versao_atual')),
+        ('commit', metadados_versao.get('commit_curto') or metadados_versao.get('commit')),
+        ('branch', metadados_versao.get('branch')),
+        ('fonte do commit', metadados_versao.get('fonte_commit')),
+        ('fonte da branch', metadados_versao.get('fonte_branch')),
+        ('arquivo operacional oficial', metadados_versao.get('arquivo_operacional_oficial')),
+    ])
+
+    imprimir_titulo('BASELINE / ENTRADAS')
+    imprimir_pares([
+        ('identificador legado de dados', versao),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
