@@ -14,28 +14,24 @@ def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, s
         data_referencia=getattr(contexto, 'data_referencia', None),
     )
 
-    imprimir_titulo('BASELINE')
-    imprimir_pares([
-        ('versão', versao),
-        ('raiz do repositório', pacote_config.raiz_repositorio),
-        ('config carregado', pacote_config.caminho),
-        ('planilha carregada', pacote_planilha.caminho),
-    ])
-
     imprimir_titulo('VERSÃO OPERACIONAL')
     imprimir_pares([
-        ('versão baseline', metadados_versao.get('versao_baseline')),
-        ('versão operacional', metadados_versao.get('versao_operacional')),
-        ('PR base integrado', metadados_versao.get('pr_base_integrado')),
-        ('marco base integrado', metadados_versao.get('marco_base_integrado')),
-        ('PR operacional', metadados_versao.get('pr_operacional')),
-        ('marco operacional', metadados_versao.get('marco_operacional')),
+        ('versão atual', metadados_versao.get('versao_atual')),
+        ('PR da versão atual', metadados_versao.get('pr_versao_atual')),
         ('commit', metadados_versao.get('commit_curto') or metadados_versao.get('commit')),
         ('branch', metadados_versao.get('branch')),
         ('fonte do commit', metadados_versao.get('fonte_commit')),
         ('fonte da branch', metadados_versao.get('fonte_branch')),
         ('arquivo operacional oficial', metadados_versao.get('arquivo_operacional_oficial')),
         ('arquivo legado compatível', metadados_versao.get('arquivo_legado_compativel')),
+    ])
+
+    imprimir_titulo('BASELINE / ENTRADAS')
+    imprimir_pares([
+        ('identificador legado de dados', versao),
+        ('raiz do repositório', pacote_config.raiz_repositorio),
+        ('config carregado', pacote_config.caminho),
+        ('planilha carregada', pacote_planilha.caminho),
     ])
 
     imprimir_titulo('EXECUÇÃO')
