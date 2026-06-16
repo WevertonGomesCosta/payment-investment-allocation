@@ -17,17 +17,11 @@ def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, s
     imprimir_titulo('VERSÃO OPERACIONAL')
     imprimir_pares([
         ('versão atual', metadados_versao.get('versao_atual')),
-        ('PR da versão atual', metadados_versao.get('pr_versao_atual')),
-        ('commit', metadados_versao.get('commit_curto') or metadados_versao.get('commit')),
-        ('branch', metadados_versao.get('branch')),
-        ('fonte do commit', metadados_versao.get('fonte_commit')),
-        ('fonte da branch', metadados_versao.get('fonte_branch')),
         ('arquivo operacional oficial', metadados_versao.get('arquivo_operacional_oficial')),
     ])
 
     imprimir_titulo('BASELINE / ENTRADAS')
     imprimir_pares([
-        ('identificador legado de dados', versao),
         ('raiz do repositório', pacote_config.raiz_repositorio),
         ('config carregado', pacote_config.caminho),
         ('planilha carregada', pacote_planilha.caminho),
