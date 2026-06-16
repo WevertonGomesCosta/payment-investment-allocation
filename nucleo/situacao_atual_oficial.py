@@ -980,14 +980,38 @@ def _valor_total_recebidos_brutos(saida) -> float:
 
 def _montar_patrimonio_total_lotes_oficial(contexto, saida, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
-    linhas_exauridos_consolidadas = _remover_origens_migradas_dos_exauridos_consolidados(
-        _montar_lotes_consolidados_oficial(contexto, saida, tipo='exauridos', snapshot_situacao_atual=snapshot_situacao_atual),
+    linhas_exauridos_por_saque = _remover_origens_migradas_dos_exauridos_consolidados(
+        _montar_lotes_consolidados_oficial(
+            contexto,
+            saida,
+            tipo='exauridos',
+            snapshot_situacao_atual=snapshot_situacao_atual,
+        ),
         saida,
     )
-    # ME-519: a base somável do patrimônio total é composta somente por
-    # lotes exauridos por saque e lotes ativos. Origens migradas por switching
-    # são transferência interna e ficam fora da base somável.
-    linhas_ativos = _montar_lotes_consolidados_oficial(contexto, saida, tipo='ativos', snapshot_situacao_atual=snapshot_situacao_atual)
+    linhas_origens_migradas = construir_linhas_lotes_valores_encerrados_por_switching(
+        contexto,
+        saida,
+        snapshot_situacao_atual=snapshot_situacao_atual,
+        estado_temporal_inicial=estado_temporal_inicial,
+    )
+    linhas_exauridos_consolidadas = _mesclar_lotes_exauridos_com_origens_switching(
+        linhas_exauridos_por_saque,
+        linhas_origens_migradas,
+    )
+    # ME-528: a base agregada deve usar a mesma semântica dos blocos publicados:
+    # origens migradas por switching não permanecem como ativos comuns; elas
+    # entram como ciclos encerrados por switching, evitando divergência entre
+    # patrimônio total e linhas de Situação Atual.
+    linhas_ativos = _filtrar_lotes_ativos_com_estado_temporal(
+        _montar_lotes_consolidados_oficial(
+            contexto,
+            saida,
+            tipo='ativos',
+            snapshot_situacao_atual=snapshot_situacao_atual,
+        ),
+        estado_temporal_inicial=estado_temporal_inicial,
+    )
     linhas_economicas = linhas_exauridos_consolidadas + linhas_ativos
 
     valor_original_total = round(sum(para_float(item.get('Orig.')) for item in linhas_economicas), 2)
