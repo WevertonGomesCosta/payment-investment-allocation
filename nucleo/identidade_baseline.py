@@ -5,8 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-# Identificador histórico preservado apenas para compatibilidade de nomes legados
-# e rotas antigas que ainda recebem o parâmetro `versao`.
+# Identificador histórico preservado apenas para rotas antigas que ainda
+# recebem o parâmetro `versao`. Não define artefato operacional atual.
 VERSAO_BASELINE = "V225"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
@@ -28,7 +28,6 @@ _ROTULOS_METADADOS_VERSAO = [
     ("branch", "branch"),
     ("data de referência", "data_referencia"),
     ("arquivo operacional oficial", "arquivo_operacional_oficial"),
-    ("arquivo legado compatível", "arquivo_legado_compativel"),
     ("fonte do commit", "fonte_commit"),
     ("fonte da branch", "fonte_branch"),
 ]
@@ -92,10 +91,6 @@ def nome_relatorio_operacional() -> str:
     return f"relatorio_operacional_{VERSAO_ATUAL_SLUG}.xlsx"
 
 
-def nome_relatorio_operacional_legado() -> str:
-    return f"relatorio_operacional_{VERSAO_SLUG}.xlsx"
-
-
 def metadados_versao_operacional(
     raiz: Path | str | None = None,
     *,
@@ -106,7 +101,6 @@ def metadados_versao_operacional(
         "pr_versao_atual": PR_VERSAO_ATUAL,
         "data_referencia": _serializar_data_referencia(data_referencia),
         "arquivo_operacional_oficial": nome_relatorio_operacional(),
-        "arquivo_legado_compativel": nome_relatorio_operacional_legado(),
     }
     metadados.update(_identidade_git(raiz))
     return metadados
