@@ -20,7 +20,6 @@ from nucleo.identidade_baseline import (
     linhas_metadados_versao_operacional,
     metadados_versao_operacional,
     nome_relatorio_operacional,
-    nome_relatorio_operacional_legado,
 )
 
 
@@ -95,24 +94,11 @@ def _nome_arquivo(contexto: Any, pacote: Any | None = None) -> str:
     return nome if nome.lower().endswith('.xlsx') else f'{nome}.xlsx'
 
 
-def _nomes_arquivos(contexto: Any, pacote: Any) -> tuple[str, str]:
-    metadados = _metadados_execucao(contexto, pacote)
-    oficial = str(metadados.get('arquivo_operacional_oficial') or _nome_arquivo(contexto, pacote)).strip()
-    legado = str(metadados.get('arquivo_legado_compativel') or nome_relatorio_operacional_legado()).strip()
-    if not oficial.lower().endswith('.xlsx'):
-        oficial = f'{oficial}.xlsx'
-    if not legado.lower().endswith('.xlsx'):
-        legado = f'{legado}.xlsx'
-    return oficial, legado
-
-
-def _caminhos(contexto: Any, pacote: Any) -> tuple[Path, Path, Path, Path]:
-    nome_oficial, nome_legado = _nomes_arquivos(contexto, pacote)
+def _caminhos(contexto: Any, pacote: Any) -> tuple[Path, Path]:
+    nome_oficial = _nome_arquivo(contexto, pacote)
     return (
         caminho_saida_operacional(RAIZ, nome_oficial),
         caminho_artifact(nome_oficial),
-        caminho_saida_operacional(RAIZ, nome_legado),
-        caminho_artifact(nome_legado),
     )
 
 
@@ -261,7 +247,7 @@ def main(*, contexto: Any = None, saida: Any = None, pacote_saida_observavel_ofi
     _validar_pacote(pacote_saida_observavel_oficial)
     if contexto is None:
         contexto = carregar_contexto_operacional_canonico(raiz_repositorio=RAIZ, instalar_automaticamente=False)
-    saida_interna, saida_externa, saida_legado, saida_legado_externa = _caminhos(contexto, pacote_saida_observavel_oficial)
+    saida_interna, saida_externa = _caminhos(contexto, pacote_saida_observavel_oficial)
     abas = _abas_oficiais(pacote_saida_observavel_oficial)
     wb = Workbook()
     _aba(wb, _nome_aba(contexto, 'extrato_passado'), HEADERS['extrato_passado'], abas['Extrato Passado'])
@@ -272,9 +258,7 @@ def main(*, contexto: Any = None, saida: Any = None, pacote_saida_observavel_ofi
     _aba_situacao(wb, contexto, pacote_saida_observavel_oficial)
     saida_interna.parent.mkdir(parents=True, exist_ok=True)
     wb.save(saida_interna)
-    wb.save(saida_legado)
     _salvar_copia(wb, saida_externa, rotulo='externa oficial')
-    _salvar_copia(wb, saida_legado_externa, rotulo='externa legado')
     return saida_interna
 
 
