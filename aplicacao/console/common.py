@@ -7,8 +7,15 @@ def imprimir_titulo(texto: str) -> None:
     print(f"\n=== {texto} ===")
 
 
+def _suprimir_linha_saida_principal(linha: dict[str, object]) -> bool:
+    metrica = formatar_valor_tabela(linha.get('Métrica') or linha.get('metrica')).strip().lower()
+    return metrica == 'origem da amostra'
+
+
 def imprimir_pares(pares: Iterable[tuple[str, object]]) -> None:
     for chave, valor in pares:
+        if str(chave).strip().lower() == 'origem da amostra':
+            continue
         print(f"- {chave}: {valor}")
 
 
@@ -52,6 +59,7 @@ def formatar_valor_tabela(valor: object) -> str:
 
 def imprimir_tabela(colunas: Sequence[str], linhas: Sequence[dict[str, object]], *, limite: int | None = None) -> None:
     linhas_use = list(linhas[:limite] if limite is not None else linhas)
+    linhas_use = [linha for linha in linhas_use if not _suprimir_linha_saida_principal(linha)]
     if not linhas_use:
         print('  [OK] sem linhas para exibir')
         return

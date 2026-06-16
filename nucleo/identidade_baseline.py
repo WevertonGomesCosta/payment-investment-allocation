@@ -22,14 +22,7 @@ _FONTE_GIT_INDISPONIVEL = "git_indisponivel"
 
 _ROTULOS_METADADOS_VERSAO = [
     ("versão atual", "versao_atual"),
-    ("PR da versão atual", "pr_versao_atual"),
-    ("commit", "commit"),
-    ("commit curto", "commit_curto"),
-    ("branch", "branch"),
-    ("data de referência", "data_referencia"),
     ("arquivo operacional oficial", "arquivo_operacional_oficial"),
-    ("fonte do commit", "fonte_commit"),
-    ("fonte da branch", "fonte_branch"),
 ]
 
 
