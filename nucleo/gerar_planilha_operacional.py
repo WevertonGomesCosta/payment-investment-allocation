@@ -71,8 +71,7 @@ def _metadados_execucao(contexto: Any, pacote: Any) -> dict[str, Any]:
         data_referencia=_data_referencia_contexto_ou_pacote(contexto, pacote),
     )
     atualizados = dict(existentes)
-    for chave, valor in base.items():
-        atualizados.setdefault(chave, valor)
+    atualizados.update(base)
     try:
         pacote.metadados.update(atualizados)
     except Exception:
