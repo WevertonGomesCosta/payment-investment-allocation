@@ -5,23 +5,14 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+# Identificador histórico preservado apenas para compatibilidade de nomes legados
+# e rotas antigas que ainda recebem o parâmetro `versao`.
 VERSAO_BASELINE = "V225"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
-PR_BASE_INTEGRADO = 531
-MARCO_BASE_INTEGRADO = "ME-525A"
-
-PR_OPERACIONAL = 532
-MARCO_OPERACIONAL = "ME-526"
-
-
-def _slug_marco(marco: str) -> str:
-    texto = re.sub(r"[^a-zA-Z0-9]+", "", str(marco).strip().lower())
-    return texto or "marco"
-
-
-VERSAO_OPERACIONAL = f"PR-{PR_OPERACIONAL} / {MARCO_OPERACIONAL}"
-VERSAO_OPERACIONAL_SLUG = f"pr{PR_OPERACIONAL}_{_slug_marco(MARCO_OPERACIONAL)}"
+PR_VERSAO_ATUAL = 532
+VERSAO_ATUAL = f"PR-{PR_VERSAO_ATUAL}"
+VERSAO_ATUAL_SLUG = f"pr{PR_VERSAO_ATUAL}"
 
 
 _COMMIT_INDISPONIVEL = "indisponivel"
@@ -30,12 +21,8 @@ _FONTE_GIT_INDISPONIVEL = "git_indisponivel"
 
 
 _ROTULOS_METADADOS_VERSAO = [
-    ("versão baseline", "versao_baseline"),
-    ("versão operacional", "versao_operacional"),
-    ("PR base integrado", "pr_base_integrado"),
-    ("marco base integrado", "marco_base_integrado"),
-    ("PR operacional", "pr_operacional"),
-    ("marco operacional", "marco_operacional"),
+    ("versão atual", "versao_atual"),
+    ("PR da versão atual", "pr_versao_atual"),
     ("commit", "commit"),
     ("commit curto", "commit_curto"),
     ("branch", "branch"),
@@ -102,7 +89,7 @@ def _serializar_data_referencia(data_referencia: Any) -> str:
 
 
 def nome_relatorio_operacional() -> str:
-    return f"relatorio_operacional_{VERSAO_OPERACIONAL_SLUG}.xlsx"
+    return f"relatorio_operacional_{VERSAO_ATUAL_SLUG}.xlsx"
 
 
 def nome_relatorio_operacional_legado() -> str:
@@ -115,12 +102,8 @@ def metadados_versao_operacional(
     data_referencia: Any = None,
 ) -> dict[str, Any]:
     metadados = {
-        "versao_baseline": VERSAO_BASELINE,
-        "versao_operacional": VERSAO_OPERACIONAL,
-        "pr_base_integrado": PR_BASE_INTEGRADO,
-        "marco_base_integrado": MARCO_BASE_INTEGRADO,
-        "pr_operacional": PR_OPERACIONAL,
-        "marco_operacional": MARCO_OPERACIONAL,
+        "versao_atual": VERSAO_ATUAL,
+        "pr_versao_atual": PR_VERSAO_ATUAL,
         "data_referencia": _serializar_data_referencia(data_referencia),
         "arquivo_operacional_oficial": nome_relatorio_operacional(),
         "arquivo_legado_compativel": nome_relatorio_operacional_legado(),
