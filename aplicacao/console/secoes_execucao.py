@@ -23,7 +23,6 @@ def render_secao_execucao(*, versao, pacote_config, pacote_planilha, contexto, s
         ('fonte do commit', metadados_versao.get('fonte_commit')),
         ('fonte da branch', metadados_versao.get('fonte_branch')),
         ('arquivo operacional oficial', metadados_versao.get('arquivo_operacional_oficial')),
-        ('arquivo legado compatível', metadados_versao.get('arquivo_legado_compativel')),
     ])
 
     imprimir_titulo('BASELINE / ENTRADAS')
