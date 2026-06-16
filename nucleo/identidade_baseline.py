@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -15,76 +14,10 @@ VERSAO_ATUAL = f"PR-{PR_VERSAO_ATUAL}"
 VERSAO_ATUAL_SLUG = f"pr{PR_VERSAO_ATUAL}"
 
 
-_COMMIT_INDISPONIVEL = "indisponivel"
-_BRANCH_INDISPONIVEL = "nao_detectado"
-_FONTE_GIT_INDISPONIVEL = "git_indisponivel"
-
-
 _ROTULOS_METADADOS_VERSAO = [
     ("versão atual", "versao_atual"),
-    ("PR da versão atual", "pr_versao_atual"),
-    ("commit", "commit"),
-    ("commit curto", "commit_curto"),
-    ("branch", "branch"),
-    ("data de referência", "data_referencia"),
     ("arquivo operacional oficial", "arquivo_operacional_oficial"),
-    ("fonte do commit", "fonte_commit"),
-    ("fonte da branch", "fonte_branch"),
 ]
-
-
-def _executar_git(raiz: Path | str | None, *args: str) -> str | None:
-    raiz_git = Path(raiz).resolve() if raiz is not None else Path.cwd()
-    try:
-        resultado = subprocess.run(
-            ["git", "-C", str(raiz_git), *args],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-    except Exception:
-        return None
-    texto = (resultado.stdout or "").strip()
-    return texto or None
-
-
-def _identidade_git(raiz: Path | str | None = None) -> dict[str, str]:
-    commit = _executar_git(raiz, "rev-parse", "HEAD")
-    branch = _executar_git(raiz, "rev-parse", "--abbrev-ref", "HEAD")
-
-    if commit:
-        commit_curto = commit[:12]
-        fonte_commit = "git"
-    else:
-        commit = _COMMIT_INDISPONIVEL
-        commit_curto = _COMMIT_INDISPONIVEL
-        fonte_commit = _FONTE_GIT_INDISPONIVEL
-
-    if branch:
-        fonte_branch = "git"
-    else:
-        branch = _BRANCH_INDISPONIVEL
-        fonte_branch = _FONTE_GIT_INDISPONIVEL
-
-    return {
-        "commit": commit,
-        "commit_curto": commit_curto,
-        "branch": branch,
-        "fonte_commit": fonte_commit,
-        "fonte_branch": fonte_branch,
-    }
-
-
-def _serializar_data_referencia(data_referencia: Any) -> str:
-    if data_referencia is None:
-        return ""
-    if hasattr(data_referencia, "isoformat") and not isinstance(data_referencia, str):
-        try:
-            return data_referencia.isoformat()
-        except Exception:
-            return str(data_referencia)
-    return str(data_referencia)
 
 
 def nome_relatorio_operacional() -> str:
@@ -96,14 +29,11 @@ def metadados_versao_operacional(
     *,
     data_referencia: Any = None,
 ) -> dict[str, Any]:
-    metadados = {
+    _ = raiz, data_referencia
+    return {
         "versao_atual": VERSAO_ATUAL,
-        "pr_versao_atual": PR_VERSAO_ATUAL,
-        "data_referencia": _serializar_data_referencia(data_referencia),
         "arquivo_operacional_oficial": nome_relatorio_operacional(),
     }
-    metadados.update(_identidade_git(raiz))
-    return metadados
 
 
 def linhas_metadados_versao_operacional(metadados: dict[str, Any]) -> list[dict[str, Any]]:
