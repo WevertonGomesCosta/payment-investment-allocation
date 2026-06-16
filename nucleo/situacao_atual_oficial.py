@@ -393,7 +393,28 @@ def _remover_origens_migradas_dos_exauridos_consolidados(
     ]
 
 
+def _remover_origens_migradas_dos_ativos_consolidados(
+    linhas: list[dict[str, Any]],
+    saida: Any,
+) -> list[dict[str, Any]]:
+    """Remove origens migradas da base ativa somável.
+
+    Este filtro é complementar ao filtro por estado temporal. Ele cobre o caso
+    em que as origens migradas existem apenas na auditoria da saída e
+    `estado_temporal_inicial` não está disponível para filtrar os ativos.
+    """
+    origens_migradas = _lotes_origens_migradas_set(saida)
+    if not origens_migradas:
+        return linhas
+    return [
+        linha
+        for linha in linhas
+        if str(linha.get("Lote") or "").strip() not in origens_migradas
+    ]
+
+
 def _mesclar_lotes_exauridos_com_origens_switching(
+
     linhas_exauridos_por_saque: list[dict[str, Any]],
     linhas_encerrados_por_switching: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -1003,14 +1024,17 @@ def _montar_patrimonio_total_lotes_oficial(contexto, saida, snapshot_situacao_at
     # origens migradas por switching não permanecem como ativos comuns; elas
     # entram como ciclos encerrados por switching, evitando divergência entre
     # patrimônio total e linhas de Situação Atual.
-    linhas_ativos = _filtrar_lotes_ativos_com_estado_temporal(
-        _montar_lotes_consolidados_oficial(
-            contexto,
-            saida,
-            tipo='ativos',
-            snapshot_situacao_atual=snapshot_situacao_atual,
+    linhas_ativos = _remover_origens_migradas_dos_ativos_consolidados(
+        _filtrar_lotes_ativos_com_estado_temporal(
+            _montar_lotes_consolidados_oficial(
+                contexto,
+                saida,
+                tipo='ativos',
+                snapshot_situacao_atual=snapshot_situacao_atual,
+            ),
+            estado_temporal_inicial=estado_temporal_inicial,
         ),
-        estado_temporal_inicial=estado_temporal_inicial,
+        saida,
     )
     linhas_economicas = linhas_exauridos_consolidadas + linhas_ativos
 

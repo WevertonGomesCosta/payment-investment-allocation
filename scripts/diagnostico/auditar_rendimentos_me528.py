@@ -43,13 +43,26 @@ def norm(v: Any) -> str:
     return str(v or "").strip()
 
 
-def fnum(v: Any) -> float:
+def valor_numerico(v: Any) -> bool:
     if v is None or v == "":
-        return 0.0
+        return False
     try:
-        return round(float(v), 2)
+        float(v)
+        return True
     except Exception:
+        return False
+
+
+def fnum(v: Any) -> float:
+    if not valor_numerico(v):
         return 0.0
+    return round(float(v), 2)
+
+
+def fnum_ou_texto(v: Any) -> float | str:
+    if valor_numerico(v):
+        return round(float(v), 2)
+    return norm(v) or "n/d"
 
 
 def ler_blocos(ws) -> dict[str, list[dict[str, Any]]]:
@@ -77,7 +90,10 @@ def ler_blocos(ws) -> dict[str, list[dict[str, Any]]]:
             for col, val in zip(header, rows[j]):
                 if not col:
                     continue
-                item[col] = fnum(val) if col in NUMERICOS else val
+                if col in {"Rend. líq. motor", "Dif. rend."}:
+                    item[col] = fnum_ou_texto(val)
+                else:
+                    item[col] = fnum(val) if col in NUMERICOS else val
             saida[titulo].append(item)
             j += 1
 
@@ -97,8 +113,15 @@ def classe_linha(row: dict[str, Any]) -> tuple[str, str, str]:
     liquido_sacado = fnum(row.get("Líq. sac."))
     liquido_atual = fnum(row.get("Líq. atual"))
 
+    if not valor_numerico(row.get("Rend. líq. motor")) or not valor_numerico(row.get("Dif. rend.")):
+        return (
+            "comparacao_motor_indisponivel",
+            "não",
+            "Rend. líq. motor ou Dif. rend. indisponível; não classificar como coincidência material",
+        )
+
     if abs(dif) <= 0.01:
-        return "sem_divergencia_material", "não", "bases coincidem dentro de tolerância"
+        return "sem_divergencia_material", "sim", "bases coincidem dentro de tolerância"
 
     if status == "migrado_por_switching":
         return (
@@ -220,7 +243,12 @@ def main() -> None:
     agg_patrimonio = patrimonio_total.get("Patrimônio líquido atual", 0.0)
     agg_rendimento = patrimonio_total.get("Rendimento líquido atual", 0.0)
 
-    divergentes = [r for r in linhas_csv if abs(r["dif_rendimento"]) > 0.01]
+    indisponiveis = [r for r in linhas_csv if r["classe_causa_provavel"] == "comparacao_motor_indisponivel"]
+    divergentes = [
+        r for r in linhas_csv
+        if r["classe_causa_provavel"] != "comparacao_motor_indisponivel"
+        and abs(r["dif_rendimento"]) > 0.01
+    ]
     sentinelas = [r for r in linhas_csv if r["sentinela"] == "sim"]
 
     classes = {}
@@ -237,6 +265,7 @@ def main() -> None:
     md.append("## Totais das linhas exibidas\n\n")
     md.append(f"- lotes auditados: {len(linhas_csv)}\n")
     md.append(f"- lotes com divergência material: {len(divergentes)}\n")
+    md.append(f"- lotes com comparação motor indisponível: {len(indisponiveis)}\n")
     md.append(f"- soma valor original das linhas: {total_original_linhas:.2f}\n")
     md.append(f"- soma patrimônio líquido das linhas: {total_patrimonio_linhas:.2f}\n")
     md.append(f"- soma Rend. líq. das linhas: {total_rend_saida_linhas:.2f}\n")
