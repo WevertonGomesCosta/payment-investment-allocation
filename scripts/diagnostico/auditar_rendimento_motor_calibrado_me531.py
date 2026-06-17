@@ -102,6 +102,7 @@ def escrever_md(rows: list[dict[str, Any]], auditoria_me531: dict[str, Any]) -> 
     fora = [r for r in rows if r["classe_dif_calibrada"] == "fora_tolerancia_material"]
     dentro = [r for r in rows if r["classe_dif_calibrada"] == "dentro_tolerancia_020"]
     teoricos = [r for r in rows if valor_numerico(r["rendimento_motor_teorico"])]
+    evidencia_publicada = bool(rows) and not faltantes and len(teoricos) > 0
 
     md: list[str] = []
     md.append("# ME-531 — Auditoria do rendimento motor calibrado\n\n")
@@ -111,7 +112,8 @@ def escrever_md(rows: list[dict[str, Any]], auditoria_me531: dict[str, Any]) -> 
     md.append(f"- linhas com diferença calibrada dentro de 0,20: {len(dentro)}\n")
     md.append(f"- linhas com diferença calibrada material fora de 0,50: {len(fora)}\n")
     md.append(f"- linhas com motor teórico preservado: {len(teoricos)}\n")
-    md.append(f"- auditoria ME-531 presente: {bool(auditoria_me531)}\n")
+    md.append(f"- evidência ME-531 publicada nas colunas: {evidencia_publicada}\n")
+    md.append(f"- auditoria ME-531 preservada em metadado, se disponível: {bool(auditoria_me531)}\n")
     md.append(f"- versão ME-531: {auditoria_me531.get('versao', 'n/d') if auditoria_me531 else 'n/d'}\n")
 
     md.append("\n## Evidência de arquitetura\n\n")
@@ -175,7 +177,12 @@ def main() -> None:
 
     rows = montar_linhas_auditoria(saida_canonica_oficial)
     auditoria_situacao = dict(getattr(saida_canonica_oficial, "auditoria_situacao_atual_oficial", {}) or {})
-    auditoria_me531 = dict(auditoria_situacao.get("me531_rendimento_motor_calibrado") or {})
+    metadados = dict(getattr(saida_canonica_oficial, "metadados", {}) or {})
+    auditoria_me531 = dict(
+        auditoria_situacao.get("me531_rendimento_motor_calibrado")
+        or metadados.get("me531_rendimento_motor_calibrado")
+        or {}
+    )
 
     escrever_csv(rows)
     escrever_md(rows, auditoria_me531)
@@ -186,7 +193,8 @@ def main() -> None:
     print(f"[OK] CSV: {OUT_CSV}")
     print(f"[OK] MD:  {OUT_MD}")
     print(f"[OK] lotes auditados: {len(rows)}")
-    print(f"[OK] auditoria ME-531 presente: {bool(auditoria_me531)}")
+    print(f"[OK] evidência ME-531 publicada nas colunas: {bool(rows) and not faltantes}")
+    print(f"[OK] auditoria ME-531 em metadado, se disponível: {bool(auditoria_me531)}")
     print(f"[OK] colunas obrigatórias ausentes: {len(faltantes)}")
     print(f"[OK] dif calibrada material fora de 0,50: {len(fora)}")
 
