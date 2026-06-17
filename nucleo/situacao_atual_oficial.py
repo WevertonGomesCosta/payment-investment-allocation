@@ -555,7 +555,7 @@ def _liquido_residual_replay_lote(
             tabela_iof=getattr(contexto, "tabela_iof", None),
             faixas_ir=getattr(contexto, "faixas_ir", None),
             serie_cdi=_serie_cdi_contexto(contexto),
-            data_base_referencia=getattr(lote, "data_aplicacao", data),
+            data_base_referencia=data,
         )), 2)
     except Exception:
         return None
