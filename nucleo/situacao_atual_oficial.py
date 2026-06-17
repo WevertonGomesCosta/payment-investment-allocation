@@ -48,6 +48,8 @@ COLS_LOTES_VALORES_CURTAS = [
 COLS_LOTES_VALORES_AUDITORIA_CURTAS = COLS_LOTES_VALORES_CURTAS + [
     'Rend. líq. motor',
     'Dif. rend.',
+    'Rend. motor teórico',
+    'Dif. teórica',
 ]
 
 COLS_ORIGENS_MIGRADAS_SWITCHING = [
@@ -80,6 +82,30 @@ COLS_RECEBIDOS_AUDITAVEIS = [
     'Residual aplicação',
     'Disponível ref',
     'Observação',
+]
+
+
+COLS_DECOMPOSICAO_CAUSAL_RENDIMENTO = [
+    'Lote',
+    'Classe lote',
+    'Carteira',
+    'Taxa',
+    'Aplic.',
+    'Base fiscal',
+    'Data ref.',
+    'Dias corr.',
+    'Dias úteis',
+    'Orig.',
+    'Bruto obs.',
+    'Bruto motor',
+    'Imposto obs.',
+    'Imposto motor',
+    'Líquido obs.',
+    'Líquido motor',
+    'Rend. líq.',
+    'Rend. motor teórico',
+    'Dif. teórica',
+    'Causa provável',
 ]
 
 
@@ -522,6 +548,65 @@ def _rendimento_liquido_motor_lote(
         return "n/d"
 
 
+def _liquido_residual_replay_lote(
+    contexto: Any,
+    lote_id: Any,
+    data_alvo: Any,
+) -> float | None:
+    """Obtém líquido residual de lote upstream pós-replay, antes da renderização."""
+    data = _coagir_data_observavel(data_alvo)
+    if data is None:
+        return None
+
+    replay = getattr(contexto, "replay_passado", None)
+    lotes_replay = {
+        _norm_lote_chave(getattr(lote_replay, "id", "")): lote_replay
+        for lote_replay in list(getattr(replay, "lotes_apos_replay", []) or [])
+        if _norm_lote_chave(getattr(lote_replay, "id", ""))
+    }
+    lote = _lookup_por_lote_normalizado(
+        lotes_replay,
+        lote_id,
+        None,
+    )
+    if lote is None:
+        return None
+
+    try:
+        return round(float(lote.valor_liquido_em_data(
+            data,
+            contexto.calendario_financeiro,
+            tabela_iof=getattr(contexto, "tabela_iof", None),
+            faixas_ir=getattr(contexto, "faixas_ir", None),
+            serie_cdi=_serie_cdi_contexto(contexto),
+            data_base_referencia=data,
+        )), 2)
+    except Exception:
+        return None
+
+
+def _rendimento_liquido_motor_calibrado_por_ancoras(
+    *,
+    valor_original: float,
+    liquido_sacado_realizado_ancora: Any,
+    liquido_residual_calibrado_ancora: Any,
+) -> float | str:
+    """Rendimento do motor calibrado por âncoras financeiras upstream.
+
+    A métrica só é emitida quando as parcelas vêm de objetos oficiais
+    anteriores à linha renderizada (replay/snapshot/estado temporal). Na
+    ausência de âncora independente, retorna ``n/d`` para não mascarar uma
+    igualdade tautológica com ``Rend. líq.``.
+    """
+    if liquido_sacado_realizado_ancora is None or liquido_residual_calibrado_ancora is None:
+        return "n/d"
+    patrimonio_calibrado = round(
+        para_float(liquido_sacado_realizado_ancora) + para_float(liquido_residual_calibrado_ancora),
+        2,
+    )
+    return round(patrimonio_calibrado - para_float(valor_original), 2)
+
+
 def _diferenca_rendimento_motor(rendimento_observavel: float, rendimento_motor: Any) -> float | str:
     if isinstance(rendimento_motor, (int, float)):
         return round(float(rendimento_observavel) - float(rendimento_motor), 2)
@@ -640,14 +725,35 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             valor_original=valor_original,
             patrimonio_liquido=patrimonio_liquido,
         )
-        rendimento_liquido_motor = _rendimento_liquido_motor_lote(
+        rendimento_motor_teorico = _rendimento_liquido_motor_lote(
             contexto,
             lote_id,
             data_referencia_dias,
         )
+        liquido_sacado_ancora = round(para_float(sacado.get('liquido_sacado')), 2)
+        # `Saldo Remanescente` do replay é âncora bruta diagnóstica; não deve
+        # ser tratado como líquido residual calibrado.
+        saldo_final_replay_bruto_ancora = _lookup_por_lote_normalizado(mapa_saldo_final_replay, lote_id, None)
+        if tipo == 'exauridos':
+            liquido_residual_ancora = 0.0
+        else:
+            liquido_residual_ancora = _liquido_residual_replay_lote(
+                contexto,
+                lote_id,
+                data_referencia_dias,
+            )
+        rendimento_liquido_motor = _rendimento_liquido_motor_calibrado_por_ancoras(
+            valor_original=valor_original,
+            liquido_sacado_realizado_ancora=liquido_sacado_ancora,
+            liquido_residual_calibrado_ancora=liquido_residual_ancora,
+        )
         diferenca_rendimento_motor = _diferenca_rendimento_motor(
             rendimento_liquido,
             rendimento_liquido_motor,
+        )
+        diferenca_teorica = _diferenca_rendimento_motor(
+            rendimento_liquido,
+            rendimento_motor_teorico,
         )
 
         linhas.append({
@@ -668,6 +774,8 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             'Rend. líq.': rendimento_liquido,
             'Rend. líq. motor': rendimento_liquido_motor,
             'Dif. rend.': diferenca_rendimento_motor,
+            'Rend. motor teórico': rendimento_motor_teorico,
+            'Dif. teórica': diferenca_teorica,
         })
 
     return linhas
@@ -885,14 +993,34 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             or ev_switching.get('data_aplicacao')
             or ev_switching.get('data_recebimento')
         )
-        rendimento_liquido_motor = _rendimento_liquido_motor_lote(
+        rendimento_motor_teorico = _rendimento_liquido_motor_lote(
             contexto,
             lote,
             data_switching_motor,
         )
+        liquido_migrado_ancora = round(
+            para_float(sw_valores.get('valor_liquido_migrado_total'))
+            or valor_migrado_item
+            or para_float(econ.get('liquido_migrado')),
+            2,
+        )
+        liquido_historico_ancora = round(
+            para_float(item.get('valor_liquido_sacado_historico'))
+            or para_float(econ.get('liquido_pagamentos')),
+            2,
+        )
+        rendimento_liquido_motor = _rendimento_liquido_motor_calibrado_por_ancoras(
+            valor_original=valor_original,
+            liquido_sacado_realizado_ancora=round(liquido_historico_ancora + liquido_migrado_ancora, 2),
+            liquido_residual_calibrado_ancora=0.0,
+        )
         diferenca_rendimento_motor = _diferenca_rendimento_motor(
             rendimento_liquido_observavel,
             rendimento_liquido_motor,
+        )
+        diferenca_teorica = _diferenca_rendimento_motor(
+            rendimento_liquido_observavel,
+            rendimento_motor_teorico,
         )
 
         linhas.append({
@@ -906,6 +1034,8 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             'Rend. líq.': rendimento_liquido_observavel,
             'Rend. líq. motor': rendimento_liquido_motor,
             'Dif. rend.': diferenca_rendimento_motor,
+            'Rend. motor teórico': rendimento_motor_teorico,
+            'Dif. teórica': diferenca_teorica,
         })
 
     return linhas
@@ -976,6 +1106,145 @@ def construir_linhas_origens_migradas_por_switching(contexto, saida, snapshot_si
 
     return linhas
 
+
+
+def _taxa_lote_motor_contexto(contexto: Any, lote_id: Any) -> str:
+    lote = _lookup_por_lote_normalizado(_mapa_lotes_motor_contexto(contexto), lote_id, None)
+    if lote is None:
+        return 'n/d'
+    base = getattr(lote, 'taxa_base_cdi', None)
+    bonus = getattr(lote, 'taxa_bonus_cdi', None)
+    dias_bonus = getattr(lote, 'dias_bonus', None)
+    partes = []
+    if base is not None:
+        partes.append(f"base CDI {round(para_float(base) * 100, 4)}%")
+    if bonus is not None and para_float(bonus) > 0:
+        partes.append(f"bônus CDI {round(para_float(bonus) * 100, 4)}%/{dias_bonus or 0}d")
+    return ' | '.join(partes) if partes else 'n/d'
+
+
+def _bruto_motor_teorico_lote(contexto: Any, lote_id: Any, data_alvo: Any) -> float | str:
+    data = _coagir_data_observavel(data_alvo)
+    if data is None:
+        return 'n/d'
+    lote = _lookup_por_lote_normalizado(_mapa_lotes_motor_contexto(contexto), lote_id, None)
+    if lote is None:
+        return 'n/d'
+    try:
+        return round(float(lote.valor_bruto_em_data(
+            data,
+            contexto.calendario_financeiro,
+            serie_cdi=_serie_cdi_contexto(contexto),
+            data_base_referencia=getattr(lote, 'data_aplicacao', data),
+        )), 2)
+    except Exception:
+        return 'n/d'
+
+
+def _causa_provavel_diferenca_rendimento(
+    *,
+    classe_lote: str,
+    dif_teorica: float,
+    imposto_observado: float,
+    imposto_motor: Any,
+    bruto_observado: float,
+    bruto_motor: Any,
+    liquido_observado: float,
+    liquido_motor: Any,
+) -> str:
+    if abs(dif_teorica) <= 1.0:
+        return 'arredondamento'
+    classe = str(classe_lote or '').lower()
+    if 'switching' in classe:
+        return 'switching'
+    if 'saque parcial' in classe or 'exaurido' in classe:
+        return 'saque/replay'
+    if isinstance(imposto_motor, (int, float)) and abs(round(imposto_observado - float(imposto_motor), 2)) > 1.0:
+        return 'IR/IOF'
+    if isinstance(bruto_motor, (int, float)) and abs(round(bruto_observado - float(bruto_motor), 2)) > 1.0:
+        return 'capitalização'
+    if isinstance(liquido_motor, (int, float)) and abs(round(liquido_observado - float(liquido_motor), 2)) > 1.0:
+        return 'dias úteis/CDI'
+    return 'indeterminado'
+
+
+def construir_linhas_decomposicao_causal_rendimento(
+    contexto: Any,
+    saida: Any,
+    *,
+    lotes_exauridos_id: list[dict[str, Any]],
+    lotes_exauridos_valores: list[dict[str, Any]],
+    lotes_ativos_id: list[dict[str, Any]],
+    lotes_ativos_valores: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Diagnóstico oficial ME-531B: observado versus motor teórico por lote.
+
+    A decomposição usa linhas oficiais já materializadas no núcleo antes da
+    renderização e o motor financeiro upstream. Ela não altera decisão
+    econômica, ranking, gates ou a própria métrica ``Dif. teórica``.
+    """
+    ids = {
+        str(item.get('Lote') or '').strip(): dict(item)
+        for item in list(lotes_exauridos_id or []) + list(lotes_ativos_id or [])
+        if str(item.get('Lote') or '').strip()
+    }
+    linhas: list[dict[str, Any]] = []
+    for valores in list(lotes_exauridos_valores or []) + list(lotes_ativos_valores or []):
+        lote = str(valores.get('Lote') or '').strip()
+        if not lote:
+            continue
+        dif_teorica = para_float(valores.get('Dif. teórica'))
+        if abs(dif_teorica) <= 1.0:
+            continue
+        ident = ids.get(lote, {})
+        classe_lote = str(ident.get('Status ciclo') or '').strip() or 'indeterminado'
+        if para_float(valores.get('Líq. sac.')) > 0 and para_float(valores.get('Líq. atual')) > 0 and 'switching' not in classe_lote:
+            classe_lote = 'saque parcial'
+        data_ref = ident.get('Data término') or getattr(saida, 'data_referencia', None) or getattr(contexto, 'data_referencia', None)
+        bruto_observado = round(para_float(valores.get('Bruto sac.')) + para_float(valores.get('Bruto atual')), 2)
+        liquido_observado = round(para_float(valores.get('Líq. sac.')) + para_float(valores.get('Líq. atual')), 2)
+        imposto_observado = round(bruto_observado - liquido_observado, 2)
+        bruto_motor = _bruto_motor_teorico_lote(contexto, lote, data_ref)
+        rendimento_motor_teorico = valores.get('Rend. motor teórico')
+        liquido_motor = 'n/d'
+        if isinstance(rendimento_motor_teorico, (int, float)):
+            liquido_motor = round(para_float(valores.get('Orig.')) + float(rendimento_motor_teorico), 2)
+        imposto_motor = 'n/d'
+        if isinstance(bruto_motor, (int, float)) and isinstance(liquido_motor, (int, float)):
+            imposto_motor = round(float(bruto_motor) - float(liquido_motor), 2)
+        causa = _causa_provavel_diferenca_rendimento(
+            classe_lote=classe_lote,
+            dif_teorica=dif_teorica,
+            imposto_observado=imposto_observado,
+            imposto_motor=imposto_motor,
+            bruto_observado=bruto_observado,
+            bruto_motor=bruto_motor,
+            liquido_observado=liquido_observado,
+            liquido_motor=liquido_motor,
+        )
+        linhas.append({
+            'Lote': lote,
+            'Classe lote': classe_lote,
+            'Carteira': ident.get('Carteira') or 'n/d',
+            'Taxa': _taxa_lote_motor_contexto(contexto, lote),
+            'Aplic.': ident.get('Aplic.') or 'n/d',
+            'Base fiscal': ident.get('Base fiscal') or 'n/d',
+            'Data ref.': data_ref,
+            'Dias corr.': ident.get('Dias corr.', ''),
+            'Dias úteis': ident.get('Dias úteis', ''),
+            'Orig.': valores.get('Orig.'),
+            'Bruto obs.': bruto_observado,
+            'Bruto motor': bruto_motor,
+            'Imposto obs.': imposto_observado,
+            'Imposto motor': imposto_motor,
+            'Líquido obs.': liquido_observado,
+            'Líquido motor': liquido_motor,
+            'Rend. líq.': valores.get('Rend. líq.'),
+            'Rend. motor teórico': rendimento_motor_teorico,
+            'Dif. teórica': dif_teorica,
+            'Causa provável': causa,
+        })
+    return sorted(linhas, key=lambda item: abs(para_float(item.get('Dif. teórica'))), reverse=True)
 
 def _reconciliacao_origens_migradas(saida) -> dict[str, float]:
     auditoria = dict(getattr(saida, 'auditoria', {}) or {})
@@ -1167,6 +1436,14 @@ def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atu
         snapshot_situacao_atual=snapshot_situacao_atual,
         estado_temporal_inicial=estado_temporal_inicial,
     )
+    decomposicao_causal = construir_linhas_decomposicao_causal_rendimento(
+        contexto,
+        saida,
+        lotes_exauridos_id=lotes_exauridos_id,
+        lotes_exauridos_valores=lotes_exauridos_valores,
+        lotes_ativos_id=lotes_ativos_id,
+        lotes_ativos_valores=lotes_ativos_valores,
+    )
 
     return [
         {
@@ -1198,6 +1475,11 @@ def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atu
             'titulo': 'Patrimônio total dos lotes',
             'headers': ['Métrica', 'Valor'],
             'linhas': patrimonio_total,
+        },
+        {
+            'titulo': 'Decomposição causal de rendimento — observado vs motor teórico',
+            'headers': COLS_DECOMPOSICAO_CAUSAL_RENDIMENTO,
+            'linhas': decomposicao_causal,
         },
         {
             'titulo': 'Recebidos auditáveis',
