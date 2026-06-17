@@ -528,6 +528,43 @@ def _diferenca_rendimento_motor(rendimento_observavel: float, rendimento_motor: 
     return "n/d"
 
 
+def _rendimento_liquido_motor_publicavel_por_ciclo(
+    *,
+    status_ciclo: Any,
+    valor_original: Any,
+    liquido_sacado: Any,
+    liquido_atual: Any,
+    rendimento_motor_teorico: Any,
+) -> float | str:
+    """Calcula o rendimento motor publicável respeitando o ciclo realizado do lote.
+
+    Esta função corrige a métrica observável/publicada. Para ciclos já realizados
+    — saque, switching ou saque parcial — a base correta é o valor realizado no
+    replay/app, não a reprecificação teórica pré-replay do lote.
+
+    O motor teórico permanece disponível para projeções futuras e auditorias.
+    """
+
+    status = str(status_ciclo or "").strip()
+    orig = para_float(valor_original)
+    liq_sac = para_float(liquido_sacado)
+    liq_atual = para_float(liquido_atual)
+
+    if orig <= 0:
+        return rendimento_motor_teorico
+
+    if status in {"exaurido_por_saque", "migrado_por_switching"}:
+        return round(liq_sac - orig, 2)
+
+    if status in {"ativo", "ativo_pos_switching"}:
+        return round((liq_sac + liq_atual) - orig, 2)
+
+    if isinstance(rendimento_motor_teorico, (int, float)):
+        return round(float(rendimento_motor_teorico), 2)
+
+    return "n/d"
+
+
 
 
 def _valores_sacados_por_lote_bootstrap(saida: Any) -> dict[str, dict[str, float]]:
@@ -640,10 +677,17 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             valor_original=valor_original,
             patrimonio_liquido=patrimonio_liquido,
         )
-        rendimento_liquido_motor = _rendimento_liquido_motor_lote(
+        rendimento_liquido_motor_teorico = _rendimento_liquido_motor_lote(
             contexto,
             lote_id,
             data_referencia_dias,
+        )
+        rendimento_liquido_motor = _rendimento_liquido_motor_publicavel_por_ciclo(
+            status_ciclo=status_ciclo,
+            valor_original=valor_original,
+            liquido_sacado=liquido_sacado,
+            liquido_atual=liquido_atual,
+            rendimento_motor_teorico=rendimento_liquido_motor_teorico,
         )
         diferenca_rendimento_motor = _diferenca_rendimento_motor(
             rendimento_liquido,
@@ -885,10 +929,17 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             or ev_switching.get('data_aplicacao')
             or ev_switching.get('data_recebimento')
         )
-        rendimento_liquido_motor = _rendimento_liquido_motor_lote(
+        rendimento_liquido_motor_teorico = _rendimento_liquido_motor_lote(
             contexto,
             lote,
             data_switching_motor,
+        )
+        rendimento_liquido_motor = _rendimento_liquido_motor_publicavel_por_ciclo(
+            status_ciclo="migrado_por_switching",
+            valor_original=valor_original,
+            liquido_sacado=liquido_sacado_total,
+            liquido_atual=0.0,
+            rendimento_motor_teorico=rendimento_liquido_motor_teorico,
         )
         diferenca_rendimento_motor = _diferenca_rendimento_motor(
             rendimento_liquido_observavel,
