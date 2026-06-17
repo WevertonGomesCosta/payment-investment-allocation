@@ -524,21 +524,60 @@ def _rendimento_liquido_motor_lote(
         return "n/d"
 
 
+def _liquido_residual_replay_lote(
+    contexto: Any,
+    lote_id: Any,
+    data_alvo: Any,
+) -> float | None:
+    """Obtém líquido residual de lote upstream pós-replay, antes da renderização."""
+    data = _coagir_data_observavel(data_alvo)
+    if data is None:
+        return None
+
+    replay = getattr(contexto, "replay_passado", None)
+    lotes_replay = {
+        _norm_lote_chave(getattr(lote_replay, "id", "")): lote_replay
+        for lote_replay in list(getattr(replay, "lotes_apos_replay", []) or [])
+        if _norm_lote_chave(getattr(lote_replay, "id", ""))
+    }
+    lote = _lookup_por_lote_normalizado(
+        lotes_replay,
+        lote_id,
+        None,
+    )
+    if lote is None:
+        return None
+
+    try:
+        return round(float(lote.valor_liquido_em_data(
+            data,
+            contexto.calendario_financeiro,
+            tabela_iof=getattr(contexto, "tabela_iof", None),
+            faixas_ir=getattr(contexto, "faixas_ir", None),
+            serie_cdi=_serie_cdi_contexto(contexto),
+            data_base_referencia=getattr(lote, "data_aplicacao", data),
+        )), 2)
+    except Exception:
+        return None
+
+
 def _rendimento_liquido_motor_calibrado_por_ancoras(
     *,
     valor_original: float,
-    liquido_sacado_realizado: float,
-    liquido_residual_calibrado: float,
-) -> float:
+    liquido_sacado_realizado_ancora: Any,
+    liquido_residual_calibrado_ancora: Any,
+) -> float | str:
     """Rendimento do motor calibrado por âncoras financeiras upstream.
 
-    A métrica usa valores já materializados pelo replay/contexto/estado
-    temporal para representar a economia realizada do lote, sem depender da
-    tabela renderizada e sem usar o cálculo teórico do lote como fonte
-    primária.
+    A métrica só é emitida quando as parcelas vêm de objetos oficiais
+    anteriores à linha renderizada (replay/snapshot/estado temporal). Na
+    ausência de âncora independente, retorna ``n/d`` para não mascarar uma
+    igualdade tautológica com ``Rend. líq.``.
     """
+    if liquido_sacado_realizado_ancora is None or liquido_residual_calibrado_ancora is None:
+        return "n/d"
     patrimonio_calibrado = round(
-        para_float(liquido_sacado_realizado) + para_float(liquido_residual_calibrado),
+        para_float(liquido_sacado_realizado_ancora) + para_float(liquido_residual_calibrado_ancora),
         2,
     )
     return round(patrimonio_calibrado - para_float(valor_original), 2)
@@ -667,17 +706,29 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             lote_id,
             data_referencia_dias,
         )
+        liquido_sacado_ancora = round(para_float(sacado.get('liquido_sacado')), 2)
+        saldo_final_replay_ancora = _lookup_por_lote_normalizado(mapa_saldo_final_replay, lote_id, None)
+        if tipo == 'exauridos':
+            liquido_residual_ancora = 0.0
+        elif saldo_final_replay_ancora is not None:
+            liquido_residual_ancora = round(para_float(saldo_final_replay_ancora), 2)
+        else:
+            liquido_residual_ancora = _liquido_residual_replay_lote(
+                contexto,
+                lote_id,
+                data_referencia_dias,
+            )
         rendimento_liquido_motor = _rendimento_liquido_motor_calibrado_por_ancoras(
             valor_original=valor_original,
-            liquido_sacado_realizado=liquido_sacado,
-            liquido_residual_calibrado=liquido_atual,
+            liquido_sacado_realizado_ancora=liquido_sacado_ancora,
+            liquido_residual_calibrado_ancora=liquido_residual_ancora,
         )
         diferenca_rendimento_motor = _diferenca_rendimento_motor(
             rendimento_liquido,
             rendimento_liquido_motor,
         )
         diferenca_teorica = _diferenca_rendimento_motor(
-            rendimento_liquido_motor,
+            rendimento_liquido,
             rendimento_motor_teorico,
         )
 
@@ -923,17 +974,28 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             lote,
             data_switching_motor,
         )
+        liquido_migrado_ancora = round(
+            para_float(sw_valores.get('valor_liquido_migrado_total'))
+            or valor_migrado_item
+            or para_float(econ.get('liquido_migrado')),
+            2,
+        )
+        liquido_historico_ancora = round(
+            para_float(item.get('valor_liquido_sacado_historico'))
+            or para_float(econ.get('liquido_pagamentos')),
+            2,
+        )
         rendimento_liquido_motor = _rendimento_liquido_motor_calibrado_por_ancoras(
             valor_original=valor_original,
-            liquido_sacado_realizado=liquido_sacado_total,
-            liquido_residual_calibrado=0.0,
+            liquido_sacado_realizado_ancora=round(liquido_historico_ancora + liquido_migrado_ancora, 2),
+            liquido_residual_calibrado_ancora=0.0,
         )
         diferenca_rendimento_motor = _diferenca_rendimento_motor(
             rendimento_liquido_observavel,
             rendimento_liquido_motor,
         )
         diferenca_teorica = _diferenca_rendimento_motor(
-            rendimento_liquido_motor,
+            rendimento_liquido_observavel,
             rendimento_motor_teorico,
         )
 
