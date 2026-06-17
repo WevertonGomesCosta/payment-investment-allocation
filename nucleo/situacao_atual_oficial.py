@@ -48,6 +48,8 @@ COLS_LOTES_VALORES_CURTAS = [
 COLS_LOTES_VALORES_AUDITORIA_CURTAS = COLS_LOTES_VALORES_CURTAS + [
     'Rend. líq. motor',
     'Dif. rend.',
+    'Rend. motor teórico',
+    'Dif. teórica',
 ]
 
 COLS_ORIGENS_MIGRADAS_SWITCHING = [
@@ -522,6 +524,26 @@ def _rendimento_liquido_motor_lote(
         return "n/d"
 
 
+def _rendimento_liquido_motor_calibrado_por_ancoras(
+    *,
+    valor_original: float,
+    liquido_sacado_realizado: float,
+    liquido_residual_calibrado: float,
+) -> float:
+    """Rendimento do motor calibrado por âncoras financeiras upstream.
+
+    A métrica usa valores já materializados pelo replay/contexto/estado
+    temporal para representar a economia realizada do lote, sem depender da
+    tabela renderizada e sem usar o cálculo teórico do lote como fonte
+    primária.
+    """
+    patrimonio_calibrado = round(
+        para_float(liquido_sacado_realizado) + para_float(liquido_residual_calibrado),
+        2,
+    )
+    return round(patrimonio_calibrado - para_float(valor_original), 2)
+
+
 def _diferenca_rendimento_motor(rendimento_observavel: float, rendimento_motor: Any) -> float | str:
     if isinstance(rendimento_motor, (int, float)):
         return round(float(rendimento_observavel) - float(rendimento_motor), 2)
@@ -640,14 +662,23 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             valor_original=valor_original,
             patrimonio_liquido=patrimonio_liquido,
         )
-        rendimento_liquido_motor = _rendimento_liquido_motor_lote(
+        rendimento_motor_teorico = _rendimento_liquido_motor_lote(
             contexto,
             lote_id,
             data_referencia_dias,
         )
+        rendimento_liquido_motor = _rendimento_liquido_motor_calibrado_por_ancoras(
+            valor_original=valor_original,
+            liquido_sacado_realizado=liquido_sacado,
+            liquido_residual_calibrado=liquido_atual,
+        )
         diferenca_rendimento_motor = _diferenca_rendimento_motor(
             rendimento_liquido,
             rendimento_liquido_motor,
+        )
+        diferenca_teorica = _diferenca_rendimento_motor(
+            rendimento_liquido_motor,
+            rendimento_motor_teorico,
         )
 
         linhas.append({
@@ -668,6 +699,8 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             'Rend. líq.': rendimento_liquido,
             'Rend. líq. motor': rendimento_liquido_motor,
             'Dif. rend.': diferenca_rendimento_motor,
+            'Rend. motor teórico': rendimento_motor_teorico,
+            'Dif. teórica': diferenca_teorica,
         })
 
     return linhas
@@ -885,14 +918,23 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             or ev_switching.get('data_aplicacao')
             or ev_switching.get('data_recebimento')
         )
-        rendimento_liquido_motor = _rendimento_liquido_motor_lote(
+        rendimento_motor_teorico = _rendimento_liquido_motor_lote(
             contexto,
             lote,
             data_switching_motor,
         )
+        rendimento_liquido_motor = _rendimento_liquido_motor_calibrado_por_ancoras(
+            valor_original=valor_original,
+            liquido_sacado_realizado=liquido_sacado_total,
+            liquido_residual_calibrado=0.0,
+        )
         diferenca_rendimento_motor = _diferenca_rendimento_motor(
             rendimento_liquido_observavel,
             rendimento_liquido_motor,
+        )
+        diferenca_teorica = _diferenca_rendimento_motor(
+            rendimento_liquido_motor,
+            rendimento_motor_teorico,
         )
 
         linhas.append({
@@ -906,6 +948,8 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             'Rend. líq.': rendimento_liquido_observavel,
             'Rend. líq. motor': rendimento_liquido_motor,
             'Dif. rend.': diferenca_rendimento_motor,
+            'Rend. motor teórico': rendimento_motor_teorico,
+            'Dif. teórica': diferenca_teorica,
         })
 
     return linhas
