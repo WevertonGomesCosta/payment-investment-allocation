@@ -21,7 +21,7 @@ from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_o
 from nucleo.governanca_residuos_pipeline import construir_resultado_governanca_residuos_pipeline
 from nucleo.inventario_residuos_pipeline import construir_inventario_residuos_pipeline
 from nucleo.identidade_baseline import VERSAO_BASELINE, metadados_versao_operacional
-from nucleo.situacao_atual_oficial import construir_situacao_atual_oficial
+from nucleo.situacao_atual_oficial_me531 import construir_situacao_atual_oficial
 
 
 def _valor(objeto, campo, padrao=None):
