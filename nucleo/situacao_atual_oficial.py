@@ -707,11 +707,11 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             data_referencia_dias,
         )
         liquido_sacado_ancora = round(para_float(sacado.get('liquido_sacado')), 2)
-        saldo_final_replay_ancora = _lookup_por_lote_normalizado(mapa_saldo_final_replay, lote_id, None)
+        # `Saldo Remanescente` do replay é âncora bruta diagnóstica; não deve
+        # ser tratado como líquido residual calibrado.
+        saldo_final_replay_bruto_ancora = _lookup_por_lote_normalizado(mapa_saldo_final_replay, lote_id, None)
         if tipo == 'exauridos':
             liquido_residual_ancora = 0.0
-        elif saldo_final_replay_ancora is not None:
-            liquido_residual_ancora = round(para_float(saldo_final_replay_ancora), 2)
         else:
             liquido_residual_ancora = _liquido_residual_replay_lote(
                 contexto,
