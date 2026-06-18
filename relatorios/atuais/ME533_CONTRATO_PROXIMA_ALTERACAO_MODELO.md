@@ -45,9 +45,9 @@ A próxima ME de implementação poderá atuar, com contrato explícito, nas seg
 | Camada | Pode ser alterada na próxima implementação? | Condição contratual |
 |---|---:|---|
 | Motor temporal conjunto | Sim | Deve preservar rastreabilidade por evento, lote, fonte e data. |
-| Score/ranking | Sim | Deve preservar separação entre universo econômico/ranking e renderização. |
+| Score/ranking | Sim | Deve preservar separação entre universo econômico/ranking e renderização, além de respeitar ticket mínimo, compatibilidade do produto destino e filtros de elegibilidade. |
 | Seleção de fontes para pagamento | Sim | Deve respeitar saldo, carência, liquidez, fiscalidade e cobertura de obrigações. |
-| Decisão `pay_only` vs `switch_then_pay` | Sim | Deve explicar ganho econômico líquido e efeito nos pagamentos. |
+| Escolha entre `pay_only`, `switch_then_pay` e `pay_then_switch` | Sim | Deve explicar ganho econômico líquido, viabilidade operacional e efeito nos pagamentos do dia. |
 | Liquidez | Sim | Deve ser tratada como restrição explícita, não como ajuste de saída. |
 | Carência | Sim | Deve impedir uso de fonte/lote inelegível. |
 | Imposto | Sim | Deve preservar ou versionar regras fiscais no núcleo. |
@@ -71,8 +71,9 @@ A próxima implementação deverá tratar explicitamente os seguintes componente
 3. **Liquidez:** decisões devem preservar capacidade de pagamento futuro e não usar recursos bloqueados.
 4. **Carência:** lotes em carência não podem ser usados como fonte de pagamento ou switching fora do contrato.
 5. **Fiscalidade:** imposto, líquido sacado e líquido residual devem ser calculados na camada de núcleo.
-6. **Rastreabilidade:** toda decisão deve ser explicável por data, lote, fonte, produto e evento.
-7. **Governança:** renderização, paridade e resíduos não podem alterar decisão econômica.
+6. **Elegibilidade de destino:** switching, ranking e alocação devem respeitar ticket mínimo, produto destino, compatibilidade operacional e cronologia intradiária.
+7. **Rastreabilidade:** toda decisão deve ser explicável por data, lote, fonte, produto e evento.
+8. **Governança:** renderização, paridade e resíduos não podem alterar decisão econômica.
 
 ## 6. Restrições obrigatórias
 
@@ -118,8 +119,18 @@ A próxima implementação deve respeitar, no mínimo, as restrições abaixo.
 ### 6.6. Pagamento monofonte/multifonte
 
 - Preservar o contrato vigente de pagamento monofonte ou multifonte.
-- Em caso de multifonte, respeitar o limite contratual de resíduo por conta/dia.
+- Em caso de multifonte, avaliar o **conjunto dos pagamentos do dia**, não cada conta isoladamente.
+- Respeitar o limite contratual de, no máximo, uma fonte/lote usado encerrando com resíduo positivo no conjunto dos pagamentos do dia, observada a regra vigente de materialidade.
+- Não aprovar uma interpretação com um resíduo positivo por conta individual quando isso violar o limite diário global.
 - Não pulverizar pagamentos em fontes irrelevantes para criar ganho artificial.
+
+### 6.7. Switching, ticket e compatibilidade do produto destino
+
+- Respeitar ticket mínimo do produto destino.
+- Respeitar compatibilidade entre valor migrado, produto destino e regras de elegibilidade.
+- Respeitar cronologia intradiária ao avaliar `switch_then_pay` ou `pay_then_switch`.
+- Não promover destino apenas por score/ranking quando o valor migrado não satisfaz ticket, produto destino ou restrição operacional.
+- Não tratar produto economicamente ranqueado como destino elegível sem passar pelos filtros contratuais de switching.
 
 ## 7. Decisões que poderão mudar na próxima implementação
 
@@ -130,7 +141,7 @@ Decisões potencialmente mutáveis:
 1. **Lote escolhido para pagamento.**
 2. **Fonte escolhida para pagamento.**
 3. **Uso de pagamento monofonte ou multifonte, conforme contrato vigente.**
-4. **Escolha entre `pay_only` e `switch_then_pay`.**
+4. **Escolha entre `pay_only`, `switch_then_pay` e `pay_then_switch`.**
 5. **Destino de sobras de recebidos.**
 6. **Ranking efetivo de produtos para switching/aporte.**
 7. **Uso ou reserva de fontes futuras.**
@@ -190,6 +201,7 @@ A próxima implementação deverá comparar, no mínimo, as seguintes métricas 
 | Obrigações cobertas | Quantidade e valor de pagamentos atendidos | Não pode piorar sem justificativa contratual. |
 | Obrigações bloqueadas | Quantidade, valor e motivo de bloqueio | Deve ser explicado caso mude. |
 | Número de switchings | Grau de movimentação operacional | Deve ser compatível com ganho líquido e governança. |
+| Viabilidade de ticket/produto destino | Elegibilidade real de destinos ranqueados | Deve impedir switching/aporte economicamente ranqueado, mas operacionalmente inelegível. |
 | Impostos pagos | Custo fiscal realizado | Deve ser medido por lote/fonte/evento. |
 | Liquidez residual | Capacidade de cobertura posterior | Deve ser preservada conforme restrições. |
 | Rendimento líquido observado | Resultado líquido por lote/fonte | Métrica de auditoria econômica. |
@@ -207,16 +219,17 @@ A próxima ME de implementação será aprovada somente se atender simultaneamen
 2. **Nenhuma quebra de pagamento obrigatório.**
 3. **Nenhuma quebra de saldo, liquidez ou carência.**
 4. **Nenhum uso de lote inelegível.**
-5. **Nenhuma regressão fiscal material não explicada.**
-6. **Etapas 9, 10 e 11 aprovadas.**
-7. **Diferenças econômicas explicáveis por evento/lote/fonte.**
-8. **Paridade console/XLSX preservada.**
-9. **Saída oficial mantida no contrato de cinco abas.**
-10. **Métricas oficiais preservadas.**
-11. **Ausência de métricas auxiliares removidas.**
-12. **Ausência de `Auditoria Replay` na saída oficial.**
-13. **Manifesto e identidade formal coerentes com PR/ME.**
-14. **Nenhuma mudança econômica causada por renderização.**
+5. **Nenhuma promoção de produto destino inelegível por ticket, compatibilidade ou cronologia intradiária.**
+6. **Nenhuma regressão fiscal material não explicada.**
+7. **Etapas 9, 10 e 11 aprovadas.**
+8. **Diferenças econômicas explicáveis por evento/lote/fonte.**
+9. **Paridade console/XLSX preservada.**
+10. **Saída oficial mantida no contrato de cinco abas.**
+11. **Métricas oficiais preservadas.**
+12. **Ausência de métricas auxiliares removidas.**
+13. **Ausência de `Auditoria Replay` na saída oficial.**
+14. **Manifesto e identidade formal coerentes com PR/ME.**
+15. **Nenhuma mudança econômica causada por renderização.**
 
 ## 11. Critérios de rejeição
 
@@ -227,17 +240,19 @@ A próxima ME de implementação deve ser rejeitada se qualquer condição abaix
 3. Obrigação coberta passa a bloqueada sem justificativa econômica e contratual.
 4. Saldo negativo é produzido.
 5. Lote inexistente ou inelegível é usado.
-6. Carência é violada.
-7. Liquidez é violada.
-8. Imposto é omitido ou deslocado para renderização.
-9. Console ou XLSX passa a alimentar decisão.
-10. Etapa 10 é reprovada.
-11. Etapa 11 é reprovada.
-12. Métrica auxiliar removida é reintroduzida.
-13. `Auditoria Replay` reaparece na saída oficial.
-14. Contrato de abas é alterado sem ME própria.
-15. Melhora econômica decorre de artefato de renderização, arredondamento não contratual ou supressão de obrigação.
-16. A mudança não é rastreável por evento, lote, fonte e data.
+6. Produto destino é promovido sem cumprir ticket mínimo, compatibilidade ou elegibilidade operacional.
+7. Cronologia intradiária torna inválida a escolha entre `pay_only`, `switch_then_pay` ou `pay_then_switch`.
+8. Carência é violada.
+9. Liquidez é violada.
+10. Imposto é omitido ou deslocado para renderização.
+11. Console ou XLSX passa a alimentar decisão.
+12. Etapa 10 é reprovada.
+13. Etapa 11 é reprovada.
+14. Métrica auxiliar removida é reintroduzida.
+15. `Auditoria Replay` reaparece na saída oficial.
+16. Contrato de abas é alterado sem ME própria.
+17. Melhora econômica decorre de artefato de renderização, arredondamento não contratual ou supressão de obrigação.
+18. A mudança não é rastreável por evento, lote, fonte e data.
 
 ## 12. Forma esperada da próxima implementação
 
@@ -251,7 +266,8 @@ A próxima ME de implementação deve apresentar:
 6. explicação de diferenças por lote/fonte/evento;
 7. validação das Etapas 9, 10 e 11;
 8. confirmação de invariantes preservados;
-9. decisão objetiva: aprovar, reprovar ou aprovar com ressalva.
+9. validação explícita de ticket, produto destino e cronologia intradiária quando houver ranking/switching;
+10. decisão objetiva: aprovar, reprovar ou aprovar com ressalva.
 
 ## 13. Proibições desta ME-533
 
@@ -275,6 +291,6 @@ A ME-533 define o contrato formal mínimo para que a próxima frente possa imple
 
 **Decisão:** a próxima implementação de modelo somente deve começar após este contrato estar aprovado e mergeado.
 
-**Natureza da próxima frente esperada:** implementação controlada em camada decisória, provavelmente no motor temporal conjunto, score/ranking, seleção de fontes ou decisão `pay_only` versus `switch_then_pay`.
+**Natureza da próxima frente esperada:** implementação controlada em camada decisória, provavelmente no motor temporal conjunto, score/ranking, seleção de fontes ou escolha entre `pay_only`, `switch_then_pay` e `pay_then_switch`.
 
 **Condição de avanço:** qualquer alteração econômica deve apresentar comparação antes/depois e manter aprovadas as Etapas 9, 10 e 11.
