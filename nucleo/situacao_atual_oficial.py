@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from types import SimpleNamespace
@@ -8,7 +9,7 @@ from typing import Any
 from nucleo.pacotes_temporais_agregados_saida import construir_pacotes_temporais_agregados_saida
 
 from nucleo.calendario_financeiro import calcular_dias_lote
-from nucleo.nucleo_financeiro_minimo import _taxa_iof, _taxa_ir
+from nucleo.nucleo_financeiro_minimo import _taxa_iof, _taxa_ir, atualizar_saldo_lotes_no_dia
 
 
 COLS_LOTES_EXAURIDOS_ID_CURTAS = [
@@ -560,6 +561,12 @@ def _rendimento_liquido_motor_lote(
 
     Não usa a saída observável como fallback. Quando o lote ou a data não são
     calculáveis pelo motor, retorna n/d para evitar comparação tautológica.
+
+    Para lotes sem eventos oficiais de saque/replay, preserva o cálculo
+    integral histórico. Para lotes com eventos, reexecuta apenas a trajetória
+    financeira do lote: capitaliza até cada evento, liquida no motor o bruto
+    sacado naquele evento e capitaliza somente o saldo remanescente até a data
+    final. Assim, capital já sacado não continua rendendo no motor.
     """
     data = _coagir_data_observavel(data_alvo)
     if data is None:
@@ -573,6 +580,15 @@ def _rendimento_liquido_motor_lote(
     if lote is None:
         return "n/d"
 
+    eventos = _eventos_replay_motor_lote(contexto, lote_id)
+    if eventos:
+        return _rendimento_liquido_motor_path_aware(
+            contexto,
+            lote,
+            eventos,
+            data,
+        )
+
     try:
         valor_liquido = lote.valor_liquido_em_data(
             data,
@@ -583,6 +599,99 @@ def _rendimento_liquido_motor_lote(
             data_base_referencia=getattr(lote, "data_aplicacao", data),
         )
         return round(float(valor_liquido) - float(getattr(lote, "valor_inicial", 0.0)), 2)
+    except Exception:
+        return "n/d"
+
+
+def _eventos_replay_motor_lote(contexto: Any, lote_id: Any) -> list[dict[str, Any]]:
+    """Retorna eventos oficiais de replay do lote, ordenados por data/ordem."""
+    replay = getattr(contexto, "replay_passado", None)
+    log_origem = getattr(replay, "log_passado", None)
+    if log_origem is None:
+        log_origem = getattr(replay, "log_movimentos_passados", [])
+    log = _iter_rows(log_origem)
+    chave_lote = _norm_lote_chave(lote_id)
+    eventos: list[dict[str, Any]] = []
+    for ordem, row in enumerate(log):
+        if _norm_lote_chave(row.get("Lote") or row.get("Lotes usados")) != chave_lote:
+            continue
+        data_evento = _coagir_data_observavel(row.get("Data"))
+        bruto = round(para_float(row.get("Bruto")), 2)
+        if data_evento is None or bruto <= 0.0:
+            continue
+        seq = para_float(row.get("Sequencia Saque") if "Sequencia Saque" in row else row.get("sequencia_saque"))
+        eventos.append({"data": data_evento, "ordem": ordem, "seq": seq, "bruto": bruto, "row": row})
+    return sorted(eventos, key=lambda ev: (ev["data"], ev["seq"], ev["ordem"]))
+
+
+def _avancar_lote_motor(contexto: Any, lote: Any, data_inicio: date, data_fim: date) -> date:
+    """Capitaliza um clone do lote entre duas datas sem alterar o replay efetivo."""
+    data_cursor = data_inicio
+    while data_cursor < data_fim:
+        data_cursor = date.fromordinal(data_cursor.toordinal() + 1)
+        atualizar_saldo_lotes_no_dia(
+            [lote],
+            data_cursor,
+            contexto.calendario_financeiro,
+            serie_cdi=_serie_cdi_contexto(contexto),
+            taxa_proj=float(getattr(contexto.calendario_financeiro, "taxa_dia_base", 0.0)),
+            data_fechamento_referencia=data_fim,
+        )
+    return data_cursor
+
+
+def _rendimento_liquido_motor_path_aware(
+    contexto: Any,
+    lote_original: Any,
+    eventos: list[dict[str, Any]],
+    data_final: date,
+) -> float | str:
+    """Calcula ``Σ líquidos motores sacados + líquido residual - valor original``.
+
+    A decomposição por evento usa o bruto oficial do replay como quantidade de
+    capital liquidada e aplica, no momento do evento, a regra fiscal do próprio
+    motor para obter o líquido motor. Se a base fiscal não for calculável pelo
+    motor, retorna ``n/d`` em vez de inventar imposto.
+    """
+    try:
+        lote = deepcopy(lote_original)
+        lote.saldo_bruto = float(getattr(lote_original, "valor_inicial", 0.0))
+        lote.principal_remanescente = float(getattr(lote_original, "valor_inicial", 0.0))
+        lote.fator_acumulado = 1.0
+        lote.esgotado = False
+        lote.total_bruto_sacado = 0.0
+        lote.total_imposto_pago = 0.0
+        lote.total_liquido_sacado = 0.0
+        data_cursor = getattr(lote, "data_aplicacao", None) or getattr(lote, "data_recebimento", data_final)
+        if not isinstance(data_cursor, date):
+            return "n/d"
+
+        liquidos_sacados_motor = 0.0
+        for evento in eventos:
+            data_evento = evento["data"]
+            if data_evento > data_final:
+                break
+            data_cursor = _avancar_lote_motor(contexto, lote, data_cursor, data_evento)
+            fator_liquido = lote.get_fator_liquido(
+                data_evento,
+                tabela_iof=getattr(contexto, "tabela_iof", None),
+                faixas_ir=getattr(contexto, "faixas_ir", None),
+            )
+            if fator_liquido <= 0.0:
+                return "n/d"
+            bruto_evento = min(float(evento["bruto"]), max(float(getattr(lote, "saldo_bruto", 0.0)), 0.0))
+            if bruto_evento <= 0.0:
+                continue
+            bruto_sacado = lote.sacar(bruto_evento)
+            liquidos_sacados_motor = round(liquidos_sacados_motor + round(float(bruto_sacado) * float(fator_liquido), 2), 2)
+
+        data_cursor = _avancar_lote_motor(contexto, lote, data_cursor, data_final)
+        liquido_residual = 0.0 if getattr(lote, "esgotado", False) else lote.valor_liquido_hoje(
+            data_cursor,
+            tabela_iof=getattr(contexto, "tabela_iof", None),
+            faixas_ir=getattr(contexto, "faixas_ir", None),
+        )
+        return round(liquidos_sacados_motor + float(liquido_residual) - float(getattr(lote_original, "valor_inicial", 0.0)), 2)
     except Exception:
         return "n/d"
 
