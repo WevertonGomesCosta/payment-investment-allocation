@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -11,8 +12,12 @@ VERSAO_BASELINE = "V225"
 VERSAO_SLUG = VERSAO_BASELINE.lower()
 
 PR_VERSAO_ATUAL = 532
+PR_ARTEFATO_ATUAL = 544
+ME_ATUAL = "ME-531C"
+ME_ATUAL_SLUG = ME_ATUAL.lower().replace("-", "")
 VERSAO_ATUAL = f"PR-{PR_VERSAO_ATUAL}"
 VERSAO_ATUAL_SLUG = f"pr{PR_VERSAO_ATUAL}"
+TIMESTAMP_EXECUCAO_UTC = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 _COMMIT_INDISPONIVEL = "indisponivel"
@@ -22,7 +27,13 @@ _FONTE_GIT_INDISPONIVEL = "git_indisponivel"
 
 _ROTULOS_METADADOS_VERSAO = [
     ("versão atual", "versao_atual"),
+    ("PR artefato", "pr_artefato"),
+    ("ME", "me"),
+    ("branch", "branch"),
+    ("commit curto", "commit_curto"),
+    ("timestamp execução UTC", "timestamp_execucao_utc"),
     ("arquivo operacional oficial", "arquivo_operacional_oficial"),
+    ("manifest execução", "manifest_execucao"),
 ]
 
 
@@ -80,8 +91,18 @@ def _serializar_data_referencia(data_referencia: Any) -> str:
     return str(data_referencia)
 
 
-def nome_relatorio_operacional() -> str:
-    return f"relatorio_operacional_{VERSAO_ATUAL_SLUG}.xlsx"
+def _slug_identidade_artefato(*, commit_curto: str | None = None, timestamp: str | None = None) -> str:
+    commit = re.sub(r"[^a-zA-Z0-9]+", "", str(commit_curto or _COMMIT_INDISPONIVEL)) or _COMMIT_INDISPONIVEL
+    ts = re.sub(r"[^0-9TZ]+", "", str(timestamp or TIMESTAMP_EXECUCAO_UTC)) or TIMESTAMP_EXECUCAO_UTC
+    return f"pr{PR_ARTEFATO_ATUAL}_{ME_ATUAL_SLUG}_{commit}_{ts}"
+
+
+def nome_relatorio_operacional(*, commit_curto: str | None = None, timestamp: str | None = None) -> str:
+    return f"relatorio_operacional_{_slug_identidade_artefato(commit_curto=commit_curto, timestamp=timestamp)}.xlsx"
+
+
+def nome_manifest_execucao(*, commit_curto: str | None = None, timestamp: str | None = None) -> str:
+    return f"manifest_execucao_{_slug_identidade_artefato(commit_curto=commit_curto, timestamp=timestamp)}.json"
 
 
 def metadados_versao_operacional(
@@ -89,13 +110,26 @@ def metadados_versao_operacional(
     *,
     data_referencia: Any = None,
 ) -> dict[str, Any]:
+    identidade_git = _identidade_git(raiz)
+    timestamp = TIMESTAMP_EXECUCAO_UTC
     metadados = {
         "versao_atual": VERSAO_ATUAL,
         "pr_versao_atual": PR_VERSAO_ATUAL,
+        "pr_artefato": f"PR-{PR_ARTEFATO_ATUAL}",
+        "me": ME_ATUAL,
         "data_referencia": _serializar_data_referencia(data_referencia),
-        "arquivo_operacional_oficial": nome_relatorio_operacional(),
+        "timestamp_execucao_utc": timestamp,
+        "arquivo_operacional_oficial": nome_relatorio_operacional(
+            commit_curto=identidade_git.get("commit_curto"),
+            timestamp=timestamp,
+        ),
+        "manifest_execucao": nome_manifest_execucao(
+            commit_curto=identidade_git.get("commit_curto"),
+            timestamp=timestamp,
+        ),
+        "manifest_execucao_estavel": "manifest_execucao.json",
     }
-    metadados.update(_identidade_git(raiz))
+    metadados.update(identidade_git)
     return metadados
 
 
