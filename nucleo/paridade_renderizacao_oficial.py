@@ -15,6 +15,8 @@ ENTRADA_FORMAL = 'PacoteSaidaObservavelOficial'
 MODULO_PARIDADE = 'nucleo/paridade_renderizacao_oficial.py'
 ETAPA_PARIDADE = 10
 PREFIXO_ABA_OBSERVAVEL = 'Obs '
+ABA_AUDITORIA_REPLAY = 'Auditoria Replay'
+TITULO_AUDITORIA_REPLAY = 'Auditoria fiscal/replay por evento — observado vs motor oficial'
 
 ABAS_XLSX_OFICIAIS_CONTRATUAIS: dict[str, list[str]] = {
     'Extrato Passado': [
@@ -342,6 +344,22 @@ def extrair_blocos_esperados_do_pacote(pacote_saida_observavel: PacoteSaidaObser
                 'linhas': None,
                 'validacao': 'estrutura',
             }
+
+    bloco_xlsx = getattr(pacote_saida_observavel, 'bloco_xlsx', None)
+    tem_auditoria_replay = any(
+        isinstance(item, Mapping)
+        and str(item.get('titulo') or '').strip() == TITULO_AUDITORIA_REPLAY
+        and list(item.get('linhas') or [])
+        for item in list(getattr(bloco_xlsx, 'situacao_atual_blocos', []) or [])
+    )
+    if tem_auditoria_replay:
+        abas_xlsx[ABA_AUDITORIA_REPLAY] = {
+            'nome_base': ABA_AUDITORIA_REPLAY,
+            'headers': [],
+            'linhas': None,
+            'validacao': 'blocos_obrigatorios',
+            'blocos_obrigatorios': [TITULO_AUDITORIA_REPLAY],
+        }
 
     bloco_console = getattr(pacote_saida_observavel, 'bloco_console', None)
     return {

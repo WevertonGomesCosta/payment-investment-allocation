@@ -49,8 +49,6 @@ COLS_LOTES_VALORES_CURTAS = [
 COLS_LOTES_VALORES_AUDITORIA_CURTAS = COLS_LOTES_VALORES_CURTAS + [
     'Rend. líq. motor',
     'Dif. teórica',
-    'Rend. aux. calibrado',
-    'Dif. aux. calibrada',
 ]
 
 COLS_ORIGENS_MIGRADAS_SWITCHING = [
@@ -815,8 +813,6 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             'Rend. líq.': rendimento_liquido,
             'Rend. líq. motor': rendimento_motor_teorico,
             'Dif. teórica': diferenca_teorica,
-            'Rend. aux. calibrado': rendimento_liquido_motor,
-            'Dif. aux. calibrada': diferenca_rendimento_motor,
         })
 
     return linhas
@@ -1075,8 +1071,6 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             'Rend. líq.': rendimento_liquido_observavel,
             'Rend. líq. motor': rendimento_motor_teorico,
             'Dif. teórica': diferenca_teorica,
-            'Rend. aux. calibrado': rendimento_liquido_motor,
-            'Dif. aux. calibrada': diferenca_rendimento_motor,
         })
 
     return linhas

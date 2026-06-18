@@ -449,7 +449,7 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
             linhas_auditoria = _lista_dicts(bloco.get('linhas', []) or [])
             auditoria_eventos_replay = _amostra_auditoria_eventos_replay(linhas_auditoria, limite=20)
             headers_auditoria = list(bloco.get('headers', []) or [])
-            print('\n- Auditoria fiscal/replay por evento — observado vs motor oficial:')
+            print('\n- Auditoria fiscal/replay por evento — observado vs motor oficial (amostra; bloco completo no XLSX aba Auditoria Replay):')
             if auditoria_eventos_replay:
                 _imprimir_tabela_oficial(headers_auditoria, auditoria_eventos_replay, limite=20)
             else:

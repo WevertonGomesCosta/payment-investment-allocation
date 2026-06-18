@@ -35,6 +35,10 @@ ABAS = {
     'situacao_atual': 'Situação Atual',
 }
 
+ABA_AUDITORIA_REPLAY = 'Auditoria Replay'
+TITULO_AUDITORIA_REPLAY = 'Auditoria fiscal/replay por evento — observado vs motor oficial'
+
+
 HEADERS = {
     'extrato_passado': ['Data', 'Conta', 'Despesa ID', 'Lote', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente'],
     'extrato_futuro': ['Data', 'Conta', 'Despesa ID', 'Valor', 'Lote sugerido', 'Fonte técnica', 'Saldo Antes', 'Bruto', 'Imposto', 'Líquido', 'Saldo Remanescente', 'Cobertura integral', 'Pacote do dia', 'Pacote técnico', 'Motivo bloqueio lote', 'Status recomendação'],
@@ -160,6 +164,21 @@ def _situacao_blocos(pacote: Any) -> list[dict[str, Any]]:
     return blocos
 
 
+def _blocos_situacao_consolidada(pacote: Any) -> list[dict[str, Any]]:
+    return [
+        bloco
+        for bloco in _situacao_blocos(pacote)
+        if bloco.get('titulo') != TITULO_AUDITORIA_REPLAY
+    ]
+
+
+def _bloco_auditoria_replay(pacote: Any) -> dict[str, Any] | None:
+    for bloco in _situacao_blocos(pacote):
+        if bloco.get('titulo') == TITULO_AUDITORIA_REPLAY:
+            return bloco
+    return None
+
+
 def _validar_pacote(pacote: Any) -> None:
     if pacote is None:
         raise PacoteSaidaObservavelOficialAusente('Geracao XLSX oficial exige PacoteSaidaObservavelOficial.')
@@ -225,7 +244,7 @@ def _aba_situacao(wb: Workbook, contexto: Any, pacote: Any) -> None:
         title='Metadados da execução',
         congelar_painel=False,
     )
-    blocos = _situacao_blocos(pacote)
+    blocos = _blocos_situacao_consolidada(pacote)
     if not blocos:
         linhas = _abas_oficiais(pacote).get('Situação Atual', [])
         _estilo(ws, _headers(linhas), linhas, start_row=row + 3, congelar_painel=False)
@@ -233,6 +252,21 @@ def _aba_situacao(wb: Workbook, contexto: Any, pacote: Any) -> None:
     for bloco in blocos:
         row = _estilo(ws, bloco['headers'], bloco['linhas'], start_row=row + 3, title=bloco['titulo'], congelar_painel=False)
 
+
+
+def _aba_auditoria_replay(wb: Workbook, pacote: Any) -> None:
+    bloco = _bloco_auditoria_replay(pacote)
+    if not bloco:
+        return
+    ws = wb.create_sheet(ABA_AUDITORIA_REPLAY)
+    _estilo(
+        ws,
+        bloco['headers'],
+        bloco['linhas'],
+        start_row=1,
+        title=TITULO_AUDITORIA_REPLAY,
+        congelar_painel=False,
+    )
 
 def _salvar_copia(wb: Workbook, caminho: Path, *, rotulo: str) -> None:
     try:
@@ -256,6 +290,7 @@ def main(*, contexto: Any = None, saida: Any = None, pacote_saida_observavel_ofi
     carteira = abas['Carteira']
     _aba(wb, _nome_aba(contexto, 'carteira'), _headers(carteira), carteira)
     _aba_situacao(wb, contexto, pacote_saida_observavel_oficial)
+    _aba_auditoria_replay(wb, pacote_saida_observavel_oficial)
     saida_interna.parent.mkdir(parents=True, exist_ok=True)
     wb.save(saida_interna)
     _salvar_copia(wb, saida_externa, rotulo='externa oficial')
