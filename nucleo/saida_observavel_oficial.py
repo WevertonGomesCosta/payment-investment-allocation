@@ -829,7 +829,7 @@ def preparar_bloco_pagamentos_por_fonte(modelo_obrigacoes: list[dict[str, Any]])
                 'Pacote': pacote,
                 'Saldo Antes': _valor_economico_detalhe_observavel(detalhe, 'saldo_antes_fonte', 'status_saldo_antes_fonte'),
                 'Bruto': _valor_economico_detalhe_observavel(detalhe, 'valor_bruto_resgate', 'status_valor_bruto_resgate'),
-                'IR': _valor_economico_detalhe_observavel(detalhe, 'imposto_resgate', 'status_imposto_resgate'),
+                'Imposto': _valor_economico_detalhe_observavel(detalhe, 'imposto_resgate', 'status_imposto_resgate'),
                 'Líquido': _valor_economico_detalhe_observavel(detalhe, 'valor_liquido_resgate', 'status_valor_liquido_resgate'),
                 'Saldo Remanescente': _valor_economico_detalhe_observavel(detalhe, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte'),
                 'Status': item.get('status_observavel') or 'coberta_oficial',

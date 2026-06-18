@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -20,9 +23,112 @@ from nucleo.saida_observavel_oficial import construir_pacote_saida_observavel_of
 from nucleo.paridade_renderizacao_oficial import validar_paridade_renderizacao_oficial
 from nucleo.governanca_residuos_pipeline import construir_resultado_governanca_residuos_pipeline
 from nucleo.inventario_residuos_pipeline import construir_inventario_residuos_pipeline
-from nucleo.identidade_baseline import VERSAO_BASELINE, metadados_versao_operacional
+from nucleo.identidade_baseline import VERSAO_BASELINE, caminho_artifact, caminho_saida_operacional, metadados_versao_operacional
 from nucleo.situacao_atual_oficial import construir_situacao_atual_oficial
 
+
+
+def _sha256_arquivo(caminho: Path) -> str:
+    h = hashlib.sha256()
+    with caminho.open('rb') as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _abas_xlsx(caminho_xlsx: Path) -> list[str]:
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(caminho_xlsx, read_only=True, data_only=True)
+        try:
+            return list(wb.sheetnames)
+        finally:
+            wb.close()
+    except Exception:
+        return []
+
+
+def _status_etapa9(pacote) -> dict:
+    return {
+        'status': getattr(pacote, 'status', None),
+        'preparado': bool(getattr(pacote, 'preparado', False)),
+        'ok': bool(getattr(pacote, 'ok', False)),
+    }
+
+
+def _status_objeto(resultado) -> dict:
+    return {
+        'status': getattr(resultado, 'status', None),
+        'ok': bool(getattr(resultado, 'ok', False)),
+    }
+
+
+def _montar_manifest_execucao(
+    *,
+    pacote_saida_observavel_oficial,
+    caminho_saida: Path,
+    resultado_paridade_renderizacao,
+    resultado_governanca_residuos,
+) -> tuple[Path, Path, dict]:
+    metadados = dict(getattr(pacote_saida_observavel_oficial, 'metadados', {}) or {})
+    nome_manifest = str(metadados.get('manifest_execucao') or 'manifest_execucao.json')
+    caminho_manifest_versionado = caminho_saida_operacional(RAIZ_REPOSITORIO, nome_manifest)
+    caminho_manifest_estavel = caminho_saida_operacional(RAIZ_REPOSITORIO, 'manifest_execucao.json')
+    arquivos_gerados = [
+        {
+            'tipo': 'xlsx_operacional',
+            'caminho': str(caminho_saida),
+            'nome': caminho_saida.name,
+            'sha256': _sha256_arquivo(caminho_saida),
+        },
+    ]
+    manifest = {
+        'pr': metadados.get('pr_artefato'),
+        'me': metadados.get('me'),
+        'branch': metadados.get('branch'),
+        'commit': metadados.get('commit'),
+        'commit_curto': metadados.get('commit_curto'),
+        'timestamp_execucao_utc': metadados.get('timestamp_execucao_utc'),
+        'data_referencia': metadados.get('data_referencia'),
+        'arquivos_gerados': arquivos_gerados,
+        'abas_xlsx': _abas_xlsx(caminho_saida),
+        'etapas': {
+            'etapa9': _status_etapa9(pacote_saida_observavel_oficial),
+            'etapa10': _status_objeto(resultado_paridade_renderizacao),
+            'etapa11': _status_objeto(resultado_governanca_residuos),
+        },
+    }
+    caminho_manifest_versionado.parent.mkdir(parents=True, exist_ok=True)
+    caminho_manifest_versionado.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+    if caminho_manifest_estavel != caminho_manifest_versionado:
+        shutil.copyfile(caminho_manifest_versionado, caminho_manifest_estavel)
+    artifact = caminho_artifact(caminho_manifest_versionado.name)
+    try:
+        if artifact.parent.exists():
+            shutil.copyfile(caminho_manifest_versionado, artifact)
+    except Exception:
+        pass
+    return caminho_manifest_versionado, caminho_manifest_estavel, manifest
+
+
+def _render_identidade_artefatos(manifest: dict, caminho_manifest_versionado: Path, caminho_manifest_estavel: Path) -> None:
+    print("\n=== IDENTIDADE DOS ARTEFATOS ===")
+    print(f"- PR: {manifest.get('pr')}")
+    print(f"- ME: {manifest.get('me')}")
+    print(f"- branch: {manifest.get('branch')}")
+    print(f"- commit curto: {manifest.get('commit_curto')}")
+    print(f"- timestamp execução UTC: {manifest.get('timestamp_execucao_utc')}")
+    print(f"- data de referência: {manifest.get('data_referencia')}")
+    print(f"- manifest versionado: {caminho_manifest_versionado}")
+    print(f"- manifest_execucao.json: {caminho_manifest_estavel}")
+    print(f"- sha256 manifest: {_sha256_arquivo(caminho_manifest_versionado)}")
+    print("- arquivos gerados:")
+    for arquivo in list(manifest.get('arquivos_gerados') or []):
+        print(f"  - {arquivo.get('tipo')}: {arquivo.get('nome')} | sha256={arquivo.get('sha256')}")
+    print(f"- abas XLSX: {', '.join(manifest.get('abas_xlsx') or [])}")
+    etapas = manifest.get('etapas') or {}
+    for etapa, status in etapas.items():
+        print(f"- {etapa}: status={status.get('status')} | ok={status.get('ok')}")
 
 def _valor(objeto, campo, padrao=None):
     if isinstance(objeto, dict):
@@ -310,6 +416,14 @@ def main():
         evidencias_auxiliares=inventario_residuos_pipeline,
     )
     _render_resultado_governanca_residuos(resultado_governanca_residuos)
+
+    caminho_manifest_versionado, caminho_manifest_estavel, manifest = _montar_manifest_execucao(
+        pacote_saida_observavel_oficial=pacote_saida_observavel_oficial,
+        caminho_saida=Path(caminho_saida),
+        resultado_paridade_renderizacao=resultado_paridade_renderizacao,
+        resultado_governanca_residuos=resultado_governanca_residuos,
+    )
+    _render_identidade_artefatos(manifest, caminho_manifest_versionado, caminho_manifest_estavel)
 
     return caminho_saida
 

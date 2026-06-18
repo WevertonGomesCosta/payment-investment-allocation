@@ -143,7 +143,7 @@ class PacoteSaidaCanonica:
                 'Reserva': item.get('Lote reserva') or '',
                 'Saldo ant.': item.get('Saldo Antes'),
                 'Bruto': item.get('Bruto'),
-                'IR': item.get('Imposto'),
+                'Imposto': item.get('Imposto'),
                 'Liq.': item.get('Líquido'),
                 'Rem.': item.get('Saldo Remanescente'),
                 'Sw. ant.': item.get('Switching antes do pagamento') if item.get('Switching antes do pagamento') not in (None, '') else 'n/d',

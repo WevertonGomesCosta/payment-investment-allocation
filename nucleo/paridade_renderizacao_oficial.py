@@ -15,6 +15,8 @@ ENTRADA_FORMAL = 'PacoteSaidaObservavelOficial'
 MODULO_PARIDADE = 'nucleo/paridade_renderizacao_oficial.py'
 ETAPA_PARIDADE = 10
 PREFIXO_ABA_OBSERVAVEL = 'Obs '
+ABA_AUDITORIA_REPLAY = 'Auditoria Replay'
+TITULO_AUDITORIA_REPLAY = 'Auditoria fiscal/replay por evento — observado vs motor oficial'
 
 ABAS_XLSX_OFICIAIS_CONTRATUAIS: dict[str, list[str]] = {
     'Extrato Passado': [
@@ -342,6 +344,22 @@ def extrair_blocos_esperados_do_pacote(pacote_saida_observavel: PacoteSaidaObser
                 'linhas': None,
                 'validacao': 'estrutura',
             }
+
+    bloco_xlsx = getattr(pacote_saida_observavel, 'bloco_xlsx', None)
+    tem_auditoria_replay = any(
+        isinstance(item, Mapping)
+        and str(item.get('titulo') or '').strip() == TITULO_AUDITORIA_REPLAY
+        and list(item.get('linhas') or [])
+        for item in list(getattr(bloco_xlsx, 'situacao_atual_blocos', []) or [])
+    )
+    if tem_auditoria_replay:
+        abas_xlsx[ABA_AUDITORIA_REPLAY] = {
+            'nome_base': ABA_AUDITORIA_REPLAY,
+            'headers': [],
+            'linhas': None,
+            'validacao': 'blocos_obrigatorios',
+            'blocos_obrigatorios': [TITULO_AUDITORIA_REPLAY],
+        }
 
     bloco_console = getattr(pacote_saida_observavel, 'bloco_console', None)
     return {
@@ -815,7 +833,7 @@ def _linha_pagamento_console_esperada(item: Any, *, bloqueada: bool = False) -> 
         'Bloq.': motivo if bloqueada else 'n/d',
         'Saldo ant.': valor_economico('saldo_antes_fonte', 'status_saldo_antes_fonte') if not bloqueada else 'nao_aplicavel',
         'Bruto': valor_economico('valor_bruto_resgate', 'status_valor_bruto_resgate') if not bloqueada else 'nao_aplicavel',
-        'IR': valor_economico('imposto_resgate', 'status_imposto_resgate') if not bloqueada else 'nao_aplicavel',
+        'Imposto': valor_economico('imposto_resgate', 'status_imposto_resgate') if not bloqueada else 'nao_aplicavel',
         'Liq.': valor_economico('valor_liquido_resgate', 'status_valor_liquido_resgate') if not bloqueada else 'nao_aplicavel',
         'Rem.': valor_economico('saldo_remanescente_fonte', 'status_saldo_remanescente_fonte') if not bloqueada else 'nao_aplicavel',
     }
@@ -834,13 +852,13 @@ def _esperado_console_observavel(secao: str, bloco_esperado: Mapping[str, Any]) 
     if secao == 'resumo_operacional':
         return _resumo_operacional_console_esperado(bloco_esperado)
     if secao == 'pagamentos_ultimos':
-        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
+        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'Imposto', 'Liq.', 'Rem.']
         return [
             {k: linha[k] for k in colunas}
             for linha in (_linha_pagamento_console_esperada(item, bloqueada=False) for item in list(bloco_esperado.get('ultimos_pagamentos') or [])[:5])
         ]
     if secao == 'pagamentos_data_referencia':
-        colunas = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status', 'Bloq.']
+        colunas = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'Imposto', 'Liq.', 'Rem.', 'Status', 'Bloq.']
         linhas = []
         for item in list(bloco_esperado.get('pagamentos_data_referencia') or [])[:5]:
             item_map = _objeto_para_mapping(item)
@@ -849,7 +867,7 @@ def _esperado_console_observavel(secao: str, bloco_esperado: Mapping[str, Any]) 
             linhas.append({k: linha[k] for k in colunas})
         return linhas
     if secao == 'pagamentos_proximos':
-        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
+        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'Imposto', 'Liq.', 'Rem.']
         linhas = []
         for item in list(bloco_esperado.get('proximos_pagamentos') or [])[:5]:
             item_map = _objeto_para_mapping(item)

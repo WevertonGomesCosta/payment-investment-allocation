@@ -228,7 +228,7 @@ def _linha_pagamento_oficial(item: Any, bloqueada: bool = False) -> dict[str, An
         'Bloq.': motivo if bloqueada else 'n/d',
         'Saldo ant.': _valor_economico_oficial(item, 'saldo_antes_fonte', 'status_saldo_antes_fonte') if not bloqueada else 'nao_aplicavel',
         'Bruto': _valor_economico_oficial(item, 'valor_bruto_resgate', 'status_valor_bruto_resgate') if not bloqueada else 'nao_aplicavel',
-        'IR': _valor_economico_oficial(item, 'imposto_resgate', 'status_imposto_resgate') if not bloqueada else 'nao_aplicavel',
+        'Imposto': _valor_economico_oficial(item, 'imposto_resgate', 'status_imposto_resgate') if not bloqueada else 'nao_aplicavel',
         'Liq.': _valor_economico_oficial(item, 'valor_liquido_resgate', 'status_valor_liquido_resgate') if not bloqueada else 'nao_aplicavel',
         'Rem.': _valor_economico_oficial(item, 'saldo_remanescente_fonte', 'status_saldo_remanescente_fonte') if not bloqueada else 'nao_aplicavel',
     }
@@ -252,7 +252,7 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
 
     ultimas_cobertas = list(getattr(bloco_console, 'ultimos_pagamentos', []) or [])
     print('- últimos 5 pagamentos realizados:')
-    colunas_ultimos = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
+    colunas_ultimos = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'Imposto', 'Liq.', 'Rem.']
     linhas_ultimos = [
         {k: linha[k] for k in colunas_ultimos}
         for linha in (_linha_pagamento_oficial(item, bloqueada=False) for item in ultimas_cobertas[:5])
@@ -265,7 +265,7 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
 
     pagamentos_data_referencia = list(getattr(bloco_console, 'pagamentos_data_referencia', []) or [])
     print('\n- pagamentos na data de referência — saída oficial:')
-    colunas_data_ref = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status', 'Bloq.']
+    colunas_data_ref = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'Imposto', 'Liq.', 'Rem.', 'Status', 'Bloq.']
     linhas_data_ref = [
         {k: linha[k] for k in colunas_data_ref}
         for linha in (
@@ -281,7 +281,7 @@ def _render_amostras_pagamentos_operacionais_oficiais(pacote_saida_observavel_of
 
     proximas_ordenadas = list(getattr(bloco_console, 'proximos_pagamentos', []) or [])
     print('\n- próximos 5 pagamentos:')
-    colunas_proximos = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
+    colunas_proximos = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'Imposto', 'Liq.', 'Rem.']
     linhas_proximos = [
         {k: linha[k] for k in colunas_proximos}
         for linha in (
@@ -385,6 +385,32 @@ def _render_lotes_situacao(titulo: str, linhas_id: list[dict[str, Any]], linhas_
         print(f'  [OK] sem {titulo} nesta execução')
 
 
+
+def _amostra_auditoria_eventos_replay(linhas: list[dict[str, Any]], limite: int = 20) -> list[dict[str, Any]]:
+    lotes_prioritarios = [
+        'Lote 10342 fev.',
+        'Lote 7600 jun.',
+        'Lote 4124,75 fev.',
+        'Lote 6630,64 fev.',
+        'Lote 4000 fev.',
+        'Lote 3120 mai',
+    ]
+    amostra: list[dict[str, Any]] = []
+    vistos: set[int] = set()
+    for lote in lotes_prioritarios:
+        for idx, linha in enumerate(linhas):
+            if idx not in vistos and str(linha.get('Lote') or '').strip() == lote:
+                amostra.append(linha)
+                vistos.add(idx)
+                break
+    for idx, linha in enumerate(linhas):
+        if len(amostra) >= limite:
+            break
+        if idx not in vistos:
+            amostra.append(linha)
+            vistos.add(idx)
+    return amostra[:limite]
+
 def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict:
     bloco_console = _bloco_console(pacote_saida_observavel_oficial)
     _imprimir_titulo('SITUAÇÃO ATUAL')
@@ -417,6 +443,19 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
     else:
         print('  patrimonio_total_nao_materializado_no_pacote_saida_observavel_oficial')
 
+    auditoria_eventos_replay = []
+    for bloco in list(getattr(bloco_console, 'situacao_atual_blocos', []) or []):
+        if isinstance(bloco, dict) and bloco.get('titulo') == 'Auditoria fiscal/replay por evento — observado vs motor oficial':
+            linhas_auditoria = _lista_dicts(bloco.get('linhas', []) or [])
+            auditoria_eventos_replay = _amostra_auditoria_eventos_replay(linhas_auditoria, limite=20)
+            headers_auditoria = list(bloco.get('headers', []) or [])
+            print('\n- Auditoria fiscal/replay por evento — observado vs motor oficial (amostra; bloco completo no XLSX aba Auditoria Replay):')
+            if auditoria_eventos_replay:
+                _imprimir_tabela_oficial(headers_auditoria, auditoria_eventos_replay, limite=20)
+            else:
+                print('  auditoria_eventos_replay_sem_linhas')
+            break
+
     resumo_recebidos = _lista_dicts(getattr(bloco_console, 'situacao_atual_resumo_recebidos', []) or [])
     if resumo_recebidos:
         print('\n- resumo de recebidos:')
@@ -430,6 +469,7 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
         'situacao_atual_lotes_ativos_valores': ativos_val,
         'situacao_atual_patrimonio_total': patrimonio_total,
         'situacao_atual_resumo_recebidos': resumo_recebidos,
+        'situacao_atual_auditoria_eventos_replay': auditoria_eventos_replay,
     }
 
 
