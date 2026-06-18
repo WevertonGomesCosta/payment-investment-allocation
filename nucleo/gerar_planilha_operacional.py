@@ -174,7 +174,7 @@ def _blocos_situacao_consolidada(pacote: Any) -> list[dict[str, Any]]:
 
 def _bloco_auditoria_replay(pacote: Any) -> dict[str, Any] | None:
     for bloco in _situacao_blocos(pacote):
-        if bloco.get('titulo') == TITULO_AUDITORIA_REPLAY:
+        if bloco.get('titulo') == TITULO_AUDITORIA_REPLAY and bloco.get('linhas'):
             return bloco
     return None
 
