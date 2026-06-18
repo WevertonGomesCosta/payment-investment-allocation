@@ -10,6 +10,11 @@ from nucleo.pacotes_temporais_agregados_saida import construir_pacotes_temporais
 
 from nucleo.calendario_financeiro import calcular_dias_lote
 from nucleo.nucleo_financeiro_minimo import _taxa_iof, _taxa_ir, atualizar_saldo_lotes_no_dia
+from nucleo.replay_passado_controlado import (
+    _normalizar_residuos_sub_limiar_pos_replay,
+    _obter_limiar_materialidade_replay,
+    _ultimo_dia_util_bancario_anterior,
+)
 
 
 COLS_LOTES_EXAURIDOS_ID_CURTAS = [
@@ -624,7 +629,14 @@ def _eventos_replay_motor_lote(contexto: Any, lote_id: Any) -> list[dict[str, An
     return sorted(eventos, key=lambda ev: (ev["data"], ev["seq"], ev["ordem"]))
 
 
-def _avancar_lote_motor(contexto: Any, lote: Any, data_inicio: date, data_fim: date) -> date:
+def _avancar_lote_motor(
+    contexto: Any,
+    lote: Any,
+    data_inicio: date,
+    data_fim: date,
+    *,
+    data_fechamento_referencia: date,
+) -> date:
     """Capitaliza um clone do lote entre duas datas sem alterar o replay efetivo."""
     data_cursor = data_inicio
     while data_cursor < data_fim:
@@ -635,9 +647,32 @@ def _avancar_lote_motor(contexto: Any, lote: Any, data_inicio: date, data_fim: d
             contexto.calendario_financeiro,
             serie_cdi=_serie_cdi_contexto(contexto),
             taxa_proj=float(getattr(contexto.calendario_financeiro, "taxa_dia_base", 0.0)),
-            data_fechamento_referencia=data_fim,
+            data_fechamento_referencia=data_fechamento_referencia,
         )
     return data_cursor
+
+
+def _data_fechamento_replay_observada(contexto: Any, data_final: date) -> date:
+    """Replica a fronteira de fechamento observada usada pelo replay oficial."""
+    data_referencia = _coagir_data_observavel(getattr(contexto, "data_referencia", None)) or data_final
+    try:
+        return _ultimo_dia_util_bancario_anterior(
+            data_referencia,
+            contexto.calendario_financeiro,
+        )
+    except Exception:
+        return data_final
+
+
+def _limiar_materialidade_replay_contexto(contexto: Any) -> float:
+    config = getattr(getattr(contexto, "pacote_config", None), "conteudo", {}) or {}
+    try:
+        return float(_obter_limiar_materialidade_replay(config))
+    except Exception:
+        replay_cfg = config.get("replay") if isinstance(config, dict) else {}
+        if isinstance(replay_cfg, dict):
+            return para_float(replay_cfg.get("valor_minimo_lote_ativo"))
+        return 0.01
 
 
 def _rendimento_liquido_motor_path_aware(
@@ -666,12 +701,20 @@ def _rendimento_liquido_motor_path_aware(
         if not isinstance(data_cursor, date):
             return "n/d"
 
+        data_fechamento = _data_fechamento_replay_observada(contexto, data_final)
+        limiar_materialidade = _limiar_materialidade_replay_contexto(contexto)
         liquidos_sacados_motor = 0.0
         for evento in eventos:
             data_evento = evento["data"]
             if data_evento > data_final:
                 break
-            data_cursor = _avancar_lote_motor(contexto, lote, data_cursor, data_evento)
+            data_cursor = _avancar_lote_motor(
+                contexto,
+                lote,
+                data_cursor,
+                data_evento,
+                data_fechamento_referencia=data_fechamento,
+            )
             fator_liquido = lote.get_fator_liquido(
                 data_evento,
                 tabela_iof=getattr(contexto, "tabela_iof", None),
@@ -685,8 +728,21 @@ def _rendimento_liquido_motor_path_aware(
             bruto_sacado = lote.sacar(bruto_evento)
             liquidos_sacados_motor = round(liquidos_sacados_motor + round(float(bruto_sacado) * float(fator_liquido), 2), 2)
 
-        data_cursor = _avancar_lote_motor(contexto, lote, data_cursor, data_final)
-        liquido_residual = 0.0 if getattr(lote, "esgotado", False) else lote.valor_liquido_hoje(
+        data_cursor = _avancar_lote_motor(
+            contexto,
+            lote,
+            data_cursor,
+            data_final,
+            data_fechamento_referencia=data_fechamento,
+        )
+        _normalizar_residuos_sub_limiar_pos_replay(
+            [lote],
+            limiar_residuo_resolvido=limiar_materialidade,
+        )
+        liquido_residual = 0.0 if (
+            getattr(lote, "esgotado", False)
+            or float(getattr(lote, "saldo_bruto", 0.0) or 0.0) <= float(limiar_materialidade)
+        ) else lote.valor_liquido_hoje(
             data_cursor,
             tabela_iof=getattr(contexto, "tabela_iof", None),
             faixas_ir=getattr(contexto, "faixas_ir", None),
