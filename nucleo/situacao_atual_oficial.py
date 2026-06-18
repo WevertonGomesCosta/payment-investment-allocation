@@ -125,18 +125,28 @@ COLS_AUDITORIA_EVENTOS_REPLAY = [
     'Saldo bruto antes',
     'Saldo líquido antes',
     'Rendimento bruto antes',
-    'IR motor',
-    'IOF motor',
-    'Imposto motor',
+    'Imposto obs. evento',
+    'IR motor evento',
+    'IOF motor evento',
+    'Imposto motor evento',
+    'Dif. imposto evento',
     'Líquido requerido',
     'Bruto sacado',
     'Líquido sacado',
     'Saldo bruto depois',
     'Saldo líquido depois',
-    'Rend. obs. acum.',
-    'Rend. motor acum.',
-    'Dif. acum. obs. - motor',
+    'Rend. obs. final lote',
+    'Rend. motor final lote',
+    'Dif. final lote obs. - motor',
+    'Dif. antes evento obs. - motor',
+    'Dif. evento obs. - motor',
+    'Dif. após evento obs. - motor',
+    'Primeiro evento encontrado',
+    'Primeiro evento divergente',
+    'Variável divergente',
+    'Evidência divergência',
     'Causa específica provável',
+    'Justificativa causa',
 ]
 
 
@@ -1311,6 +1321,42 @@ def construir_linhas_decomposicao_causal_rendimento(
     return sorted(linhas, key=lambda item: abs(para_float(item.get('Dif. teórica'))), reverse=True)
 
 
+def _classificar_causa_evento_replay(
+    row: dict[str, Any],
+    *,
+    motor: Any,
+    data_ref: date | None,
+    saldo_bruto_antes: float,
+    bruto_sacado: float,
+    liquido_sacado: float,
+    saldo_bruto_depois: float,
+) -> tuple[str, str, str, Any]:
+    """Classifica causa específica com evidência local do evento de replay."""
+    tolerancia = 0.01
+    imposto_obs_evento = row.get('Imposto')
+    if imposto_obs_evento in (None, '') and bruto_sacado > 0 and liquido_sacado > 0:
+        imposto_obs_evento = round(bruto_sacado - liquido_sacado, 2)
+    imposto_obs_float = para_float(imposto_obs_evento)
+    imposto_implicito = round(bruto_sacado - liquido_sacado, 2)
+    conta = str(row.get('Conta') or row.get('Despesa ID') or '').lower()
+    lote_txt = str(row.get('Lote') or '').lower()
+
+    if bruto_sacado <= 0 and liquido_sacado <= 0:
+        return ('valor observado insuficiente', 'Bruto sacado/Líquido sacado ausentes ou zerados no evento', 'Bruto sacado', bruto_sacado)
+    if 'switch' in conta or 'switch' in lote_txt:
+        return ('switching tratado como saque comum', 'Evento contém marca textual de switching na trilha de replay', 'Conta/despesa', row.get('Conta') or row.get('Despesa ID'))
+    if motor is None or data_ref is None:
+        return ('base fiscal/data divergente', 'Motor ou data do pagamento não encontrados para comparar base fiscal/data', 'Data pagamento', row.get('Data'))
+    if abs(imposto_implicito - imposto_obs_float) > tolerancia:
+        return ('imposto total divergente', f'Bruto - líquido = {imposto_implicito:.2f}; imposto observado = {imposto_obs_float:.2f}', 'Imposto obs. evento', imposto_obs_evento)
+    saldo_depois_esperado = round(saldo_bruto_antes - bruto_sacado, 2)
+    if abs(saldo_depois_esperado - saldo_bruto_depois) > tolerancia:
+        return ('saldo bruto depois divergente', f'Saldo antes - bruto sacado = {saldo_depois_esperado:.2f}; saldo depois observado = {saldo_bruto_depois:.2f}', 'Saldo bruto depois', saldo_bruto_depois)
+    if saldo_bruto_antes <= 0:
+        return ('saldo bruto antes divergente', 'Saldo bruto antes ausente ou zerado para evento com saque', 'Saldo bruto antes', saldo_bruto_antes)
+    return ('indeterminado', 'Campos do evento disponíveis não isolam divergência específica sem recalcular trajetória financeira causal', 'n/d', 'n/d')
+
+
 def construir_linhas_auditoria_eventos_replay(
     contexto: Any,
     snapshot_situacao_atual: Any,
@@ -1320,8 +1366,9 @@ def construir_linhas_auditoria_eventos_replay(
     """Auditoria oficial por evento de replay para lotes com maior diferença.
 
     Consome o log oficial de replay já materializado no snapshot. Não recalcula
-    nem corrige pagamentos: apenas expõe saldos, impostos e diferença acumulada
-    observado - motor na granularidade de evento.
+    nem corrige pagamentos: expõe campos observáveis do evento, imposto total
+    observado quando disponível e valores finais de lote com rótulo explícito
+    quando não há trajetória acumulada segura por evento.
     """
     snapshot = _exigir_snapshot_situacao_atual(snapshot_situacao_atual)
     dif_por_lote = {
@@ -1336,6 +1383,8 @@ def construir_linhas_auditoria_eventos_replay(
         list((getattr(snapshot, 'pagamentos_replay_por_chave', {}) or {}).values()),
         key=lambda row: (str(row.get('Data') or ''), int(para_float(row.get('ordem_original')))),
     )
+    primeiro_encontrado_por_lote: set[str] = set()
+    primeiro_divergente_por_lote: set[str] = set()
     for row in pagamentos:
         lote_id = str(row.get('Lote') or '').strip()
         if lote_id not in lotes_alvo:
@@ -1347,24 +1396,33 @@ def construir_linhas_auditoria_eventos_replay(
         bruto_sacado = round(para_float(row.get('Bruto')), 2)
         liquido_sacado = round(para_float(row.get('Liquido') if 'Liquido' in row else row.get('Líquido')), 2)
         saldo_bruto_depois = round(para_float(row.get('Saldo Remanescente')), 2)
-        impostos = _impostos_motor_lote(contexto, lote_id, data_ref, saldo_bruto_antes)
-        imposto_motor = impostos.get('Imposto motor')
-        saldo_liquido_antes = round(saldo_bruto_antes - para_float(imposto_motor), 2) if isinstance(imposto_motor, (int, float)) else 'n/d'
+        imposto_obs_evento = row.get('Imposto')
+        if imposto_obs_evento in (None, '') and bruto_sacado > 0 and liquido_sacado > 0:
+            imposto_obs_evento = round(bruto_sacado - liquido_sacado, 2)
+        saldo_liquido_antes = 'n/d'
         saldo_liquido_depois = 'n/d'
-        try:
-            if motor is not None and data_ref is not None:
-                saldo_liquido_depois = round(float(motor.valor_liquido_em_data(
-                    data_ref,
-                    contexto.calendario_financeiro,
-                    tabela_iof=getattr(contexto, "tabela_iof", None),
-                    faixas_ir=getattr(contexto, "faixas_ir", None),
-                    serie_cdi=_serie_cdi_contexto(contexto),
-                    data_base_referencia=data_ref,
-                )), 2)
-        except Exception:
-            saldo_liquido_depois = 'n/d'
         principal = para_float(getattr(motor, 'principal_remanescente', getattr(motor, 'valor_inicial', 0.0)) if motor is not None else 0.0)
         dif = dif_por_lote.get(lote_id, {})
+        causa, justificativa, variavel, evidencia = _classificar_causa_evento_replay(
+            row,
+            motor=motor,
+            data_ref=data_ref,
+            saldo_bruto_antes=saldo_bruto_antes,
+            bruto_sacado=bruto_sacado,
+            liquido_sacado=liquido_sacado,
+            saldo_bruto_depois=saldo_bruto_depois,
+        )
+        primeiro_encontrado = 'sim' if lote_id not in primeiro_encontrado_por_lote else 'não'
+        primeiro_encontrado_por_lote.add(lote_id)
+        divergente = causa != 'indeterminado'
+        if divergente and lote_id not in primeiro_divergente_por_lote:
+            primeiro_divergente = 'sim'
+            primeiro_divergente_por_lote.add(lote_id)
+        elif divergente:
+            primeiro_divergente = 'não'
+        else:
+            primeiro_divergente = 'indeterminado'
+        imposto_evento_valor = imposto_obs_evento if imposto_obs_evento not in (None, '') else 'n/d'
         linhas.append({
             'Data pagamento': data_pag,
             'Conta/despesa': row.get('Conta') or row.get('Despesa ID') or 'n/d',
@@ -1377,18 +1435,28 @@ def construir_linhas_auditoria_eventos_replay(
             'Saldo bruto antes': saldo_bruto_antes,
             'Saldo líquido antes': saldo_liquido_antes,
             'Rendimento bruto antes': round(max(saldo_bruto_antes - principal, 0.0), 2),
-            'IR motor': impostos.get('IR motor'),
-            'IOF motor': impostos.get('IOF motor'),
-            'Imposto motor': imposto_motor,
+            'Imposto obs. evento': imposto_evento_valor,
+            'IR motor evento': 'n/d',
+            'IOF motor evento': 'n/d',
+            'Imposto motor evento': 'n/d',
+            'Dif. imposto evento': 'n/d',
             'Líquido requerido': row.get('Valor Conta'),
             'Bruto sacado': bruto_sacado,
             'Líquido sacado': liquido_sacado,
             'Saldo bruto depois': saldo_bruto_depois,
             'Saldo líquido depois': saldo_liquido_depois,
-            'Rend. obs. acum.': dif.get('Rend. líq.'),
-            'Rend. motor acum.': dif.get('Rend. líq. motor'),
-            'Dif. acum. obs. - motor': dif.get('Dif. teórica'),
-            'Causa específica provável': dif.get('Causa provável') or 'saque/replay',
+            'Rend. obs. final lote': dif.get('Rend. líq.'),
+            'Rend. motor final lote': dif.get('Rend. líq. motor'),
+            'Dif. final lote obs. - motor': dif.get('Dif. teórica'),
+            'Dif. antes evento obs. - motor': 'n/d',
+            'Dif. evento obs. - motor': 'n/d',
+            'Dif. após evento obs. - motor': 'n/d',
+            'Primeiro evento encontrado': primeiro_encontrado,
+            'Primeiro evento divergente': primeiro_divergente,
+            'Variável divergente': variavel,
+            'Evidência divergência': evidencia,
+            'Causa específica provável': causa,
+            'Justificativa causa': justificativa,
         })
     return linhas
 

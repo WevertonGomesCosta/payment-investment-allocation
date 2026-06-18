@@ -815,7 +815,7 @@ def _linha_pagamento_console_esperada(item: Any, *, bloqueada: bool = False) -> 
         'Bloq.': motivo if bloqueada else 'n/d',
         'Saldo ant.': valor_economico('saldo_antes_fonte', 'status_saldo_antes_fonte') if not bloqueada else 'nao_aplicavel',
         'Bruto': valor_economico('valor_bruto_resgate', 'status_valor_bruto_resgate') if not bloqueada else 'nao_aplicavel',
-        'IR': valor_economico('imposto_resgate', 'status_imposto_resgate') if not bloqueada else 'nao_aplicavel',
+        'Imposto': valor_economico('imposto_resgate', 'status_imposto_resgate') if not bloqueada else 'nao_aplicavel',
         'Liq.': valor_economico('valor_liquido_resgate', 'status_valor_liquido_resgate') if not bloqueada else 'nao_aplicavel',
         'Rem.': valor_economico('saldo_remanescente_fonte', 'status_saldo_remanescente_fonte') if not bloqueada else 'nao_aplicavel',
     }
@@ -834,13 +834,13 @@ def _esperado_console_observavel(secao: str, bloco_esperado: Mapping[str, Any]) 
     if secao == 'resumo_operacional':
         return _resumo_operacional_console_esperado(bloco_esperado)
     if secao == 'pagamentos_ultimos':
-        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
+        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'Imposto', 'Liq.', 'Rem.']
         return [
             {k: linha[k] for k in colunas}
             for linha in (_linha_pagamento_console_esperada(item, bloqueada=False) for item in list(bloco_esperado.get('ultimos_pagamentos') or [])[:5])
         ]
     if secao == 'pagamentos_data_referencia':
-        colunas = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.', 'Status', 'Bloq.']
+        colunas = ['Data', 'Conta', 'Lote', 'Pacote', 'Saldo ant.', 'Bruto', 'Imposto', 'Liq.', 'Rem.', 'Status', 'Bloq.']
         linhas = []
         for item in list(bloco_esperado.get('pagamentos_data_referencia') or [])[:5]:
             item_map = _objeto_para_mapping(item)
@@ -849,7 +849,7 @@ def _esperado_console_observavel(secao: str, bloco_esperado: Mapping[str, Any]) 
             linhas.append({k: linha[k] for k in colunas})
         return linhas
     if secao == 'pagamentos_proximos':
-        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'IR', 'Liq.', 'Rem.']
+        colunas = ['Data', 'Conta', 'Lote', 'Saldo ant.', 'Bruto', 'Imposto', 'Liq.', 'Rem.']
         linhas = []
         for item in list(bloco_esperado.get('proximos_pagamentos') or [])[:5]:
             item_map = _objeto_para_mapping(item)
