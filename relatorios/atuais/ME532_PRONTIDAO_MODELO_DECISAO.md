@@ -6,8 +6,8 @@
 - **Título:** auditoria de prontidão para retomada do modelo matemático e decisão econômica.
 - **Repositório:** `WevertonGomesCosta/payment-investment-allocation`.
 - **Base observada:** `2626650` (`Merge pull request #546 ... ME-531E`).
-- **Branch local de trabalho:** `codex/me-532-prontidao-modelo-decisao`.
-- **Número real do PR da ME-532:** não disponível no ambiente local no momento da auditoria; a identidade formal deste relatório fica congelada como ME-532 e deve receber o número do PR apenas quando a plataforma atribuí-lo.
+- **Branch do PR:** `codex/abrir-me-532-a-partir-da-main-atualizada`.
+- **Número real do PR da ME-532:** #547.
 - **Natureza da frente:** auditoria estática e operacional declarativa, sem alteração de modelo matemático, pagamentos, switching, ranking, gates, dados financeiros, cache BCB ou decisão econômica.
 
 ## 2. Conclusão executiva
