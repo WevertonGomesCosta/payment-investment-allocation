@@ -6,7 +6,7 @@
 - **Título:** contrato formal da próxima alteração do modelo matemático e decisão econômica.
 - **Repositório:** `WevertonGomesCosta/payment-investment-allocation`.
 - **Branch:** `me533-contrato-proxima-alteracao-modelo`.
-- **PR:** a definir após abertura do pull request.
+- **PR:** #548.
 - **Natureza:** contrato declarativo pré-implementação.
 - **Tipo de mudança:** documental/contratual.
 - **Alteração econômica nesta ME:** não.
