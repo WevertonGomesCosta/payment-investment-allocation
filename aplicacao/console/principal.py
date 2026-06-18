@@ -386,30 +386,6 @@ def _render_lotes_situacao(titulo: str, linhas_id: list[dict[str, Any]], linhas_
 
 
 
-def _amostra_auditoria_eventos_replay(linhas: list[dict[str, Any]], limite: int = 20) -> list[dict[str, Any]]:
-    lotes_prioritarios = [
-        'Lote 10342 fev.',
-        'Lote 7600 jun.',
-        'Lote 4124,75 fev.',
-        'Lote 6630,64 fev.',
-        'Lote 4000 fev.',
-        'Lote 3120 mai',
-    ]
-    amostra: list[dict[str, Any]] = []
-    vistos: set[int] = set()
-    for lote in lotes_prioritarios:
-        for idx, linha in enumerate(linhas):
-            if idx not in vistos and str(linha.get('Lote') or '').strip() == lote:
-                amostra.append(linha)
-                vistos.add(idx)
-                break
-    for idx, linha in enumerate(linhas):
-        if len(amostra) >= limite:
-            break
-        if idx not in vistos:
-            amostra.append(linha)
-            vistos.add(idx)
-    return amostra[:limite]
 
 def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict:
     bloco_console = _bloco_console(pacote_saida_observavel_oficial)
@@ -443,18 +419,6 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
     else:
         print('  patrimonio_total_nao_materializado_no_pacote_saida_observavel_oficial')
 
-    auditoria_eventos_replay = []
-    for bloco in list(getattr(bloco_console, 'situacao_atual_blocos', []) or []):
-        if isinstance(bloco, dict) and bloco.get('titulo') == 'Auditoria fiscal/replay por evento — observado vs motor oficial':
-            linhas_auditoria = _lista_dicts(bloco.get('linhas', []) or [])
-            auditoria_eventos_replay = _amostra_auditoria_eventos_replay(linhas_auditoria, limite=20)
-            headers_auditoria = list(bloco.get('headers', []) or [])
-            if auditoria_eventos_replay:
-                print('\n- Auditoria fiscal/replay por evento — observado vs motor oficial (amostra; bloco completo no XLSX aba Auditoria Replay):')
-                _imprimir_tabela_oficial(headers_auditoria, auditoria_eventos_replay, limite=20)
-            else:
-                print('\n- Auditoria fiscal/replay por evento — sem linhas diagnósticas nesta execução.')
-            break
 
     resumo_recebidos = _lista_dicts(getattr(bloco_console, 'situacao_atual_resumo_recebidos', []) or [])
     if resumo_recebidos:
@@ -469,7 +433,6 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
         'situacao_atual_lotes_ativos_valores': ativos_val,
         'situacao_atual_patrimonio_total': patrimonio_total,
         'situacao_atual_resumo_recebidos': resumo_recebidos,
-        'situacao_atual_auditoria_eventos_replay': auditoria_eventos_replay,
     }
 
 
