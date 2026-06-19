@@ -87,6 +87,39 @@ COLS_ORIGENS_MIGRADAS_SWITCHING = [
     'Não fonte',
 ]
 
+CONTRATO_SEMANTICO_VALOR_LIQUIDO_MIGRADO = (
+    'Valor Líquido Migrado é líquido resgatável na origem do switching.',
+    'O mesmo valor é principal/bruto aplicado no destino do switching.',
+    'O campo não representa bruto da origem.',
+    'Bruto e imposto da origem são grandezas calculadas pelo motor para todos os lotes.',
+)
+
+COLS_DIAGNOSTICO_SWITCHING_RENDIMENTO = [
+    'Lote origem',
+    'Status ciclo',
+    'Carteira',
+    'Data switching',
+    'Dias corr.',
+    'Dias úteis',
+    'Destinos',
+    'Valor líquido migrado obs.',
+    'Bruto origem motor',
+    'Imposto origem motor',
+    'Líquido origem motor',
+    'Dif. líquido migrado',
+    'Papel na origem',
+    'Papel no destino',
+    'Rend. bruto motor',
+    'Rend. líq. motor',
+    'Dif. bruta contábil',
+    'Dif. imposto contábil',
+    'Dif. líquida contábil',
+    'Classe causal',
+    'Causa provável',
+    'Evidência causal',
+    'Prioridade',
+]
+
 COLS_RECEBIDOS_AUDITAVEIS = [
     'Recebido',
     'Lote origem',
@@ -1658,6 +1691,185 @@ def _causa_provavel_diferenca_rendimento(
     return 'indeterminado'
 
 
+def _valor_diagnostico_numerico(valor: Any) -> float | None:
+    if isinstance(valor, (int, float)):
+        return round(float(valor), 2)
+    return None
+
+
+def _fmt_dif(valor: Any) -> str:
+    v = _valor_diagnostico_numerico(valor)
+    return 'n/d' if v is None else f"{v:.2f}"
+
+
+def _somar_diagnostico(a: Any, b: Any) -> float | str:
+    av = _valor_diagnostico_numerico(a)
+    bv = _valor_diagnostico_numerico(b)
+    if av is None or bv is None:
+        return 'n/d'
+    return round(av + bv, 2)
+
+
+def _subtrair_diagnostico(a: Any, b: Any) -> float | str:
+    av = _valor_diagnostico_numerico(a)
+    bv = _valor_diagnostico_numerico(b)
+    if av is None or bv is None:
+        return 'n/d'
+    return round(av - bv, 2)
+
+
+def _classe_causal_switching_semantica(
+    *,
+    dif_liquido_migrado: Any,
+    dif_bruta_contabil: Any,
+    dif_imposto_contabil: Any,
+) -> tuple[str, str, str, str]:
+    dl = _valor_diagnostico_numerico(dif_liquido_migrado)
+    db = _valor_diagnostico_numerico(dif_bruta_contabil)
+    di = _valor_diagnostico_numerico(dif_imposto_contabil)
+    tol_liq = 1.0
+
+    if dl is None:
+        return (
+            'indeterminado',
+            'líquido migrado ou líquido motor indisponível',
+            'não foi possível comparar Valor Líquido Migrado observado contra líquido motor da origem',
+            'alta',
+        )
+
+    if abs(dl) <= tol_liq:
+        return (
+            'líquido migrado reconciliado',
+            'dupla natureza líquido-origem/principal-destino',
+            'Valor Líquido Migrado é líquido resgatável na origem e principal bruto no destino; diferenças bruta/fiscal contábeis não indicam erro econômico quando o líquido fecha',
+            'baixa' if abs(dl) <= 0.20 else 'média',
+        )
+
+    if db is not None and di is not None and abs(db) > 10.0 and abs(di) > 10.0:
+        return (
+            'líquido migrado com divergência residual',
+            'dupla natureza líquido-origem/principal-destino com resíduo líquido',
+            'diferenças bruta/fiscal são explicadas pela recomposição motora; ainda resta diferença líquida entre Valor Líquido Migrado observado e líquido motor da origem',
+            'alta',
+        )
+
+    return (
+        'líquido migrado com divergência residual',
+        'diferença líquida residual na origem de switching',
+        'a comparação relevante é Valor Líquido Migrado observado menos líquido motor da origem',
+        'alta',
+    )
+
+
+def construir_linhas_diagnostico_switching_diferencas(
+    *,
+    lotes_exauridos_id: list[dict[str, Any]],
+    lotes_exauridos_valores: list[dict[str, Any]],
+    origens_migradas: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    # Diagnóstico causal restrito às origens migradas por switching.
+    #
+    # Contrato semântico:
+    # - Valor Líquido Migrado é líquido resgatável na origem.
+    # - O mesmo valor é principal/bruto aplicado no destino.
+    # - O campo não é bruto da origem.
+    # - Bruto e imposto da origem são calculados pelo motor, regra que vale
+    #   para todos os lotes e não apenas para switching.
+    # - A comparação econômica relevante é:
+    #   Valor líquido migrado observado - Líquido origem motor.
+    ids_por_lote = {
+        str(item.get('Lote') or '').strip(): dict(item)
+        for item in list(lotes_exauridos_id or [])
+        if str(item.get('Lote') or '').strip()
+    }
+    valores_por_lote = {
+        str(item.get('Lote') or '').strip(): dict(item)
+        for item in list(lotes_exauridos_valores or [])
+        if str(item.get('Lote') or '').strip()
+    }
+    origens_por_lote = {
+        str(item.get('Lote origem') or item.get('lote_origem') or '').strip(): dict(item)
+        for item in list(origens_migradas or [])
+        if str(item.get('Lote origem') or item.get('lote_origem') or '').strip()
+    }
+
+    lotes = sorted(set(origens_por_lote) | {
+        lote
+        for lote, ident in ids_por_lote.items()
+        if 'switching' in str(ident.get('Status ciclo') or '').lower()
+    })
+
+    linhas: list[dict[str, Any]] = []
+    for lote in lotes:
+        ident = ids_por_lote.get(lote, {})
+        valores = valores_por_lote.get(lote, {})
+        origem = origens_por_lote.get(lote, {})
+
+        valor_liquido_migrado_obs = (
+            origem.get('Valor migrado')
+            if origem.get('Valor migrado') not in (None, '')
+            else valores.get('Líq. sac.')
+        )
+        bruto_origem_motor = _somar_diagnostico(valores.get('Orig.'), valores.get('Rend. bruto motor'))
+        imposto_origem_motor = valores.get('Imposto motor')
+        liquido_origem_motor = _somar_diagnostico(valores.get('Orig.'), valores.get('Rend. líq. motor'))
+        dif_liquido_migrado = _subtrair_diagnostico(valor_liquido_migrado_obs, liquido_origem_motor)
+
+        dif_bruta_contabil = valores.get('Dif. bruta')
+        dif_imposto_contabil = valores.get('Dif. imposto')
+        dif_liquida_contabil = valores.get('Dif. teórica')
+
+        classe, causa, evidencia_base, prioridade = _classe_causal_switching_semantica(
+            dif_liquido_migrado=dif_liquido_migrado,
+            dif_bruta_contabil=dif_bruta_contabil,
+            dif_imposto_contabil=dif_imposto_contabil,
+        )
+
+        evidencia = (
+            f"valor_liquido_migrado_obs={_fmt_dif(valor_liquido_migrado_obs)}; "
+            f"liquido_origem_motor={_fmt_dif(liquido_origem_motor)}; "
+            f"dif_liquido_migrado={_fmt_dif(dif_liquido_migrado)}; "
+            f"dif_bruta_contabil={_fmt_dif(dif_bruta_contabil)}; "
+            f"dif_imposto_contabil={_fmt_dif(dif_imposto_contabil)}; "
+            f"{evidencia_base}"
+        )
+
+        linhas.append({
+            'Lote origem': lote,
+            'Status ciclo': ident.get('Status ciclo') or origem.get('Status ciclo') or 'migrado_por_switching',
+            'Carteira': ident.get('Carteira') or 'n/d',
+            'Data switching': ident.get('Data término') or origem.get('Data término') or 'n/d',
+            'Dias corr.': ident.get('Dias corr.') or origem.get('Dias corr.') or '',
+            'Dias úteis': ident.get('Dias úteis') or origem.get('Dias úteis') or '',
+            'Destinos': origem.get('Destinos', ''),
+            'Valor líquido migrado obs.': valor_liquido_migrado_obs,
+            'Bruto origem motor': bruto_origem_motor,
+            'Imposto origem motor': imposto_origem_motor,
+            'Líquido origem motor': liquido_origem_motor,
+            'Dif. líquido migrado': dif_liquido_migrado,
+            'Papel na origem': 'líquido resgatável após rendimento e imposto',
+            'Papel no destino': 'principal/bruto inicial aplicado no lote destino',
+            'Rend. bruto motor': valores.get('Rend. bruto motor'),
+            'Rend. líq. motor': valores.get('Rend. líq. motor'),
+            'Dif. bruta contábil': dif_bruta_contabil,
+            'Dif. imposto contábil': dif_imposto_contabil,
+            'Dif. líquida contábil': dif_liquida_contabil,
+            'Classe causal': classe,
+            'Causa provável': causa,
+            'Evidência causal': evidencia,
+            'Prioridade': prioridade,
+        })
+
+    return sorted(
+        linhas,
+        key=lambda item: (
+            0 if item.get('Prioridade') == 'alta' else 1 if item.get('Prioridade') == 'média' else 2,
+            -abs(para_float(item.get('Dif. líquido migrado'))),
+            str(item.get('Lote origem') or ''),
+        ),
+    )
+
+
 def construir_linhas_decomposicao_causal_rendimento(
     contexto: Any,
     saida: Any,
@@ -2073,6 +2285,11 @@ def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atu
         snapshot_situacao_atual=snapshot_situacao_atual,
         estado_temporal_inicial=estado_temporal_inicial,
     )
+    diagnostico_switching = construir_linhas_diagnostico_switching_diferencas(
+        lotes_exauridos_id=lotes_exauridos_id,
+        lotes_exauridos_valores=lotes_exauridos_valores,
+        origens_migradas=origens_migradas,
+    )
     decomposicao_causal = construir_linhas_decomposicao_causal_rendimento(
         contexto,
         saida,
@@ -2112,6 +2329,11 @@ def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atu
             'titulo': 'Origens migradas por switching — reconciliação patrimonial',
             'headers': COLS_ORIGENS_MIGRADAS_SWITCHING,
             'linhas': origens_migradas,
+        },
+        {
+            'titulo': 'Diagnóstico switching — diferenças de rendimento',
+            'headers': COLS_DIAGNOSTICO_SWITCHING_RENDIMENTO,
+            'linhas': diagnostico_switching,
         },
         {
             'titulo': 'Patrimônio total dos lotes',
