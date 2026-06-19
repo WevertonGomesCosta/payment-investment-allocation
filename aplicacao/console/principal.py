@@ -456,6 +456,34 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
     ativos_val = _lista_dicts(getattr(bloco_console, 'situacao_atual_lotes_ativos_valores', []) or [])
     _render_lotes_situacao('lotes ativos', ativos_id, ativos_val)
 
+    blocos_situacao = _lista_dicts(getattr(bloco_console, 'situacao_atual_blocos', []) or [])
+
+    def _linhas_bloco_situacao(titulo: str) -> list[dict[str, Any]]:
+        for bloco in blocos_situacao:
+            if str(bloco.get('titulo') or '').strip() == titulo:
+                return _lista_dicts(bloco.get('linhas') or [])
+        return []
+
+    diagnostico_switching = _linhas_bloco_situacao('Diagnóstico switching — diferenças de rendimento')
+    print('\n- diagnóstico switching — diferenças de rendimento:')
+    if diagnostico_switching:
+        _imprimir_tabela_oficial(
+            [
+                'Lote origem',
+                'Classe causal',
+                'Causa provável',
+                'Valor líquido migrado obs.',
+                'Líquido origem motor',
+                'Dif. líquido migrado',
+                'Papel no destino',
+                'Prioridade',
+            ],
+            diagnostico_switching,
+            limite=None,
+        )
+    else:
+        print('  diagnostico_switching_nao_materializado_no_pacote_saida_observavel_oficial')
+
     patrimonio_total = _lista_dicts(getattr(bloco_console, 'situacao_atual_patrimonio_total', []) or [])
     print('\n- patrimônio total dos lotes:')
     if patrimonio_total:
@@ -475,6 +503,7 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
         'situacao_atual_lotes_exauridos_valores': exauridos_val,
         'situacao_atual_lotes_ativos_id': ativos_id,
         'situacao_atual_lotes_ativos_valores': ativos_val,
+        'situacao_atual_diagnostico_switching': diagnostico_switching,
         'situacao_atual_patrimonio_total': patrimonio_total,
         'situacao_atual_resumo_recebidos': resumo_recebidos,
     }
