@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -127,6 +127,11 @@ COLS_DIAGNOSTICO_RESIDUOS_SWITCHING_XP230 = [
     'Data aplicação',
     'Data-base fiscal',
     'Data switching',
+    'Prazo corrido produto',
+    'Data vencimento nominal',
+    'Data vencimento efetiva',
+    'Dias úteis até vencimento efetivo',
+    'Excesso DU motor vs vencimento',
     'Dias corr. motor',
     'Dias úteis motor',
     'Taxa CDI produto',
@@ -1915,15 +1920,53 @@ def _cdi_acumulado_motor_implicito_pct(valor_original: Any, rendimento_bruto_mot
     return round((rendimento / principal / taxa_cdi_fator) * 100, 4)
 
 
-def _classificar_residuo_liquido_xp230(dif_liquido: Any, impacto_1du: Any, dias_equiv: Any) -> tuple[str, str]:
+def _eh_dia_util_observavel(contexto: Any, data_ref: date) -> bool:
+    calendario = getattr(contexto, 'calendario_financeiro', None)
+    if calendario is not None:
+        for nome_metodo in ('is_working_day', 'is_business_day'):
+            metodo = getattr(calendario, nome_metodo, None)
+            if callable(metodo):
+                try:
+                    return bool(metodo(data_ref))
+                except Exception:
+                    pass
+    # Fallback defensivo: usado apenas para diagnóstico observável.
+    return data_ref.weekday() < 5
+
+
+def _proximo_dia_util_observavel(contexto: Any, data_ref: Any) -> date | None:
+    data = _coagir_data_observavel(data_ref)
+    if data is None:
+        return None
+    while not _eh_dia_util_observavel(contexto, data):
+        data = data + timedelta(days=1)
+    return data
+
+
+def _classificar_residuo_liquido_xp230(
+    dif_liquido: Any,
+    impacto_1du: Any,
+    dias_equiv: Any,
+    excesso_du_motor_vs_vencimento: Any,
+) -> tuple[str, str]:
     dif = _valor_diagnostico_numerico(dif_liquido)
     impacto = _valor_diagnostico_numerico(impacto_1du)
     equiv = _valor_diagnostico_numerico(dias_equiv)
+    excesso_du = _valor_diagnostico_numerico(excesso_du_motor_vs_vencimento)
 
     if dif is None:
         return 'causa_nao_fechada_com_evidencia_disponivel', 'alta'
     if abs(dif) <= 1.0:
         return 'residuo_sub_limiar_materialidade', 'baixa'
+    if (
+        excesso_du is not None
+        and 0.75 <= abs(excesso_du) <= 1.25
+        and impacto is not None
+        and impacto > 0
+        and equiv is not None
+        and 0.75 <= equiv <= 1.25
+    ):
+        return 'vencimento_60d_corridos_ajustado_para_proximo_dia_util', 'alta'
     if impacto is not None and impacto > 0 and equiv is not None and 0.75 <= equiv <= 1.25:
         return 'calendario_dias_uteis_compativel_com_1du_liquido', 'alta'
     if impacto is not None and impacto > 0 and equiv is not None and 1.25 < equiv <= 1.75:
@@ -1975,6 +2018,23 @@ def construir_linhas_diagnostico_fino_residuos_switching_xp230(
         valor_liquido_migrado_obs = diagnostico.get('Valor líquido migrado obs.')
         dif_liquido_migrado = diagnostico.get('Dif. líquido migrado')
 
+        prazo_corrido_produto = 60
+        data_aplicacao = _coagir_data_observavel(ident.get('Aplic.'))
+        data_switching = _coagir_data_observavel(ident.get('Data término'))
+        data_vencimento_nominal = (
+            data_aplicacao + timedelta(days=prazo_corrido_produto)
+            if data_aplicacao is not None
+            else None
+        )
+        data_vencimento_efetiva = _proximo_dia_util_observavel(contexto, data_vencimento_nominal)
+        dias_vencimento = _calcular_dias_observavel(contexto, data_aplicacao, data_vencimento_efetiva)
+        dias_uteis_ate_vencimento = dias_vencimento.get('dias_uteis', '')
+        excesso_du_motor_vs_vencimento = (
+            round(dias_uteis - para_float(dias_uteis_ate_vencimento), 2)
+            if dias_uteis > 0 and para_float(dias_uteis_ate_vencimento) > 0
+            else 'n/d'
+        )
+
         impacto_1du = (
             round(para_float(rend_liq_motor) / dias_uteis, 2)
             if dias_uteis > 0 and para_float(rend_liq_motor) > 0
@@ -1997,13 +2057,19 @@ def construir_linhas_diagnostico_fino_residuos_switching_xp230(
             dif_liquido_migrado,
             impacto_1du,
             dias_equiv,
+            excesso_du_motor_vs_vencimento,
         )
 
         evidencia = (
             f"residuo_liquido={_fmt_dif(dif_liquido_migrado)}; "
             f"impacto_liq_1du_estimado={_fmt_dif(impacto_1du)}; "
             f"dias_uteis_equiv_residuo={_fmt_dif(dias_equiv)}; "
+            f"prazo_corrido_produto={prazo_corrido_produto}; "
+            f"data_vencimento_nominal={_fmt_data_observavel(data_vencimento_nominal)}; "
+            f"data_vencimento_efetiva={_fmt_data_observavel(data_vencimento_efetiva)}; "
+            f"dias_uteis_ate_vencimento_efetivo={_fmt_dif(dias_uteis_ate_vencimento)}; "
             f"dias_uteis_motor={_fmt_dif(dias_uteis)}; "
+            f"excesso_du_motor_vs_vencimento={_fmt_dif(excesso_du_motor_vs_vencimento)}; "
             f"data_aplicacao={ident.get('Aplic.')}; "
             f"data_base_fiscal={ident.get('Base fiscal')}; "
             f"data_switching={ident.get('Data término')}; "
@@ -2019,6 +2085,11 @@ def construir_linhas_diagnostico_fino_residuos_switching_xp230(
             'Data aplicação': ident.get('Aplic.'),
             'Data-base fiscal': ident.get('Base fiscal'),
             'Data switching': ident.get('Data término'),
+            'Prazo corrido produto': prazo_corrido_produto,
+            'Data vencimento nominal': _fmt_data_observavel(data_vencimento_nominal),
+            'Data vencimento efetiva': _fmt_data_observavel(data_vencimento_efetiva),
+            'Dias úteis até vencimento efetivo': dias_uteis_ate_vencimento,
+            'Excesso DU motor vs vencimento': excesso_du_motor_vs_vencimento,
             'Dias corr. motor': ident.get('Dias corr.'),
             'Dias úteis motor': ident.get('Dias úteis'),
             'Taxa CDI produto': taxa_cdi_txt,

@@ -492,6 +492,8 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
                 'Lote origem',
                 'Hipótese causal principal',
                 'Dif. líquido migrado',
+                'Data vencimento efetiva',
+                'Excesso DU motor vs vencimento',
                 'Impacto líq. 1DU estimado',
                 'Dias úteis equiv. resíduo',
                 'Evidência',
