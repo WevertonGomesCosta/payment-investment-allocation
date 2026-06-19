@@ -120,6 +120,29 @@ COLS_DIAGNOSTICO_SWITCHING_RENDIMENTO = [
     'Prioridade',
 ]
 
+COLS_DIAGNOSTICO_RESIDUOS_SWITCHING_XP230 = [
+    'Lote origem',
+    'Produto',
+    'Valor original',
+    'Data aplicação',
+    'Data-base fiscal',
+    'Data switching',
+    'Dias corr. motor',
+    'Dias úteis motor',
+    'Taxa CDI produto',
+    'CDI acumulado motor',
+    'Rend. bruto motor',
+    'Imposto motor',
+    'Líquido origem motor',
+    'Valor líquido migrado obs.',
+    'Dif. líquido migrado',
+    'Impacto líq. 1DU estimado',
+    'Dias úteis equiv. resíduo',
+    'Hipótese causal principal',
+    'Evidência',
+    'Prioridade',
+]
+
 COLS_RECEBIDOS_AUDITAVEIS = [
     'Recebido',
     'Lote origem',
@@ -1870,6 +1893,158 @@ def construir_linhas_diagnostico_switching_diferencas(
     )
 
 
+LOTES_RESIDUOS_SWITCHING_XP230 = {'Lote 3000 mar. B', 'Lote 3000 mar. V'}
+
+
+def _taxa_cdi_fator_lote_contexto(contexto: Any, lote_id: Any) -> float:
+    lote = _lookup_por_lote_normalizado(_mapa_lotes_motor_contexto(contexto), lote_id, None)
+    if lote is None:
+        return 0.0
+    base = para_float(getattr(lote, 'taxa_base_cdi', 0.0))
+    bonus = para_float(getattr(lote, 'taxa_bonus_cdi', 0.0))
+    # Diagnóstico auxiliar: para os lotes XP 230% atuais, a taxa efetiva vem da base.
+    # O bônus é somado apenas se existir no produto, sem alterar o motor econômico.
+    return round(base + bonus, 6) if bonus > 0 else round(base, 6)
+
+
+def _cdi_acumulado_motor_implicito_pct(valor_original: Any, rendimento_bruto_motor: Any, taxa_cdi_fator: float) -> float | str:
+    principal = para_float(valor_original)
+    rendimento = para_float(rendimento_bruto_motor)
+    if principal <= 0 or taxa_cdi_fator <= 0:
+        return 'n/d'
+    return round((rendimento / principal / taxa_cdi_fator) * 100, 4)
+
+
+def _classificar_residuo_liquido_xp230(dif_liquido: Any, impacto_1du: Any, dias_equiv: Any) -> tuple[str, str]:
+    dif = _valor_diagnostico_numerico(dif_liquido)
+    impacto = _valor_diagnostico_numerico(impacto_1du)
+    equiv = _valor_diagnostico_numerico(dias_equiv)
+
+    if dif is None:
+        return 'causa_nao_fechada_com_evidencia_disponivel', 'alta'
+    if abs(dif) <= 1.0:
+        return 'residuo_sub_limiar_materialidade', 'baixa'
+    if impacto is not None and impacto > 0 and equiv is not None and 0.75 <= equiv <= 1.25:
+        return 'calendario_dias_uteis_compativel_com_1du_liquido', 'alta'
+    if impacto is not None and impacto > 0 and equiv is not None and 1.25 < equiv <= 1.75:
+        return 'calendario_dias_uteis_ou_arredondamento_acumulado_compativel', 'alta'
+    return 'causa_nao_fechada_com_evidencia_disponivel', 'alta'
+
+
+def construir_linhas_diagnostico_fino_residuos_switching_xp230(
+    *,
+    contexto: Any,
+    lotes_exauridos_id: list[dict[str, Any]],
+    lotes_exauridos_valores: list[dict[str, Any]],
+    diagnostico_switching: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    # ME-534C: diagnóstico fino, não decisório, restrito aos resíduos líquidos
+    # remanescentes dos lotes de origem CDB XP 230%.
+    ids_por_lote = {
+        str(item.get('Lote') or '').strip(): dict(item)
+        for item in list(lotes_exauridos_id or [])
+        if str(item.get('Lote') or '').strip()
+    }
+    valores_por_lote = {
+        str(item.get('Lote') or '').strip(): dict(item)
+        for item in list(lotes_exauridos_valores or [])
+        if str(item.get('Lote') or '').strip()
+    }
+    diagnostico_por_lote = {
+        str(item.get('Lote origem') or '').strip(): dict(item)
+        for item in list(diagnostico_switching or [])
+        if str(item.get('Lote origem') or '').strip()
+    }
+
+    linhas: list[dict[str, Any]] = []
+    for lote in sorted(LOTES_RESIDUOS_SWITCHING_XP230):
+        ident = ids_por_lote.get(lote, {})
+        valores = valores_por_lote.get(lote, {})
+        diagnostico = diagnostico_por_lote.get(lote, {})
+
+        produto = ident.get('Carteira') or 'n/d'
+        if 'CDB XP 230' not in str(produto):
+            continue
+
+        valor_original = valores.get('Orig.')
+        dias_uteis = para_float(ident.get('Dias úteis'))
+        rend_liq_motor = valores.get('Rend. líq. motor')
+        rend_bruto_motor = valores.get('Rend. bruto motor')
+        imposto_motor = valores.get('Imposto motor')
+        liquido_origem_motor = diagnostico.get('Líquido origem motor')
+        valor_liquido_migrado_obs = diagnostico.get('Valor líquido migrado obs.')
+        dif_liquido_migrado = diagnostico.get('Dif. líquido migrado')
+
+        impacto_1du = (
+            round(para_float(rend_liq_motor) / dias_uteis, 2)
+            if dias_uteis > 0 and para_float(rend_liq_motor) > 0
+            else 'n/d'
+        )
+        dias_equiv = (
+            round(abs(para_float(dif_liquido_migrado)) / para_float(impacto_1du), 2)
+            if isinstance(impacto_1du, (int, float)) and para_float(impacto_1du) > 0
+            else 'n/d'
+        )
+
+        taxa_cdi_txt = _taxa_lote_motor_contexto(contexto, lote)
+        taxa_cdi_fator = _taxa_cdi_fator_lote_contexto(contexto, lote)
+        cdi_acumulado_motor = _cdi_acumulado_motor_implicito_pct(
+            valor_original,
+            rend_bruto_motor,
+            taxa_cdi_fator,
+        )
+        hipotese, prioridade = _classificar_residuo_liquido_xp230(
+            dif_liquido_migrado,
+            impacto_1du,
+            dias_equiv,
+        )
+
+        evidencia = (
+            f"residuo_liquido={_fmt_dif(dif_liquido_migrado)}; "
+            f"impacto_liq_1du_estimado={_fmt_dif(impacto_1du)}; "
+            f"dias_uteis_equiv_residuo={_fmt_dif(dias_equiv)}; "
+            f"dias_uteis_motor={_fmt_dif(dias_uteis)}; "
+            f"data_aplicacao={ident.get('Aplic.')}; "
+            f"data_base_fiscal={ident.get('Base fiscal')}; "
+            f"data_switching={ident.get('Data término')}; "
+            "arredondamento_final_nao_explica_isoladamente_residuo_maior_que_1; "
+            "imposto_motor_ja_incorporado_no_liquido_origem_motor; "
+            "diagnostico_nao_decisorio_sem_alterar_motor"
+        )
+
+        linhas.append({
+            'Lote origem': lote,
+            'Produto': produto,
+            'Valor original': valor_original,
+            'Data aplicação': ident.get('Aplic.'),
+            'Data-base fiscal': ident.get('Base fiscal'),
+            'Data switching': ident.get('Data término'),
+            'Dias corr. motor': ident.get('Dias corr.'),
+            'Dias úteis motor': ident.get('Dias úteis'),
+            'Taxa CDI produto': taxa_cdi_txt,
+            'CDI acumulado motor': cdi_acumulado_motor,
+            'Rend. bruto motor': rend_bruto_motor,
+            'Imposto motor': imposto_motor,
+            'Líquido origem motor': liquido_origem_motor,
+            'Valor líquido migrado obs.': valor_liquido_migrado_obs,
+            'Dif. líquido migrado': dif_liquido_migrado,
+            'Impacto líq. 1DU estimado': impacto_1du,
+            'Dias úteis equiv. resíduo': dias_equiv,
+            'Hipótese causal principal': hipotese,
+            'Evidência': evidencia,
+            'Prioridade': prioridade,
+        })
+
+    return sorted(
+        linhas,
+        key=lambda item: (
+            0 if item.get('Prioridade') == 'alta' else 1,
+            -abs(para_float(item.get('Dif. líquido migrado'))),
+            str(item.get('Lote origem') or ''),
+        ),
+    )
+
+
 def construir_linhas_decomposicao_causal_rendimento(
     contexto: Any,
     saida: Any,
@@ -2290,6 +2465,12 @@ def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atu
         lotes_exauridos_valores=lotes_exauridos_valores,
         origens_migradas=origens_migradas,
     )
+    diagnostico_residuos_switching_xp230 = construir_linhas_diagnostico_fino_residuos_switching_xp230(
+        contexto=contexto,
+        lotes_exauridos_id=lotes_exauridos_id,
+        lotes_exauridos_valores=lotes_exauridos_valores,
+        diagnostico_switching=diagnostico_switching,
+    )
     decomposicao_causal = construir_linhas_decomposicao_causal_rendimento(
         contexto,
         saida,
@@ -2334,6 +2515,11 @@ def _montar_blocos_situacao_atual_oficial(contexto, saida, snapshot_situacao_atu
             'titulo': 'Diagnóstico switching — diferenças de rendimento',
             'headers': COLS_DIAGNOSTICO_SWITCHING_RENDIMENTO,
             'linhas': diagnostico_switching,
+        },
+        {
+            'titulo': 'Diagnóstico fino resíduos líquidos — switching XP 230',
+            'headers': COLS_DIAGNOSTICO_RESIDUOS_SWITCHING_XP230,
+            'linhas': diagnostico_residuos_switching_xp230,
         },
         {
             'titulo': 'Patrimônio total dos lotes',

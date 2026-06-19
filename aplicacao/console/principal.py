@@ -484,6 +484,25 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
     else:
         print('  diagnostico_switching_nao_materializado_no_pacote_saida_observavel_oficial')
 
+    diagnostico_residuos_switching_xp230 = _linhas_bloco_situacao('Diagnóstico fino resíduos líquidos — switching XP 230')
+    print('\n- diagnóstico fino resíduos líquidos — switching XP 230:')
+    if diagnostico_residuos_switching_xp230:
+        _imprimir_tabela_oficial(
+            [
+                'Lote origem',
+                'Hipótese causal principal',
+                'Dif. líquido migrado',
+                'Impacto líq. 1DU estimado',
+                'Dias úteis equiv. resíduo',
+                'Evidência',
+                'Prioridade',
+            ],
+            diagnostico_residuos_switching_xp230,
+            limite=None,
+        )
+    else:
+        print('  diagnostico_residuos_switching_xp230_nao_materializado_no_pacote_saida_observavel_oficial')
+
     patrimonio_total = _lista_dicts(getattr(bloco_console, 'situacao_atual_patrimonio_total', []) or [])
     print('\n- patrimônio total dos lotes:')
     if patrimonio_total:
@@ -504,6 +523,7 @@ def _render_situacao_atual_oficial(pacote_saida_observavel_oficial: Any) -> dict
         'situacao_atual_lotes_ativos_id': ativos_id,
         'situacao_atual_lotes_ativos_valores': ativos_val,
         'situacao_atual_diagnostico_switching': diagnostico_switching,
+        'situacao_atual_diagnostico_residuos_switching_xp230': diagnostico_residuos_switching_xp230,
         'situacao_atual_patrimonio_total': patrimonio_total,
         'situacao_atual_resumo_recebidos': resumo_recebidos,
     }
