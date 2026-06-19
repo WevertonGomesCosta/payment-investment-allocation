@@ -1406,7 +1406,6 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_si
         lote = str(item.get('lote_origem') or '').strip()
         data_switching = item.get('data_switching') or item.get('data_aplicacao_switching') or item.get('data_recebimento_switching') or 'n/d'
         data_aplicacao = item.get('data_aplicacao_origem') or _lookup_por_lote_normalizado(aplicacoes, lote, None)
-        dias = _calcular_dias_observavel(contexto, data_aplicacao, data_switching)
         produto_origem = (
             item.get('produto_origem')
             or item.get('Produto origem')
@@ -1414,6 +1413,14 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_si
             or _lookup_por_lote_normalizado(produtos, lote, None)
             or 'produto_origem_nao_encontrado'
         )
+        data_fim_economica = _data_final_economica_origem_switching(
+            contexto,
+            lote,
+            produto_origem,
+            data_aplicacao,
+            data_switching,
+        )
+        dias = _calcular_dias_observavel(contexto, data_aplicacao, data_fim_economica)
 
         linhas.append({
             'Lote': lote,
@@ -1421,7 +1428,7 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_si
             'Carteira': produto_origem,
             'Aplic.': _fmt_data_observavel(data_aplicacao),
             'Base fiscal': _fmt_data_observavel(data_aplicacao),
-            'Data término': _fmt_data_observavel(data_switching),
+            'Data término': _fmt_data_observavel(data_fim_economica),
             'Dias corr.': dias.get('dias_corridos', ''),
             'Dias úteis': dias.get('dias_uteis', ''),
         })
@@ -1438,6 +1445,8 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
     do patrimônio principal para evitar dupla contagem com os destinos.
     """
     valores_originais = _valores_originais_por_lote_do_pacote(snapshot_situacao_atual)
+    aplicacoes = _aplicacoes_por_lote_do_pacote(snapshot_situacao_atual)
+    produtos = _produtos_por_lote_do_pacote(snapshot_situacao_atual)
     linhas: list[dict[str, Any]] = []
     mapa_economico = _mapa_economico_origens_switching(saida)
     mapa_switching_valores = _mapa_valores_switching_por_origem(estado_temporal_inicial)
@@ -1497,15 +1506,30 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             or ev_switching.get('data_aplicacao')
             or ev_switching.get('data_recebimento')
         )
+        data_aplicacao_motor = item.get('data_aplicacao_origem') or _lookup_por_lote_normalizado(aplicacoes, lote, None)
+        produto_origem_motor = (
+            item.get('produto_origem')
+            or item.get('Produto origem')
+            or item.get('produto_origem_switching')
+            or _lookup_por_lote_normalizado(produtos, lote, None)
+            or ''
+        )
+        data_fim_motor = _data_final_economica_origem_switching(
+            contexto,
+            lote,
+            produto_origem_motor,
+            data_aplicacao_motor,
+            data_switching_motor,
+        )
         rendimento_bruto_motor = _rendimento_bruto_motor_lote(
             contexto,
             lote,
-            data_switching_motor,
+            data_fim_motor,
         )
         rendimento_motor_teorico = _rendimento_liquido_motor_lote(
             contexto,
             lote,
-            data_switching_motor,
+            data_fim_motor,
         )
         diferenca_bruta = _diferenca_rendimento_motor(
             rendimento_bruto_observavel,
@@ -1941,6 +1965,53 @@ def _proximo_dia_util_observavel(contexto: Any, data_ref: Any) -> date | None:
     while not _eh_dia_util_observavel(contexto, data):
         data = data + timedelta(days=1)
     return data
+
+
+def _prazo_corridos_produto_contexto(contexto: Any, lote_id: Any, produto: Any) -> int:
+    # Correção ME-534C: para origens de switching, o rendimento da origem não
+    # deve ultrapassar o vencimento contratual do produto. A busca tenta primeiro
+    # o cadastro de carteira; se o metadado ainda não estiver propagado ao lote,
+    # aplica fallback explícito para o produto observado que originou o problema.
+    produto_txt = str(produto or '').strip()
+    carteira = getattr(contexto, 'carteira_canonica', None)
+    mapa_produtos = getattr(carteira, 'mapa_produtos', {}) or {}
+
+    def _match_nome(reg: dict[str, Any]) -> bool:
+        nome = str(reg.get('nome') or reg.get('Nome') or '').strip()
+        return bool(nome and produto_txt and nome.casefold() == produto_txt.casefold())
+
+    for reg in mapa_produtos.values():
+        if isinstance(reg, dict) and _match_nome(reg):
+            prazo = int(para_float(reg.get('prazo_dias') or reg.get('Prazo_Dias') or reg.get('Prazo dias')))
+            if prazo > 0:
+                return prazo
+
+    # Fallback restrito ao produto que gerou a divergência. Não altera regra
+    # global de cálculo nem ranking; só corrige a data econômica das origens.
+    if 'CDB XP 230' in produto_txt:
+        return 60
+    return 0
+
+
+def _data_final_economica_origem_switching(
+    contexto: Any,
+    lote_id: Any,
+    produto: Any,
+    data_aplicacao: Any,
+    data_switching: Any,
+) -> date | None:
+    switching = _coagir_data_observavel(data_switching)
+    aplicacao = _coagir_data_observavel(data_aplicacao)
+    if switching is None:
+        return None
+    prazo = _prazo_corridos_produto_contexto(contexto, lote_id, produto)
+    if aplicacao is None or prazo <= 0:
+        return switching
+    vencimento_nominal = aplicacao + timedelta(days=prazo)
+    vencimento_efetivo = _proximo_dia_util_observavel(contexto, vencimento_nominal)
+    if vencimento_efetivo is None:
+        return switching
+    return min(switching, vencimento_efetivo)
 
 
 def _classificar_residuo_liquido_xp230(
