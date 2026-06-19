@@ -1035,6 +1035,146 @@ def _diferenca_rendimento_motor(rendimento_observavel: float, rendimento_motor: 
     return "n/d"
 
 
+def _datas_candidatas_com_fechamento_anterior(contexto: Any, data_alvo: Any) -> list[Any]:
+    """Datas candidatas para comparação econômica observável.
+
+    A renderização oficial compara vetores econômicos já fechados. Para evitar
+    escolher bruto, imposto e líquido em bases diferentes, o chamador deve
+    avaliar todos os componentes em cada data candidata e selecionar uma única
+    base para o vetor inteiro.
+    """
+    data = _coagir_data_observavel(data_alvo)
+    if data is None:
+        return [data_alvo]
+    candidatos: list[Any] = [data]
+    try:
+        anterior = _ultimo_dia_util_bancario_anterior(data, contexto.calendario_financeiro)
+        if anterior not in candidatos:
+            candidatos.append(anterior)
+    except Exception:
+        pass
+    return candidatos
+
+
+def _vetor_motor_lote(
+    contexto: Any,
+    lote_id: Any,
+    data_alvo: Any,
+    *,
+    data_fiscal: Any | None = None,
+    valor_original: Any | None = None,
+) -> dict[str, Any]:
+    if data_fiscal is not None and valor_original is not None and not _eventos_replay_motor_lote(contexto, lote_id):
+        bruto_motor = _bruto_motor_teorico_lote(contexto, lote_id, data_alvo)
+        rendimento_bruto_motor = (
+            round(float(bruto_motor) - para_float(valor_original), 2)
+            if isinstance(bruto_motor, (int, float))
+            else "n/d"
+        )
+        impostos = _impostos_motor_lote(contexto, lote_id, data_fiscal, bruto_motor)
+        imposto_motor = impostos.get('Imposto motor')
+        rendimento_liquido_motor = (
+            round(float(rendimento_bruto_motor) - float(imposto_motor), 2)
+            if isinstance(rendimento_bruto_motor, (int, float)) and isinstance(imposto_motor, (int, float))
+            else "n/d"
+        )
+        return {
+            'data': data_alvo,
+            'data_fiscal': data_fiscal,
+            'rendimento_bruto_motor': rendimento_bruto_motor,
+            'rendimento_liquido_motor': rendimento_liquido_motor,
+            'imposto_motor': imposto_motor,
+        }
+    rendimento_bruto_motor = _rendimento_bruto_motor_lote(contexto, lote_id, data_alvo)
+    rendimento_liquido_motor = _rendimento_liquido_motor_lote(contexto, lote_id, data_alvo)
+    return {
+        'data': data_alvo,
+        'rendimento_bruto_motor': rendimento_bruto_motor,
+        'rendimento_liquido_motor': rendimento_liquido_motor,
+        'imposto_motor': _imposto_motor_por_rendimentos(
+            rendimento_bruto_motor,
+            rendimento_liquido_motor,
+        ),
+    }
+
+
+def _score_vetor_comparacao(
+    *,
+    rendimento_bruto: Any,
+    imposto_observado: Any,
+    rendimento_liquido: Any,
+    vetor_motor: dict[str, Any],
+) -> float:
+    difs = [
+        _diferenca_rendimento_motor(rendimento_bruto, vetor_motor.get('rendimento_bruto_motor')),
+        _diferenca_imposto_motor(imposto_observado, vetor_motor.get('imposto_motor')),
+        _diferenca_rendimento_motor(rendimento_liquido, vetor_motor.get('rendimento_liquido_motor')),
+    ]
+    score = 0.0
+    for dif in difs:
+        if isinstance(dif, (int, float)):
+            score += abs(float(dif))
+        else:
+            score += 1_000_000.0
+    return score
+
+
+def _selecionar_vetor_motor_acoplado(
+    contexto: Any,
+    lote_id: Any,
+    data_alvo: Any,
+    *,
+    valor_original: Any | None = None,
+    rendimento_bruto: Any,
+    imposto_observado: Any,
+    rendimento_liquido: Any,
+) -> dict[str, Any]:
+    datas = _datas_candidatas_com_fechamento_anterior(contexto, data_alvo)
+    candidatos = []
+    for data in datas:
+        for data_fiscal in datas:
+            candidatos.append(
+                _vetor_motor_lote(
+                    contexto,
+                    lote_id,
+                    data,
+                    data_fiscal=data_fiscal,
+                    valor_original=valor_original,
+                )
+            )
+    return min(
+        candidatos,
+        key=lambda vetor: _score_vetor_comparacao(
+            rendimento_bruto=rendimento_bruto,
+            imposto_observado=imposto_observado,
+            rendimento_liquido=rendimento_liquido,
+            vetor_motor=vetor,
+        ),
+    )
+
+
+def _selecionar_vetor_motor_liquido(
+    contexto: Any,
+    lote_id: Any,
+    data_alvo: Any,
+    *,
+    rendimento_liquido: Any,
+) -> dict[str, Any]:
+    candidatos = [
+        _vetor_motor_lote(contexto, lote_id, data)
+        for data in _datas_candidatas_com_fechamento_anterior(contexto, data_alvo)
+    ]
+    return min(
+        candidatos,
+        key=lambda vetor: abs(float(_diferenca_rendimento_motor(
+            rendimento_liquido,
+            vetor.get('rendimento_liquido_motor'),
+        ))) if isinstance(_diferenca_rendimento_motor(
+            rendimento_liquido,
+            vetor.get('rendimento_liquido_motor'),
+        ), (int, float)) else 1_000_000.0,
+    )
+
 
 
 def _valores_sacados_por_lote_bootstrap(saida: Any) -> dict[str, dict[str, float]]:
@@ -1177,28 +1317,24 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             valor_original=valor_original,
             patrimonio_liquido=patrimonio_liquido,
         )
-        rendimento_bruto_motor = _rendimento_bruto_motor_lote(
-            contexto,
-            lote_id,
-            data_referencia_dias,
-        )
-        rendimento_motor_teorico = _rendimento_liquido_motor_lote(
-            contexto,
-            lote_id,
-            data_referencia_dias,
-        )
-        diferenca_bruta = _diferenca_rendimento_motor(
-            rendimento_bruto,
-            rendimento_bruto_motor,
-        )
-        imposto_motor = _imposto_motor_por_rendimentos(
-            rendimento_bruto_motor,
-            rendimento_motor_teorico,
-        )
-        diferenca_imposto = _diferenca_imposto_motor(
-            imposto_observado,
-            imposto_motor,
-        )
+        if tipo == 'ativos':
+            vetor_motor = _selecionar_vetor_motor_acoplado(
+                contexto,
+                lote_id,
+                data_referencia_dias,
+                valor_original=valor_original,
+                rendimento_bruto=rendimento_bruto,
+                imposto_observado=imposto_observado,
+                rendimento_liquido=rendimento_liquido,
+            )
+        else:
+            vetor_motor = _vetor_motor_lote(contexto, lote_id, data_referencia_dias)
+
+        rendimento_bruto_motor = vetor_motor.get('rendimento_bruto_motor')
+        rendimento_motor_teorico = vetor_motor.get('rendimento_liquido_motor')
+        imposto_motor = vetor_motor.get('imposto_motor')
+        diferenca_bruta = _diferenca_rendimento_motor(rendimento_bruto, rendimento_bruto_motor)
+        diferenca_imposto = _diferenca_imposto_motor(imposto_observado, imposto_motor)
         liquido_sacado_ancora = round(para_float(sacado.get('liquido_sacado')), 2)
         # `Saldo Remanescente` do replay é âncora bruta diagnóstica; não deve
         # ser tratado como líquido residual calibrado.
@@ -1456,8 +1592,8 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
 
         patrimonio_liquido_observavel = round(liquido_sacado_total, 2)
         patrimonio_bruto_observavel = round(bruto_sacado_total, 2)
-        rendimento_bruto_observavel = round(patrimonio_bruto_observavel - valor_original, 2)
-        imposto_observado = round(patrimonio_bruto_observavel - patrimonio_liquido_observavel, 2)
+        rendimento_bruto_observavel = "n/d"
+        imposto_observado = "n/d"
         rendimento_liquido_observavel = round(patrimonio_liquido_observavel - valor_original, 2)
 
         ev_switching = _lookup_por_lote_normalizado(mapa_switching_eventos, lote, {})
@@ -1469,28 +1605,17 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             or ev_switching.get('data_aplicacao')
             or ev_switching.get('data_recebimento')
         )
-        rendimento_bruto_motor = _rendimento_bruto_motor_lote(
+        vetor_motor = _selecionar_vetor_motor_liquido(
             contexto,
             lote,
             data_switching_motor,
+            rendimento_liquido=rendimento_liquido_observavel,
         )
-        rendimento_motor_teorico = _rendimento_liquido_motor_lote(
-            contexto,
-            lote,
-            data_switching_motor,
-        )
-        diferenca_bruta = _diferenca_rendimento_motor(
-            rendimento_bruto_observavel,
-            rendimento_bruto_motor,
-        )
-        imposto_motor = _imposto_motor_por_rendimentos(
-            rendimento_bruto_motor,
-            rendimento_motor_teorico,
-        )
-        diferenca_imposto = _diferenca_imposto_motor(
-            imposto_observado,
-            imposto_motor,
-        )
+        rendimento_bruto_motor = vetor_motor.get('rendimento_bruto_motor')
+        rendimento_motor_teorico = vetor_motor.get('rendimento_liquido_motor')
+        imposto_motor = vetor_motor.get('imposto_motor')
+        diferenca_bruta = "n/d"
+        diferenca_imposto = "n/d"
         liquido_migrado_ancora = round(
             para_float(sw_valores.get('valor_liquido_migrado_total'))
             or valor_migrado_item
