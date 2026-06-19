@@ -1940,8 +1940,12 @@ def construir_linhas_diagnostico_switching_diferencas(
         liquido_origem_motor = _somar_diagnostico(valores.get('Orig.'), valores.get('Rend. líq. motor'))
         dif_liquido_migrado = _subtrair_diagnostico(valor_liquido_migrado_obs, liquido_origem_motor)
 
-        dif_bruta_contabil = valores.get('Dif. bruta')
-        dif_imposto_contabil = valores.get('Dif. imposto')
+        # Para origens migradas por switching a única observação direta é o
+        # líquido migrado. As diferenças bruta/fiscal são semanticamente não
+        # aplicáveis também no diagnóstico oficial, para não reintroduzir
+        # resíduos contábeis altos como se fossem métricas comparáveis.
+        dif_bruta_contabil = 'n/d'
+        dif_imposto_contabil = 'n/d'
         dif_liquida_contabil = valores.get('Dif. teórica')
 
         classe, causa, evidencia_base, prioridade = _classe_causal_switching_semantica(
