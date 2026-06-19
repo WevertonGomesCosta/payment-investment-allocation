@@ -52,7 +52,21 @@ COLS_LOTES_VALORES_CURTAS = [
     'Rend. líq.',
 ]
 
-COLS_LOTES_VALORES_AUDITORIA_CURTAS = COLS_LOTES_VALORES_CURTAS + [
+COLS_LOTES_VALORES_AUDITORIA_CURTAS = [
+    'Lote',
+    'Orig.',
+    'Bruto sac.',
+    'Líq. sac.',
+    'Bruto atual',
+    'Líq. atual',
+    'Patr. líq.',
+    'Rend. bruto',
+    'Rend. bruto motor',
+    'Dif. bruta',
+    'Imposto obs.',
+    'Imposto motor',
+    'Dif. imposto',
+    'Rend. líq.',
     'Rend. líq. motor',
     'Dif. teórica',
 ]
@@ -587,6 +601,8 @@ def _rendimento_liquido_motor_lote(
 
     eventos = _eventos_replay_motor_lote(contexto, lote_id)
     if eventos:
+        if _eventos_replay_tem_ambiguidade_multifonte(eventos):
+            return "n/d"
         return _rendimento_liquido_motor_path_aware(
             contexto,
             lote,
@@ -608,8 +624,56 @@ def _rendimento_liquido_motor_lote(
         return "n/d"
 
 
+def _rendimento_bruto_motor_lote(
+    contexto: Any,
+    lote_id: Any,
+    data_alvo: Any,
+) -> float | str:
+    # Métrica diagnóstica paralela a _rendimento_liquido_motor_lote.
+    # Para lotes com replay, usa trajetória path-aware bruta.
+    data = _coagir_data_observavel(data_alvo)
+    if data is None:
+        return "n/d"
+
+    lote = _lookup_por_lote_normalizado(
+        _mapa_lotes_motor_contexto(contexto),
+        lote_id,
+        None,
+    )
+    if lote is None:
+        return "n/d"
+
+    eventos = _eventos_replay_motor_lote(contexto, lote_id)
+    if eventos:
+        if _eventos_replay_tem_ambiguidade_multifonte(eventos):
+            return "n/d"
+        return _rendimento_bruto_motor_path_aware(
+            contexto,
+            lote,
+            eventos,
+            data,
+        )
+
+    try:
+        valor_bruto = lote.valor_bruto_em_data(
+            data,
+            contexto.calendario_financeiro,
+            serie_cdi=_serie_cdi_contexto(contexto),
+            data_base_referencia=getattr(lote, "data_aplicacao", data),
+        )
+        return round(float(valor_bruto) - float(getattr(lote, "valor_inicial", 0.0)), 2)
+    except Exception:
+        return "n/d"
+
+
+
 def _eventos_replay_motor_lote(contexto: Any, lote_id: Any) -> list[dict[str, Any]]:
-    """Retorna eventos oficiais de replay do lote, ordenados por data/ordem."""
+    # Retorna eventos oficiais de replay do lote, ordenados por data/ordem.
+    # Linhas multifonte, como "Lote A + Lote B", são reconhecidas para impedir
+    # fallback indevido para projeção sem evento. Como a linha não carrega
+    # necessariamente bruto individual por lote, o evento é marcado como ambíguo
+    # e a métrica diagnóstica retorna "n/d" em vez de atribuir o bruto total ao
+    # lote componente.
     replay = getattr(contexto, "replay_passado", None)
     log_origem = getattr(replay, "log_passado", None)
     if log_origem is None:
@@ -618,15 +682,48 @@ def _eventos_replay_motor_lote(contexto: Any, lote_id: Any) -> list[dict[str, An
     chave_lote = _norm_lote_chave(lote_id)
     eventos: list[dict[str, Any]] = []
     for ordem, row in enumerate(log):
-        if _norm_lote_chave(row.get("Lote") or row.get("Lotes usados")) != chave_lote:
+        lote_raw = row.get("Lote") or row.get("Lotes usados") or ""
+        lotes_linha = _split_lotes_observavel(lote_raw)
+        if not lotes_linha and str(lote_raw).strip():
+            lotes_linha = [str(lote_raw).strip()]
+
+        chaves_linha = {_norm_lote_chave(lote) for lote in lotes_linha if _norm_lote_chave(lote)}
+        if chave_lote not in chaves_linha:
             continue
+
         data_evento = _coagir_data_observavel(row.get("Data"))
-        bruto = round(para_float(row.get("Bruto")), 2)
-        if data_evento is None or bruto <= 0.0:
+        if data_evento is None:
             continue
+
         seq = para_float(row.get("Sequencia Saque") if "Sequencia Saque" in row else row.get("sequencia_saque"))
-        eventos.append({"data": data_evento, "ordem": ordem, "seq": seq, "bruto": bruto, "row": row})
+
+        if len(chaves_linha) > 1:
+            eventos.append({
+                "data": data_evento,
+                "ordem": ordem,
+                "seq": seq,
+                "bruto": 0.0,
+                "row": row,
+                "ambiguidade_multifonte": True,
+            })
+            continue
+
+        bruto = round(para_float(row.get("Bruto")), 2)
+        if bruto <= 0.0:
+            continue
+        eventos.append({
+            "data": data_evento,
+            "ordem": ordem,
+            "seq": seq,
+            "bruto": bruto,
+            "row": row,
+            "ambiguidade_multifonte": False,
+        })
     return sorted(eventos, key=lambda ev: (ev["data"], ev["seq"], ev["ordem"]))
+
+
+def _eventos_replay_tem_ambiguidade_multifonte(eventos: list[dict[str, Any]]) -> bool:
+    return any(bool(ev.get("ambiguidade_multifonte")) for ev in eventos)
 
 
 def _avancar_lote_motor(
@@ -750,6 +847,94 @@ def _rendimento_liquido_motor_path_aware(
         return round(liquidos_sacados_motor + float(liquido_residual) - float(getattr(lote_original, "valor_inicial", 0.0)), 2)
     except Exception:
         return "n/d"
+
+
+def _rendimento_bruto_motor_path_aware(
+    contexto: Any,
+    lote_original: Any,
+    eventos: list[dict[str, Any]],
+    data_final: date,
+) -> float | str:
+    # Calcula Σ brutos motores sacados + bruto residual motor - valor original.
+    try:
+        lote = deepcopy(lote_original)
+        lote.saldo_bruto = float(getattr(lote_original, "valor_inicial", 0.0))
+        lote.principal_remanescente = float(getattr(lote_original, "valor_inicial", 0.0))
+        lote.fator_acumulado = 1.0
+        lote.esgotado = False
+        lote.total_bruto_sacado = 0.0
+        lote.total_imposto_pago = 0.0
+        lote.total_liquido_sacado = 0.0
+
+        data_cursor = getattr(lote, "data_aplicacao", None) or getattr(lote, "data_recebimento", data_final)
+        if not isinstance(data_cursor, date):
+            return "n/d"
+
+        data_fechamento = _data_fechamento_replay_observada(contexto, data_final)
+        limiar_materialidade = _limiar_materialidade_replay_contexto(contexto)
+        brutos_sacados_motor = 0.0
+
+        for evento in eventos:
+            data_evento = evento["data"]
+            if data_evento > data_final:
+                break
+
+            data_cursor = _avancar_lote_motor(
+                contexto,
+                lote,
+                data_cursor,
+                data_evento,
+                data_fechamento_referencia=data_fechamento,
+            )
+
+            bruto_evento = min(
+                float(evento["bruto"]),
+                max(float(getattr(lote, "saldo_bruto", 0.0)), 0.0),
+            )
+            if bruto_evento <= 0.0:
+                continue
+
+            bruto_sacado = lote.sacar(bruto_evento)
+            brutos_sacados_motor = round(brutos_sacados_motor + round(float(bruto_sacado), 2), 2)
+
+        data_cursor = _avancar_lote_motor(
+            contexto,
+            lote,
+            data_cursor,
+            data_final,
+            data_fechamento_referencia=data_fechamento,
+        )
+        _normalizar_residuos_sub_limiar_pos_replay(
+            [lote],
+            limiar_residuo_resolvido=limiar_materialidade,
+        )
+
+        bruto_residual = 0.0 if (
+            getattr(lote, "esgotado", False)
+            or float(getattr(lote, "saldo_bruto", 0.0) or 0.0) <= float(limiar_materialidade)
+        ) else round(float(getattr(lote, "saldo_bruto", 0.0) or 0.0), 2)
+
+        return round(
+            brutos_sacados_motor
+            + bruto_residual
+            - float(getattr(lote_original, "valor_inicial", 0.0)),
+            2,
+        )
+    except Exception:
+        return "n/d"
+
+
+def _imposto_motor_por_rendimentos(rendimento_bruto_motor: Any, rendimento_liquido_motor: Any) -> float | str:
+    if isinstance(rendimento_bruto_motor, (int, float)) and isinstance(rendimento_liquido_motor, (int, float)):
+        return round(float(rendimento_bruto_motor) - float(rendimento_liquido_motor), 2)
+    return "n/d"
+
+
+def _diferenca_imposto_motor(imposto_observado: Any, imposto_motor: Any) -> float | str:
+    if isinstance(imposto_observado, (int, float)) and isinstance(imposto_motor, (int, float)):
+        return round(float(imposto_observado) - float(imposto_motor), 2)
+    return "n/d"
+
 
 
 def _liquido_residual_replay_lote(
@@ -918,21 +1103,68 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
 
         bruto_atual = 0.0 if tipo == 'exauridos' else round(para_float(item.get('Bruto')), 2)
         liquido_atual = 0.0 if tipo == 'exauridos' else round(para_float(item.get('Líquido')), 2)
+        imposto_observado_calculavel = True
+
         if tipo == 'ativos' and saldo_final_replay > 0:
+            bruto_atual_original = bruto_atual
             bruto_atual = max(bruto_atual, saldo_final_replay)
+            if bruto_atual != bruto_atual_original:
+                liquido_residual_replay = _liquido_residual_replay_lote(
+                    contexto,
+                    lote_id,
+                    data_referencia_dias,
+                )
+                if liquido_residual_replay is not None:
+                    liquido_atual = max(liquido_atual, liquido_residual_replay)
+                else:
+                    imposto_observado_calculavel = False
+
         if origem_exaurida_com_saldo_replay:
             bruto_atual = saldo_final_replay
+            liquido_residual_replay = _liquido_residual_replay_lote(
+                contexto,
+                lote_id,
+                data_referencia_dias,
+            )
+            if liquido_residual_replay is not None:
+                liquido_atual = liquido_residual_replay
+            else:
+                imposto_observado_calculavel = False
 
         patrimonio_liquido = round(liquido_sacado + liquido_atual, 2)
+        patrimonio_bruto = round(bruto_sacado + bruto_atual, 2)
+        rendimento_bruto = round(patrimonio_bruto - valor_original, 2)
+        imposto_observado = (
+            round(patrimonio_bruto - patrimonio_liquido, 2)
+            if imposto_observado_calculavel
+            else "n/d"
+        )
         rendimento_liquido = calcular_rendimento_liquido_observavel(
             status_ciclo=status_ciclo,
             valor_original=valor_original,
             patrimonio_liquido=patrimonio_liquido,
         )
+        rendimento_bruto_motor = _rendimento_bruto_motor_lote(
+            contexto,
+            lote_id,
+            data_referencia_dias,
+        )
         rendimento_motor_teorico = _rendimento_liquido_motor_lote(
             contexto,
             lote_id,
             data_referencia_dias,
+        )
+        diferenca_bruta = _diferenca_rendimento_motor(
+            rendimento_bruto,
+            rendimento_bruto_motor,
+        )
+        imposto_motor = _imposto_motor_por_rendimentos(
+            rendimento_bruto_motor,
+            rendimento_motor_teorico,
+        )
+        diferenca_imposto = _diferenca_imposto_motor(
+            imposto_observado,
+            imposto_motor,
         )
         liquido_sacado_ancora = round(para_float(sacado.get('liquido_sacado')), 2)
         # `Saldo Remanescente` do replay é âncora bruta diagnóstica; não deve
@@ -975,6 +1207,12 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             'Bruto atual': bruto_atual,
             'Líq. atual': liquido_atual,
             'Patr. líq.': patrimonio_liquido,
+            'Rend. bruto': rendimento_bruto,
+            'Rend. bruto motor': rendimento_bruto_motor,
+            'Dif. bruta': diferenca_bruta,
+            'Imposto obs.': imposto_observado,
+            'Imposto motor': imposto_motor,
+            'Dif. imposto': diferenca_imposto,
             'Rend. líq.': rendimento_liquido,
             'Rend. líq. motor': rendimento_motor_teorico,
             'Dif. teórica': diferenca_teorica,
@@ -1184,6 +1422,9 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
         ), 2)
 
         patrimonio_liquido_observavel = round(liquido_sacado_total, 2)
+        patrimonio_bruto_observavel = round(bruto_sacado_total, 2)
+        rendimento_bruto_observavel = round(patrimonio_bruto_observavel - valor_original, 2)
+        imposto_observado = round(patrimonio_bruto_observavel - patrimonio_liquido_observavel, 2)
         rendimento_liquido_observavel = round(patrimonio_liquido_observavel - valor_original, 2)
 
         ev_switching = _lookup_por_lote_normalizado(mapa_switching_eventos, lote, {})
@@ -1195,10 +1436,27 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             or ev_switching.get('data_aplicacao')
             or ev_switching.get('data_recebimento')
         )
+        rendimento_bruto_motor = _rendimento_bruto_motor_lote(
+            contexto,
+            lote,
+            data_switching_motor,
+        )
         rendimento_motor_teorico = _rendimento_liquido_motor_lote(
             contexto,
             lote,
             data_switching_motor,
+        )
+        diferenca_bruta = _diferenca_rendimento_motor(
+            rendimento_bruto_observavel,
+            rendimento_bruto_motor,
+        )
+        imposto_motor = _imposto_motor_por_rendimentos(
+            rendimento_bruto_motor,
+            rendimento_motor_teorico,
+        )
+        diferenca_imposto = _diferenca_imposto_motor(
+            imposto_observado,
+            imposto_motor,
         )
         liquido_migrado_ancora = round(
             para_float(sw_valores.get('valor_liquido_migrado_total'))
@@ -1233,6 +1491,12 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             'Bruto atual': 0.0,
             'Líq. atual': 0.0,
             'Patr. líq.': patrimonio_liquido_observavel,
+            'Rend. bruto': rendimento_bruto_observavel,
+            'Rend. bruto motor': rendimento_bruto_motor,
+            'Dif. bruta': diferenca_bruta,
+            'Imposto obs.': imposto_observado,
+            'Imposto motor': imposto_motor,
+            'Dif. imposto': diferenca_imposto,
             'Rend. líq.': rendimento_liquido_observavel,
             'Rend. líq. motor': rendimento_motor_teorico,
             'Dif. teórica': diferenca_teorica,
