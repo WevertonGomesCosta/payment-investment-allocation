@@ -112,16 +112,17 @@
     "2026-06-12": 1.000534,
     "2026-06-15": 1.000534,
     "2026-06-16": 1.000534,
-    "2026-06-17": 1.000534
+    "2026-06-17": 1.000534,
+    "2026-06-18": 1.00052531
   },
   "taxa_projecao": 0.0,
-  "data_atualizacao": "2026-06-18",
+  "data_atualizacao": "2026-06-19",
   "meta": {
     "fonte": "bcb_online",
     "data_inicial": "2026-01-01",
-    "data_final": "2026-06-18",
+    "data_final": "2026-06-19",
     "taxa_projecao": 0.0,
-    "data_atualizacao": "2026-06-18",
+    "data_atualizacao": "2026-06-19",
     "origem_janela_consulta": "janela_consulta_cdi"
   },
   "registros": [
@@ -576,6 +577,10 @@
     {
       "data": "2026-06-17",
       "fator_dia": 1.000534
+    },
+    {
+      "data": "2026-06-18",
+      "fator_dia": 1.00052531
     }
   ]
 }
