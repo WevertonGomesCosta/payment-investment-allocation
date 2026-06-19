@@ -376,13 +376,57 @@ def _render_secao_switchings_oficiais(pacote_saida_observavel_oficial: Any) -> d
 
 def _render_lotes_situacao(titulo: str, linhas_id: list[dict[str, Any]], linhas_valores: list[dict[str, Any]]) -> None:
     print(f'\n- {titulo}:')
-    if linhas_id:
-        print('  identificação:')
-        _imprimir_tabela_oficial(_headers_dinamicos(linhas_id), linhas_id, limite=None)
-        print('\n  valores e patrimônio:')
-        _imprimir_tabela_oficial(_headers_dinamicos(linhas_valores), linhas_valores, limite=None)
-    else:
+    if not linhas_id:
         print(f'  [OK] sem {titulo} nesta execução')
+        return
+
+    print('  identificação:')
+    _imprimir_tabela_oficial(_headers_dinamicos(linhas_id), linhas_id, limite=None)
+
+    def _headers_presentes_no_bloco(headers: list[str]) -> list[str]:
+        return [h for h in headers if any(h in linha for linha in linhas_valores)]
+
+    def _linhas_subbloco(headers: list[str]) -> list[dict[str, Any]]:
+        return [
+            {h: linha.get(h) for h in headers}
+            for linha in linhas_valores
+        ]
+
+    def _emitir_subbloco(rotulo: str, headers: list[str]) -> None:
+        headers_presentes = _headers_presentes_no_bloco(headers)
+        if len(headers_presentes) <= 1:
+            print(f'\n  {rotulo}:')
+            print('    bloco_sem_metricas_materializadas')
+            return
+
+        print(f'\n  {rotulo}:')
+        _imprimir_tabela_oficial(
+            headers_presentes,
+            _linhas_subbloco(headers_presentes),
+            limite=None,
+        )
+
+    if not linhas_valores:
+        print('\n  valores e patrimônio:')
+        print('    valores_nao_materializados_no_pacote_saida_observavel_oficial')
+        return
+
+    _emitir_subbloco(
+        'valores e patrimônio',
+        ['Lote', 'Orig.', 'Bruto sac.', 'Líq. sac.', 'Bruto atual', 'Líq. atual', 'Patr. líq.'],
+    )
+    _emitir_subbloco(
+        'rendimento bruto',
+        ['Lote', 'Rend. bruto', 'Rend. bruto motor', 'Dif. bruta'],
+    )
+    _emitir_subbloco(
+        'imposto / fiscal',
+        ['Lote', 'Imposto obs.', 'Imposto motor', 'Dif. imposto'],
+    )
+    _emitir_subbloco(
+        'rendimento líquido',
+        ['Lote', 'Rend. líq.', 'Rend. líq. motor', 'Dif. teórica'],
+    )
 
 
 
