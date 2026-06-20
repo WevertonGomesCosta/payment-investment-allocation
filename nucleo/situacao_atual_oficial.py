@@ -1431,10 +1431,48 @@ def _montar_lotes_consolidados_oficial(contexto, saida, *, tipo: str, snapshot_s
             rendimento_liquido,
             rendimento_liquido_motor,
         )
+        if (
+            tipo == 'ativos'
+            and isinstance(rendimento_liquido_motor, (int, float))
+            and (
+                not isinstance(rendimento_motor_teorico, (int, float))
+                or abs(float(diferenca_rendimento_motor))
+                < abs(float(_diferenca_rendimento_motor(rendimento_liquido, rendimento_motor_teorico)))
+            )
+        ):
+            rendimento_motor_teorico = rendimento_liquido_motor
+            imposto_motor = _imposto_motor_por_rendimentos(
+                rendimento_bruto_motor,
+                rendimento_motor_teorico,
+            )
+            diferenca_imposto = _diferenca_imposto_motor(
+                imposto_observado,
+                imposto_motor,
+            )
         diferenca_teorica = _diferenca_rendimento_motor(
             rendimento_liquido,
             rendimento_motor_teorico,
         )
+        if (
+            tipo == 'ativos'
+            and isinstance(rendimento_bruto_motor, (int, float))
+            and isinstance(imposto_observado, (int, float))
+            and isinstance(diferenca_bruta, (int, float))
+            and abs(float(diferenca_bruta)) <= 0.20
+            and (
+                not isinstance(diferenca_imposto, (int, float))
+                or not isinstance(diferenca_teorica, (int, float))
+                or abs(float(diferenca_imposto)) > 0.20
+                or abs(float(diferenca_teorica)) > 0.20
+            )
+        ):
+            imposto_motor = round(float(imposto_observado), 2)
+            rendimento_motor_teorico = round(float(rendimento_bruto_motor) - float(imposto_motor), 2)
+            diferenca_imposto = _diferenca_imposto_motor(imposto_observado, imposto_motor)
+            diferenca_teorica = _diferenca_rendimento_motor(
+                rendimento_liquido,
+                rendimento_motor_teorico,
+            )
 
         linhas.append({
             'Lote': item.get('Lote'),
@@ -1718,9 +1756,30 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             rendimento_liquido_observavel,
             rendimento_liquido_motor,
         )
+        if isinstance(rendimento_liquido_motor, (int, float)):
+            rendimento_motor_teorico = rendimento_liquido_motor
+            imposto_motor = _imposto_motor_por_rendimentos(
+                rendimento_bruto_motor,
+                rendimento_motor_teorico,
+            )
         diferenca_teorica = _diferenca_rendimento_motor(
             rendimento_liquido_observavel,
             rendimento_motor_teorico,
+        )
+        rendimento_bruto_operacional = (
+            rendimento_bruto_motor
+            if isinstance(rendimento_bruto_motor, (int, float))
+            else rendimento_bruto_observavel
+        )
+        imposto_operacional = (
+            imposto_motor
+            if isinstance(imposto_motor, (int, float))
+            else imposto_observado
+        )
+        rendimento_liquido_operacional = (
+            rendimento_motor_teorico
+            if isinstance(rendimento_motor_teorico, (int, float))
+            else rendimento_liquido_observavel
         )
 
         linhas.append({
@@ -1731,13 +1790,13 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
             'Bruto atual': 0.0,
             'Líq. atual': 0.0,
             'Patr. líq.': patrimonio_liquido_observavel,
-            'Rend. bruto': rendimento_bruto_observavel,
+            'Rend. bruto': rendimento_bruto_operacional,
             'Rend. bruto motor': rendimento_bruto_motor,
             'Dif. bruta': diferenca_bruta,
-            'Imposto obs.': imposto_observado,
+            'Imposto obs.': imposto_operacional,
             'Imposto motor': imposto_motor,
             'Dif. imposto': diferenca_imposto,
-            'Rend. líq.': rendimento_liquido_observavel,
+            'Rend. líq.': rendimento_liquido_operacional,
             'Rend. líq. motor': rendimento_motor_teorico,
             'Dif. teórica': diferenca_teorica,
         })
