@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+import re
 from types import SimpleNamespace
 from typing import Any
 
 from nucleo.pacotes_temporais_agregados_saida import construir_pacotes_temporais_agregados_saida
 
-from nucleo.calendario_financeiro import calcular_dias_lote
+from nucleo.calendario_financeiro import calcular_dias_lote, proximo_dia_util_bancario_em_ou_apos
 from nucleo.nucleo_financeiro_minimo import _taxa_iof, _taxa_ir, atualizar_saldo_lotes_no_dia
 from nucleo.replay_passado_controlado import (
     _normalizar_residuos_sub_limiar_pos_replay,
@@ -421,6 +422,80 @@ def _mapa_switching_por_origem(estado_temporal_inicial: Any | None) -> dict[str,
         if origem:
             mapa[origem] = ev
     return mapa
+
+
+def _prazo_corridos_produto_origem_switching(
+    contexto: Any,
+    lote_id: Any,
+    produto_origem: Any,
+) -> int:
+    """Infere o prazo corrido contratual da origem para fins de vencimento.
+
+    A Situação Atual não altera o switching efetivo; apenas exibe a data
+    econômica da origem. Quando o produto carrega prazo textual como
+    "60 dias", esse prazo define o vencimento nominal. Como fallback para
+    produtos parametrizados no motor com bônus/prazo em dias corridos, usa o
+    atributo ``dias_bonus`` do lote.
+    """
+    texto_produto = str(produto_origem or '')
+    match = re.search(r'(\d+)\s*dias?', texto_produto, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+
+    produto_norm = texto_produto.strip().casefold()
+    carteira = getattr(contexto, 'carteira_canonica', None)
+    mapas_produtos = getattr(carteira, 'mapa_produtos', {}) or {}
+    for mapa in (
+        mapas_produtos.get('by_key', {}) if isinstance(mapas_produtos, dict) else {},
+        mapas_produtos.get('by_nome', {}) if isinstance(mapas_produtos, dict) else {},
+    ):
+        for meta in dict(mapa or {}).values():
+            if str(meta.get('nome') or '').strip().casefold() == produto_norm:
+                prazo_dias = int(para_float(meta.get('prazo_dias')))
+                if prazo_dias > 0:
+                    return prazo_dias
+
+    lote = _lookup_por_lote_normalizado(
+        _mapa_lotes_motor_contexto(contexto),
+        lote_id,
+        None,
+    )
+    dias_bonus = int(para_float(getattr(lote, 'dias_bonus', 0))) if lote is not None else 0
+    return dias_bonus if dias_bonus > 0 else 0
+
+
+def _data_fim_economica_origem_switching(
+    contexto: Any,
+    *,
+    lote_id: Any,
+    produto_origem: Any,
+    data_aplicacao: Any,
+    data_switching: Any,
+) -> Any:
+    """Data econômica da origem migrada: min(switching, vencimento efetivo)."""
+    data_sw = _coagir_data_observavel(data_switching)
+    data_apl = _coagir_data_observavel(data_aplicacao)
+    if data_sw is None or data_apl is None:
+        return data_switching
+
+    prazo_corridos = _prazo_corridos_produto_origem_switching(
+        contexto,
+        lote_id,
+        produto_origem,
+    )
+    if prazo_corridos <= 0:
+        return data_sw
+
+    vencimento_nominal = data_apl + timedelta(days=prazo_corridos)
+    try:
+        vencimento_efetivo = proximo_dia_util_bancario_em_ou_apos(
+            vencimento_nominal,
+            contexto.calendario_financeiro,
+        )
+    except Exception:
+        vencimento_efetivo = vencimento_nominal
+
+    return min(data_sw, vencimento_efetivo)
 
 
 def _mapa_valores_switching_por_origem(estado_temporal_inicial: Any | None) -> dict[str, dict[str, float]]:
@@ -1514,7 +1589,6 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_si
         lote = str(item.get('lote_origem') or '').strip()
         data_switching = item.get('data_switching') or item.get('data_aplicacao_switching') or item.get('data_recebimento_switching') or 'n/d'
         data_aplicacao = item.get('data_aplicacao_origem') or _lookup_por_lote_normalizado(aplicacoes, lote, None)
-        dias = _calcular_dias_observavel(contexto, data_aplicacao, data_switching)
         produto_origem = (
             item.get('produto_origem')
             or item.get('Produto origem')
@@ -1522,6 +1596,14 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_si
             or _lookup_por_lote_normalizado(produtos, lote, None)
             or 'produto_origem_nao_encontrado'
         )
+        data_termino_origem = _data_fim_economica_origem_switching(
+            contexto,
+            lote_id=lote,
+            produto_origem=produto_origem,
+            data_aplicacao=data_aplicacao,
+            data_switching=data_switching,
+        )
+        dias = _calcular_dias_observavel(contexto, data_aplicacao, data_termino_origem)
 
         linhas.append({
             'Lote': lote,
@@ -1529,7 +1611,7 @@ def construir_linhas_lotes_encerrados_por_switching(contexto, saida, snapshot_si
             'Carteira': produto_origem,
             'Aplic.': _fmt_data_observavel(data_aplicacao),
             'Base fiscal': _fmt_data_observavel(data_aplicacao),
-            'Data término': _fmt_data_observavel(data_switching),
+            'Data término': _fmt_data_observavel(data_termino_origem),
             'Dias corr.': dias.get('dias_corridos', ''),
             'Dias úteis': dias.get('dias_uteis', ''),
         })
@@ -1666,6 +1748,7 @@ def construir_linhas_lotes_valores_encerrados_por_switching(contexto, saida, sna
 
 def construir_linhas_origens_migradas_por_switching(contexto, saida, snapshot_situacao_atual: Any | None = None, estado_temporal_inicial: Any | None = None) -> list[dict[str, Any]]:
     aplicacoes = _aplicacoes_por_lote_do_pacote(snapshot_situacao_atual)
+    produtos = _produtos_por_lote_do_pacote(snapshot_situacao_atual)
     linhas: list[dict[str, Any]] = []
     valores_encerrados = {
         str(row.get('Lote') or '').strip(): row
@@ -1689,7 +1772,20 @@ def construir_linhas_origens_migradas_por_switching(contexto, saida, snapshot_si
         lote = str(item.get('lote_origem') or '').strip()
         data_switching = item.get('data_switching') or item.get('data_aplicacao_switching') or item.get('data_recebimento_switching') or 'n/d'
         data_aplicacao = item.get('data_aplicacao_origem') or _lookup_por_lote_normalizado(aplicacoes, lote, None)
-        dias = _calcular_dias_observavel(contexto, data_aplicacao, data_switching)
+        produto_origem = (
+            item.get('produto_origem')
+            or item.get('Produto origem')
+            or item.get('produto_origem_switching')
+            or _lookup_por_lote_normalizado(produtos, lote, None)
+        )
+        data_termino_origem = _data_fim_economica_origem_switching(
+            contexto,
+            lote_id=lote,
+            produto_origem=produto_origem,
+            data_aplicacao=data_aplicacao,
+            data_switching=data_switching,
+        )
+        dias = _calcular_dias_observavel(contexto, data_aplicacao, data_termino_origem)
         destinos = list(item.get('destinos_vinculados') or [])
         valores_lote = valores_encerrados.get(lote, {})
         valor_migrado = round(
@@ -1714,7 +1810,7 @@ def construir_linhas_origens_migradas_por_switching(contexto, saida, snapshot_si
             'Lote origem': lote,
             'Status': item.get('status_origem') or 'migrado_por_switching',
             'Status ciclo': 'migrado_por_switching',
-            'Data término': _fmt_data_observavel(data_switching),
+            'Data término': _fmt_data_observavel(data_termino_origem),
             'Dias corr.': dias.get('dias_corridos', ''),
             'Dias úteis': dias.get('dias_uteis', ''),
             'Valor migrado': valor_migrado,
