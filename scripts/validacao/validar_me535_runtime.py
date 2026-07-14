@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import json
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from aplicacao.console.principal import render_console
@@ -17,16 +19,18 @@ def exigir(condicao: bool, mensagem: str) -> None:
 
 
 def main() -> None:
-    (
-        contexto,
-        estado_temporal_inicial,
-        resultado_motor,
-        ledger,
-        gates,
-        saida_canonica,
-        saida_canonica_oficial,
-        pacote_observavel,
-    ) = carregar_contexto_e_saida()
+    saida_silenciada = io.StringIO()
+    with redirect_stdout(saida_silenciada):
+        (
+            contexto,
+            estado_temporal_inicial,
+            resultado_motor,
+            ledger,
+            gates,
+            saida_canonica,
+            saida_canonica_oficial,
+            pacote_observavel,
+        ) = carregar_contexto_e_saida()
 
     exigir(resultado_motor is not None, "ResultadoMotorTemporalConjunto ausente")
     exigir(resultado_motor.pronto_para_etapa6 is True, "Etapa 5 não está pronta para a Etapa 6")
@@ -62,20 +66,21 @@ def main() -> None:
     exigir(pacote_observavel.preparado is True, "Etapa 9 não preparou a saída observável")
     exigir(pacote_observavel.ok is True, "Etapa 9 reprovada")
 
-    console_auditavel = render_console(
-        contexto,
-        saida_canonica,
-        estado_temporal_inicial=estado_temporal_inicial,
-        pacote_saida_observavel_oficial=pacote_observavel,
-    )
-    caminho_xlsx = Path(
-        gerar_planilha_operacional(
-            contexto=contexto,
-            saida=saida_canonica,
+    with redirect_stdout(saida_silenciada):
+        console_auditavel = render_console(
+            contexto,
+            saida_canonica,
             estado_temporal_inicial=estado_temporal_inicial,
             pacote_saida_observavel_oficial=pacote_observavel,
         )
-    )
+        caminho_xlsx = Path(
+            gerar_planilha_operacional(
+                contexto=contexto,
+                saida=saida_canonica,
+                estado_temporal_inicial=estado_temporal_inicial,
+                pacote_saida_observavel_oficial=pacote_observavel,
+            )
+        )
     exigir(caminho_xlsx.exists(), f"XLSX oficial não foi gerado: {caminho_xlsx}")
 
     paridade = validar_paridade_renderizacao_oficial(
@@ -114,4 +119,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as erro:
+        print(f"ME535_RUNTIME_FALHA={type(erro).__name__}:{erro}")
+        raise
