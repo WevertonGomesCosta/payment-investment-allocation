@@ -140,6 +140,65 @@ def _agregar_movimentos(movimentos: list[Any], *, campo_valor: str) -> list[Any]
     return consolidados
 
 
+def _materializar_movimentos_switching(ledger: Any) -> None:
+    existentes = {
+        (
+            getattr(item, "fonte_id", None),
+            getattr(item, "data", None),
+            getattr(item, "pacote_id", None),
+            getattr(item, "tipo", None),
+        )
+        for item in list(ledger.fontes_utilizadas or [])
+    }
+    novos = []
+    for switching in list(ledger.switchings_escolhidos or []):
+        fonte_id = getattr(switching, "lote_origem_id", None)
+        data_switching = getattr(switching, "data", None)
+        pacote_id = getattr(switching, "pacote_id", None)
+        valor = _numero(getattr(switching, "valor_liquido_migrado_referencial", None))
+        chave = (fonte_id, data_switching, pacote_id, "migracao_switching_referencial")
+        if not fonte_id or data_switching is None or valor is None or valor <= 0 or chave in existentes:
+            continue
+        referencia_switching = dict(getattr(switching, "referencia_original", {}) or {})
+        movimento = _legacy.LancamentoFonteLedger(
+            data=data_switching,
+            tipo="migracao_switching_referencial",
+            fonte_id=str(fonte_id),
+            pacote_id=pacote_id,
+            obrigacao_id=None,
+            valor_referencial=round(valor, 10),
+            valor_disponivel_antes_referencial=round(valor, 10),
+            valor_disponivel_depois_referencial=0.0,
+            tipo_fonte="origem_switching_integral",
+            origem_fonte="switchings_escolhidos_temporalmente",
+            status="migrado_integralmente_por_switching_no_pacote_vencedor",
+            referencia_original=referencia_switching,
+            metadados={
+                "origem": "switchings_escolhidos_temporalmente",
+                "switching_id": getattr(switching, "switching_id", None),
+                "lote_destino_id": getattr(switching, "lote_destino_id", None),
+                "movimento_complementar_ao_pagamento": True,
+                "conservacao_valor_switching": True,
+            },
+            fonte_id_tecnico=str(fonte_id),
+            lote_id_operacional=str(fonte_id),
+            saldo_antes_fonte=round(valor, 10),
+            valor_bruto_resgate="nao_aplicavel",
+            imposto_resgate="nao_aplicavel",
+            valor_liquido_resgate=round(valor, 10),
+            saldo_remanescente_fonte=0.0,
+            status_saldo_antes_fonte="materializado",
+            status_valor_bruto_resgate="nao_aplicavel",
+            status_imposto_resgate="nao_aplicavel",
+            status_valor_liquido_resgate="materializado",
+            status_saldo_remanescente_fonte="materializado",
+        )
+        novos.append(movimento)
+        existentes.add(chave)
+    ledger.fontes_utilizadas.extend(novos)
+    ledger.metadados["qtd_movimentos_switching_materializados"] = len(novos)
+
+
 def _reconstruir_lancamentos_por_data(ledger: Any) -> None:
     ledger.lancamentos_por_data = {}
     colecoes = (
@@ -170,6 +229,7 @@ def construir_ledger_temporal_canonico(resultado: Any, parametros: Any | None = 
         list(ledger.fontes_reservadas or []),
         campo_valor="valor_reservado_referencial",
     )
+    _materializar_movimentos_switching(ledger)
     _reconstruir_lancamentos_por_data(ledger)
 
     metadados_resultado = dict(getattr(resultado, "metadados", {}) or {})
@@ -216,6 +276,7 @@ def construir_ledger_temporal_canonico(resultado: Any, parametros: Any | None = 
                 "argmax_comprovado": bool(ledger.metadados.get("argmax_comprovado")),
                 "qtd_fontes_utilizadas_pos_agregacao": len(ledger.fontes_utilizadas),
                 "qtd_fontes_reservadas_pos_agregacao": len(ledger.fontes_reservadas),
+                "qtd_movimentos_switching_materializados": ledger.metadados.get("qtd_movimentos_switching_materializados", 0),
             }
         )
         if not ledger.metadados.get("motor_funcional"):
