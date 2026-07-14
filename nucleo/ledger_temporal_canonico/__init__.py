@@ -221,14 +221,18 @@ def _reconstruir_lancamentos_por_data(ledger: Any) -> None:
 
 def construir_ledger_temporal_canonico(resultado: Any, parametros: Any | None = None) -> Any:
     ledger = _legacy.construir_ledger_temporal_canonico(resultado, parametros)
-    ledger.fontes_utilizadas = _agregar_movimentos(
+    fontes_utilizadas = _agregar_movimentos(
         list(ledger.fontes_utilizadas or []),
         campo_valor="valor_referencial",
     )
-    ledger.fontes_reservadas = _agregar_movimentos(
+    reservas_consumidas = _agregar_movimentos(
         list(ledger.fontes_reservadas or []),
         campo_valor="valor_reservado_referencial",
     )
+    ledger.fontes_utilizadas = fontes_utilizadas
+    ledger.fontes_reservadas = []
+    ledger.metadados["qtd_reservas_consumidas_promovidas_para_uso"] = len(reservas_consumidas)
+    ledger.metadados["fontes_reservadas_sem_consumo"] = 0
     _materializar_movimentos_switching(ledger)
     _reconstruir_lancamentos_por_data(ledger)
 
@@ -256,6 +260,7 @@ def construir_ledger_temporal_canonico(resultado: Any, parametros: Any | None = 
             "etapa6_sem_reotimizacao_confirmada": True,
             "evidencia_terminal_obrigatoria": True,
             "movimentos_fontes_agregados_por_pacote": True,
+            "trilha_oficial_consumo": "fontes_utilizadas",
         }
     )
     if ledger.auditoria is not None:
@@ -277,6 +282,7 @@ def construir_ledger_temporal_canonico(resultado: Any, parametros: Any | None = 
                 "qtd_fontes_utilizadas_pos_agregacao": len(ledger.fontes_utilizadas),
                 "qtd_fontes_reservadas_pos_agregacao": len(ledger.fontes_reservadas),
                 "qtd_movimentos_switching_materializados": ledger.metadados.get("qtd_movimentos_switching_materializados", 0),
+                "reservas_consumidas_removidas_da_trilha_reservas": len(reservas_consumidas),
             }
         )
         if not ledger.metadados.get("motor_funcional"):
