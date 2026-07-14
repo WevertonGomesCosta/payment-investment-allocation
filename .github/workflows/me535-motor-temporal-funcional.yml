@@ -1,0 +1,43 @@
+name: ME-535 motor temporal funcional
+
+on:
+  pull_request:
+    paths:
+      - 'nucleo/estado_temporal_inicial/**'
+      - 'nucleo/motor_temporal_conjunto/**'
+      - 'nucleo/ledger_temporal_canonico/**'
+      - 'nucleo/gates_validacao_nucleo/**'
+      - 'tests/test_motor_temporal_funcional.py'
+      - '.github/workflows/me535-motor-temporal-funcional.yml'
+  workflow_dispatch:
+
+jobs:
+  testes-motor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependências do núcleo
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas numpy openpyxl python-dateutil requests pulp workalendar scipy numba
+
+      - name: Compilar módulos canônicos
+        run: |
+          python -m py_compile \
+            nucleo/estado_temporal_inicial/__init__.py \
+            nucleo/motor_temporal_conjunto/__init__.py \
+            nucleo/ledger_temporal_canonico/__init__.py \
+            nucleo/gates_validacao_nucleo/__init__.py
+
+      - name: Executar testes unitários
+        run: python -m unittest -v tests.test_motor_temporal_funcional
