@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import io
 import json
+import sys
 from contextlib import redirect_stdout
 from pathlib import Path
+
+RAIZ_REPOSITORIO = Path(__file__).resolve().parents[2]
+if str(RAIZ_REPOSITORIO) not in sys.path:
+    sys.path.insert(0, str(RAIZ_REPOSITORIO))
 
 from aplicacao.console.principal import render_console
 from aplicacao.principal import carregar_contexto_e_saida
