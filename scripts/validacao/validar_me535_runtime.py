@@ -59,7 +59,11 @@ def main() -> None:
     exigir(ledger.metadados.get("etapa6_sem_reotimizacao_confirmada") is True, "Etapa 6 não confirmou ausência de reotimização")
 
     exigir(gates is not None, "ResultadoGatesValidacaoNucleo ausente")
-    exigir(gates.ok is True, "Etapa 7 possui bloqueios")
+    codigos_bloqueio = [
+        f"{getattr(item, 'gate_id', 'gate_sem_id')}:{getattr(item, 'codigo', 'codigo_sem_id')}"
+        for item in list(getattr(gates, "bloqueios", []) or [])
+    ]
+    exigir(gates.ok is True, "Etapa 7 possui bloqueios: " + ", ".join(codigos_bloqueio))
     exigir(gates.pronto_para_etapa8 is True, "Etapa 7 não liberou a Etapa 8")
     gate_motor = next((gate for gate in gates.gates if gate.gate_id == "gate_motor_funcional"), None)
     exigir(gate_motor is not None, "gate_motor_funcional ausente")
