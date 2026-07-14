@@ -10,6 +10,8 @@ RAIZ_REPOSITORIO = Path(__file__).resolve().parents[2]
 if str(RAIZ_REPOSITORIO) not in sys.path:
     sys.path.insert(0, str(RAIZ_REPOSITORIO))
 
+from openpyxl import load_workbook
+
 from aplicacao.console.principal import render_console
 from aplicacao.principal import carregar_contexto_e_saida
 from nucleo.gerar_planilha_operacional import main as gerar_planilha_operacional
@@ -107,7 +109,11 @@ def main() -> None:
     )
     exigir(governanca.ok is True, "Etapa 11 reprovada")
 
-    abas = list(getattr(pacote_observavel.bloco_xlsx, "abas", {}).keys())
+    workbook = load_workbook(caminho_xlsx, read_only=True, data_only=True)
+    try:
+        abas = list(workbook.sheetnames)
+    finally:
+        workbook.close()
     abas_esperadas = ["Extrato Passado", "Extrato Futuro", "Switching", "Carteira", "Situação Atual"]
     exigir(abas == abas_esperadas, f"abas oficiais divergentes: {abas}")
 
