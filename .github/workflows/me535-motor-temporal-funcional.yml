@@ -45,8 +45,24 @@ jobs:
         run: python -m unittest -v tests.test_motor_temporal_funcional
 
       - name: Validar pipeline operacional completo
+        id: runtime
         timeout-minutes: 10
         env:
           PYTHONUTF8: '1'
           PYTHONIOENCODING: 'utf-8'
-        run: python -B scripts/validacao/validar_me535_runtime.py
+        shell: bash
+        run: |
+          set +e
+          python -B scripts/validacao/validar_me535_runtime.py > me535-runtime.log 2>&1
+          status=$?
+          cat me535-runtime.log
+          exit "$status"
+
+      - name: Publicar diagnóstico do runtime
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: me535-runtime-log
+          path: me535-runtime.log
+          if-no-files-found: error
+          retention-days: 7
