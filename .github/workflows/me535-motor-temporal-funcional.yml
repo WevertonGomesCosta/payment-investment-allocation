@@ -7,6 +7,7 @@ on:
       - 'nucleo/motor_temporal_conjunto/**'
       - 'nucleo/ledger_temporal_canonico/**'
       - 'nucleo/gates_validacao_nucleo/**'
+      - 'scripts/validacao/validar_me535_runtime.py'
       - 'tests/test_motor_temporal_funcional.py'
       - '.github/workflows/me535-motor-temporal-funcional.yml'
   workflow_dispatch:
@@ -37,14 +38,15 @@ jobs:
             nucleo/estado_temporal_inicial/__init__.py \
             nucleo/motor_temporal_conjunto/__init__.py \
             nucleo/ledger_temporal_canonico/__init__.py \
-            nucleo/gates_validacao_nucleo/__init__.py
+            nucleo/gates_validacao_nucleo/__init__.py \
+            scripts/validacao/validar_me535_runtime.py
 
       - name: Executar testes unitários
         run: python -m unittest -v tests.test_motor_temporal_funcional
 
-      - name: Executar pipeline operacional completo
+      - name: Validar pipeline operacional completo
         timeout-minutes: 10
         env:
           PYTHONUTF8: '1'
           PYTHONIOENCODING: 'utf-8'
-        run: python -B aplicacao/principal.py
+        run: python -B scripts/validacao/validar_me535_runtime.py
