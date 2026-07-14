@@ -105,6 +105,8 @@ def _data_maxima_estado(estado: EstadoTemporalInicial) -> date:
 
 
 def _destinos_switching(contexto: Any) -> list[dict[str, Any]]:
+    tabela_iof = list(getattr(contexto, "tabela_iof", []) or [])
+    faixas_ir = [dict(item) for item in list(getattr(contexto, "faixas_ir", []) or [])]
     ranking = getattr(contexto, "ranking_carteira", None)
     registros = _registros(getattr(ranking, "quadro_destinos_switch", None))
     carteira = _registros(getattr(getattr(contexto, "carteira_canonica", None), "quadro_canonico", None))
@@ -138,6 +140,8 @@ def _destinos_switching(contexto: Any) -> list[dict[str, Any]]:
                 "tipo_produto": _texto(item.get("tipo_produto"), item.get("Tipo")),
                 "isento_ir": _bool(item.get("isento_ir"), _bool(produto_meta.get("isento_ir"), False)),
                 "regra_iof": _texto(item.get("regra_iof"), produto_meta.get("regra_iof"), "regressiva_30d"),
+                "_tabela_iof": tabela_iof,
+                "_faixas_ir": faixas_ir,
             }
         )
     destinos.sort(key=lambda item: (item["rank_destino"], -item["retorno_anual_proxy"], item["nome"]))
@@ -145,6 +149,8 @@ def _destinos_switching(contexto: Any) -> list[dict[str, Any]]:
 
 
 def _enriquecer_fontes(estado: EstadoTemporalInicial, contexto: Any, destinos: list[dict[str, Any]]) -> None:
+    tabela_iof = list(getattr(contexto, "tabela_iof", []) or [])
+    faixas_ir = [dict(item) for item in list(getattr(contexto, "faixas_ir", []) or [])]
     inventario_obj = getattr(getattr(contexto, "dados_operacionais", None), "inventario_canonico", None)
     inventario = _registros(inventario_obj)
     carteira = _registros(getattr(getattr(contexto, "carteira_canonica", None), "quadro_canonico", None))
@@ -187,6 +193,8 @@ def _enriquecer_fontes(estado: EstadoTemporalInicial, contexto: Any, destinos: l
                 "regra_iof": _texto(origem.get("regra_iof"), produto_meta.get("regra_iof"), "regressiva_30d"),
                 "data_base_fiscal": origem.get("data_base_fiscal") or origem.get("data_aplicacao"),
                 "elegivel_switch_out": _bool(origem.get("elegivel_switch_out"), True),
+                "_tabela_iof": tabela_iof,
+                "_faixas_ir": faixas_ir,
             }
         )
 
@@ -217,6 +225,8 @@ def _enriquecer_fontes(estado: EstadoTemporalInicial, contexto: Any, destinos: l
                 "regra_iof": _texto(fonte.get("regra_iof"), lote.get("regra_iof"), produto_meta.get("regra_iof"), "regressiva_30d"),
                 "data_base_fiscal": fonte.get("data_base_fiscal") or lote.get("data_base_fiscal") or lote.get("data_aplicacao"),
                 "elegivel_switch_out": _bool(fonte.get("elegivel_switch_out"), lote.get("elegivel_switch_out", True)),
+                "_tabela_iof": tabela_iof,
+                "_faixas_ir": faixas_ir,
             }
         )
 
