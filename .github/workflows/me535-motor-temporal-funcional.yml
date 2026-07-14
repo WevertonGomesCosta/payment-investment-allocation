@@ -9,6 +9,8 @@ on:
       - 'nucleo/gates_validacao_nucleo/**'
       - 'scripts/validacao/validar_me535_runtime.py'
       - 'tests/test_motor_temporal_funcional.py'
+      - 'relatorios/atuais/ME535_*.md'
+      - 'logs/iteracoes/ME-535_*.md'
       - '.github/workflows/me535-motor-temporal-funcional.yml'
   workflow_dispatch:
 
