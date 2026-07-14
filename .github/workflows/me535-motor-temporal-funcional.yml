@@ -14,7 +14,7 @@ on:
 jobs:
   testes-motor:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -41,3 +41,10 @@ jobs:
 
       - name: Executar testes unitários
         run: python -m unittest -v tests.test_motor_temporal_funcional
+
+      - name: Executar pipeline operacional completo
+        timeout-minutes: 10
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: 'utf-8'
+        run: python -B aplicacao/principal.py
