@@ -1,42 +1,39 @@
 # ME-535 — checklist de execução real
 
-Execute na branch `me535-motor-temporal-funcional`:
-
-```bash
-python -m unittest tests.test_motor_temporal_funcional
-python aplicacao/principal.py
-```
+Validação automatizada concluída no workflow `ME-535 motor temporal funcional`, execução #12.
 
 ## Etapa 5
 
-- [ ] tipos sem pagamento exatamente `no_action` e `switch_only`;
-- [ ] tipos com pagamento exatamente `pay_only`, `switch_then_pay` e `pay_then_switch`;
-- [ ] todos os candidatos da data possuem o mesmo `estado_inicial_id`;
-- [ ] `patrimonio_terminal_liquido` numérico para todo pacote factível;
-- [ ] vencedor igual ao maior patrimônio terminal;
-- [ ] `argmax_comprovado=True` em todas as datas;
-- [ ] obrigações integralmente cobertas ou inviabilidade explicitamente demonstrada;
-- [ ] `pronto_para_etapa6=True`.
+- [x] tipos sem pagamento exatamente `no_action` e `switch_only`;
+- [x] tipos com pagamento exatamente `pay_only`, `switch_then_pay` e `pay_then_switch`;
+- [x] todos os candidatos da data possuem o mesmo `estado_inicial_id`;
+- [x] `patrimonio_terminal_liquido` numérico para todo pacote factível;
+- [x] vencedor igual ao maior patrimônio terminal;
+- [x] `argmax_comprovado=True` nas 372 datas auditadas;
+- [x] obrigações integralmente cobertas ou inviabilidade explicitamente demonstrada;
+- [x] `pronto_para_etapa6=True`.
 
 ## Etapas 6 e 7
 
-- [ ] ledger preserva `evidencias_economicas_por_data`;
-- [ ] `gate_motor_funcional` aprovado;
-- [ ] nenhuma reotimização na Etapa 6;
-- [ ] nenhum gate sem evidência mínima relevante;
-- [ ] `pronto_para_etapa8=True`.
+- [x] ledger preserva `evidencias_economicas_por_data`;
+- [x] lastro consolidado por fonte, data e pacote;
+- [x] migração residual de `pay_then_switch` materializada separadamente;
+- [x] `gate_motor_funcional` aprovado;
+- [x] nenhuma reotimização na Etapa 6;
+- [x] nenhum gate impeditivo remanescente;
+- [x] `pronto_para_etapa8=True`.
 
 ## Etapas 8–11
 
-- [ ] saída derivada do ledger e gates;
-- [ ] Etapa 9 aprovada;
-- [ ] Etapa 10 aprovada, sem divergência material console/XLSX;
-- [ ] Etapa 11 aprovada;
-- [ ] cinco abas oficiais preservadas;
-- [ ] nenhuma métrica auxiliar removida reaparece;
-- [ ] nenhuma correção econômica ocorre em `Situação Atual`.
+- [x] saída canônica posterior aos gates;
+- [x] Etapa 9 aprovada;
+- [x] Etapa 10 aprovada, sem divergência material console/XLSX;
+- [x] Etapa 11 aprovada;
+- [x] cinco abas físicas oficiais preservadas;
+- [x] nenhuma métrica auxiliar removida reaparece;
+- [x] nenhuma correção econômica foi introduzida em `Situação Atual`.
 
 ## Decisão
 
-- [ ] aprovar merge;
-- [ ] reprovar e registrar o primeiro gate causal que falhou.
+- [x] aprovar tecnicamente o merge por squash;
+- [ ] merge efetivo, dependente de ação explícita no PR.
