@@ -12,6 +12,7 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 
 from aplicacao.console.principal import render_console
 from nucleo.contexto_operacional_canonico import carregar_contexto_operacional_canonico
+from nucleo.integracao_estado_motor_canonico import construir_integracao_estado_motor_canonico
 from nucleo.gerar_planilha_operacional import main as gerar_planilha_operacional
 from nucleo.estado_temporal_inicial import construir_estado_temporal_inicial
 from nucleo.motor_temporal_conjunto import construir_resultado_motor_temporal_conjunto
@@ -316,6 +317,12 @@ def carregar_contexto_e_saida():
         instalar_automaticamente=False,
     )
     estado_temporal_inicial = construir_estado_temporal_inicial(contexto_operacional_canonico)
+    integracao_estado_motor_canonico = construir_integracao_estado_motor_canonico(
+        contexto_operacional_canonico,
+        estado_temporal_inicial,
+        raiz_repositorio=RAIZ_REPOSITORIO,
+    )
+    _ = integracao_estado_motor_canonico
     resultado_motor_temporal_conjunto = construir_resultado_motor_temporal_conjunto(estado_temporal_inicial)
     ledger_temporal_canonico = construir_ledger_temporal_canonico(resultado_motor_temporal_conjunto)
     resultado_gates_validacao_nucleo = validar_gates_nucleo(ledger_temporal_canonico)
