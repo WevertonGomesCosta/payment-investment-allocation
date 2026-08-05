@@ -4,6 +4,7 @@ import argparse
 import json
 import subprocess
 import sys
+from datetime import date, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -99,6 +100,59 @@ def _proveniencia_execucao() -> dict[str, Any]:
     }
 
 
+def _valor_serializavel(valor: Any) -> Any:
+    if isinstance(valor, (date, datetime)):
+        return valor.isoformat()
+    if isinstance(valor, Path):
+        return str(valor)
+    return valor
+
+
+def _auditoria_entrada_runtime(contexto: Any) -> dict[str, Any]:
+    pacote_planilha = getattr(contexto, "pacote_planilha", None)
+    janela = getattr(pacote_planilha, "janela_consulta_cdi", None)
+    metadados_janela = dict(getattr(janela, "metadados", {}) or {})
+
+    menor_data = metadados_janela.get("menor_data_identificada")
+    fontes_datas = metadados_janela.get("fontes_datas", {}) or {}
+    fontes_que_definiram_inicio = sorted(
+        str(fonte)
+        for fonte, datas in fontes_datas.items()
+        if menor_data and menor_data in (datas or [])
+    )
+
+    validacao = getattr(contexto, "validacao_pre_execucao", None)
+    cache = getattr(contexto, "cache_cdi", None)
+    auditoria_cache = dict(getattr(cache, "auditoria", {}) or {})
+
+    return {
+        "validacao_pre_execucao": {
+            "ok": bool(getattr(validacao, "ok", False)),
+            "erros_bloqueantes": list(
+                getattr(validacao, "erros_bloqueantes", []) or []
+            ),
+            "avisos": list(getattr(validacao, "avisos", []) or []),
+        },
+        "janela_consulta_cdi": {
+            "data_inicial_consulta": _valor_serializavel(
+                getattr(janela, "data_inicial_consulta", None)
+            ),
+            "data_final_consulta": _valor_serializavel(
+                getattr(janela, "data_final_consulta", None)
+            ),
+            "menor_data_identificada": menor_data,
+            "maior_data_identificada": metadados_janela.get(
+                "maior_data_identificada"
+            ),
+            "fontes_que_definiram_inicio": fontes_que_definiram_inicio,
+        },
+        "auditoria_cache_cdi": {
+            chave: _valor_serializavel(valor)
+            for chave, valor in auditoria_cache.items()
+        },
+    }
+
+
 def main() -> int:
     args = _argumentos()
     contexto = carregar_contexto_operacional_canonico(
@@ -107,7 +161,13 @@ def main() -> int:
     )
     estado_temporal = construir_estado_temporal_inicial(contexto)
     estado_economico = construir_estado_economico_canonico(estado_temporal)
-    estado_economico.metadados["proveniencia_execucao"] = _proveniencia_execucao()
+
+    proveniencia = _proveniencia_execucao()
+    auditoria_entrada_runtime = _auditoria_entrada_runtime(contexto)
+    estado_economico.metadados["proveniencia_execucao"] = proveniencia
+    estado_economico.metadados["auditoria_entrada_runtime"] = (
+        auditoria_entrada_runtime
+    )
 
     args.saida.parent.mkdir(parents=True, exist_ok=True)
     args.saida.write_text(
@@ -122,14 +182,26 @@ def main() -> int:
     )
 
     resumo = dict(estado_economico.auditoria.resumo)
+    avisos_estado_economico = list(estado_economico.auditoria.avisos)
     saida_console = {
         "artefato": estado_economico.metadados.get("artefato"),
         "bloco": estado_economico.metadados.get("bloco"),
         "ok": estado_economico.auditoria.ok,
         "bloqueios": estado_economico.auditoria.bloqueios,
-        "avisos": estado_economico.auditoria.avisos,
+        # Campo preservado para compatibilidade com consumidores existentes.
+        "avisos": avisos_estado_economico,
+        "avisos_estado_economico": avisos_estado_economico,
+        "validacao_pre_execucao": auditoria_entrada_runtime[
+            "validacao_pre_execucao"
+        ],
+        "janela_consulta_cdi": auditoria_entrada_runtime[
+            "janela_consulta_cdi"
+        ],
+        "auditoria_cache_cdi": auditoria_entrada_runtime[
+            "auditoria_cache_cdi"
+        ],
         "resumo": resumo,
-        "proveniencia_execucao": estado_economico.metadados.get("proveniencia_execucao"),
+        "proveniencia_execucao": proveniencia,
         "arquivo": str(args.saida),
     }
     print(
