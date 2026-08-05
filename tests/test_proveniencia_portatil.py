@@ -50,7 +50,9 @@ class ProvenienciaPortatilTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as diretorio:
             raiz = Path(diretorio)
             arquivo = raiz / "cache.json"
-            arquivo.write_text('{"a": 1}\n', encoding="utf-8")
+            # Bytes explícitos tornam o fixture determinístico em Windows e POSIX.
+            # O teste de CRLF permanece coberto separadamente acima.
+            arquivo.write_bytes(b'{"a": 1}\n')
 
             subprocess.run(["git", "init", "-q", str(raiz)], check=True)
             subprocess.run(
