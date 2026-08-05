@@ -12,9 +12,10 @@ if str(RAIZ_REPOSITORIO) not in sys.path:
 from nucleo.ambiente import bootstrap_ambiente
 from nucleo.cache_cdi_bcb import carregar_cache_cdi_diario
 from nucleo.carregador_config import carregar_config
+from nucleo.fundacao_entrada_bloco2 import (
+    construir_fundacao_entrada_bloco2_do_cache,
+)
 from nucleo.leitor_planilha import carregar_planilha
-from nucleo.proveniencia_portatil import auditar_json_portatil
-from nucleo.suficiencia_temporal_cdi import avaliar_suficiencia_temporal_cdi
 
 
 def _argumentos() -> argparse.Namespace:
@@ -56,61 +57,19 @@ def main() -> int:
         caminho_explicito=RAIZ_REPOSITORIO / "dados" / "dados_financeiros.xlsx",
         data_referencia=execucao.data_referencia,
     )
-    janela = planilha.janela_consulta_cdi
     cache = carregar_cache_cdi_diario(
         None,
         pacote_config.conteudo,
         data_referencia=execucao.data_referencia,
         raiz_repositorio=RAIZ_REPOSITORIO,
-        janela_consulta_cdi=janela,
+        janela_consulta_cdi=planilha.janela_consulta_cdi,
     )
-
-    proveniencia = auditar_json_portatil(
-        cache.caminho_cache,
+    fundacao = construir_fundacao_entrada_bloco2_do_cache(
+        cache,
+        data_referencia=execucao.data_referencia,
         raiz_repositorio=RAIZ_REPOSITORIO,
     )
-    suficiencia = avaliar_suficiencia_temporal_cdi(
-        cache.serie_cdi,
-        data_inicial_consulta=cache.data_inicial_consulta,
-        data_final_consulta=cache.data_final_consulta,
-        data_referencia=execucao.data_referencia,
-        datas_requeridas=(),
-        datas_sem_observacao_permitidas=(),
-        max_defasagem_dias=2,
-        max_lacuna_inicial_dias=1,
-    )
-
-    bloqueios: list[str] = []
-    avisos: list[str] = []
-    if not proveniencia.ok:
-        bloqueios.append("Proveniencia semantica do cache JSON invalida.")
-    if proveniencia.status_git:
-        bloqueios.append("Cache JSON possui alteracoes locais nao versionadas.")
-    if not proveniencia.git_blob_sha:
-        bloqueios.append("Git blob SHA do cache JSON nao foi resolvido.")
-    if not suficiencia.ok:
-        bloqueios.extend(suficiencia.bloqueios)
-    avisos.extend(suficiencia.avisos)
-
-    resultado = {
-        "artefato": "FundacaoEntradaBloco2",
-        "bloco": "BLOCO-2-FUNDACAO",
-        "ok": not bloqueios,
-        "bloqueios": bloqueios,
-        "avisos": avisos,
-        "data_referencia": execucao.data_referencia.isoformat(),
-        "proveniencia_cache_json": proveniencia.como_dict(),
-        "suficiencia_temporal_cdi": suficiencia.como_dict(),
-        "auditoria_cache_cdi": cache.auditoria,
-        "limites_preservados": {
-            "conecta_estado_ao_motor": False,
-            "gera_pacotes": False,
-            "executa_argmax": False,
-            "altera_ledger": False,
-            "altera_console_operacional": False,
-            "altera_xlsx": False,
-        },
-    }
+    resultado = fundacao.como_dict()
 
     args.saida.parent.mkdir(parents=True, exist_ok=True)
     args.saida.write_text(
@@ -126,7 +85,12 @@ def main() -> int:
     )
     print(
         "BLOCO2_FUNDACAO_ENTRADA="
-        + json.dumps(resultado, ensure_ascii=False, sort_keys=True, default=str)
+        + json.dumps(
+            resultado,
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
     )
 
     if args.nao_bloquear or resultado["ok"]:
